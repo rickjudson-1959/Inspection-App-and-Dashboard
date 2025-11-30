@@ -1,3 +1,4 @@
+import './App.css'
 import React, { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 import * as XLSX from 'xlsx'
@@ -182,7 +183,7 @@ function calculateTotalCost(labour, equipment) {
           </select>
         </div>
         <h3 style={{ marginTop: '20px', borderTop: '2px solid #ddd', paddingTop: '15px' }}>Labour</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth > 768 ? '2fr 2fr 1fr 1fr 100px' : '1fr', gap: '10px', marginBottom: '10px' }}>
+        <div className="form-grid-labour">
   <div>
     <label style={{ display: 'block', fontSize: '12px' }}>Employee Name</label>
     <input type="text" value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} placeholder="John Smith" style={{ width: '100%', padding: '8px' }} />
@@ -226,7 +227,7 @@ function calculateTotalCost(labour, equipment) {
           </div>
         )}
         <h3 style={{ marginTop: '20px', borderTop: '2px solid #ddd', paddingTop: '15px' }}>Equipment</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: window.innerWidth > 768 ? '2fr 3fr 1fr 100px' : '1fr', gap: '10px', marginBottom: '10px' }}>
+        <div className="form-grid-equipment">
   <div>
     <label style={{ display: 'block', fontSize: '12px' }}>Unit ID</label>
     <input type="text" value={equipmentUnit} onChange={(e) => setEquipmentUnit(e.target.value)} placeholder="EX-01" style={{ width: '100%', padding: '8px' }} />
