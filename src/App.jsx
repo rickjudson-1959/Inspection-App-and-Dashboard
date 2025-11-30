@@ -157,7 +157,7 @@ function calculateTotalCost(labour, equipment) {
   return labourCost + equipmentCost
 }
   return (
-    <div style={{ padding: '20px', maxWidth: '1000px', margin: '0 auto' }}>
+    <div style={{ padding: '10px', maxWidth: '1200px', margin: '0 auto' }}>
       <h1>Pipeline Inspector</h1>
       <div style={{ backgroundColor: '#f5f5f5', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
         <h2>Upload Ticket</h2>
@@ -183,35 +183,38 @@ function calculateTotalCost(labour, equipment) {
           </select>
         </div>
         <h3 style={{ marginTop: '20px', borderTop: '2px solid #ddd', paddingTop: '15px' }}>Labour</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '2fr 2fr 1fr 1fr auto', gap: '10px', marginBottom: '10px', alignItems: 'end' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '12px' }}>Employee Name</label>
-            <input type="text" value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} placeholder="John Smith" style={{ width: '100%', padding: '8px' }} />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '12px' }}>Classification</label>
-            <select value={employeeClass} onChange={(e) => setEmployeeClass(e.target.value)} style={{ width: '100%', padding: '8px' }}>
-              <option value="GENERAL LABOURER">General Labourer</option>
-              <option value="APPRENTICE OPER/OILER">Apprentice Oper/Oiler</option>
-              <option value="WELDER HELPER">Welder Helper</option>
-              <option value="BUS/ CREWCAB DRIVER">Bus/Crewcab Driver</option>
-              <option value="PRINCIPAL OPER 1">Principal Oper 1</option>
-              <option value="STRAW - OPERATOR">Straw - Operator</option>
-              <option value="FRONT-END/TIE-IN WELDER">Front-End/Tie-In Welder</option>
-              <option value="STRAW - FITTER">Straw - Fitter</option>
-              <option value="UA TIE-IN FOREMAN">UA Tie-In Foreman</option>
-            </select>         
-            </div>
-             <div>
-            <label style={{ display: 'block', fontSize: '12px' }}>RT Hours</label>
-            <input type="number" value={rtHours} onChange={(e) => setRtHours(e.target.value)} placeholder="8" style={{ width: '100%', padding: '8px' }} />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '12px' }}>OT Hours</label>
-            <input type="number" value={otHours} onChange={(e) => setOtHours(e.target.value)} placeholder="0" style={{ width: '100%', padding: '8px' }} />
-          </div>
-          <button onClick={addLabourEntry} type="button" style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Add</button>
-        </div>
+        <div className="form-grid-labour">
+  <div>
+    <label style={{ display: 'block', fontSize: '12px' }}>Employee Name</label>
+    <input type="text" value={employeeName} onChange={(e) => setEmployeeName(e.target.value)} placeholder="John Smith" style={{ width: '100%', padding: '8px' }} />
+  </div>
+  <div>
+    <label style={{ display: 'block', fontSize: '12px' }}>Classification</label>
+    <select value={employeeClass} onChange={(e) => setEmployeeClass(e.target.value)} style={{ width: '100%', padding: '8px' }}>
+      <option value="GENERAL LABOURER">General Labourer</option>
+      <option value="APPRENTICE OPER/OILER">Apprentice Oper/Oiler</option>
+      <option value="WELDER HELPER">Welder Helper</option>
+      <option value="BUS/ CREWCAB DRIVER">Bus/Crewcab Driver</option>
+      <option value="PRINCIPAL OPER 1">Principal Oper 1</option>
+      <option value="STRAW - OPERATOR">Straw - Operator</option>
+      <option value="FRONT-END/TIE-IN WELDER">Front-End/Tie-In Welder</option>
+      <option value="STRAW - FITTER">Straw - Fitter</option>
+      <option value="UA TIE-IN FOREMAN">UA Tie-In Foreman</option>
+    </select>
+  </div>
+  <div>
+    <label style={{ display: 'block', fontSize: '12px' }}>RT Hours</label>
+    <input type="number" value={rtHours} onChange={(e) => setRtHours(e.target.value)} placeholder="8" style={{ width: '100%', padding: '8px' }} />
+  </div>
+  <div>
+    <label style={{ display: 'block', fontSize: '12px' }}>OT Hours</label>
+    <input type="number" value={otHours} onChange={(e) => setOtHours(e.target.value)} placeholder="0" style={{ width: '100%', padding: '8px' }} />
+  </div>
+  <div>
+    <label style={{ display: 'block', fontSize: '12px', visibility: window.innerWidth > 768 ? 'hidden' : 'visible' }}>Action</label>
+    <button onClick={addLabourEntry} type="button" style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', width: '100%' }}>Add</button>
+  </div>
+</div>
         
         {labourEntries.length > 0 && (
           <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f0f0f0', borderRadius: '4px' }}>
@@ -224,30 +227,37 @@ function calculateTotalCost(labour, equipment) {
           </div>
         )}
         <h3 style={{ marginTop: '20px', borderTop: '2px solid #ddd', paddingTop: '15px' }}>Equipment</h3>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 2fr 1fr auto', gap: '10px', marginBottom: '10px', alignItems: 'end' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '12px' }}>Unit ID</label>
-            <input type="text" value={equipmentUnit} onChange={(e) => setEquipmentUnit(e.target.value)} placeholder="EX-01" style={{ width: '100%', padding: '8px' }} />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '12px' }}>Description</label>
-            <select value={equipmentDesc} onChange={(e) => setEquipmentDesc(e.target.value)} style={{ width: '100%', padding: '8px' }}>
-              <option value="">Select Equipment...</option>
-              <option value="ATV/Gator">ATV/Gator</option>
-              <option value="ARGO ATV Side By Side">ARGO ATV Side By Side</option>
-              <option value="Athey Wagon">Athey Wagon</option>
-              <option value="Athey Wagon - 30 Tonne">Athey Wagon - 30 Tonne</option>
-              <option value="Backhoe - Cat 315">Backhoe - Cat 315</option>
-              <option value="Backhoe - Cat 320">Backhoe - Cat 320</option>
-              <option value="Backhoe - Cat 324">Backhoe - Cat 324</option>
-              <option value="Backhoe - Cat 330">Backhoe - Cat 330</option>
-              <option value="Backhoe - Cat 336">Backhoe - Cat 336</option>
-              <option value="Backhoe - Cat 345">Backhoe - Cat 345</option>
-              <option value="Backhoe - Cat 365">Backhoe - Cat 365</option>
-              <option value="Backhoe - Cat 374">Backhoe - Cat 374</option>
-            </select>
-          </div>
-          <div>
+        <div className="form-grid-equipment">
+  <div>
+    <label style={{ display: 'block', fontSize: '12px' }}>Unit ID</label>
+    <input type="text" value={equipmentUnit} onChange={(e) => setEquipmentUnit(e.target.value)} placeholder="EX-01" style={{ width: '100%', padding: '8px' }} />
+  </div>
+  <div>
+    <label style={{ display: 'block', fontSize: '12px' }}>Description</label>
+    <select value={equipmentDesc} onChange={(e) => setEquipmentDesc(e.target.value)} style={{ width: '100%', padding: '8px' }}>
+      <option value="">Select Equipment...</option>
+      <option value="ATV/Gator">ATV/Gator</option>
+      <option value="ARGO ATV Side By Side">ARGO ATV Side By Side</option>
+      <option value="Athey Wagon">Athey Wagon</option>
+      <option value="Athey Wagon - 30 Tonne">Athey Wagon - 30 Tonne</option>
+      <option value="Backhoe - Cat 315">Backhoe - Cat 315</option>
+      <option value="Backhoe - Cat 320">Backhoe - Cat 320</option>
+      <option value="Backhoe - Cat 324">Backhoe - Cat 324</option>
+      <option value="Backhoe - Cat 330">Backhoe - Cat 330</option>
+      <option value="Backhoe - Cat 336">Backhoe - Cat 336</option>
+      <option value="Backhoe - Cat 345">Backhoe - Cat 345</option>
+      <option value="Backhoe - Cat 365">Backhoe - Cat 365</option>
+      <option value="Backhoe - Cat 374">Backhoe - Cat 374</option>
+    </select>
+  </div>
+  <div>
+    <label style={{ display: 'block', fontSize: '12px' }}>Hours</label>
+    <input type="number" value={equipmentHours} onChange={(e) => setEquipmentHours(e.target.value)} placeholder="8" style={{ width: '100%', padding: '8px' }} />
+  </div>
+  <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+    <button onClick={addEquipmentEntry} type="button" style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', width: '100%' }}>Add</button>
+  </div>
+</div>
             <label style={{ display: 'block', fontSize: '12px' }}>Hours</label>
             <input type="number" value={equipmentHours} onChange={(e) => setEquipmentHours(e.target.value)} placeholder="8" style={{ width: '100%', padding: '8px' }} />
           </div>
