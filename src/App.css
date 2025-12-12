@@ -1,0 +1,22 @@
+.form-grid-labour {
+  display: grid;
+  grid-template-columns: 2fr 2fr 1fr 1fr auto;
+  gap: 10px;
+  margin-bottom: 15px;
+  align-items: end;
+}
+
+.form-grid-equipment {
+  display: grid;
+  grid-template-columns: 1fr 2fr 1fr auto;
+  gap: 10px;
+  margin-bottom: 15px;
+  align-items: end;
+}
+
+@media (max-width: 768px) {
+  .form-grid-labour,
+  .form-grid-equipment {
+    grid-template-columns: 1fr;
+  }
+}
