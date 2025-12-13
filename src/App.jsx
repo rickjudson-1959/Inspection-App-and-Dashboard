@@ -22,7 +22,7 @@ const pipelineLocations = {
 }
 
 // Activity types for pipeline construction
-const activityTypes = [=
+const activityTypes = [
   'Clearing',
   'Access',
   'Topsoil',
