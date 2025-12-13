@@ -3,6 +3,7 @@ import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   LineChart, Line, ComposedChart, Cell
 } from 'recharts'
+import { useAuth } from './AuthContext.jsx'
 import EVMDashboard from './EVMDashboard'
 import { supabase } from './supabase'
 
@@ -48,6 +49,7 @@ const plannedTargets = {
 }
 
 function Dashboard({ onBackToReport }) {
+  const { signOut, userProfile } = useAuth()
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState(7) // Last 7 days
@@ -452,6 +454,12 @@ function Dashboard({ onBackToReport }) {
         >
           ← Back to Daily Report
         </button>
+        <button
+  onClick={signOut}
+  style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginLeft: '10px' }}
+>
+  Sign Out
+</button>
         <h1 style={{ margin: '0 0 5px 0', fontSize: '24px' }}>Executive Dashboard - Pipeline Inspector</h1>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
