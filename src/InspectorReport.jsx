@@ -1,4 +1,5 @@
 import './App.css'
+import { useAuth } from './AuthContext.jsx'
 import React, { useState, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
@@ -598,6 +599,7 @@ function createEmptyActivity() {
 }
 
 function InspectorReport() {
+  const { signOut, userProfile } = useAuth()
   const [saving, setSaving] = useState(false)
 
   // Header fields
@@ -2759,9 +2761,17 @@ Important:
       `}</style>
 
       {/* Header */}
-      <div style={{ backgroundColor: '#003366', color: 'white', padding: '20px', borderRadius: '8px', marginBottom: '20px', textAlign: 'center' }}>
-        <h1 style={{ margin: 0, fontSize: '18px' }}>{PROJECT_NAME}</h1>
-        <h2 style={{ margin: '5px 0 0 0', fontSize: '24px' }}>Daily Inspector Report</h2>
+      <div style={{ backgroundColor: '#003366', color: 'white', padding: '20px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ textAlign: 'center', flex: 1 }}>
+          <h1 style={{ margin: 0, fontSize: '18px' }}>{PROJECT_NAME}</h1>
+          <h2 style={{ margin: '5px 0 0 0', fontSize: '24px' }}>Daily Inspector Report</h2>
+        </div>
+        <button
+          onClick={signOut}
+          style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}
+        >
+          Sign Out
+        </button>
       </div>
 
       {/* SECTION 1: HEADER */}
