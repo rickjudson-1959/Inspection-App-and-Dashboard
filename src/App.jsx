@@ -6,7 +6,7 @@ import jsPDF from 'jspdf'
 import Dashboard from './Dashboard'
 import ProjectConfig from './ProjectConfig'
 import { supabase } from './supabase'
-
+import { useAuth } from './AuthContext.jsx'
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -22,7 +22,7 @@ const pipelineLocations = {
 }
 
 // Activity types for pipeline construction
-const activityTypes = [
+const activityTypes = [=
   'Clearing',
   'Access',
   'Topsoil',
@@ -601,6 +601,7 @@ function createEmptyActivity() {
 }
 
 function App() {
+  const { signOut, userProfile } = useAuth()
   const navigate = useNavigate()
   const [currentView, setCurrentView] = useState('report')
   const [saving, setSaving] = useState(false)
@@ -2676,6 +2677,12 @@ Important:
         >
           Project Config
         </button>
+        <button
+  onClick={signOut}
+  style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+>
+  Sign Out
+</button>
       </div>
 
       <h1 style={{ textAlign: 'center', color: '#333', marginBottom: '30px' }}>
