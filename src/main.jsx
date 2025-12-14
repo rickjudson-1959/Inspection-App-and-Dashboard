@@ -1,4 +1,3 @@
-import ReportsPage from './ReportsPage.jsx'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
@@ -9,6 +8,7 @@ import EVMDashboard from './EVMDashboard.jsx'
 import InspectorReport from './InspectorReport.jsx'
 import ReconciliationDashboard from './ReconciliationDashboard.jsx'
 import ChangeManagement from './ChangeManagement.jsx'
+import ReportsPage from './ReportsPage.jsx'
 import Login from './Login.jsx'
 import './index.css'
 import './App.css'
@@ -43,7 +43,6 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
     return children
   }
 
-  // Redirect based on role
   if (userProfile?.role === 'inspector') {
     return <Navigate to="/inspector" replace />
   }
@@ -72,7 +71,6 @@ function AppRoutes() {
     )
   }
 
-  // Redirect based on role after login
   function getDefaultRoute() {
     if (!userProfile) return '/login'
     switch (userProfile.role) {
@@ -94,73 +92,9 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {/* Public */}
       <Route path="/login" element={user ? <Navigate to={getDefaultRoute()} replace /> : <Login onLogin={() => {}} />} />
 
-      {/* Admin Portal - super_admin and admin only */}
       <Route path="/admin" element={
         <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
           <AdminPortal />
         </ProtectedRoute>
-      } />
-
-      {/* Executive Dashboard - for PM, CM, Chief, Admin */}
-      <Route path="/dashboard" element={
-        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector']}>
-          <Dashboard />
-        </ProtectedRoute>
-      } />
-      <Route path="/" element={
-        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector']}>
-          <Dashboard />
-        </ProtectedRoute>
-      } />
-
-      {/* EVM Dashboard - for executives and above */}
-      <Route path="/evm" element={
-        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector', 'executive']}>
-          <EVMDashboard />
-        </ProtectedRoute>
-      } />
-
-      {/* Reconciliation - view for PM/CM/Chief, edit for admin */}
-      <Route path="/reconciliation" element={
-        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector']}>
-          <ReconciliationDashboard />
-        </ProtectedRoute>
-      } />
-
-      {/* Change Orders - view for PM/CM/Chief, edit for admin */}
-      <Route path="/changes" element={
-        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector']}>
-          <ChangeManagement />
-        </ProtectedRoute>
-      } />
-
-      {/* Inspector Form - all authenticated users can access */}
-      <Route path="/inspector" element={
-        <ProtectedRoute>
-          <InspectorReport />
-        </ProtectedRoute>
-      } />
-{/* Reports - view all inspector reports */}
-<Route path="/reports" element={
-  <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector']}>
-    <ReportsPage />
-  </ProtectedRoute>
-} />
-      {/* Catch all */}
-      <Route path="*" element={<Navigate to="/login" replace />} />
-    </Routes>
-  )
-}
-
-ReactDOM.createRoot(document.getElementById('root')).render(
-  <React.StrictMode>
-    <BrowserRouter>
-      <AuthProvider>
-        <AppRoutes />
-      </AuthProvider>
-    </BrowserRouter>
-  </React.StrictMode>,
-)
