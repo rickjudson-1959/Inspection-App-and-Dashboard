@@ -1,3 +1,4 @@
+import ReportsPage from './ReportsPage.jsx'
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
@@ -142,7 +143,12 @@ function AppRoutes() {
           <InspectorReport />
         </ProtectedRoute>
       } />
-
+{/* Reports - view all inspector reports */}
+<Route path="/reports" element={
+  <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector']}>
+    <ReportsPage />
+  </ProtectedRoute>
+} />
       {/* Catch all */}
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
