@@ -98,3 +98,61 @@ function AppRoutes() {
         <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
           <AdminPortal />
         </ProtectedRoute>
+      } />
+
+      <Route path="/dashboard" element={
+        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector']}>
+          <Dashboard />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/" element={
+        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector']}>
+          <Dashboard />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/evm" element={
+        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector', 'executive']}>
+          <EVMDashboard />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/reconciliation" element={
+        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector']}>
+          <ReconciliationDashboard />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/changes" element={
+        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector']}>
+          <ChangeManagement />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/reports" element={
+        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector']}>
+          <ReportsPage />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/inspector" element={
+        <ProtectedRoute>
+          <InspectorReport />
+        </ProtectedRoute>
+      } />
+
+      <Route path="*" element={<Navigate to="/login" replace />} />
+    </Routes>
+  )
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </BrowserRouter>
+  </React.StrictMode>,
+)
