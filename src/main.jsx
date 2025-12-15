@@ -9,6 +9,7 @@ import InspectorReport from './InspectorReport.jsx'
 import ReconciliationDashboard from './ReconciliationDashboard.jsx'
 import ChangeManagement from './ChangeManagement.jsx'
 import ReportsPage from './ReportsPage.jsx'
+import ContractorLEMs from './ContractorLEMs.jsx'
 import Login from './Login.jsx'
 import './index.css'
 import './App.css'
@@ -133,6 +134,12 @@ function AppRoutes() {
       <Route path="/reports" element={
         <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector']}>
           <ReportsPage />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/contractor-lems" element={
+        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector']}>
+          <ContractorLEMs />
         </ProtectedRoute>
       } />
 
