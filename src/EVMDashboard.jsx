@@ -6,8 +6,8 @@ import {
 import { supabase } from './supabase'
 
 // ============================================================================
-// CMT DASHBOARD - Construction Management Team
-// Earned Value Management for Pipeline Construction
+// EARNED VALUE MANAGEMENT (EVM) EXECUTIVE DASHBOARD
+// For Pipeline Construction - C-Suite Monthly Review
 // ============================================================================
 
 // Color scheme
@@ -105,7 +105,7 @@ function EVMDashboard({ onBack }) {
 
   // Project configuration (would come from project master table)
   const projectConfig = {
-    name: 'Clearwater Pipeline - Demo Project',
+    name: 'Eagle Mountain - Woodfibre Gas Pipeline',
     totalBudget: 125000000, // $125M BAC
     baselineStart: '2024-06-01',
     baselineFinish: '2025-12-31',
@@ -145,7 +145,7 @@ function EVMDashboard({ onBack }) {
   if (loading) {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
-        <h2>Loading CMT Dashboard...</h2>
+        <h2>Loading EVM Dashboard...</h2>
       </div>
     )
   }
@@ -165,11 +165,11 @@ function EVMDashboard({ onBack }) {
             marginBottom: '10px'
           }}
         >
-          ← Back to Dashboard
+          ← Back to Executive Dashboard
         </button>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
-            <h1 style={{ margin: '0 0 5px 0', fontSize: '24px' }}>CMT Dashboard</h1>
+            <h1 style={{ margin: '0 0 5px 0', fontSize: '24px' }}>Earned Value Management Dashboard</h1>
             <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>{projectConfig.name}</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
