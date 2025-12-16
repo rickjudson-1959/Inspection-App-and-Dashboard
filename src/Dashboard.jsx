@@ -460,10 +460,10 @@ function Dashboard({ onBackToReport }) {
 >
   Sign Out
 </button>
-        <h1 style={{ margin: '0 0 5px 0', fontSize: '24px' }}>Executive Dashboard - Pipeline Inspector</h1>
+        <h1 style={{ margin: '0 0 5px 0', fontSize: '24px' }}>CMT Dashboard</h1>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
-            Pipeline Project - {dateRange === 365 ? 'All Time' : `Last ${dateRange} Days`} Performance
+            Clearwater Pipeline - {dateRange === 365 ? 'All Time' : `Last ${dateRange} Days`} Performance
             <select 
               value={dateRange} 
               onChange={(e) => setDateRange(parseInt(e.target.value))}
