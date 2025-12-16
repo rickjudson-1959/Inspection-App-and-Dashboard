@@ -352,10 +352,10 @@ export default function ReconciliationDashboard() {
             <p className="text-blue-200">Contractor LEM vs Inspector Report Reconciliation</p>
           </div>
           <button
-            onClick={() => navigate('/dashboard')}
+            onClick={() => navigate(-1)}
             className="bg-blue-700 hover:bg-blue-600 px-4 py-2 rounded-lg transition"
           >
-            ← Back to CMT Dashboard
+            ← Back
           </button>
         </div>
       </div>

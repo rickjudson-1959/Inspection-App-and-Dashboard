@@ -244,10 +244,10 @@ CREATE TABLE change_orders (
             <p className="text-purple-200">Change Management</p>
           </div>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate(-1)}
             className="bg-purple-700 hover:bg-purple-600 px-4 py-2 rounded-lg transition"
           >
-            ← Back to CMT Dashboard
+            ← Back
           </button>
         </div>
       </div>

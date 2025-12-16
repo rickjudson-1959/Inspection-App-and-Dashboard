@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   ComposedChart, Line, Bar, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
   ResponsiveContainer, BarChart, Cell, ReferenceLine
@@ -99,6 +100,7 @@ IEAC = [AC] + ([BAC] - [EV])
 */
 
 function EVMDashboard({ onBack }) {
+  const navigate = useNavigate()
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0])
@@ -155,7 +157,7 @@ function EVMDashboard({ onBack }) {
       {/* Header */}
       <div style={{ marginBottom: '20px' }}>
         <button
-          onClick={onBack}
+          onClick={() => navigate(-1)}
           style={{ 
             background: 'none', 
             border: 'none', 
@@ -165,7 +167,7 @@ function EVMDashboard({ onBack }) {
             marginBottom: '10px'
           }}
         >
-          ← Back to CMT Dashboard
+          ← Back
         </button>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
