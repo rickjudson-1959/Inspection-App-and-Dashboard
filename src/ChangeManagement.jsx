@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
 
-const PROJECT_NAME = "Eagle Mountain – Woodfibre Gas Pipeline (EGP)"
+const PROJECT_NAME = "Clearwater Pipeline - Demo Project"
 
 // Change types based on pipeline construction
 const CHANGE_TYPES = [
@@ -247,7 +247,7 @@ CREATE TABLE change_orders (
             onClick={() => navigate('/')}
             className="bg-purple-700 hover:bg-purple-600 px-4 py-2 rounded-lg transition"
           >
-            ← Back to Inspector Report
+            ← Back to CMT Dashboard
           </button>
         </div>
       </div>
