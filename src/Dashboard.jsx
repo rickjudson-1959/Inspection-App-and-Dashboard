@@ -442,21 +442,8 @@ function Dashboard({ onBackToReport }) {
       {/* Header */}
       <div style={{ marginBottom: '20px' }}>
         <button
-          onClick={onBackToReport}
-          style={{ 
-            background: 'none', 
-            border: 'none', 
-            color: '#007bff', 
-            cursor: 'pointer', 
-            fontSize: '14px',
-            marginBottom: '10px'
-          }}
-        >
-          ← Back to Daily Report
-        </button>
-        <button
   onClick={signOut}
-  style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginLeft: '10px' }}
+  style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
 >
   Sign Out
 </button>
