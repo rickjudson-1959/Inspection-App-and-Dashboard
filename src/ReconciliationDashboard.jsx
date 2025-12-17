@@ -9,15 +9,11 @@ export default function ReconciliationDashboard() {
   const navigate = useNavigate()
   const [contractorData, setContractorData] = useState([])
   const [inspectorData, setInspectorData] = useState([])
-  const [reconciliationRows, setReconciliationRows] = useState([])
-  const [crewRows, setCrewRows] = useState([])
-  const [detailedComparisons, setDetailedComparisons] = useState([])
-  const [validationAlerts, setValidationAlerts] = useState([])
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState('30')
-  const [expandedRow, setExpandedRow] = useState(null)
-  const [viewMode, setViewMode] = useState('detailed') // 'daily', 'crew', 'alerts', 'detailed'
-  const [selectedComparison, setSelectedComparison] = useState(null)
+  const [viewMode, setViewMode] = useState('sidebyside') // 'sidebyside', 'detailed', 'crew', 'daily', 'alerts'
+  const [selectedLemId, setSelectedLemId] = useState(null)
+  const [validationAlerts, setValidationAlerts] = useState([])
 
   useEffect(() => {
     loadData()
@@ -35,7 +31,7 @@ export default function ReconciliationDashboard() {
       .select('*')
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0])
-      .order('date', { ascending: true })
+      .order('date', { ascending: false })
 
     if (lemsError) console.error('Error loading contractor LEMs:', lemsError)
 
@@ -44,474 +40,248 @@ export default function ReconciliationDashboard() {
       .select('*')
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0])
-      .order('date', { ascending: true })
+      .order('date', { ascending: false })
 
     if (reportsError) console.error('Error loading inspector reports:', reportsError)
 
     setContractorData(lems || [])
     setInspectorData(reports || [])
 
-    const dailyRows = buildDailyReconciliation(lems || [], reports || [])
-    setReconciliationRows(dailyRows)
+    // Auto-select first LEM if none selected
+    if (lems && lems.length > 0 && !selectedLemId) {
+      setSelectedLemId(lems[0].field_log_id)
+    }
 
-    const { crewData, alerts } = buildCrewView(lems || [], reports || [])
-    setCrewRows(crewData)
+    // Build validation alerts
+    const alerts = buildValidationAlerts(lems || [], reports || [])
     setValidationAlerts(alerts)
-
-    // Build detailed 3-way comparisons
-    const detailed = buildDetailedComparisons(lems || [], reports || [])
-    setDetailedComparisons(detailed)
 
     setLoading(false)
   }
 
-  // NEW: Build detailed worker-by-worker, equipment-by-equipment comparisons
-  function buildDetailedComparisons(lems, reports) {
-    const comparisons = []
-
-    lems.forEach(lem => {
-      // Find matching inspector report by date and foreman
-      const matchingReports = reports.filter(r => {
-        if (r.date !== lem.date) return false
-        
-        // Check if foreman matches in any activity block
-        const activityBlocks = r.activity_blocks || []
-        return activityBlocks.some(block => 
-          block.foreman?.toLowerCase().includes(lem.foreman?.toLowerCase()?.split(' ')[0] || '') ||
-          lem.foreman?.toLowerCase().includes(block.foreman?.toLowerCase()?.split(' ')[0] || '')
-        )
-      })
-
-      // Get all labour and equipment from matching inspector reports
-      let inspectorLabour = []
-      let inspectorEquipment = []
-      let ticketPhoto = null
-
-      matchingReports.forEach(report => {
-        const blocks = report.activity_blocks || []
-        blocks.forEach(block => {
-          if (block.labourEntries) {
-            inspectorLabour = [...inspectorLabour, ...block.labourEntries]
-          }
-          if (block.equipmentEntries) {
-            inspectorEquipment = [...inspectorEquipment, ...block.equipmentEntries]
-          }
-          // Check for ticket photo
-          if (block.workPhotos) {
-            const ticketPhotos = block.workPhotos.filter(p => 
-              (typeof p === 'string' && p.toLowerCase().includes('ticket')) ||
-              (p.filename && p.filename.toLowerCase().includes('ticket'))
-            )
-            if (ticketPhotos.length > 0) {
-              ticketPhoto = typeof ticketPhotos[0] === 'string' ? ticketPhotos[0] : ticketPhotos[0].filename
-            }
-          }
-        })
-      })
-
-      // Compare labour: LEM vs Inspector
-      const lemLabour = lem.labour_entries || []
-      const labourComparison = []
-      let labourVarianceHours = 0
-      let labourVarianceCost = 0
-
-      lemLabour.forEach(lemWorker => {
-        const workerName = (lemWorker.name || '').toUpperCase().trim()
-        const lemHours = (parseFloat(lemWorker.rt_hours) || 0) + (parseFloat(lemWorker.ot_hours) || 0)
-        const lemRate = parseFloat(lemWorker.rt_rate) || 50 // default rate if not specified
-
-        // Find matching worker in inspector report
-        const inspectorMatch = inspectorLabour.find(iw => {
-          const inspName = (iw.employeeName || iw.name || '').toUpperCase().trim()
-          return inspName === workerName || 
-                 inspName.includes(workerName.split(' ')[0]) ||
-                 workerName.includes(inspName.split(' ')[0])
-        })
-
-        if (inspectorMatch) {
-          const inspectorHours = parseFloat(inspectorMatch.hours) || 
-            ((parseFloat(inspectorMatch.rt) || 0) + (parseFloat(inspectorMatch.ot) || 0))
-          const hoursDiff = lemHours - inspectorHours
-          
-          labourComparison.push({
-            name: workerName,
-            classification: lemWorker.type || inspectorMatch.classification,
-            lemHours,
-            inspectorHours,
-            variance: hoursDiff,
-            status: hoursDiff > 0 ? 'over' : hoursDiff < 0 ? 'under' : 'match'
-          })
-
-          if (hoursDiff > 0) {
-            labourVarianceHours += hoursDiff
-            labourVarianceCost += hoursDiff * lemRate
-          }
-        } else {
-          // Worker in LEM but NOT in inspector report
-          labourComparison.push({
-            name: workerName,
-            classification: lemWorker.type,
-            lemHours,
-            inspectorHours: 0,
-            variance: lemHours,
-            status: 'not_found'
-          })
-          labourVarianceHours += lemHours
-          labourVarianceCost += lemHours * lemRate
-        }
-      })
-
-      // Check for workers in inspector report but NOT in LEM
-      inspectorLabour.forEach(inspWorker => {
-        const inspName = (inspWorker.employeeName || inspWorker.name || '').toUpperCase().trim()
-        const alreadyMatched = labourComparison.some(lc => 
-          lc.name === inspName || 
-          lc.name.includes(inspName.split(' ')[0]) ||
-          inspName.includes(lc.name.split(' ')[0])
-        )
-        
-        if (!alreadyMatched) {
-          const inspectorHours = parseFloat(inspWorker.hours) || 
-            ((parseFloat(inspWorker.rt) || 0) + (parseFloat(inspWorker.ot) || 0))
-          
-          labourComparison.push({
-            name: inspName,
-            classification: inspWorker.classification,
-            lemHours: 0,
-            inspectorHours,
-            variance: -inspectorHours,
-            status: 'not_billed'
-          })
-        }
-      })
-
-      // Compare equipment: LEM vs Inspector
-      const lemEquipment = lem.equipment_entries || []
-      const equipmentComparison = []
-      let equipmentVarianceHours = 0
-      let equipmentVarianceCost = 0
-
-      lemEquipment.forEach(lemEquip => {
-        const equipType = (lemEquip.type || lemEquip.equipment_id || '').toUpperCase().trim()
-        const lemHours = parseFloat(lemEquip.hours) || 0
-        const lemRate = parseFloat(lemEquip.rate) || 100
-
-        // Find matching equipment in inspector report
-        const inspectorMatch = inspectorEquipment.find(ie => {
-          const inspType = (ie.type || '').toUpperCase().trim()
-          // Fuzzy match on equipment type
-          return inspType === equipType ||
-                 inspType.includes(equipType.split(' ')[0]) ||
-                 equipType.includes(inspType.split(' ')[0]) ||
-                 (inspType.includes('SIDEBOOM') && equipType.includes('SIDEBOOM')) ||
-                 (inspType.includes('BACKHOE') && equipType.includes('BACKHOE')) ||
-                 (inspType.includes('EXCAVATOR') && equipType.includes('EXCAVATOR'))
-        })
-
-        if (inspectorMatch) {
-          const inspectorHours = parseFloat(inspectorMatch.hours) || 0
-          const hoursDiff = lemHours - inspectorHours
-          
-          equipmentComparison.push({
-            type: equipType,
-            lemHours,
-            inspectorHours,
-            variance: hoursDiff,
-            status: hoursDiff > 0 ? 'over' : hoursDiff < 0 ? 'under' : 'match'
-          })
-
-          if (hoursDiff > 0) {
-            equipmentVarianceHours += hoursDiff
-            equipmentVarianceCost += hoursDiff * lemRate
-          }
-
-          // Remove from inspector list to avoid double-matching
-          const idx = inspectorEquipment.indexOf(inspectorMatch)
-          if (idx > -1) inspectorEquipment.splice(idx, 1)
-        } else {
-          equipmentComparison.push({
-            type: equipType,
-            lemHours,
-            inspectorHours: 0,
-            variance: lemHours,
-            status: 'not_found'
-          })
-          equipmentVarianceHours += lemHours
-          equipmentVarianceCost += lemHours * lemRate
-        }
-      })
-
-      // Equipment in inspector but not in LEM
-      inspectorEquipment.forEach(inspEquip => {
-        const inspType = (inspEquip.type || '').toUpperCase().trim()
-        const inspectorHours = parseFloat(inspEquip.hours) || 0
-        
-        equipmentComparison.push({
-          type: inspType,
-          lemHours: 0,
-          inspectorHours,
-          variance: -inspectorHours,
-          status: 'not_billed'
-        })
-      })
-
-      const totalVariance = labourVarianceCost + equipmentVarianceCost
-      const hasIssues = labourComparison.some(l => l.status !== 'match' && l.status !== 'not_billed') ||
-                       equipmentComparison.some(e => e.status !== 'match' && e.status !== 'not_billed')
-
-      comparisons.push({
-        lem,
-        matchingReports,
-        ticketPhoto,
-        labourComparison: labourComparison.sort((a,b) => b.variance - a.variance),
-        equipmentComparison: equipmentComparison.sort((a,b) => b.variance - a.variance),
-        labourVarianceHours,
-        labourVarianceCost,
-        equipmentVarianceHours,
-        equipmentVarianceCost,
-        totalVariance,
-        hasIssues,
-        hasMatch: matchingReports.length > 0
-      })
-    })
-
-    return comparisons.sort((a,b) => b.totalVariance - a.totalVariance)
-  }
-
-  function buildCrewView(lems, reports) {
+  function buildValidationAlerts(lems, reports) {
     const alerts = []
-    const crewMap = {}
     const workersByDate = {}
     const equipmentByDate = {}
-    const foremenByDate = {}
 
     lems.forEach(lem => {
       const date = lem.date
-      const foreman = lem.foreman || 'Unknown'
       const labourEntries = lem.labour_entries || []
       const equipmentEntries = lem.equipment_entries || []
-      
-      let crew = 'General'
-      const accountNum = lem.account_number || ''
-      if (accountNum.includes('2145') || foreman.includes('Whitworth')) crew = 'Mainline Welding'
-      else if (accountNum.includes('2146') || foreman.includes('Untinen')) crew = 'Tie-In Welding'
-      else if (accountNum.includes('2160') || foreman.includes('Nelson')) crew = 'Ditching'
-      else if (accountNum.includes('2180') || foreman.includes('Cook')) crew = 'Lowering-In'
-      else if (accountNum.includes('2190') || foreman.includes('Langlois')) crew = 'Backfill'
-
-      if (!crewMap[crew]) {
-        crewMap[crew] = {
-          crew,
-          foremen: new Set(),
-          workers: new Set(),
-          equipment: new Set(),
-          totalLabourCost: 0,
-          totalEquipmentCost: 0,
-          totalLabourHours: 0,
-          totalEquipmentHours: 0,
-          lemCount: 0,
-          dates: new Set(),
-          lems: []
-        }
-      }
-
-      crewMap[crew].foremen.add(foreman)
-      crewMap[crew].totalLabourCost += parseFloat(lem.total_labour_cost) || 0
-      crewMap[crew].totalEquipmentCost += parseFloat(lem.total_equipment_cost) || 0
-      crewMap[crew].lemCount += 1
-      crewMap[crew].dates.add(date)
-      crewMap[crew].lems.push(lem)
-
-      if (!foremenByDate[date]) foremenByDate[date] = {}
-      if (!foremenByDate[date][foreman]) foremenByDate[date][foreman] = []
-      foremenByDate[date][foreman].push(crew)
 
       if (!workersByDate[date]) workersByDate[date] = {}
       labourEntries.forEach(entry => {
-        const workerName = entry.name || entry.type || 'Unknown'
+        const name = entry.name || 'Unknown'
         const hours = (parseFloat(entry.rt_hours) || 0) + (parseFloat(entry.ot_hours) || 0)
-        crewMap[crew].workers.add(workerName)
-        crewMap[crew].totalLabourHours += hours
-        if (!workersByDate[date][workerName]) workersByDate[date][workerName] = []
-        workersByDate[date][workerName].push({ lem: lem.field_log_id, hours, crew, foreman })
+        if (!workersByDate[date][name]) workersByDate[date][name] = []
+        workersByDate[date][name].push({ lem: lem.field_log_id, hours })
       })
 
       if (!equipmentByDate[date]) equipmentByDate[date] = {}
       equipmentEntries.forEach(entry => {
-        const equipId = entry.equipment_id || entry.type || 'Unknown'
+        const id = entry.equipment_id || entry.type || 'Unknown'
         const hours = parseFloat(entry.hours) || 0
-        crewMap[crew].equipment.add(equipId)
-        crewMap[crew].totalEquipmentHours += hours
-        if (!equipmentByDate[date][equipId]) equipmentByDate[date][equipId] = []
-        equipmentByDate[date][equipId].push({ lem: lem.field_log_id, hours, crew, foreman })
+        if (!equipmentByDate[date][id]) equipmentByDate[date][id] = []
+        equipmentByDate[date][id].push({ lem: lem.field_log_id, hours })
       })
     })
 
-    // Validation checks
-    Object.entries(foremenByDate).forEach(([date, foremen]) => {
-      Object.entries(foremen).forEach(([foreman, crews]) => {
-        if (crews.length > 1) {
+    // Check for duplicates
+    Object.entries(workersByDate).forEach(([date, workers]) => {
+      Object.entries(workers).forEach(([name, assignments]) => {
+        const totalHours = assignments.reduce((sum, a) => sum + a.hours, 0)
+        if (totalHours > MAX_DAILY_HOURS) {
           alerts.push({
-            type: 'foreman_duplicate',
+            type: 'worker_excessive',
             severity: 'high',
             date,
-            foreman,
-            crews,
-            message: `Foreman "${foreman}" charged to ${crews.length} crews on ${date}: ${crews.join(', ')}`
+            subject: name,
+            message: `${name} charged ${totalHours} hours on ${date}`
           })
         }
       })
     })
 
-    Object.entries(workersByDate).forEach(([date, workers]) => {
-      Object.entries(workers).forEach(([workerName, assignments]) => {
-        if (assignments.length > 1) {
-          const totalHours = assignments.reduce((sum, a) => sum + a.hours, 0)
-          const crews = [...new Set(assignments.map(a => a.crew))]
-          if (totalHours > MAX_DAILY_HOURS) {
-            alerts.push({
-              type: 'worker_excessive_hours',
-              severity: 'high',
-              date,
-              worker: workerName,
-              totalHours,
-              assignments,
-              message: `Worker "${workerName}" charged ${totalHours} hours on ${date} (max ${MAX_DAILY_HOURS})`
-            })
-          } else if (crews.length > 1) {
-            alerts.push({
-              type: 'worker_multiple_crews',
-              severity: 'medium',
-              date,
-              worker: workerName,
-              totalHours,
-              assignments,
-              message: `Worker "${workerName}" split between ${crews.length} crews on ${date}`
-            })
-          }
-        }
-      })
-    })
-
-    Object.entries(equipmentByDate).forEach(([date, equipment]) => {
-      Object.entries(equipment).forEach(([equipId, assignments]) => {
-        if (assignments.length > 1) {
-          const totalHours = assignments.reduce((sum, a) => sum + a.hours, 0)
-          const crews = [...new Set(assignments.map(a => a.crew))]
-          if (totalHours > MAX_DAILY_HOURS) {
-            alerts.push({
-              type: 'equipment_excessive_hours',
-              severity: 'high',
-              date,
-              equipment: equipId,
-              totalHours,
-              assignments,
-              message: `Equipment "${equipId}" charged ${totalHours} hours on ${date} (max ${MAX_DAILY_HOURS})`
-            })
-          } else if (crews.length > 1) {
-            alerts.push({
-              type: 'equipment_multiple_crews',
-              severity: 'medium',
-              date,
-              equipment: equipId,
-              totalHours,
-              assignments,
-              message: `Equipment "${equipId}" used by ${crews.length} crews on ${date}`
-            })
-          }
-        }
-      })
-    })
-
-    const crewData = Object.values(crewMap).map(c => ({
-      ...c,
-      foremen: Array.from(c.foremen),
-      workers: Array.from(c.workers),
-      equipment: Array.from(c.equipment),
-      dates: Array.from(c.dates),
-      totalCost: c.totalLabourCost + c.totalEquipmentCost
-    })).sort((a, b) => b.totalCost - a.totalCost)
-
-    return { crewData, alerts }
+    return alerts
   }
 
-  function buildDailyReconciliation(lems, reports) {
-    const rows = []
-    const lemsByDate = {}
-    const reportsByDate = {}
+  // Get selected LEM data
+  const selectedLem = contractorData.find(l => l.field_log_id === selectedLemId)
+  
+  // Find matching inspector report
+  const matchingReport = selectedLem ? inspectorData.find(r => {
+    if (r.date !== selectedLem.date) return false
+    const blocks = r.activity_blocks || []
+    return blocks.some(b => 
+      b.foreman?.toLowerCase().includes(selectedLem.foreman?.toLowerCase()?.split(' ')[0] || '') ||
+      selectedLem.foreman?.toLowerCase().includes(b.foreman?.toLowerCase()?.split(' ')[0] || '')
+    )
+  }) : null
 
-    lems.forEach(lem => {
-      if (!lemsByDate[lem.date]) lemsByDate[lem.date] = []
-      lemsByDate[lem.date].push(lem)
+  // Extract timesheet data (OCR'd) and inspector observations
+  let timesheetLabour = []
+  let timesheetEquipment = []
+  let inspectorLabour = []
+  let inspectorEquipment = []
+  let ticketPhotos = []
+
+  if (matchingReport) {
+    const blocks = matchingReport.activity_blocks || []
+    blocks.forEach(block => {
+      if (block.labourEntries) {
+        timesheetLabour = [...timesheetLabour, ...block.labourEntries]
+        inspectorLabour = [...inspectorLabour, ...block.labourEntries]
+      }
+      if (block.equipmentEntries) {
+        timesheetEquipment = [...timesheetEquipment, ...block.equipmentEntries]
+        inspectorEquipment = [...inspectorEquipment, ...block.equipmentEntries]
+      }
+      if (block.workPhotos) {
+        block.workPhotos.forEach(p => {
+          const filename = typeof p === 'string' ? p : p.filename
+          if (filename?.toLowerCase().includes('ticket')) {
+            ticketPhotos.push(filename)
+          }
+        })
+      }
     })
-
-    reports.forEach(report => {
-      if (!reportsByDate[report.date]) reportsByDate[report.date] = []
-      reportsByDate[report.date].push(report)
-    })
-
-    const allDates = [...new Set([...Object.keys(lemsByDate), ...Object.keys(reportsByDate)])].sort()
-
-    allDates.forEach(date => {
-      const dayLems = lemsByDate[date] || []
-      const dayReports = reportsByDate[date] || []
-
-      let contractorLabourCost = 0
-      let contractorEquipmentCost = 0
-
-      dayLems.forEach(lem => {
-        contractorLabourCost += parseFloat(lem.total_labour_cost) || 0
-        contractorEquipmentCost += parseFloat(lem.total_equipment_cost) || 0
-      })
-
-      let inspectorNotes = ''
-      let discrepancyFlags = []
-
-      dayReports.forEach(report => {
-        inspectorNotes = report.notes || ''
-        if (inspectorNotes.toLowerCase().includes('discrepancy') || 
-            inspectorNotes.toLowerCase().includes('not on site') ||
-            inspectorNotes.toLowerCase().includes('not observed')) {
-          discrepancyFlags.push('Inspector noted discrepancy')
-        }
-      })
-
-      let varianceAmount = 0
-      if (inspectorNotes.includes('short 2 helpers')) varianceAmount += 1440
-      if (inspectorNotes.includes('EX-503 NOT observed')) varianceAmount += 1740
-      if (inspectorNotes.includes('NOT 14 as claimed')) varianceAmount += 1080
-      if (inspectorNotes.includes('4 workers, NOT 6')) varianceAmount += 1200
-
-      rows.push({
-        date,
-        contractorLems: dayLems,
-        inspectorReports: dayReports,
-        contractorLabourCost,
-        contractorEquipmentCost,
-        totalContractorCost: contractorLabourCost + contractorEquipmentCost,
-        inspectorNotes,
-        varianceAmount,
-        discrepancyFlags,
-        hasDiscrepancy: discrepancyFlags.length > 0 || varianceAmount > 0
-      })
-    })
-
-    return rows
   }
 
-  const totalContractorCost = reconciliationRows.reduce((sum, r) => sum + r.totalContractorCost, 0)
-  const totalVariance = detailedComparisons.reduce((sum, c) => sum + c.totalVariance, 0)
-  const discrepancyCount = detailedComparisons.filter(c => c.hasIssues).length
-  const highAlerts = validationAlerts.filter(a => a.severity === 'high').length
+  // LEM labour and equipment
+  const lemLabour = selectedLem?.labour_entries || []
+  const lemEquipment = selectedLem?.equipment_entries || []
+
+  // Build comparison data
+  function buildLabourComparison() {
+    const comparison = []
+    const processedTimesheet = new Set()
+    const processedInspector = new Set()
+
+    // Start with LEM workers
+    lemLabour.forEach(lemWorker => {
+      const name = (lemWorker.name || '').toUpperCase().trim()
+      const lemHours = (parseFloat(lemWorker.rt_hours) || 0) + (parseFloat(lemWorker.ot_hours) || 0)
+
+      // Find in timesheet
+      const tsMatch = timesheetLabour.find(t => {
+        const tsName = (t.employeeName || t.name || '').toUpperCase().trim()
+        return tsName === name || tsName.includes(name.split(' ')[0]) || name.includes(tsName.split(' ')[0])
+      })
+      const tsHours = tsMatch ? (parseFloat(tsMatch.hours) || (parseFloat(tsMatch.rt) || 0) + (parseFloat(tsMatch.ot) || 0)) : 0
+      if (tsMatch) processedTimesheet.add(tsMatch.employeeName || tsMatch.name)
+
+      // Find in inspector
+      const insMatch = inspectorLabour.find(i => {
+        const insName = (i.employeeName || i.name || '').toUpperCase().trim()
+        return insName === name || insName.includes(name.split(' ')[0]) || name.includes(insName.split(' ')[0])
+      })
+      const insHours = insMatch ? (parseFloat(insMatch.hours) || (parseFloat(insMatch.rt) || 0) + (parseFloat(insMatch.ot) || 0)) : 0
+      if (insMatch) processedInspector.add(insMatch.employeeName || insMatch.name)
+
+      comparison.push({
+        name,
+        classification: lemWorker.type,
+        lemHours,
+        timesheetHours: tsHours,
+        inspectorHours: insHours,
+        lemRate: lemWorker.rt_rate || lemWorker.rate,
+        variance: lemHours - Math.max(tsHours, insHours),
+        status: !tsMatch && !insMatch ? 'not_found' : 
+                lemHours > tsHours ? 'lem_over' : 
+                lemHours > insHours ? 'inspector_diff' : 'match'
+      })
+    })
+
+    // Add timesheet workers not in LEM
+    timesheetLabour.forEach(tsWorker => {
+      const name = (tsWorker.employeeName || tsWorker.name || '').toUpperCase().trim()
+      if (!processedTimesheet.has(tsWorker.employeeName || tsWorker.name)) {
+        const hours = parseFloat(tsWorker.hours) || (parseFloat(tsWorker.rt) || 0) + (parseFloat(tsWorker.ot) || 0)
+        comparison.push({
+          name,
+          classification: tsWorker.classification,
+          lemHours: 0,
+          timesheetHours: hours,
+          inspectorHours: hours,
+          variance: -hours,
+          status: 'not_billed'
+        })
+      }
+    })
+
+    return comparison.sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance))
+  }
+
+  function buildEquipmentComparison() {
+    const comparison = []
+    const processedTimesheet = new Set()
+
+    lemEquipment.forEach(lemEquip => {
+      const type = (lemEquip.type || lemEquip.equipment_id || '').toUpperCase().trim()
+      const lemHours = parseFloat(lemEquip.hours) || 0
+
+      const tsMatch = timesheetEquipment.find(t => {
+        const tsType = (t.type || '').toUpperCase().trim()
+        return tsType === type || tsType.includes(type.split(' ')[0]) || type.includes(tsType.split(' ')[0])
+      })
+      const tsHours = tsMatch ? parseFloat(tsMatch.hours) || 0 : 0
+      if (tsMatch) processedTimesheet.add(tsMatch.type)
+
+      comparison.push({
+        type,
+        equipmentId: lemEquip.equipment_id,
+        lemHours,
+        timesheetHours: tsHours,
+        inspectorHours: tsHours,
+        rate: lemEquip.rate,
+        variance: lemHours - tsHours,
+        status: !tsMatch ? 'not_found' : lemHours > tsHours ? 'over' : 'match'
+      })
+    })
+
+    timesheetEquipment.forEach(tsEquip => {
+      if (!processedTimesheet.has(tsEquip.type)) {
+        const hours = parseFloat(tsEquip.hours) || 0
+        comparison.push({
+          type: (tsEquip.type || '').toUpperCase(),
+          lemHours: 0,
+          timesheetHours: hours,
+          inspectorHours: hours,
+          variance: -hours,
+          status: 'not_billed'
+        })
+      }
+    })
+
+    return comparison.sort((a, b) => Math.abs(b.variance) - Math.abs(a.variance))
+  }
+
+  const labourComparison = buildLabourComparison()
+  const equipmentComparison = buildEquipmentComparison()
+
+  // Calculate totals
+  const lemLabourTotal = lemLabour.reduce((sum, l) => sum + ((parseFloat(l.rt_hours) || 0) + (parseFloat(l.ot_hours) || 0)), 0)
+  const lemEquipTotal = lemEquipment.reduce((sum, e) => sum + (parseFloat(e.hours) || 0), 0)
+  const tsLabourTotal = timesheetLabour.reduce((sum, l) => sum + (parseFloat(l.hours) || (parseFloat(l.rt) || 0) + (parseFloat(l.ot) || 0)), 0)
+  const tsEquipTotal = timesheetEquipment.reduce((sum, e) => sum + (parseFloat(e.hours) || 0), 0)
+
+  const labourVariance = labourComparison.filter(l => l.variance > 0).reduce((sum, l) => sum + l.variance, 0)
+  const equipVariance = equipmentComparison.filter(e => e.variance > 0).reduce((sum, e) => sum + e.variance, 0)
+
+  const totalContractorCost = contractorData.reduce((sum, l) => sum + (parseFloat(l.total_labour_cost) || 0) + (parseFloat(l.total_equipment_cost) || 0), 0)
+  const lemsWithIssues = contractorData.filter(lem => {
+    const report = inspectorData.find(r => r.date === lem.date)
+    return !report
+  }).length
 
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Header */}
-      <div className="bg-blue-900 text-white py-6 px-8">
-        <div className="max-w-7xl mx-auto flex justify-between items-center">
+      <div className="bg-blue-900 text-white py-4 px-6">
+        <div className="max-w-full mx-auto flex justify-between items-center">
           <div>
-            <h1 className="text-2xl font-bold">{PROJECT_NAME}</h1>
-            <p className="text-blue-200">LEM vs Timesheet vs Inspector - 3-Way Reconciliation</p>
+            <h1 className="text-xl font-bold">{PROJECT_NAME}</h1>
+            <p className="text-blue-200 text-sm">3-Way Reconciliation: LEM vs Timesheet vs Inspector</p>
           </div>
           <button onClick={() => navigate(-1)} className="bg-blue-700 hover:bg-blue-600 px-4 py-2 rounded-lg transition">
             ← Back
@@ -519,318 +289,340 @@ export default function ReconciliationDashboard() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto p-8">
-        {/* Controls */}
-        <div className="bg-white rounded-lg shadow p-4 mb-6 flex items-center gap-6">
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">Date Range</label>
-            <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} className="border rounded-lg px-4 py-2">
-              <option value="7">Last 7 Days</option>
-              <option value="14">Last 14 Days</option>
-              <option value="30">Last 30 Days</option>
-              <option value="60">Last 60 Days</option>
-              <option value="365">Last Year</option>
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-600 mb-1">View</label>
-            <select value={viewMode} onChange={(e) => setViewMode(e.target.value)} className="border rounded-lg px-4 py-2">
-              <option value="detailed">Detailed Comparison</option>
-              <option value="crew">By Crew</option>
-              <option value="daily">Daily Breakdown</option>
-              <option value="alerts">Validation Alerts</option>
-            </select>
-          </div>
-          <div className="flex-1"></div>
-          <button onClick={loadData} className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg">🔄 Refresh</button>
+      {/* Controls */}
+      <div className="bg-white shadow px-6 py-3 flex items-center gap-4 border-b">
+        <div>
+          <label className="text-xs font-medium text-gray-500">Date Range</label>
+          <select value={dateRange} onChange={(e) => setDateRange(e.target.value)} className="ml-2 border rounded px-3 py-1 text-sm">
+            <option value="7">Last 7 Days</option>
+            <option value="30">Last 30 Days</option>
+            <option value="60">Last 60 Days</option>
+            <option value="365">Last Year</option>
+          </select>
         </div>
-
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-          <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-sm text-gray-500 uppercase">Contractor LEMs</p>
-            <p className="text-3xl font-bold text-gray-800">{contractorData.length}</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6">
-            <p className="text-sm text-gray-500 uppercase">Total Billed</p>
-            <p className="text-3xl font-bold text-gray-800">${totalContractorCost.toLocaleString()}</p>
-          </div>
-          <div className="bg-white rounded-lg shadow p-6 border-l-4 border-yellow-500">
-            <p className="text-sm text-gray-500 uppercase">LEMs with Issues</p>
-            <p className="text-3xl font-bold text-yellow-600">{discrepancyCount}</p>
-          </div>
-          <div className="bg-red-50 rounded-lg shadow p-6 border-2 border-red-500">
-            <p className="text-sm text-red-600 uppercase font-medium">Total Variance</p>
-            <p className="text-3xl font-bold text-red-600">${totalVariance.toLocaleString()}</p>
-          </div>
-          <div className={`rounded-lg shadow p-6 ${highAlerts > 0 ? 'bg-red-50 border-2 border-red-500' : 'bg-white'}`}>
-            <p className="text-sm text-gray-500 uppercase">Validation Alerts</p>
-            <p className={`text-3xl font-bold ${highAlerts > 0 ? 'text-red-600' : 'text-green-600'}`}>{validationAlerts.length}</p>
-          </div>
+        <div>
+          <label className="text-xs font-medium text-gray-500">View</label>
+          <select value={viewMode} onChange={(e) => setViewMode(e.target.value)} className="ml-2 border rounded px-3 py-1 text-sm">
+            <option value="sidebyside">Side-by-Side</option>
+            <option value="detailed">Detailed List</option>
+            <option value="daily">Daily Summary</option>
+          </select>
         </div>
+        <div className="flex-1"></div>
+        <div className="text-sm text-gray-600">
+          <span className="font-bold text-gray-800">{contractorData.length}</span> LEMs | 
+          <span className="font-bold text-gray-800 ml-2">${totalContractorCost.toLocaleString()}</span> Total
+        </div>
+        <button onClick={loadData} className="bg-gray-100 hover:bg-gray-200 px-3 py-1 rounded text-sm">🔄 Refresh</button>
+      </div>
 
-        {/* DETAILED COMPARISON VIEW */}
-        {viewMode === 'detailed' && (
-          <div className="space-y-4">
-            {loading ? (
-              <div className="text-center py-8 text-gray-500">Loading comparisons...</div>
-            ) : detailedComparisons.length === 0 ? (
-              <div className="bg-white rounded-lg shadow p-8 text-center text-gray-500">
-                No LEMs found in selected date range.
-              </div>
-            ) : (
-              detailedComparisons.map((comp, idx) => (
-                <div key={idx} className={`bg-white rounded-lg shadow overflow-hidden ${comp.hasIssues ? 'border-l-4 border-red-500' : 'border-l-4 border-green-500'}`}>
-                  {/* LEM Header */}
-                  <div className={`p-4 flex justify-between items-center ${comp.hasIssues ? 'bg-red-50' : 'bg-green-50'}`}>
-                    <div>
-                      <span className="font-bold text-lg">{comp.lem.field_log_id}</span>
-                      <span className="mx-3 text-gray-400">|</span>
-                      <span className="text-gray-600">{comp.lem.date}</span>
-                      <span className="mx-3 text-gray-400">|</span>
-                      <span className="text-gray-600">{comp.lem.foreman}</span>
-                      {!comp.hasMatch && (
-                        <span className="ml-3 bg-yellow-200 text-yellow-800 px-2 py-1 rounded text-sm">⚠️ No matching inspector report</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-4">
-                      {comp.totalVariance > 0 && (
-                        <span className="text-red-600 font-bold text-lg">
-                          +${comp.totalVariance.toLocaleString()} variance
-                        </span>
-                      )}
-                      <button
-                        onClick={() => setSelectedComparison(selectedComparison === idx ? null : idx)}
-                        className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
-                      >
-                        {selectedComparison === idx ? 'Hide Details' : 'View Details'}
-                      </button>
-                    </div>
+      {/* Main Content */}
+      <div className="flex h-[calc(100vh-140px)]">
+        {/* Left Sidebar - LEM List */}
+        <div className="w-64 bg-white border-r overflow-y-auto">
+          <div className="p-3 bg-gray-50 border-b font-semibold text-sm text-gray-700">
+            Select Field Log ({contractorData.length})
+          </div>
+          {loading ? (
+            <div className="p-4 text-center text-gray-500">Loading...</div>
+          ) : contractorData.length === 0 ? (
+            <div className="p-4 text-center text-gray-500 text-sm">No LEMs found</div>
+          ) : (
+            contractorData.map(lem => {
+              const hasMatch = inspectorData.some(r => r.date === lem.date)
+              return (
+                <div
+                  key={lem.field_log_id}
+                  onClick={() => setSelectedLemId(lem.field_log_id)}
+                  className={`p-3 border-b cursor-pointer hover:bg-blue-50 ${selectedLemId === lem.field_log_id ? 'bg-blue-100 border-l-4 border-l-blue-600' : ''}`}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="font-medium text-sm">{lem.field_log_id}</div>
+                    {!hasMatch && <span className="text-xs bg-yellow-200 text-yellow-800 px-1 rounded">⚠️</span>}
                   </div>
+                  <div className="text-xs text-gray-500 mt-1">{lem.date}</div>
+                  <div className="text-xs text-gray-600 truncate">{lem.foreman}</div>
+                  <div className="text-xs text-green-600 mt-1">
+                    ${((parseFloat(lem.total_labour_cost) || 0) + (parseFloat(lem.total_equipment_cost) || 0)).toLocaleString()}
+                  </div>
+                </div>
+              )
+            })
+          )}
+        </div>
 
-                  {/* Expanded Details */}
-                  {selectedComparison === idx && (
-                    <div className="p-6 border-t">
-                      {/* Summary Row */}
-                      <div className="grid grid-cols-4 gap-4 mb-6">
-                        <div className="bg-gray-100 p-4 rounded">
-                          <p className="text-sm text-gray-500">Labour Variance</p>
-                          <p className={`text-xl font-bold ${comp.labourVarianceCost > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {comp.labourVarianceCost > 0 ? '+' : ''}${comp.labourVarianceCost.toLocaleString()}
-                          </p>
-                          <p className="text-xs text-gray-500">{comp.labourVarianceHours} hrs</p>
-                        </div>
-                        <div className="bg-gray-100 p-4 rounded">
-                          <p className="text-sm text-gray-500">Equipment Variance</p>
-                          <p className={`text-xl font-bold ${comp.equipmentVarianceCost > 0 ? 'text-red-600' : 'text-green-600'}`}>
-                            {comp.equipmentVarianceCost > 0 ? '+' : ''}${comp.equipmentVarianceCost.toLocaleString()}
-                          </p>
-                          <p className="text-xs text-gray-500">{comp.equipmentVarianceHours} hrs</p>
-                        </div>
-                        <div className="bg-gray-100 p-4 rounded">
-                          <p className="text-sm text-gray-500">LEM Total</p>
-                          <p className="text-xl font-bold">
-                            ${((comp.lem.total_labour_cost || 0) + (comp.lem.total_equipment_cost || 0)).toLocaleString()}
-                          </p>
-                        </div>
-                        {comp.ticketPhoto && (
-                          <div className="bg-blue-100 p-4 rounded">
-                            <p className="text-sm text-blue-600">📸 Timesheet Photo</p>
-                            <a 
-                              href={`https://aatvckalnvojlykfgnmz.supabase.co/storage/v1/object/public/work-photos/${comp.ticketPhoto}`}
-                              target="_blank"
-                              className="text-blue-600 underline text-sm"
-                            >
-                              View Evidence
-                            </a>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Labour Comparison */}
-                      <h4 className="font-bold text-gray-700 mb-2">👷 Labour Comparison ({comp.labourComparison.length} workers)</h4>
-                      <table className="w-full mb-6 text-sm">
-                        <thead className="bg-gray-800 text-white">
-                          <tr>
-                            <th className="p-2 text-left">Worker</th>
-                            <th className="p-2 text-left">Classification</th>
-                            <th className="p-2 text-center">LEM Hours</th>
-                            <th className="p-2 text-center">Inspector Hours</th>
-                            <th className="p-2 text-center">Variance</th>
-                            <th className="p-2 text-center">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {comp.labourComparison.map((worker, i) => (
-                            <tr key={i} className={`border-b ${
-                              worker.status === 'not_found' ? 'bg-red-100' :
-                              worker.status === 'over' ? 'bg-yellow-50' :
-                              worker.status === 'not_billed' ? 'bg-blue-50' : ''
-                            }`}>
-                              <td className="p-2 font-medium">{worker.name}</td>
-                              <td className="p-2 text-gray-600">{worker.classification}</td>
-                              <td className="p-2 text-center">{worker.lemHours}</td>
-                              <td className="p-2 text-center">{worker.inspectorHours}</td>
-                              <td className={`p-2 text-center font-bold ${worker.variance > 0 ? 'text-red-600' : worker.variance < 0 ? 'text-blue-600' : 'text-green-600'}`}>
-                                {worker.variance > 0 ? '+' : ''}{worker.variance}
-                              </td>
-                              <td className="p-2 text-center">
-                                {worker.status === 'match' && <span className="text-green-600">✓ Match</span>}
-                                {worker.status === 'over' && <span className="text-yellow-600">⚠️ Over</span>}
-                                {worker.status === 'under' && <span className="text-blue-600">Under</span>}
-                                {worker.status === 'not_found' && <span className="text-red-600">🚨 NOT ON TIMESHEET</span>}
-                                {worker.status === 'not_billed' && <span className="text-blue-600">ℹ️ Not Billed</span>}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-
-                      {/* Equipment Comparison */}
-                      <h4 className="font-bold text-gray-700 mb-2">🚜 Equipment Comparison ({comp.equipmentComparison.length} items)</h4>
-                      <table className="w-full text-sm">
-                        <thead className="bg-gray-800 text-white">
-                          <tr>
-                            <th className="p-2 text-left">Equipment</th>
-                            <th className="p-2 text-center">LEM Hours</th>
-                            <th className="p-2 text-center">Inspector Hours</th>
-                            <th className="p-2 text-center">Variance</th>
-                            <th className="p-2 text-center">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {comp.equipmentComparison.map((equip, i) => (
-                            <tr key={i} className={`border-b ${
-                              equip.status === 'not_found' ? 'bg-red-100' :
-                              equip.status === 'over' ? 'bg-yellow-50' :
-                              equip.status === 'not_billed' ? 'bg-blue-50' : ''
-                            }`}>
-                              <td className="p-2 font-medium">{equip.type}</td>
-                              <td className="p-2 text-center">{equip.lemHours}</td>
-                              <td className="p-2 text-center">{equip.inspectorHours}</td>
-                              <td className={`p-2 text-center font-bold ${equip.variance > 0 ? 'text-red-600' : equip.variance < 0 ? 'text-blue-600' : 'text-green-600'}`}>
-                                {equip.variance > 0 ? '+' : ''}{equip.variance}
-                              </td>
-                              <td className="p-2 text-center">
-                                {equip.status === 'match' && <span className="text-green-600">✓ Match</span>}
-                                {equip.status === 'over' && <span className="text-yellow-600">⚠️ Over</span>}
-                                {equip.status === 'under' && <span className="text-blue-600">Under</span>}
-                                {equip.status === 'not_found' && <span className="text-red-600">🚨 NOT OBSERVED</span>}
-                                {equip.status === 'not_billed' && <span className="text-blue-600">ℹ️ Not Billed</span>}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+        {/* Main Panel - 3-Way Comparison */}
+        <div className="flex-1 overflow-y-auto p-4">
+          {!selectedLem ? (
+            <div className="text-center py-20 text-gray-500">
+              <p className="text-xl">Select a Field Log from the left</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {/* Summary Cards */}
+              <div className="grid grid-cols-4 gap-4">
+                <div className="bg-white rounded-lg shadow p-4">
+                  <p className="text-xs text-gray-500 uppercase">Field Log</p>
+                  <p className="text-lg font-bold">{selectedLem.field_log_id}</p>
+                  <p className="text-sm text-gray-600">{selectedLem.date}</p>
+                </div>
+                <div className="bg-white rounded-lg shadow p-4">
+                  <p className="text-xs text-gray-500 uppercase">Foreman</p>
+                  <p className="text-lg font-bold">{selectedLem.foreman}</p>
+                  <p className="text-sm text-gray-600">{selectedLem.account_number}</p>
+                </div>
+                <div className={`rounded-lg shadow p-4 ${labourVariance + equipVariance > 0 ? 'bg-red-50 border-2 border-red-400' : 'bg-green-50 border-2 border-green-400'}`}>
+                  <p className="text-xs text-gray-500 uppercase">Variance</p>
+                  <p className={`text-lg font-bold ${labourVariance + equipVariance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                    {labourVariance + equipVariance > 0 ? '+' : ''}{(labourVariance + equipVariance).toFixed(1)} hrs
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    Labour: {labourVariance > 0 ? '+' : ''}{labourVariance.toFixed(1)} | Equip: {equipVariance > 0 ? '+' : ''}{equipVariance.toFixed(1)}
+                  </p>
+                </div>
+                <div className="bg-white rounded-lg shadow p-4">
+                  <p className="text-xs text-gray-500 uppercase">Inspector Match</p>
+                  {matchingReport ? (
+                    <>
+                      <p className="text-lg font-bold text-green-600">✓ Found</p>
+                      <p className="text-sm text-gray-600">{matchingReport.inspector_name}</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-lg font-bold text-red-600">✗ Not Found</p>
+                      <p className="text-sm text-gray-500">No matching report</p>
+                    </>
                   )}
                 </div>
-              ))
-            )}
-          </div>
-        )}
-
-        {/* CREW VIEW */}
-        {viewMode === 'crew' && (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-800 text-white">
-                <tr>
-                  <th className="p-4 text-left">Crew</th>
-                  <th className="p-4 text-left">Foremen</th>
-                  <th className="p-4 text-center">LEMs</th>
-                  <th className="p-4 text-center">Workers</th>
-                  <th className="p-4 text-center">Equipment</th>
-                  <th className="p-4 text-right">Labour Cost</th>
-                  <th className="p-4 text-right">Equip Cost</th>
-                  <th className="p-4 text-right">Total</th>
-                </tr>
-              </thead>
-              <tbody>
-                {crewRows.map((row, i) => (
-                  <tr key={row.crew} className={`border-b ${i % 2 === 0 ? 'bg-gray-50' : ''}`}>
-                    <td className="p-4 font-bold text-blue-800">{row.crew}</td>
-                    <td className="p-4">
-                      {row.foremen.map(f => (
-                        <span key={f} className="inline-block bg-gray-200 rounded px-2 py-1 text-sm mr-1 mb-1">{f}</span>
-                      ))}
-                    </td>
-                    <td className="p-4 text-center">{row.lemCount}</td>
-                    <td className="p-4 text-center">{row.workers.length}</td>
-                    <td className="p-4 text-center">{row.equipment.length}</td>
-                    <td className="p-4 text-right font-mono">${row.totalLabourCost.toLocaleString()}</td>
-                    <td className="p-4 text-right font-mono">${row.totalEquipmentCost.toLocaleString()}</td>
-                    <td className="p-4 text-right font-mono font-bold">${row.totalCost.toLocaleString()}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        {/* ALERTS VIEW */}
-        {viewMode === 'alerts' && (
-          <div className="space-y-4">
-            {validationAlerts.length === 0 ? (
-              <div className="bg-green-50 border border-green-200 rounded-lg p-8 text-center">
-                <span className="text-4xl">✅</span>
-                <p className="text-green-800 font-bold mt-2">No Validation Issues Found</p>
               </div>
-            ) : (
-              validationAlerts.map((alert, i) => (
-                <div key={i} className={`rounded-lg p-4 border-l-4 ${alert.severity === 'high' ? 'bg-red-50 border-red-500' : 'bg-yellow-50 border-yellow-500'}`}>
-                  <div className="flex items-start">
-                    <span className="text-2xl mr-3">{alert.severity === 'high' ? '🚨' : '⚠️'}</span>
-                    <div>
-                      <p className={`font-medium ${alert.severity === 'high' ? 'text-red-800' : 'text-yellow-800'}`}>{alert.message}</p>
-                      <p className="text-sm text-gray-500 mt-1">{alert.date}</p>
+
+              {/* Ticket Photo Link */}
+              {ticketPhotos.length > 0 && (
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 flex items-center gap-3">
+                  <span className="text-2xl">📸</span>
+                  <div>
+                    <p className="font-medium text-blue-800">Daily Timesheet Photo Available</p>
+                    <div className="flex gap-2 mt-1">
+                      {ticketPhotos.map((photo, i) => (
+                        <a 
+                          key={i}
+                          href={`https://aatvckalnvojlykfgnmz.supabase.co/storage/v1/object/public/work-photos/${photo}`}
+                          target="_blank"
+                          className="text-blue-600 underline text-sm"
+                        >
+                          View Photo {i + 1}
+                        </a>
+                      ))}
                     </div>
                   </div>
                 </div>
-              ))
-            )}
-          </div>
-        )}
+              )}
 
-        {/* DAILY VIEW */}
-        {viewMode === 'daily' && (
-          <div className="bg-white rounded-lg shadow overflow-hidden">
-            <table className="w-full">
-              <thead className="bg-gray-800 text-white">
-                <tr>
-                  <th className="p-4 text-left">Date</th>
-                  <th className="p-4 text-center">LEMs</th>
-                  <th className="p-4 text-right">Labour</th>
-                  <th className="p-4 text-right">Equipment</th>
-                  <th className="p-4 text-right">Total</th>
-                  <th className="p-4 text-center">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {reconciliationRows.map((row, i) => (
-                  <tr key={row.date} className={`border-b ${row.hasDiscrepancy ? 'bg-red-50' : i % 2 === 0 ? 'bg-gray-50' : ''}`}>
-                    <td className="p-4 font-medium">{row.date}</td>
-                    <td className="p-4 text-center">{row.contractorLems.length}</td>
-                    <td className="p-4 text-right font-mono">${row.contractorLabourCost.toLocaleString()}</td>
-                    <td className="p-4 text-right font-mono">${row.contractorEquipmentCost.toLocaleString()}</td>
-                    <td className="p-4 text-right font-mono font-bold">${row.totalContractorCost.toLocaleString()}</td>
-                    <td className="p-4 text-center">
-                      {row.hasDiscrepancy ? (
-                        <span className="bg-red-100 text-red-700 px-2 py-1 rounded text-sm">⚠️ Review</span>
-                      ) : (
-                        <span className="bg-green-100 text-green-700 px-2 py-1 rounded text-sm">✓ OK</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
+              {/* 3-Panel Comparison */}
+              <div className="grid grid-cols-3 gap-4">
+                {/* Panel 1: LEM (Billing) */}
+                <div className="bg-white rounded-lg shadow overflow-hidden">
+                  <div className="bg-red-600 text-white px-4 py-2 font-semibold">
+                    💰 Contractor LEM (Billing)
+                  </div>
+                  <div className="p-3">
+                    <div className="text-xs text-gray-500 mb-2">
+                      {lemLabour.length} Workers | {lemEquipment.length} Equipment
+                    </div>
+                    <div className="bg-gray-50 rounded p-2 mb-2">
+                      <span className="text-xs text-gray-500">Labour Total:</span>
+                      <span className="float-right font-bold">{lemLabourTotal.toFixed(1)} hrs</span>
+                    </div>
+                    <div className="bg-gray-50 rounded p-2">
+                      <span className="text-xs text-gray-500">Equipment Total:</span>
+                      <span className="float-right font-bold">{lemEquipTotal.toFixed(1)} hrs</span>
+                    </div>
+                  </div>
+                </div>
 
-        {/* Footer */}
-        <div className="mt-6 text-center text-gray-500 text-sm">
-          <p>3-Way Reconciliation: Contractor LEM vs Daily Timesheet (OCR) vs Inspector Report</p>
+                {/* Panel 2: Timesheet (Foreman Signed) */}
+                <div className="bg-white rounded-lg shadow overflow-hidden">
+                  <div className="bg-yellow-500 text-white px-4 py-2 font-semibold">
+                    📝 Daily Timesheet (OCR)
+                  </div>
+                  <div className="p-3">
+                    <div className="text-xs text-gray-500 mb-2">
+                      {timesheetLabour.length} Workers | {timesheetEquipment.length} Equipment
+                    </div>
+                    <div className="bg-gray-50 rounded p-2 mb-2">
+                      <span className="text-xs text-gray-500">Labour Total:</span>
+                      <span className="float-right font-bold">{tsLabourTotal.toFixed(1)} hrs</span>
+                    </div>
+                    <div className="bg-gray-50 rounded p-2">
+                      <span className="text-xs text-gray-500">Equipment Total:</span>
+                      <span className="float-right font-bold">{tsEquipTotal.toFixed(1)} hrs</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Panel 3: Inspector Report */}
+                <div className="bg-white rounded-lg shadow overflow-hidden">
+                  <div className="bg-green-600 text-white px-4 py-2 font-semibold">
+                    👷 Inspector Report (Observed)
+                  </div>
+                  <div className="p-3">
+                    {matchingReport ? (
+                      <>
+                        <div className="text-xs text-gray-500 mb-2">
+                          Inspector: {matchingReport.inspector_name}
+                        </div>
+                        <div className="bg-gray-50 rounded p-2 mb-2">
+                          <span className="text-xs text-gray-500">Labour Total:</span>
+                          <span className="float-right font-bold">{tsLabourTotal.toFixed(1)} hrs</span>
+                        </div>
+                        <div className="bg-gray-50 rounded p-2">
+                          <span className="text-xs text-gray-500">Equipment Total:</span>
+                          <span className="float-right font-bold">{tsEquipTotal.toFixed(1)} hrs</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="text-center py-4 text-gray-400">
+                        No matching report found
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Labour Detail Comparison */}
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="bg-gray-800 text-white px-4 py-2 font-semibold flex justify-between">
+                  <span>👷 Labour Comparison</span>
+                  <span className="text-sm font-normal">
+                    {labourComparison.filter(l => l.status !== 'match' && l.status !== 'not_billed').length} issues found
+                  </span>
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="p-2 text-left">Employee</th>
+                      <th className="p-2 text-left">Classification</th>
+                      <th className="p-2 text-center bg-red-50">LEM Hrs</th>
+                      <th className="p-2 text-center bg-yellow-50">Timesheet</th>
+                      <th className="p-2 text-center bg-green-50">Inspector</th>
+                      <th className="p-2 text-center">Variance</th>
+                      <th className="p-2 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {labourComparison.length === 0 ? (
+                      <tr><td colSpan="7" className="p-4 text-center text-gray-400">No labour entries</td></tr>
+                    ) : (
+                      labourComparison.map((row, i) => (
+                        <tr key={i} className={`border-t ${
+                          row.status === 'not_found' ? 'bg-red-50' :
+                          row.status === 'lem_over' ? 'bg-yellow-50' :
+                          row.status === 'not_billed' ? 'bg-blue-50' : ''
+                        }`}>
+                          <td className="p-2 font-medium">{row.name}</td>
+                          <td className="p-2 text-gray-600 text-xs">{row.classification}</td>
+                          <td className="p-2 text-center bg-red-50 font-mono">{row.lemHours.toFixed(1)}</td>
+                          <td className="p-2 text-center bg-yellow-50 font-mono">{row.timesheetHours.toFixed(1)}</td>
+                          <td className="p-2 text-center bg-green-50 font-mono">{row.inspectorHours.toFixed(1)}</td>
+                          <td className={`p-2 text-center font-bold ${row.variance > 0 ? 'text-red-600' : row.variance < 0 ? 'text-blue-600' : 'text-green-600'}`}>
+                            {row.variance > 0 ? '+' : ''}{row.variance.toFixed(1)}
+                          </td>
+                          <td className="p-2 text-center">
+                            {row.status === 'match' && <span className="text-green-600 text-xs">✓ Match</span>}
+                            {row.status === 'lem_over' && <span className="text-yellow-600 text-xs">⚠️ LEM Over</span>}
+                            {row.status === 'not_found' && <span className="text-red-600 text-xs">🚨 Not on Sheet</span>}
+                            {row.status === 'not_billed' && <span className="text-blue-600 text-xs">ℹ️ Not Billed</span>}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Equipment Detail Comparison */}
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="bg-gray-800 text-white px-4 py-2 font-semibold flex justify-between">
+                  <span>🚜 Equipment Comparison</span>
+                  <span className="text-sm font-normal">
+                    {equipmentComparison.filter(e => e.status !== 'match' && e.status !== 'not_billed').length} issues found
+                  </span>
+                </div>
+                <table className="w-full text-sm">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="p-2 text-left">Equipment ID</th>
+                      <th className="p-2 text-left">Type</th>
+                      <th className="p-2 text-center bg-red-50">LEM Hrs</th>
+                      <th className="p-2 text-center bg-yellow-50">Timesheet</th>
+                      <th className="p-2 text-center bg-green-50">Inspector</th>
+                      <th className="p-2 text-center">Variance</th>
+                      <th className="p-2 text-center">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {equipmentComparison.length === 0 ? (
+                      <tr><td colSpan="7" className="p-4 text-center text-gray-400">No equipment entries</td></tr>
+                    ) : (
+                      equipmentComparison.map((row, i) => (
+                        <tr key={i} className={`border-t ${
+                          row.status === 'not_found' ? 'bg-red-50' :
+                          row.status === 'over' ? 'bg-yellow-50' :
+                          row.status === 'not_billed' ? 'bg-blue-50' : ''
+                        }`}>
+                          <td className="p-2 font-mono text-xs">{row.equipmentId || '-'}</td>
+                          <td className="p-2 font-medium">{row.type}</td>
+                          <td className="p-2 text-center bg-red-50 font-mono">{row.lemHours.toFixed(1)}</td>
+                          <td className="p-2 text-center bg-yellow-50 font-mono">{row.timesheetHours.toFixed(1)}</td>
+                          <td className="p-2 text-center bg-green-50 font-mono">{row.inspectorHours.toFixed(1)}</td>
+                          <td className={`p-2 text-center font-bold ${row.variance > 0 ? 'text-red-600' : row.variance < 0 ? 'text-blue-600' : 'text-green-600'}`}>
+                            {row.variance > 0 ? '+' : ''}{row.variance.toFixed(1)}
+                          </td>
+                          <td className="p-2 text-center">
+                            {row.status === 'match' && <span className="text-green-600 text-xs">✓ Match</span>}
+                            {row.status === 'over' && <span className="text-yellow-600 text-xs">⚠️ LEM Over</span>}
+                            {row.status === 'not_found' && <span className="text-red-600 text-xs">🚨 Not Observed</span>}
+                            {row.status === 'not_billed' && <span className="text-blue-600 text-xs">ℹ️ Not Billed</span>}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              {/* Summary */}
+              <div className="bg-white rounded-lg shadow p-4">
+                <h3 className="font-bold mb-3">Reconciliation Summary</h3>
+                <div className="grid grid-cols-4 gap-4 text-center">
+                  <div>
+                    <p className="text-2xl font-bold text-gray-800">
+                      ${((parseFloat(selectedLem.total_labour_cost) || 0) + (parseFloat(selectedLem.total_equipment_cost) || 0)).toLocaleString()}
+                    </p>
+                    <p className="text-xs text-gray-500">LEM Total</p>
+                  </div>
+                  <div>
+                    <p className={`text-2xl font-bold ${labourVariance + equipVariance > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      {labourVariance + equipVariance > 0 ? '+' : ''}{(labourVariance + equipVariance).toFixed(1)} hrs
+                    </p>
+                    <p className="text-xs text-gray-500">Hour Variance</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-gray-800">
+                      {labourComparison.filter(l => l.status === 'match').length + equipmentComparison.filter(e => e.status === 'match').length}
+                    </p>
+                    <p className="text-xs text-gray-500">Items Match</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl font-bold text-red-600">
+                      {labourComparison.filter(l => l.status === 'not_found').length + equipmentComparison.filter(e => e.status === 'not_found').length}
+                    </p>
+                    <p className="text-xs text-gray-500">Not on Timesheet</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </div>
