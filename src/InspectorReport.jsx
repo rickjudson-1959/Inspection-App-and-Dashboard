@@ -9,8 +9,8 @@ const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
 // Project configuration
-const PROJECT_NAME = "Eagle Mountain – Woodfibre Gas Pipeline (EGP)"
-const PROJECT_SHORT = "EGP"
+const PROJECT_NAME = "Clearwater Pipeline - Demo Project"
+const PROJECT_SHORT = "CWP"
 
 // Pipeline locations for weather lookup
 const pipelineLocations = {
