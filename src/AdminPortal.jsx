@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
 import { supabase } from './supabase'
+import * as XLSX from 'xlsx'
 
 function AdminPortal() {
   const navigate = useNavigate()
@@ -68,6 +69,183 @@ function AdminPortal() {
       setNewProject({ name: '', shortCode: '', organizationId: '' })
       fetchData()
     }
+  }
+
+
+  // Export Master Production Spreadsheet (CLX2 Format)
+  async function exportMasterProduction() {
+    const PROJECT_NAME = "Clearwater Pipeline - Demo Project"
+    const PROJECT_SHORT = "CWP"
+    
+    const { data: reports, error } = await supabase
+      .from('daily_tickets')
+      .select('*')
+      .order('date', { ascending: true })
+
+    if (error) {
+      alert('Error fetching reports: ' + error.message)
+      return
+    }
+
+    if (!reports || reports.length === 0) {
+      alert('No reports found in database')
+      return
+    }
+
+    const parseKP = (kpStr) => {
+      if (!kpStr) return null
+      const str = String(kpStr).trim()
+      if (str.includes('+')) {
+        const [km, m] = str.split('+')
+        return (parseFloat(km) || 0) * 1000 + (parseFloat(m) || 0)
+      }
+      const num = parseFloat(str)
+      if (isNaN(num)) return null
+      return num < 100 ? num * 1000 : num
+    }
+
+    const formatKP = (metres) => {
+      if (metres === null || metres === undefined) return ''
+      const km = Math.floor(metres / 1000)
+      const m = Math.round(metres % 1000)
+      return `${km}+${m.toString().padStart(3, '0')}`
+    }
+
+    const phases = [
+      'Clearing', 'Access', 'Topsoil', 'Grading', 'Stringing', 'Bending',
+      'Welding - Mainline', 'Welding - Tie-in', 'Coating', 'Lowering-in',
+      'Backfill', 'Hydro Test', 'Tie-ins', 'Cleanup - Machine', 'Cleanup - Final',
+      'HDD', 'HD Bores', 'Other'
+    ]
+
+    const headers = ['Date', 'Spread', 'Inspector']
+    phases.forEach(phase => {
+      headers.push(`${phase} From`, `${phase} To`, `${phase} M`)
+    })
+    headers.push('Total Metres', 'Labour Hours', 'Equipment Hours', 'Time Lost')
+
+    const dataRows = []
+    let grandTotalMetres = 0
+    let grandTotalLabour = 0
+    let grandTotalEquipment = 0
+    let grandTotalTimeLost = 0
+
+    const phaseTotals = {}
+    phases.forEach(p => { phaseTotals[p] = { metres: 0, minKP: null, maxKP: null } })
+
+    reports.forEach(report => {
+      const row = [report.date || '', report.spread || '', report.inspector_name || '']
+      let dayTotalMetres = 0
+      let dayLabourHours = 0
+      let dayEquipmentHours = 0
+      let dayTimeLost = 0
+
+      const blocks = report.activity_blocks || []
+      const activityMap = {}
+      
+      blocks.forEach(block => {
+        const actType = block.activityType || 'Other'
+        const startM = parseKP(block.startKP)
+        const endM = parseKP(block.endKP)
+        const metres = (startM !== null && endM !== null) ? Math.abs(endM - startM) : 0
+
+        if (!activityMap[actType]) {
+          activityMap[actType] = { startKP: block.startKP, endKP: block.endKP, metres: 0 }
+        }
+        activityMap[actType].metres += metres
+
+        if (phaseTotals[actType]) {
+          phaseTotals[actType].metres += metres
+          if (startM !== null && (phaseTotals[actType].minKP === null || startM < phaseTotals[actType].minKP)) {
+            phaseTotals[actType].minKP = startM
+          }
+          if (endM !== null && (phaseTotals[actType].maxKP === null || endM > phaseTotals[actType].maxKP)) {
+            phaseTotals[actType].maxKP = endM
+          }
+        }
+
+        if (block.labourEntries) {
+          block.labourEntries.forEach(entry => {
+            dayLabourHours += (entry.hours || 0) * (entry.count || 1)
+          })
+        }
+        if (block.equipmentEntries) {
+          block.equipmentEntries.forEach(entry => {
+            dayEquipmentHours += (entry.hours || 0) * (entry.count || 1)
+          })
+        }
+        dayTimeLost += parseFloat(block.timeLostHours) || 0
+      })
+
+      phases.forEach(phase => {
+        const data = activityMap[phase]
+        if (data) {
+          row.push(data.startKP || '', data.endKP || '', data.metres || 0)
+          dayTotalMetres += data.metres || 0
+        } else {
+          row.push('', '', '')
+        }
+      })
+
+      row.push(dayTotalMetres, dayLabourHours.toFixed(1), dayEquipmentHours.toFixed(1), dayTimeLost.toFixed(1))
+      grandTotalMetres += dayTotalMetres
+      grandTotalLabour += dayLabourHours
+      grandTotalEquipment += dayEquipmentHours
+      grandTotalTimeLost += dayTimeLost
+      dataRows.push(row)
+    })
+
+    const wsData = []
+    wsData.push([`${PROJECT_NAME} - MASTER PRODUCTION SPREADSHEET`])
+    wsData.push([`Generated: ${new Date().toLocaleString()}`])
+    wsData.push([`Total Reports: ${reports.length}`])
+    wsData.push([''])
+    wsData.push(['=== PRODUCTION SUMMARY ==='])
+    wsData.push(['Phase', 'From KP', 'To KP', 'Total Metres'])
+    
+    phases.forEach(phase => {
+      const data = phaseTotals[phase]
+      if (data.metres > 0) {
+        wsData.push([phase, formatKP(data.minKP), formatKP(data.maxKP), data.metres])
+      }
+    })
+    
+    wsData.push(['GRAND TOTAL', '', '', grandTotalMetres])
+    wsData.push([''])
+    wsData.push(['Total Labour Hours:', grandTotalLabour.toFixed(1)])
+    wsData.push(['Total Equipment Hours:', grandTotalEquipment.toFixed(1)])
+    wsData.push(['Total Time Lost:', grandTotalTimeLost.toFixed(1)])
+    wsData.push([''])
+    wsData.push(['=== DAILY PRODUCTION DETAIL ==='])
+    wsData.push(headers)
+    dataRows.forEach(row => wsData.push(row))
+
+    const ws = XLSX.utils.aoa_to_sheet(wsData)
+    const colWidths = [{ wch: 12 }, { wch: 10 }, { wch: 15 }]
+    phases.forEach(() => { colWidths.push({ wch: 10 }, { wch: 10 }, { wch: 8 }) })
+    colWidths.push({ wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 10 })
+    ws['!cols'] = colWidths
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, 'Production')
+
+    const summaryData = [['PHASE PRODUCTION SUMMARY'], [''], ['Phase', 'Start KP', 'End KP', 'Total Metres', 'Reports']]
+    phases.forEach(phase => {
+      const data = phaseTotals[phase]
+      if (data.metres > 0) {
+        const reportCount = reports.filter(r => (r.activity_blocks || []).some(b => b.activityType === phase)).length
+        summaryData.push([phase, formatKP(data.minKP), formatKP(data.maxKP), data.metres, reportCount])
+      }
+    })
+    summaryData.push([''])
+    summaryData.push(['TOTALS', '', '', grandTotalMetres, reports.length])
+
+    const summaryWs = XLSX.utils.aoa_to_sheet(summaryData)
+    summaryWs['!cols'] = [{ wch: 20 }, { wch: 12 }, { wch: 12 }, { wch: 14 }, { wch: 10 }]
+    XLSX.utils.book_append_sheet(wb, summaryWs, 'Summary')
+
+    const today = new Date().toISOString().split('T')[0]
+    XLSX.writeFile(wb, `${PROJECT_SHORT}_Master_Production_${today}.xlsx`)
   }
 
   if (loading) {
@@ -233,7 +411,11 @@ function AdminPortal() {
           <div>
             <h2>Inspector Reports</h2>
             <p style={{ color: '#666' }}>View all submitted inspector reports across organizations.</p>
-            <button onClick={() => navigate('/reports')} style={{ padding: '15px 30px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '16px' }}>View All Reports</button>
+            <div style={{ display: 'flex', gap: '20px', marginTop: '20px' }}>
+              <button onClick={() => navigate('/reports')} style={{ padding: '15px 30px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '16px' }}>View All Reports</button>
+              <button onClick={() => exportMasterProduction()} style={{ padding: '15px 30px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '16px' }}>📋 Master Production Spreadsheet</button>
+            </div>
+            <p style={{ margin: '10px 0 0 0', fontSize: '12px', color: '#666' }}>Master Production exports all saved reports into CLX2 format with daily progress tracking by phase</p>
           </div>
         )}
 
