@@ -86,8 +86,8 @@ function ReportsPage() {
     <div style={{ fontFamily: 'Arial, sans-serif', minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
       <div style={{ backgroundColor: '#003366', color: 'white', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ margin: 0, fontSize: '24px' }}>Inspector Reports</h1>
-          <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>{filteredReports.length} reports found</p>
+          <h1 style={{ margin: 0, fontSize: '24px' }}>Clearwater Pipeline - Demo Project</h1>
+          <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>Inspector Reports | {filteredReports.length} reports found</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button onClick={() => navigate('/admin')} style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Back to Admin</button>
