@@ -758,132 +758,276 @@ export default function ReconciliationDashboard() {
         </div>
       )}
 
-      {/* REVIEW MODAL - Side by Side */}
+      {/* REVIEW MODAL - Full Documents Side by Side */}
       {showReviewModal && selectedItem && (
-        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
-          <div style={{ backgroundColor: 'white', borderRadius: '12px', width: '900px', maxWidth: '95%', maxHeight: '90vh', overflow: 'auto' }}>
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: '#f3f4f6', borderRadius: '12px', width: '98%', maxWidth: '1800px', height: '95vh', display: 'flex', flexDirection: 'column' }}>
             {/* Modal Header */}
-            <div style={{ backgroundColor: '#1f2937', color: 'white', padding: '16px 24px', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ backgroundColor: '#1e3a5f', color: 'white', padding: '16px 24px', borderRadius: '12px 12px 0 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
               <div>
-                <h2 style={{ margin: 0, fontSize: '18px' }}>Review Discrepancy</h2>
-                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#9ca3af' }}>Field Log: {selectedItem.lemId} | Date: {selectedItem.lemDate}</p>
+                <h2 style={{ margin: 0, fontSize: '20px' }}>Review Discrepancy - {selectedItem.itemType === 'labour' ? selectedItem.name : selectedItem.type}</h2>
+                <p style={{ margin: '4px 0 0 0', fontSize: '13px', color: '#93c5fd' }}>Field Log: {selectedItem.lemId} | Date: {selectedItem.lemDate} | Foreman: {selectedItem.foreman}</p>
               </div>
-              <button onClick={() => setShowReviewModal(false)} style={{ background: 'none', border: 'none', color: 'white', fontSize: '24px', cursor: 'pointer' }}>×</button>
+              <button onClick={() => setShowReviewModal(false)} style={{ background: 'none', border: 'none', color: 'white', fontSize: '28px', cursor: 'pointer', padding: '0 8px' }}>×</button>
             </div>
 
-            {/* Side by Side Comparison */}
-            <div style={{ padding: '24px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
-                {/* LEM Panel */}
-                <div style={{ border: '2px solid #dc2626', borderRadius: '8px', overflow: 'hidden' }}>
-                  <div style={{ backgroundColor: '#dc2626', color: 'white', padding: '10px 16px', fontWeight: '600' }}>💰 Contractor LEM</div>
-                  <div style={{ padding: '16px' }}>
-                    <div style={{ marginBottom: '12px' }}>
-                      <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase' }}>{selectedItem.itemType === 'labour' ? 'Employee' : 'Equipment'}</div>
-                      <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{selectedItem.itemType === 'labour' ? selectedItem.name : selectedItem.type}</div>
+            {/* Variance Banner */}
+            <div style={{ backgroundColor: '#fef2f2', borderBottom: '2px solid #fca5a5', padding: '12px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: '40px', alignItems: 'center' }}>
+                <div><span style={{ color: '#991b1b', fontWeight: '500' }}>Item:</span> <strong>{selectedItem.itemType === 'labour' ? selectedItem.name : selectedItem.type}</strong></div>
+                <div><span style={{ color: '#991b1b', fontWeight: '500' }}>LEM Hours:</span> <strong style={{ color: '#dc2626' }}>{selectedItem.lemHours}</strong></div>
+                <div><span style={{ color: '#991b1b', fontWeight: '500' }}>Timesheet Hours:</span> <strong style={{ color: '#f59e0b' }}>{selectedItem.timesheetHours}</strong></div>
+                <div><span style={{ color: '#991b1b', fontWeight: '500' }}>Variance:</span> <strong style={{ color: '#dc2626', fontSize: '18px' }}>+{selectedItem.variance} hrs (${(selectedItem.varianceCost || 0).toFixed(2)})</strong></div>
+              </div>
+            </div>
+
+            {/* Three Panel View */}
+            <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', padding: '16px', overflow: 'hidden' }}>
+              
+              {/* Panel 1: LEM */}
+              <div style={{ backgroundColor: 'white', borderRadius: '8px', border: '2px solid #dc2626', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ backgroundColor: '#dc2626', color: 'white', padding: '12px 16px', fontWeight: '600', fontSize: '16px' }}>💰 Contractor LEM</div>
+                <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
+                  <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f9fafb', borderRadius: '6px' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '13px' }}>
+                      <div><strong>Field Log:</strong> {selectedLem?.field_log_id}</div>
+                      <div><strong>Date:</strong> {selectedLem?.date}</div>
+                      <div><strong>Foreman:</strong> {selectedLem?.foreman}</div>
+                      <div><strong>Account:</strong> {selectedLem?.account_number}</div>
                     </div>
-                    {selectedItem.classification && (
-                      <div style={{ marginBottom: '12px' }}>
-                        <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase' }}>Classification</div>
-                        <div style={{ fontSize: '14px' }}>{selectedItem.classification}</div>
+                  </div>
+
+                  <h4 style={{ margin: '0 0 10px 0', color: '#dc2626', borderBottom: '1px solid #fee2e2', paddingBottom: '8px' }}>Labour Entries</h4>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px', marginBottom: '20px' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#fee2e2' }}>
+                        <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #fecaca' }}>Name</th>
+                        <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #fecaca' }}>Type</th>
+                        <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #fecaca' }}>RT</th>
+                        <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #fecaca' }}>OT</th>
+                        <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #fecaca' }}>Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(selectedLem?.labour_entries || []).map((entry, i) => (
+                        <tr key={i} style={{ backgroundColor: entry.name?.toUpperCase() === selectedItem.name?.toUpperCase() ? '#fef2f2' : 'white' }}>
+                          <td style={{ padding: '8px', border: '1px solid #fecaca', fontWeight: entry.name?.toUpperCase() === selectedItem.name?.toUpperCase() ? 'bold' : 'normal' }}>{entry.name}</td>
+                          <td style={{ padding: '8px', border: '1px solid #fecaca' }}>{entry.type}</td>
+                          <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #fecaca' }}>{entry.rt_hours || 0}</td>
+                          <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #fecaca' }}>{entry.ot_hours || 0}</td>
+                          <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #fecaca' }}>${entry.rt_rate || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <h4 style={{ margin: '0 0 10px 0', color: '#dc2626', borderBottom: '1px solid #fee2e2', paddingBottom: '8px' }}>Equipment Entries</h4>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#fee2e2' }}>
+                        <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #fecaca' }}>Equipment ID</th>
+                        <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #fecaca' }}>Type</th>
+                        <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #fecaca' }}>Hours</th>
+                        <th style={{ padding: '8px', textAlign: 'center', border: '1px solid #fecaca' }}>Rate</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(selectedLem?.equipment_entries || []).map((entry, i) => (
+                        <tr key={i} style={{ backgroundColor: entry.type?.toUpperCase().includes(selectedItem.type?.toUpperCase()?.split(' ')[0] || 'XXX') ? '#fef2f2' : 'white' }}>
+                          <td style={{ padding: '8px', border: '1px solid #fecaca' }}>{entry.equipment_id || '-'}</td>
+                          <td style={{ padding: '8px', border: '1px solid #fecaca', fontWeight: entry.type?.toUpperCase().includes(selectedItem.type?.toUpperCase()?.split(' ')[0] || 'XXX') ? 'bold' : 'normal' }}>{entry.type}</td>
+                          <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #fecaca' }}>{entry.hours || 0}</td>
+                          <td style={{ padding: '8px', textAlign: 'center', border: '1px solid #fecaca' }}>${entry.rate || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+
+                  <div style={{ marginTop: '16px', padding: '12px', backgroundColor: '#fee2e2', borderRadius: '6px', textAlign: 'right' }}>
+                    <strong>LEM Total: ${((parseFloat(selectedLem?.total_labour_cost) || 0) + (parseFloat(selectedLem?.total_equipment_cost) || 0)).toLocaleString()}</strong>
+                  </div>
+                </div>
+              </div>
+
+              {/* Panel 2: Daily Timesheet Photo */}
+              <div style={{ backgroundColor: 'white', borderRadius: '8px', border: '2px solid #f59e0b', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ backgroundColor: '#f59e0b', color: 'white', padding: '12px 16px', fontWeight: '600', fontSize: '16px' }}>📝 Daily Timesheet</div>
+                <div style={{ flex: 1, overflow: 'auto', padding: '16px', display: 'flex', flexDirection: 'column' }}>
+                  {ticketPhotos.length > 0 ? (
+                    <>
+                      <div style={{ marginBottom: '12px', padding: '8px', backgroundColor: '#fef3c7', borderRadius: '6px', fontSize: '12px', textAlign: 'center' }}>
+                        Foreman-signed timesheet from {selectedItem.lemDate}
                       </div>
-                    )}
-                    <div style={{ marginBottom: '12px' }}>
-                      <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase' }}>Hours Claimed</div>
-                      <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc2626' }}>{selectedItem.lemHours}</div>
-                    </div>
-                    {selectedItem.rate && (
-                      <div>
-                        <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase' }}>Rate</div>
-                        <div style={{ fontSize: '14px' }}>${selectedItem.rate}/hr</div>
+                      <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <img 
+                          src={`https://aatvckalnvojlykfgnmz.supabase.co/storage/v1/object/public/work-photos/${ticketPhotos[0]}`}
+                          alt="Daily Timesheet"
+                          style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: '4px', boxShadow: '0 2px 8px rgba(0,0,0,0.15)' }}
+                        />
                       </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Timesheet Panel */}
-                <div style={{ border: '2px solid #f59e0b', borderRadius: '8px', overflow: 'hidden' }}>
-                  <div style={{ backgroundColor: '#f59e0b', color: 'white', padding: '10px 16px', fontWeight: '600' }}>📝 Daily Timesheet</div>
-                  <div style={{ padding: '16px' }}>
-                    <div style={{ marginBottom: '12px' }}>
-                      <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase' }}>{selectedItem.itemType === 'labour' ? 'Employee' : 'Equipment'}</div>
-                      <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{selectedItem.tsMatch ? (selectedItem.tsMatch.employeeName || selectedItem.tsMatch.name || selectedItem.tsMatch.type) : 'NOT FOUND'}</div>
+                      <div style={{ marginTop: '12px', textAlign: 'center' }}>
+                        <a href={`https://aatvckalnvojlykfgnmz.supabase.co/storage/v1/object/public/work-photos/${ticketPhotos[0]}`} target="_blank" rel="noreferrer" style={{ color: '#92400e', fontSize: '12px' }}>
+                          Open in new tab ↗
+                        </a>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '48px', marginBottom: '12px' }}>📷</div>
+                        <p>No timesheet photo available</p>
+                      </div>
                     </div>
-                    <div style={{ marginBottom: '12px' }}>
-                      <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase' }}>Hours Recorded</div>
-                      <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#f59e0b' }}>{selectedItem.timesheetHours}</div>
-                    </div>
-                    {ticketPhotos.length > 0 && (
-                      <a href={`https://aatvckalnvojlykfgnmz.supabase.co/storage/v1/object/public/work-photos/${ticketPhotos[0]}`} target="_blank" rel="noreferrer" style={{ display: 'inline-block', backgroundColor: '#fef3c7', color: '#92400e', padding: '8px 12px', borderRadius: '6px', fontSize: '12px', textDecoration: 'none' }}>
-                        📸 View Timesheet Photo
-                      </a>
-                    )}
-                  </div>
-                </div>
-
-                {/* Inspector Panel */}
-                <div style={{ border: '2px solid #16a34a', borderRadius: '8px', overflow: 'hidden' }}>
-                  <div style={{ backgroundColor: '#16a34a', color: 'white', padding: '10px 16px', fontWeight: '600' }}>👷 Inspector Report</div>
-                  <div style={{ padding: '16px' }}>
-                    <div style={{ marginBottom: '12px' }}>
-                      <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase' }}>Inspector</div>
-                      <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{matchingReport?.inspector_name || 'N/A'}</div>
-                    </div>
-                    <div style={{ marginBottom: '12px' }}>
-                      <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase' }}>Hours Observed</div>
-                      <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#16a34a' }}>{selectedItem.timesheetHours}</div>
-                    </div>
-                    <div>
-                      <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase' }}>Ticket #</div>
-                      <div style={{ fontSize: '14px' }}>{selectedItem.ticketNumber}</div>
-                    </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
-              {/* Variance Summary */}
-              <div style={{ backgroundColor: '#fef2f2', border: '2px solid #fca5a5', borderRadius: '8px', padding: '16px', marginBottom: '24px', textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: '#991b1b', textTransform: 'uppercase', marginBottom: '4px' }}>Variance</div>
-                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#dc2626' }}>+{selectedItem.variance} hours</div>
-                <div style={{ fontSize: '14px', color: '#991b1b' }}>Estimated cost: ${(selectedItem.varianceCost || 0).toFixed(2)}</div>
-              </div>
+              {/* Panel 3: Inspector Report */}
+              <div style={{ backgroundColor: 'white', borderRadius: '8px', border: '2px solid #16a34a', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                <div style={{ backgroundColor: '#16a34a', color: 'white', padding: '12px 16px', fontWeight: '600', fontSize: '16px' }}>👷 Inspector Report</div>
+                <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
+                  {matchingReport ? (
+                    <>
+                      <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f0fdf4', borderRadius: '6px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '13px' }}>
+                          <div><strong>Date:</strong> {matchingReport.date}</div>
+                          <div><strong>Inspector:</strong> {matchingReport.inspector_name}</div>
+                          <div><strong>Spread:</strong> {matchingReport.spread || '-'}</div>
+                          <div><strong>Crew:</strong> {matchingReport.crew || '-'}</div>
+                          <div style={{ gridColumn: 'span 2' }}><strong>Change Order:</strong> {matchingReport.change_order || 'Base Contract'}</div>
+                        </div>
+                      </div>
 
-              {/* Notes */}
-              <div style={{ marginBottom: '24px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Notes / Concerns</label>
-                <textarea 
-                  value={reviewNotes}
-                  onChange={e => setReviewNotes(e.target.value)}
-                  placeholder="Add any notes about this discrepancy (rate issues, concerns, etc.)"
-                  style={{ width: '100%', padding: '12px', border: '1px solid #d1d5db', borderRadius: '6px', minHeight: '80px', resize: 'vertical', boxSizing: 'border-box' }}
-                />
-              </div>
+                      {matchingReport.notes && (
+                        <div style={{ marginBottom: '16px', padding: '12px', backgroundColor: '#f9fafb', borderRadius: '6px' }}>
+                          <strong>Notes:</strong>
+                          <p style={{ margin: '8px 0 0 0', fontSize: '13px' }}>{matchingReport.notes}</p>
+                        </div>
+                      )}
 
-              {/* Admin Correction */}
-              <div style={{ backgroundColor: '#f9fafb', borderRadius: '8px', padding: '16px', marginBottom: '24px' }}>
-                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '500' }}>Admin Correction (if you can fix it)</label>
-                <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                  <span style={{ color: '#6b7280' }}>Corrected hours:</span>
+                      {matchingReport.activity_blocks && matchingReport.activity_blocks.map((block, idx) => (
+                        <div key={idx} style={{ backgroundColor: '#f0fdf4', padding: '12px', borderRadius: '6px', marginBottom: '12px' }}>
+                          <h4 style={{ margin: '0 0 10px 0', color: '#16a34a' }}>{block.activityType || 'Activity ' + (idx + 1)}</h4>
+                          
+                          {block.chainageStart && (
+                            <div style={{ marginBottom: '8px', fontSize: '12px' }}>
+                              <strong>Chainage:</strong> {block.chainageStart} to {block.chainageEnd}
+                            </div>
+                          )}
+
+                          {block.foreman && (
+                            <div style={{ marginBottom: '8px', fontSize: '12px' }}>
+                              <strong>Foreman:</strong> {block.foreman}
+                            </div>
+                          )}
+
+                          {block.labourEntries && block.labourEntries.length > 0 && (
+                            <div style={{ marginBottom: '10px' }}>
+                              <strong style={{ fontSize: '12px' }}>Labour:</strong>
+                              <table style={{ width: '100%', marginTop: '5px', borderCollapse: 'collapse', fontSize: '11px' }}>
+                                <thead>
+                                  <tr style={{ backgroundColor: '#dcfce7' }}>
+                                    <th style={{ padding: '6px', textAlign: 'left', border: '1px solid #bbf7d0' }}>Name</th>
+                                    <th style={{ padding: '6px', textAlign: 'left', border: '1px solid #bbf7d0' }}>Classification</th>
+                                    <th style={{ padding: '6px', textAlign: 'center', border: '1px solid #bbf7d0' }}>RT</th>
+                                    <th style={{ padding: '6px', textAlign: 'center', border: '1px solid #bbf7d0' }}>OT</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {block.labourEntries.map((entry, i) => (
+                                    <tr key={i} style={{ backgroundColor: (entry.employeeName || entry.name)?.toUpperCase().includes(selectedItem.name?.split(' ')[0]?.toUpperCase() || 'XXX') ? '#dcfce7' : 'white' }}>
+                                      <td style={{ padding: '6px', border: '1px solid #bbf7d0', fontWeight: (entry.employeeName || entry.name)?.toUpperCase().includes(selectedItem.name?.split(' ')[0]?.toUpperCase() || 'XXX') ? 'bold' : 'normal' }}>{entry.employeeName || entry.name || '-'}</td>
+                                      <td style={{ padding: '6px', border: '1px solid #bbf7d0' }}>{entry.classification || '-'}</td>
+                                      <td style={{ padding: '6px', textAlign: 'center', border: '1px solid #bbf7d0' }}>{entry.rt || 0}</td>
+                                      <td style={{ padding: '6px', textAlign: 'center', border: '1px solid #bbf7d0' }}>{entry.ot || 0}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+
+                          {block.equipmentEntries && block.equipmentEntries.length > 0 && (
+                            <div>
+                              <strong style={{ fontSize: '12px' }}>Equipment:</strong>
+                              <table style={{ width: '100%', marginTop: '5px', borderCollapse: 'collapse', fontSize: '11px' }}>
+                                <thead>
+                                  <tr style={{ backgroundColor: '#dcfce7' }}>
+                                    <th style={{ padding: '6px', textAlign: 'left', border: '1px solid #bbf7d0' }}>Type</th>
+                                    <th style={{ padding: '6px', textAlign: 'center', border: '1px solid #bbf7d0' }}>Count</th>
+                                    <th style={{ padding: '6px', textAlign: 'center', border: '1px solid #bbf7d0' }}>Hours</th>
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {block.equipmentEntries.map((entry, i) => (
+                                    <tr key={i} style={{ backgroundColor: entry.type?.toUpperCase().includes(selectedItem.type?.split(' ')[0]?.toUpperCase() || 'XXX') ? '#dcfce7' : 'white' }}>
+                                      <td style={{ padding: '6px', border: '1px solid #bbf7d0', fontWeight: entry.type?.toUpperCase().includes(selectedItem.type?.split(' ')[0]?.toUpperCase() || 'XXX') ? 'bold' : 'normal' }}>{entry.type || '-'}</td>
+                                      <td style={{ padding: '6px', textAlign: 'center', border: '1px solid #bbf7d0' }}>{entry.count || 1}</td>
+                                      <td style={{ padding: '6px', textAlign: 'center', border: '1px solid #bbf7d0' }}>{entry.hours || 0}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+
+                      {matchingReport.weather && (
+                        <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '6px' }}>
+                          <strong>Weather:</strong>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '4px', marginTop: '8px', fontSize: '12px' }}>
+                            <div>Conditions: {matchingReport.weather.conditions || '-'}</div>
+                            <div>Temp: {matchingReport.weather.temperature || '-'}°C</div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '48px', marginBottom: '12px' }}>📋</div>
+                        <p>No matching inspector report found</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Action Bar */}
+            <div style={{ backgroundColor: 'white', borderTop: '1px solid #e5e7eb', padding: '16px 24px', borderRadius: '0 0 12px 12px', flexShrink: 0 }}>
+              <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500', fontSize: '13px' }}>Notes / Concerns (rate issues, discrepancies, etc.)</label>
+                  <input 
+                    type="text"
+                    value={reviewNotes}
+                    onChange={e => setReviewNotes(e.target.value)}
+                    placeholder="Add any notes about this discrepancy..."
+                    style={{ width: '100%', padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: '6px', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '4px', fontWeight: '500', fontSize: '13px' }}>Corrected Hours</label>
                   <input 
                     type="number" 
                     value={correctedValue}
                     onChange={e => setCorrectedValue(e.target.value)}
-                    style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: '6px', width: '100px' }}
+                    style={{ padding: '10px 12px', border: '1px solid #d1d5db', borderRadius: '6px', width: '100px' }}
                   />
                 </div>
-              </div>
-
-              {/* Action Buttons */}
-              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
-                <button onClick={() => setShowReviewModal(false)} style={{ padding: '12px 24px', border: '1px solid #d1d5db', borderRadius: '6px', backgroundColor: 'white', cursor: 'pointer' }}>
-                  Cancel
-                </button>
-                <button onClick={adminFix} style={{ padding: '12px 24px', border: 'none', borderRadius: '6px', backgroundColor: '#059669', color: 'white', cursor: 'pointer', fontWeight: '500' }}>
-                  ✓ Fix & Save Correction
-                </button>
-                <button onClick={flagForContractor} style={{ padding: '12px 24px', border: 'none', borderRadius: '6px', backgroundColor: '#dc2626', color: 'white', cursor: 'pointer', fontWeight: '500' }}>
-                  🚨 Flag for Contractor
-                </button>
+                <div style={{ display: 'flex', gap: '12px', paddingTop: '20px' }}>
+                  <button onClick={() => setShowReviewModal(false)} style={{ padding: '10px 20px', border: '1px solid #d1d5db', borderRadius: '6px', backgroundColor: 'white', cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                  <button onClick={adminFix} style={{ padding: '10px 20px', border: 'none', borderRadius: '6px', backgroundColor: '#059669', color: 'white', cursor: 'pointer', fontWeight: '500' }}>
+                    ✓ Fix & Save
+                  </button>
+                  <button onClick={flagForContractor} style={{ padding: '10px 20px', border: 'none', borderRadius: '6px', backgroundColor: '#dc2626', color: 'white', cursor: 'pointer', fontWeight: '500' }}>
+                    🚨 Flag for Contractor
+                  </button>
+                </div>
               </div>
             </div>
           </div>
