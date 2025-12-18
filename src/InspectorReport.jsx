@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import { supabase } from './supabase'
 import MainlineWeldData from './MainlineWeldData.jsx'
+import TieInWeldData from './TieInWeldData.jsx'
 
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
@@ -2726,8 +2727,22 @@ Important:
       return <p style={{ color: '#666', fontStyle: 'italic' }}>Select an activity type to see quality checks</p>
     }
 
-    // Use MainlineWeldData component for welding activities
-    if (block.activityType.startsWith('Welding - ')) {
+    // Use appropriate weld component based on activity type
+    if (block.activityType === 'Welding - Tie-in') {
+      return (
+        <TieInWeldData
+          contractor={block.contractor}
+          foreman={block.foreman}
+          blockId={block.id}
+          reportId={null}
+          existingData={block.weldData || {}}
+          onDataChange={(data) => updateWeldData(block.id, data)}
+        />
+      )
+    }
+
+    // Use MainlineWeldData for mainline, section crew, and poor boy welding
+    if (block.activityType === 'Welding - Mainline' || block.activityType === 'Welding - Section Crew' || block.activityType === 'Welding - Poor Boy') {
       return (
         <MainlineWeldData
           contractor={block.contractor}
