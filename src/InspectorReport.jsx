@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import { supabase } from './supabase'
+import MainlineWeldData from './MainlineWeldData.jsx'
 
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
@@ -1550,6 +1551,18 @@ Important:
     }))
   }
 
+  function updateWeldData(blockId, weldData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          weldData: weldData
+        }
+      }
+      return block
+    }))
+  }
+
   // Labour management for activity blocks
   // RT = Regular Time, OT = Overtime, JH = Jump Hours (bonus)
   function addLabourToBlock(blockId, employeeName, classification, rt, ot, jh, count) {
@@ -2705,8 +2718,25 @@ Important:
 
   // Render quality fields for an activity
   function renderQualityFields(block) {
-    if (!block.activityType || !qualityFieldsByActivity[block.activityType]) {
+    if (!block.activityType) {
       return <p style={{ color: '#666', fontStyle: 'italic' }}>Select an activity type to see quality checks</p>
+    }
+
+    // Use MainlineWeldData component for welding activities
+    if (block.activityType === 'Welding - Mainline') {
+      return (
+        <MainlineWeldData
+          blockId={block.id}
+          reportId={null}
+          existingData={block.weldData || {}}
+          onDataChange={(data) => updateWeldData(block.id, data)}
+        />
+      )
+    }
+
+    // Default quality fields for other activities
+    if (!qualityFieldsByActivity[block.activityType]) {
+      return <p style={{ color: '#666', fontStyle: 'italic' }}>No quality checks defined for this activity</p>
     }
 
     const fields = qualityFieldsByActivity[block.activityType]
@@ -2741,6 +2771,7 @@ Important:
         ))}
       </div>
     )
+  }
   }
 
   // Main render
