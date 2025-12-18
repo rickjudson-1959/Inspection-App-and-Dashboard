@@ -736,7 +736,7 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
               <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
                 {/* Left Pipe */}
                 <div style={{ flex: 1, backgroundColor: 'white', padding: '12px', borderRadius: '6px', border: '2px solid #ff9800' }}>
-                  <h6 style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#e65100', textAlign: 'center' }}>LEFT PIPE</h6>
+                  <h6 style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#e65100', textAlign: 'center' }}>U/S PIPE</h6>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '11px' }}>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>Pipe No.</label>
@@ -784,7 +784,7 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
 
                 {/* Right Pipe */}
                 <div style={{ flex: 1, backgroundColor: 'white', padding: '12px', borderRadius: '6px', border: '2px solid #ff9800' }}>
-                  <h6 style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#e65100', textAlign: 'center' }}>RIGHT PIPE</h6>
+                  <h6 style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#e65100', textAlign: 'center' }}>D/S PIPE</h6>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '11px' }}>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>Pipe No.</label>
