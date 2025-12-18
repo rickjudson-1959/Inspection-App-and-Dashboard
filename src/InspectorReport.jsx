@@ -2726,6 +2726,8 @@ Important:
     if (block.activityType === 'Welding - Mainline') {
       return (
         <MainlineWeldData
+          contractor={block.contractor}
+          foreman={block.foreman}
           blockId={block.id}
           reportId={null}
           existingData={block.weldData || {}}

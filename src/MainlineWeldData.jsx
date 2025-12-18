@@ -47,7 +47,7 @@ const PARAM_RANGES = {
   }
 }
 
-export default function MainlineWeldData({ blockId, reportId, onDataChange, existingData }) {
+export default function MainlineWeldData({ blockId, reportId, onDataChange, existingData, contractor: propContractor, foreman: propForeman }) {
   const [crewType, setCrewType] = useState(existingData?.crewType || '')
   const [contractor, setContractor] = useState(existingData?.contractor || '')
   const [foreman, setForeman] = useState(existingData?.foreman || '')
