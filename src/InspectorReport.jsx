@@ -2772,7 +2772,6 @@ Important:
       </div>
     )
   }
-  }
 
   // Main render
   return (
