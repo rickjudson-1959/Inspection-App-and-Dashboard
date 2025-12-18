@@ -3841,16 +3841,6 @@ Important:
             {saving ? 'Saving...' : '💾 Save Only'}
           </button>
         </div>
-        <div style={{ borderTop: '1px solid #ccc', paddingTop: '15px', textAlign: 'center' }}>
-          <button
-            onClick={() => exportMasterProduction()}
-            style={{ padding: '15px 40px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}
-          >
-            📋 Master Production Spreadsheet
-          </button>
-          <p style={{ margin: '10px 0 0 0', fontSize: '12px', color: '#666' }}>
-            Exports all saved reports into CLX2 format with daily progress tracking by phase (From KP, To KP, Metres)
-          </p>
         </div>
       </div>
     </div>
