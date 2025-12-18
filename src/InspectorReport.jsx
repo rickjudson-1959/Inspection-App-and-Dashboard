@@ -29,6 +29,8 @@ const activityTypes = [
   'Stringing',
   'Bending',
   'Welding - Mainline',
+  'Welding - Section Crew',
+  'Welding - Poor Boy',
   'Welding - Tie-in',
   'Coating',
   'Ditch',
@@ -2524,7 +2526,9 @@ Important:
     // Activity types in order for columns
     const phases = [
       'Clearing', 'Access', 'Topsoil', 'Grading', 'Stringing', 'Bending',
-      'Welding - Mainline', 'Welding - Tie-in', 'Coating', 'Lowering-in',
+      'Welding - Mainline',
+  'Welding - Section Crew',
+  'Welding - Poor Boy', 'Welding - Tie-in', 'Coating', 'Lowering-in',
       'Backfill', 'Hydro Test', 'Tie-ins', 'Cleanup - Machine', 'Cleanup - Final',
       'HDD', 'HD Bores', 'Other'
     ]
@@ -2723,7 +2727,7 @@ Important:
     }
 
     // Use MainlineWeldData component for welding activities
-    if (block.activityType === 'Welding - Mainline') {
+    if (block.activityType.startsWith('Welding - ')) {
       return (
         <MainlineWeldData
           contractor={block.contractor}
