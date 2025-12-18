@@ -84,6 +84,11 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
     loadInitialData()
   }, [])
 
+
+  useEffect(() => {
+    if (propContractor && !contractor) setContractor(propContractor)
+    if (propForeman && !foreman) setForeman(propForeman)
+  }, [propContractor, propForeman])
   useEffect(() => {
     if (crewType) {
       loadPreviousWeldCount()
