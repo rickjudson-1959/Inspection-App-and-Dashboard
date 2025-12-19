@@ -2807,7 +2807,6 @@ Important:
         />
       )
     }
-    }
 
     // Default quality fields for other activities
     if (!qualityFieldsByActivity[block.activityType]) {
