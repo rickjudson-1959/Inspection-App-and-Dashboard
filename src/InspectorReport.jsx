@@ -2793,6 +2793,7 @@ Important:
           onDataChange={(data) => updateBendData(block.id, data)}
         />
       )
+    }
 
     // Use StringingLog for stringing activity
     if (block.activityType === 'Stringing') {
