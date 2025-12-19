@@ -6,7 +6,7 @@ import jsPDF from 'jspdf'
 import { supabase } from './supabase'
 import MainlineWeldData from './MainlineWeldData.jsx'
 import TieInWeldData from './TieInWeldData.jsx'
-
+import { saveTieInTicket, loadTieInTicket } from './tieInService.js'
 import BendingLog from './BendingLog.jsx'
 import StringingLog from './StringingLog.jsx'
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
@@ -1880,7 +1880,7 @@ Important:
       }
 
       // Save to database
-      const { error: dbError } = await supabase.from('daily_tickets').insert([{
+      const { data: insertedTicket, error: dbError } = await supabase.from('daily_tickets').insert([{
         date: selectedDate,
         spread: spread,
         inspector_name: inspectorName,
@@ -1900,7 +1900,22 @@ Important:
         visitors: visitors,
         inspector_mileage: parseFloat(inspectorMileage) || null,
         inspector_equipment: inspectorEquipment
-      }])
+      }]).select('id').single()
+
+      if (dbError) throw dbError
+
+      const ticketId = insertedTicket.id
+
+      // Save tie-in data if present
+      for (const block of activityBlocks) {
+        if (block.activityType === 'Welding - Tie-in' && block.weldData?.tieIns?.length > 0) {
+          const tieInResult = await saveTieInTicket(block.weldData.tieIns, ticketId)
+          if (!tieInResult.success) {
+            console.error('Failed to save tie-ins:', tieInResult.error)
+          }
+        }
+      }
+      }]).select('id').single()
 
       if (dbError) throw dbError
 
