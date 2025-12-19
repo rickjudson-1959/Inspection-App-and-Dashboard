@@ -8,6 +8,7 @@ import MainlineWeldData from './MainlineWeldData.jsx'
 import TieInWeldData from './TieInWeldData.jsx'
 
 import BendingLog from './BendingLog.jsx'
+import StringingLog from './StringingLog.jsx'
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -1574,6 +1575,18 @@ Important:
         return {
           ...block,
           bendData: bendData
+        }
+      }
+      return block
+    }))
+  }
+
+  function updateStringData(blockId, stringData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          stringData: stringData
         }
       }
       return block
