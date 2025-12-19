@@ -1,4 +1,5 @@
 import './App.css'
+import { saveTieInTicket } from './saveLogic.js'
 import { useAuth } from './AuthContext.jsx'
 import React, { useState, useEffect, useRef } from 'react'
 import * as XLSX from 'xlsx'
@@ -6,7 +7,6 @@ import jsPDF from 'jspdf'
 import { supabase } from './supabase'
 import MainlineWeldData from './MainlineWeldData.jsx'
 import TieInWeldData from './TieInWeldData.jsx'
-import { saveTieInTicket, loadTieInTicket } from './tieInService.js'
 import BendingLog from './BendingLog.jsx'
 import StringingLog from './StringingLog.jsx'
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
@@ -1909,7 +1909,7 @@ Important:
       // Save tie-in data if present
       for (const block of activityBlocks) {
         if (block.activityType === 'Welding - Tie-in' && block.weldData?.tieIns?.length > 0) {
-          const tieInResult = await saveTieInTicket(block.weldData.tieIns, ticketId)
+          await saveTieInTicket({ tieIns: block.weldData.tieIns })
           if (!tieInResult.success) {
             console.error('Failed to save tie-ins:', tieInResult.error)
           }
