@@ -1915,9 +1915,6 @@ Important:
           }
         }
       }
-      }]).select('id').single()
-
-      if (dbError) throw dbError
 
       alert('Report saved successfully!')
 
