@@ -7,6 +7,7 @@ import { supabase } from './supabase'
 import MainlineWeldData from './MainlineWeldData.jsx'
 import TieInWeldData from './TieInWeldData.jsx'
 
+import BendingLog from './BendingLog.jsx'
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -1566,6 +1567,18 @@ Important:
     }))
   }
 
+
+  function updateBendData(blockId, bendData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          bendData: bendData
+        }
+      }
+      return block
+    }))
+  }
   // Labour management for activity blocks
   // RT = Regular Time, OT = Overtime, JH = Jump Hours (bonus)
   function addLabourToBlock(blockId, employeeName, classification, rt, ot, jh, count) {
@@ -2751,6 +2764,20 @@ Important:
           reportId={null}
           existingData={block.weldData || {}}
           onDataChange={(data) => updateWeldData(block.id, data)}
+        />
+      )
+    }
+
+    // Use BendingLog for bending activity
+    if (block.activityType === 'Bending') {
+      return (
+        <BendingLog
+          contractor={block.contractor}
+          foreman={block.foreman}
+          blockId={block.id}
+          reportId={null}
+          existingData={block.bendData || {}}
+          onDataChange={(data) => updateBendData(block.id, data)}
         />
       )
     }
