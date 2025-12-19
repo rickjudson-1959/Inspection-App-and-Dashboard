@@ -2793,6 +2793,20 @@ Important:
           onDataChange={(data) => updateBendData(block.id, data)}
         />
       )
+
+    // Use StringingLog for stringing activity
+    if (block.activityType === 'Stringing') {
+      return (
+        <StringingLog
+          contractor={block.contractor}
+          foreman={block.foreman}
+          blockId={block.id}
+          reportId={null}
+          existingData={block.stringData || {}}
+          onDataChange={(data) => updateStringData(block.id, data)}
+        />
+      )
+    }
     }
 
     // Default quality fields for other activities
