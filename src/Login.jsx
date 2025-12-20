@@ -70,7 +70,7 @@ function Login({ onLogin }) {
           <p style={{ 
             margin: 0, 
             color: '#666', 
-            fontSize: '14px',
+            fontSize: '18px',
             letterSpacing: '0.5px'
           }}>
             Pipeline Inspector Portal
@@ -83,7 +83,7 @@ function Login({ onLogin }) {
               display: 'block', 
               marginBottom: '8px', 
               fontWeight: '600', 
-              fontSize: '14px',
+              fontSize: '18px',
               color: '#3D3D3D'
             }}>
               Email
@@ -114,7 +114,7 @@ function Login({ onLogin }) {
               display: 'block', 
               marginBottom: '8px', 
               fontWeight: '600', 
-              fontSize: '14px',
+              fontSize: '18px',
               color: '#3D3D3D'
             }}>
               Password
@@ -170,7 +170,7 @@ function Login({ onLogin }) {
               color: error.includes('Check your email') ? '#155724' : '#c53030',
               borderRadius: '8px',
               marginBottom: '20px',
-              fontSize: '14px',
+              fontSize: '18px',
               border: error.includes('Check your email') ? '1px solid #c3e6cb' : '1px solid #feb2b2'
             }}>
               {error}
@@ -208,7 +208,7 @@ function Login({ onLogin }) {
               border: 'none',
               color: '#1E3A5F',
               cursor: 'pointer',
-              fontSize: '14px',
+              fontSize: '18px',
               fontWeight: '500'
             }}
             onMouseOver={(e) => e.target.style.color = '#D35F28'}
