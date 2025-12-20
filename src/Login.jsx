@@ -59,7 +59,7 @@ function Login({ onLogin }) {
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
           <img 
-            src="/logo.svg" 
+            src="/logo.png" 
             alt="Pipe-Up Logo" 
             style={{ 
               width: '240px', 
