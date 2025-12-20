@@ -50,9 +50,11 @@ const activityTypes = [
 // Quality fields per activity type (API 1169 based)
 const qualityFieldsByActivity = {
   'Clearing': [
-    { name: 'widthCompliance', label: 'Width Compliance (m)', type: 'number' },
-    { name: 'environmentalMarkers', label: 'Environmental Markers in Place', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'debrisRemoval', label: 'Debris Removal Complete', type: 'select', options: ['Yes', 'No', 'In Progress'] }
+    { name: 'rowWidth', label: 'ROW Width (m)', type: 'number' },
+    { name: 'boundaryStaking', label: 'Boundary & Staking (ROW limits/TWS staked)', type: 'select', options: ['Yes', 'No'] },
+    { name: 'crossingsMarked', label: 'Crossings Marked (Foreign utilities identified)', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'timberSalvage', label: 'Timber Salvage', type: 'select', options: ['Decked', 'Mulched', 'N/A'] },
+    { name: 'grubbingStumpHeight', label: 'Grubbing/Stump Height', type: 'select', options: ['Pass', 'Fail'] }
   ],
   'Access': [
     { name: 'accessWidth', label: 'Access Width (m)', type: 'number' },
