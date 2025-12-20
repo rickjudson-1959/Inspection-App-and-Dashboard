@@ -61,15 +61,15 @@ export async function saveTieInTicket(ticketData) {
     if (tieInError) {
       console.error("Error saving Tie-In:", tieInError);
       alert(`Error saving Tie-In ${tieIn.tieInNumber}: ${tieInError.message}`);
-      return; // Stop if parent fails
+      return;
     }
 
-    const tieInId = tieInRecord.id; // Get the ID Supabase just created
+    const tieInId = tieInRecord.id;
 
     // B. Insert the Children (The Weld Passes)
     if (tieIn.weldParams && tieIn.weldParams.length > 0) {
       const weldRows = tieIn.weldParams.map(weld => ({
-        tie_in_id: tieInId, // LINK TO PARENT
+        tie_in_id: tieInId,
         weld_number: weld.weldNumber,
         pass_type: weld.pass,
         side: weld.side,
