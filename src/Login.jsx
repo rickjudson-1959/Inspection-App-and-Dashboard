@@ -62,7 +62,7 @@ function Login({ onLogin }) {
             src="/logo.svg" 
             alt="Pipe-Up Logo" 
             style={{ 
-              width: '180px', 
+              width: '240px', 
               height: 'auto',
               marginBottom: '10px'
             }} 
