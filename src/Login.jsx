@@ -28,7 +28,9 @@ function Login({ onLogin }) {
           password
         })
         if (error) throw error
-        if (data.user) {
+        if (data.session) {
+          onLogin(data.user)
+        } else if (data.user) {
           setError('Check your email for the confirmation link!')
         }
       }
