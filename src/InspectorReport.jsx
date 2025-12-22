@@ -50,11 +50,112 @@ const activityTypes = [
 // Quality fields per activity type (API 1169 based)
 const qualityFieldsByActivity = {
   'Clearing': [
-    { name: 'rowWidth', label: 'ROW Width (m)', type: 'number' },
-    { name: 'boundaryStaking', label: 'Boundary & Staking (ROW limits/TWS staked)', type: 'select', options: ['Yes', 'No'] },
-    { name: 'crossingsMarked', label: 'Crossings Marked (Foreign utilities identified)', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'timberSalvage', label: 'Timber Salvage', type: 'select', options: ['Decked', 'Mulched', 'N/A'] },
-    { name: 'grubbingStumpHeight', label: 'Grubbing/Stump Height', type: 'select', options: ['Pass', 'Fail'] }
+    // ═══════════════════════════════════════════════════════════════
+    // RIGHT-OF-WAY & BOUNDARIES
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'rowWidthDesign', label: 'Design ROW Width (m)', type: 'number', placeholder: 'Per route sheets' },
+    { name: 'rowWidthActual', label: 'Actual ROW Width (m)', type: 'number', placeholder: 'Field measured' },
+    { name: 'rowWidthCompliant', label: 'ROW Width Compliant?', type: 'select', options: ['Yes', 'No - Over Width', 'No - Under Width'] },
+    { name: 'rowAlignmentVerified', label: 'ROW Alignment Verified vs Route Sheets?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'boundariesFlagged', label: 'Boundaries Flagged & Visible?', type: 'select', options: ['Yes', 'No', 'Partially'] },
+    { name: 'twsStaked', label: 'Temporary Workspace (TWS) Staked?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'legalSurveyPinsProtected', label: 'Legal Survey Pins Marked/Protected?', type: 'select', options: ['Yes', 'No', 'None Present', 'N/A'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PRE-CLEARING APPROVALS & COMPLIANCE
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'cgrPlanApproved', label: 'CGR Plan Approved & On-Site?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'cgrPlanCompliance', label: 'Work Compliant with CGR Plan?', type: 'select', options: ['Yes', 'No', 'Partial Deviation'] },
+    { name: 'offRowApprovalsInPlace', label: 'Off-ROW Work Approvals in Place?', type: 'select', options: ['Yes', 'No', 'N/A - No Off-ROW Work'] },
+    { name: 'constructionLineListReviewed', label: 'Construction Line List Reviewed?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'landownerRestrictionsNoted', label: 'Landowner Restrictions Noted?', type: 'select', options: ['Yes - Compliant', 'Yes - Non-Compliant', 'No Restrictions', 'N/A'] },
+    { name: 'landAgentContact', label: 'Land Agent Contact Maintained?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ENVIRONMENTAL COMPLIANCE
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'environmentalInspectorLiaison', label: 'Liaised with Environmental Inspector?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'timingConstraintsMet', label: 'Timing Constraints Met? (Wildlife windows)', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'wildlifeRegulationsCompliant', label: 'Wildlife Regulations Compliant?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'rarePlantProtection', label: 'Rare Plant Areas Protected?', type: 'select', options: ['Yes', 'No', 'None Identified', 'N/A'] },
+    { name: 'asrdCommitmentsMet', label: 'ASRD Commitments Met?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'groundDisturbanceCompliant', label: 'Ground Disturbance per Contract Docs?', type: 'select', options: ['Yes', 'No'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // BURIED FACILITIES & UTILITIES
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'buriedFacilitiesIdentified', label: 'Buried Facilities Identified?', type: 'select', options: ['Yes', 'No', 'None Present'] },
+    { name: 'locatesComplete', label: 'Utility Locates Complete?', type: 'select', options: ['Yes', 'No', 'Pending', 'N/A'] },
+    { name: 'handExposingComplete', label: 'Hand/Hydrovac Exposing Complete?', type: 'select', options: ['Yes', 'No', 'In Progress', 'N/A'] },
+    { name: 'foreignCrossingsMarked', label: 'Foreign Crossings Marked?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // OVERHEAD POWER LINES
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'powerLinesPresent', label: 'Overhead Power Lines Present?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'powerLinesIdentified', label: 'Power Lines Identified per Specs?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'powerLinesMarked', label: 'Power Lines Marked per Safety Req?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'powerLinesClearance', label: 'Adequate Clearance Maintained?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'powerLineVoltage', label: 'Power Line Voltage (if known)', type: 'text', placeholder: 'e.g., 25kV, 138kV' },
+
+    // ═══════════════════════════════════════════════════════════════
+    // TIMBER SALVAGE
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'timberSalvageRequired', label: 'Timber Salvage Required?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'timberSalvageCompliant', label: 'Timber Harvesting per TSP Requirements?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'merchantableTimberSalvaged', label: 'Merchantable Timber Salvaged?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'timberDisposalMethod', label: 'Timber Disposal Method', type: 'select', options: ['Decked for Haul', 'Mulched', 'Burned', 'Rollback', 'Mixed Methods', 'N/A'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // TIMBER DECKING LOG
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'timberDecksCreated', label: '🪵 Timber Decks Created Today?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'deckId', label: 'Deck ID', type: 'text', placeholder: 'e.g., D-004' },
+    { name: 'deckStartKp', label: 'Deck Location - Start KP', type: 'number' },
+    { name: 'deckEndKp', label: 'Deck Location - End KP', type: 'number' },
+    { name: 'deckOwnerStatus', label: 'Deck Owner/Status', type: 'select', options: ['Crown', 'Private (Freehold)'] },
+    { name: 'deckSpeciesSort', label: 'Species Sort', type: 'select', options: ['Coniferous (Softwood)', 'Deciduous (Hardwood)', 'Mixed'] },
+    { name: 'deckCondition', label: 'Timber Condition', type: 'select', options: ['Green (Live)', 'Dry/Dead', 'Burned'] },
+    { name: 'deckCutSpecification', label: 'Cut Specification', type: 'select', options: ['Tree Length', 'Cut-to-Length'] },
+    { name: 'deckMinTopDiameter', label: 'Min Top Diameter (cm)', type: 'number' },
+    { name: 'deckDisposalDestination', label: 'Disposal/Destination', type: 'select', options: ['Haul to Mill', 'Rollback (Reclamation)', 'Firewood', 'Mulch/Burn'] },
+    { name: 'deckVolumeEstimate', label: 'Volume Estimate (m³)', type: 'number' },
+
+    // ═══════════════════════════════════════════════════════════════
+    // GRUBBING & STRIPPING
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'grubbingComplete', label: 'Grubbing Complete?', type: 'select', options: ['Yes', 'No', 'In Progress', 'N/A'] },
+    { name: 'stumpHeightCompliant', label: 'Stump Height Compliant?', type: 'select', options: ['Pass', 'Fail', 'N/A'] },
+    { name: 'stumpHeightMax', label: 'Max Stump Height Observed (cm)', type: 'number', placeholder: 'Spec typically ≤15cm' },
+    { name: 'topsoilStripped', label: 'Topsoil Stripped & Stockpiled?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'topsoilSeparation', label: 'Topsoil Separated from Subsoil?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // WATERCOURSE CROSSINGS
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'watercoursePresent', label: 'Watercourse in Work Area?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'watercourseAccessCompliant', label: 'Access Clearing per Specifications?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'equipmentCrossingInstalled', label: 'Equipment Crossing Installed?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'equipmentCrossingType', label: 'Crossing Type', type: 'select', options: ['Temporary Bridge', 'Mat Crossing', 'Culvert', 'Ford', 'Other', 'N/A'] },
+    { name: 'regulatoryApprovalCompliant', label: 'Compliant with Regulatory Approvals?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'erosionControlsInstalled', label: 'Erosion Controls Installed?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // TEMPORARY FENCING
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'tempFencingRequired', label: 'Temporary Fencing Required?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'tempFencingInstalled', label: 'Temporary Fencing Installed?', type: 'select', options: ['Yes', 'No', 'In Progress', 'N/A'] },
+    { name: 'tempFencingType', label: 'Fencing Type', type: 'select', options: ['Page Wire', 'Barbed Wire', 'Electric', 'Snow Fence', 'Construction Fence', 'Other', 'N/A'] },
+    { name: 'tempFencingLength', label: 'Fencing Length Installed (m)', type: 'number', placeholder: 'Total meters' },
+    { name: 'gatesInstalled', label: 'Gates Installed?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'gatesCount', label: 'Number of Gates', type: 'number' },
+
+    // ═══════════════════════════════════════════════════════════════
+    // GENERAL OBSERVATIONS
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'safetyIssuesObserved', label: 'Safety Issues Observed?', type: 'select', options: ['None', 'Yes - Reported', 'Yes - Corrected'] },
+    { name: 'ncrRequired', label: 'NCR Required?', type: 'select', options: ['No', 'Yes - Issued', 'Yes - Pending'] },
+    { name: 'clearingInspectorNotes', label: 'Clearing Inspector Notes', type: 'textarea', placeholder: 'Additional observations, issues, or comments...' }
   ],
   'Access': [
     { name: 'accessWidth', label: 'Access Width (m)', type: 'number' },

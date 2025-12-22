@@ -7,6 +7,8 @@ import Dashboard from './Dashboard'
 import ProjectConfig from './ProjectConfig'
 import { supabase } from './supabase'
 import { useAuth } from './AuthContext.jsx'
+import { saveTieInTicket } from './saveLogic'
+
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
