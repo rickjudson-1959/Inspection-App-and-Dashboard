@@ -7,8 +7,6 @@ import Dashboard from './Dashboard'
 import ProjectConfig from './ProjectConfig'
 import { supabase } from './supabase'
 import { useAuth } from './AuthContext.jsx'
-import { saveTieInTicket } from './saveLogic'
-
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -48,9 +46,112 @@ const activityTypes = [
 // Quality fields per activity type (API 1169 based)
 const qualityFieldsByActivity = {
   'Clearing': [
-    { name: 'widthCompliance', label: 'Width Compliance (m)', type: 'number' },
-    { name: 'environmentalMarkers', label: 'Environmental Markers in Place', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'debrisRemoval', label: 'Debris Removal Complete', type: 'select', options: ['Yes', 'No', 'In Progress'] }
+    // ═══════════════════════════════════════════════════════════════
+    // RIGHT-OF-WAY & BOUNDARIES
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'rowWidthDesign', label: 'Design ROW Width (m)', type: 'number', placeholder: 'Per route sheets' },
+    { name: 'rowWidthActual', label: 'Actual ROW Width (m)', type: 'number', placeholder: 'Field measured' },
+    { name: 'rowWidthCompliant', label: 'ROW Width Compliant?', type: 'select', options: ['Yes', 'No - Over Width', 'No - Under Width'] },
+    { name: 'rowAlignmentVerified', label: 'ROW Alignment Verified vs Route Sheets?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'boundariesFlagged', label: 'Boundaries Flagged & Visible?', type: 'select', options: ['Yes', 'No', 'Partially'] },
+    { name: 'twsStaked', label: 'Temporary Workspace (TWS) Staked?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'legalSurveyPinsProtected', label: 'Legal Survey Pins Marked/Protected?', type: 'select', options: ['Yes', 'No', 'None Present', 'N/A'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // PRE-CLEARING APPROVALS & COMPLIANCE
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'cgrPlanApproved', label: 'CGR Plan Approved & On-Site?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'cgrPlanCompliance', label: 'Work Compliant with CGR Plan?', type: 'select', options: ['Yes', 'No', 'Partial Deviation'] },
+    { name: 'offRowApprovalsInPlace', label: 'Off-ROW Work Approvals in Place?', type: 'select', options: ['Yes', 'No', 'N/A - No Off-ROW Work'] },
+    { name: 'constructionLineListReviewed', label: 'Construction Line List Reviewed?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'landownerRestrictionsNoted', label: 'Landowner Restrictions Noted?', type: 'select', options: ['Yes - Compliant', 'Yes - Non-Compliant', 'No Restrictions', 'N/A'] },
+    { name: 'landAgentContact', label: 'Land Agent Contact Maintained?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // ENVIRONMENTAL COMPLIANCE
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'environmentalInspectorLiaison', label: 'Liaised with Environmental Inspector?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'timingConstraintsMet', label: 'Timing Constraints Met? (Wildlife windows)', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'wildlifeRegulationsCompliant', label: 'Wildlife Regulations Compliant?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'rarePlantProtection', label: 'Rare Plant Areas Protected?', type: 'select', options: ['Yes', 'No', 'None Identified', 'N/A'] },
+    { name: 'asrdCommitmentsMet', label: 'ASRD Commitments Met?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'groundDisturbanceCompliant', label: 'Ground Disturbance per Contract Docs?', type: 'select', options: ['Yes', 'No'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // BURIED FACILITIES & UTILITIES
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'buriedFacilitiesIdentified', label: 'Buried Facilities Identified?', type: 'select', options: ['Yes', 'No', 'None Present'] },
+    { name: 'locatesComplete', label: 'Utility Locates Complete?', type: 'select', options: ['Yes', 'No', 'Pending', 'N/A'] },
+    { name: 'handExposingComplete', label: 'Hand/Hydrovac Exposing Complete?', type: 'select', options: ['Yes', 'No', 'In Progress', 'N/A'] },
+    { name: 'foreignCrossingsMarked', label: 'Foreign Crossings Marked?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // OVERHEAD POWER LINES
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'powerLinesPresent', label: 'Overhead Power Lines Present?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'powerLinesIdentified', label: 'Power Lines Identified per Specs?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'powerLinesMarked', label: 'Power Lines Marked per Safety Req?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'powerLinesClearance', label: 'Adequate Clearance Maintained?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'powerLineVoltage', label: 'Power Line Voltage (if known)', type: 'text', placeholder: 'e.g., 25kV, 138kV' },
+
+    // ═══════════════════════════════════════════════════════════════
+    // TIMBER SALVAGE
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'timberSalvageRequired', label: 'Timber Salvage Required?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'timberSalvageCompliant', label: 'Timber Harvesting per TSP Requirements?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'merchantableTimberSalvaged', label: 'Merchantable Timber Salvaged?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'timberDisposalMethod', label: 'Timber Disposal Method', type: 'select', options: ['Decked for Haul', 'Mulched', 'Burned', 'Rollback', 'Mixed Methods', 'N/A'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // TIMBER DECKING LOG
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'timberDecksCreated', label: '🪵 Timber Decks Created Today?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'deckId', label: 'Deck ID', type: 'text', placeholder: 'e.g., D-004' },
+    { name: 'deckStartKp', label: 'Deck Location - Start KP', type: 'number' },
+    { name: 'deckEndKp', label: 'Deck Location - End KP', type: 'number' },
+    { name: 'deckOwnerStatus', label: 'Deck Owner/Status', type: 'select', options: ['Crown', 'Private (Freehold)'] },
+    { name: 'deckSpeciesSort', label: 'Species Sort', type: 'select', options: ['Coniferous (Softwood)', 'Deciduous (Hardwood)', 'Mixed'] },
+    { name: 'deckCondition', label: 'Timber Condition', type: 'select', options: ['Green (Live)', 'Dry/Dead', 'Burned'] },
+    { name: 'deckCutSpecification', label: 'Cut Specification', type: 'select', options: ['Tree Length', 'Cut-to-Length'] },
+    { name: 'deckMinTopDiameter', label: 'Min Top Diameter (cm)', type: 'number' },
+    { name: 'deckDisposalDestination', label: 'Disposal/Destination', type: 'select', options: ['Haul to Mill', 'Rollback (Reclamation)', 'Firewood', 'Mulch/Burn'] },
+    { name: 'deckVolumeEstimate', label: 'Volume Estimate (m³)', type: 'number' },
+
+    // ═══════════════════════════════════════════════════════════════
+    // GRUBBING & STRIPPING
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'grubbingComplete', label: 'Grubbing Complete?', type: 'select', options: ['Yes', 'No', 'In Progress', 'N/A'] },
+    { name: 'stumpHeightCompliant', label: 'Stump Height Compliant?', type: 'select', options: ['Pass', 'Fail', 'N/A'] },
+    { name: 'stumpHeightMax', label: 'Max Stump Height Observed (cm)', type: 'number', placeholder: 'Spec typically ≤15cm' },
+    { name: 'topsoilStripped', label: 'Topsoil Stripped & Stockpiled?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'topsoilSeparation', label: 'Topsoil Separated from Subsoil?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // WATERCOURSE CROSSINGS
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'watercoursePresent', label: 'Watercourse in Work Area?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'watercourseAccessCompliant', label: 'Access Clearing per Specifications?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'equipmentCrossingInstalled', label: 'Equipment Crossing Installed?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'equipmentCrossingType', label: 'Crossing Type', type: 'select', options: ['Temporary Bridge', 'Mat Crossing', 'Culvert', 'Ford', 'Other', 'N/A'] },
+    { name: 'regulatoryApprovalCompliant', label: 'Compliant with Regulatory Approvals?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'erosionControlsInstalled', label: 'Erosion Controls Installed?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // TEMPORARY FENCING
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'tempFencingRequired', label: 'Temporary Fencing Required?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'tempFencingInstalled', label: 'Temporary Fencing Installed?', type: 'select', options: ['Yes', 'No', 'In Progress', 'N/A'] },
+    { name: 'tempFencingType', label: 'Fencing Type', type: 'select', options: ['Page Wire', 'Barbed Wire', 'Electric', 'Snow Fence', 'Construction Fence', 'Other', 'N/A'] },
+    { name: 'tempFencingLength', label: 'Fencing Length Installed (m)', type: 'number', placeholder: 'Total meters' },
+    { name: 'gatesInstalled', label: 'Gates Installed?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'gatesCount', label: 'Number of Gates', type: 'number' },
+
+    // ═══════════════════════════════════════════════════════════════
+    // GENERAL OBSERVATIONS
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'safetyIssuesObserved', label: 'Safety Issues Observed?', type: 'select', options: ['None', 'Yes - Reported', 'Yes - Corrected'] },
+    { name: 'ncrRequired', label: 'NCR Required?', type: 'select', options: ['No', 'Yes - Issued', 'Yes - Pending'] },
+    { name: 'clearingInspectorNotes', label: 'Clearing Inspector Notes', type: 'textarea', placeholder: 'Additional observations, issues, or comments...' }
   ],
   'Access': [
     { name: 'accessWidth', label: 'Access Width (m)', type: 'number' },
@@ -106,15 +207,116 @@ const qualityFieldsByActivity = {
     { name: 'repairPass', label: 'Repair Pass #', type: 'text' }
   ],
   'Coating': [
-    { name: 'coatingType', label: 'Coating System', type: 'select', options: ['FBE', '3LPE', '3LPP', 'Tape Wrap', 'Shrink Sleeve', 'Other'] },
-    { name: 'holidayVoltage', label: 'Holiday Test Voltage (V)', type: 'number' },
-    { name: 'voltageConstant', label: 'Voltage Constant', type: 'number' },
-    { name: 'dftThickness', label: 'DFT Thickness (mils)', type: 'number' },
-    { name: 'equipmentID', label: 'Equipment ID/Serial', type: 'text' },
-    { name: 'calibrationDate', label: 'Last Calibration Date', type: 'date' },
-    { name: 'holidaysFound', label: 'Holidays Found', type: 'number' },
-    { name: 'repairsCompleted', label: 'Repairs Completed', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'retestPass', label: 'Retest Pass', type: 'select', options: ['Yes', 'No', 'N/A'] }
+    // ═══════════════════════════════════════════════════════════════
+    // DAILY SUMMARY
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'coatingContractor', label: 'Coating Contractor', type: 'text', placeholder: 'e.g., NTL Pipelines Inc.' },
+    { name: 'coatingForeman', label: 'Foreman', type: 'text' },
+    { name: 'weldNumberStart', label: 'Weld Number Start', type: 'text', placeholder: 'First weld coated' },
+    { name: 'weldNumberEnd', label: 'Weld Number End', type: 'text', placeholder: 'Last weld coated' },
+    { name: 'weldsCoatedToday', label: 'Welds Coated Today', type: 'number' },
+    { name: 'weldsCoatedPreviously', label: 'Welds Coated Previously (Cumulative)', type: 'number' },
+    { name: 'totalWeldsCoated', label: 'Total Welds Coated', type: 'number' },
+
+    // ═══════════════════════════════════════════════════════════════
+    // WELD IDENTIFICATION
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'weldNumber', label: 'Weld Number', type: 'text' },
+    { name: 'weldKp', label: 'KP Location', type: 'number' },
+    { name: 'pipeDiameter', label: 'Pipe Diameter (mm)', type: 'number' },
+    { name: 'wallThickness', label: 'Wall Thickness (mm)', type: 'number' },
+    { name: 'pipeGrade', label: 'Pipe Grade', type: 'text', placeholder: 'e.g., X70' },
+    { name: 'coatingCompany', label: 'Coating Company', type: 'text' },
+
+    // ═══════════════════════════════════════════════════════════════
+    // AMBIENT CONDITIONS
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'ambientConditionsTime', label: '🌡️ Conditions Recorded At', type: 'time' },
+    { name: 'wetBulbTemp', label: 'Wet Bulb Temp (°C)', type: 'number' },
+    { name: 'dryBulbTemp', label: 'Dry Bulb Temp (°C)', type: 'number' },
+    { name: 'dewPoint', label: 'Dew Point (°C)', type: 'number' },
+    { name: 'relativeHumidity', label: 'Relative Humidity (%)', type: 'number' },
+    { name: 'steelTemperature', label: 'Steel Temperature (°C)', type: 'number' },
+    { name: 'steelAboveDewPoint', label: 'Steel Temp ≥3°C Above Dew Point?', type: 'select', options: ['Yes', 'No'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // SURFACE PREP & BLASTING
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'surfaceContaminants', label: 'Contaminants Present?', type: 'select', options: ['None', 'Oil/Grease', 'Rust', 'Mill Scale', 'Other'] },
+    { name: 'steelCondition', label: 'Steel Condition Before Blast', type: 'select', options: ['Clean', 'Light Rust', 'Heavy Rust', 'Mill Scale'] },
+    { name: 'abrasiveType', label: 'Abrasive Type', type: 'text', placeholder: 'e.g., Steel Grit G25' },
+    { name: 'abrasiveConductivity', label: 'Abrasive Conductivity (µs)', type: 'number' },
+    { name: 'sweepBlast', label: 'Sweep Blast (mm)', type: 'number' },
+    { name: 'surfaceCleanedOff', label: 'Surface Cleaned Off?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'blastFinish', label: 'Blast Finish', type: 'select', options: ['Near White', 'White Metal', 'Commercial', 'Other'] },
+    { name: 'profileDepth', label: 'Profile Depth (mils)', type: 'number' },
+    { name: 'tapeTestResult', label: 'Tape Test (%)', type: 'number', placeholder: 'Surface cleanliness' },
+    { name: 'timeElapsedBeforeCoating', label: 'Time Elapsed Before Coating (mins)', type: 'number' },
+
+    // ═══════════════════════════════════════════════════════════════
+    // COATING MATERIAL
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'coatingType', label: 'Coating System', type: 'select', options: ['Shrink Sleeve', 'FBE', '3LPE', '3LPP', 'Tape Wrap', 'Liquid Epoxy', 'Other'] },
+    { name: 'shrinkSleeveType', label: 'Shrink Sleeve Type', type: 'text', placeholder: 'e.g., Canusa GTS-65' },
+    { name: 'baseBatchNumber', label: 'Base Batch No.', type: 'text' },
+    { name: 'hardenerBatchNumber', label: 'Hardener Batch No.', type: 'text' },
+    { name: 'hardenerExpiryDate', label: 'Hardener Expiry Date', type: 'date' },
+    { name: 'storageTemp', label: 'Storage Temperature (°C)', type: 'number' },
+
+    // ═══════════════════════════════════════════════════════════════
+    // COATING PREHEAT & APPLICATION
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'surfaceStillNearWhite', label: 'Surface Still Near White?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'preheatMethod', label: 'Preheat Method', type: 'select', options: ['Propane Torch', 'Induction', 'Electric Blanket', 'N/A'] },
+    { name: 'preheatTemp', label: 'Preheat Temperature (°C)', type: 'number' },
+    { name: 'timeToPreheat', label: 'Time to Preheat (mins)', type: 'number' },
+    { name: 'coatingAppMethod', label: 'Application Method', type: 'select', options: ['Heat Shrink', 'Spray', 'Brush', 'Wrap', 'Other'] },
+    { name: 'timeMixingToCoat', label: 'Time Mixing to Coat (mins)', type: 'number' },
+    { name: 'tempWhenApplied', label: 'Temp When Coating Applied (°C)', type: 'number' },
+    { name: 'timeToCoatWeld', label: 'Time to Coat Weld (mins)', type: 'number' },
+    { name: 'visualAppearance', label: 'Visual Appearance', type: 'select', options: ['Acceptable', 'Minor Defects', 'Requires Repair'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // COATING INSPECTION & HOLIDAY DETECTION
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'dftThickness1', label: 'DFT Thickness Reading 1 (mils)', type: 'number' },
+    { name: 'dftThickness2', label: 'DFT Thickness Reading 2 (mils)', type: 'number' },
+    { name: 'dftThickness3', label: 'DFT Thickness Reading 3 (mils)', type: 'number' },
+    { name: 'dftThicknessAvg', label: 'DFT Average (mils)', type: 'number' },
+    { name: 'dftMinSpec', label: 'DFT Min Spec (mils)', type: 'number', placeholder: 'Per project spec' },
+    { name: 'dftCompliant', label: 'DFT Compliant?', type: 'select', options: ['Yes', 'No - Low Mils'] },
+    { name: 'holidayVoltage', label: 'Holiday Detection Voltage (V)', type: 'number' },
+    { name: 'holidayEquipmentId', label: 'Holiday Detector ID/Serial', type: 'text' },
+    { name: 'calibrationDate', label: 'Calibration Date', type: 'date' },
+    { name: 'jeepsUnder25mm', label: 'Jeeps Found <25mm', type: 'number' },
+    { name: 'jeepsOver25mm', label: 'Jeeps Found >25mm', type: 'number' },
+    { name: 'totalJeepsToday', label: 'Total Jeeps All Welds Today', type: 'number' },
+    { name: 'lowMilsToday', label: 'Low Mils All Welds Today', type: 'number' },
+
+    // ═══════════════════════════════════════════════════════════════
+    // REPAIRS
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'repairsRequired', label: '🔧 Repairs Required?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'patchStickType', label: 'Patch Stick Type', type: 'text' },
+    { name: 'liquidRepairType', label: 'Liquid Repair Type', type: 'text' },
+    { name: 'repairSpecFollowed', label: 'Repair Spec Followed?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'repairHolidayTested', label: 'Repair Holiday Tested?', type: 'select', options: ['Pass', 'Fail', 'N/A'] },
+    { name: 'repairThickness', label: 'Repair Thickness (mils)', type: 'number' },
+
+    // ═══════════════════════════════════════════════════════════════
+    // CURE TESTS
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'cureTestPerformed', label: '🧪 Cure Test Performed?', type: 'select', options: ['Yes', 'No'] },
+    { name: 'cureTestWeldNumber', label: 'Cure Test Weld #', type: 'text' },
+    { name: 'vCutTestRating', label: 'V-Cut Test Rating', type: 'select', options: ['1', '2', '3', '4', '5', 'N/A'] },
+    { name: 'shoreDHardness', label: 'Shore-D Hardness Rating', type: 'number' },
+    { name: 'cureTestPass', label: 'Cure Test Pass?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+
+    // ═══════════════════════════════════════════════════════════════
+    // SIGN-OFF
+    // ═══════════════════════════════════════════════════════════════
+    { name: 'coatingNcrRequired', label: 'NCR Required?', type: 'select', options: ['No', 'Yes - Issued', 'Yes - Pending'] },
+    { name: 'coatingInspectorNotes', label: 'Coating Inspector Notes', type: 'textarea', placeholder: 'Additional observations, issues, or comments...' }
   ],
   'Ditch': [
     { name: 'trenchDepth', label: 'Trench Depth (m)', type: 'number' },
