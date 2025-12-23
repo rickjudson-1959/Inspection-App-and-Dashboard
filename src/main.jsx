@@ -11,6 +11,7 @@ import ChangeManagement from './ChangeManagement.jsx'
 import ReportsPage from './ReportsPage.jsx'
 import ContractorLEMs from './ContractorLEMs.jsx'
 import Login from './Login.jsx'
+import ResetPassword from './ResetPassword.jsx'
 import './index.css'
 import './App.css'
 
@@ -94,6 +95,8 @@ function AppRoutes() {
   return (
     <Routes>
       <Route path="/login" element={user ? <Navigate to={getDefaultRoute()} replace /> : <Login onLogin={() => {}} />} />
+
+      <Route path="/reset-password" element={<ResetPassword />} />
 
       <Route path="/admin" element={
         <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
