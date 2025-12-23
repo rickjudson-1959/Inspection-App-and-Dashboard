@@ -7,12 +7,36 @@ function Login({ onLogin }) {
   const [showPassword, setShowPassword] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [mode, setMode] = useState('login')
+  const [success, setSuccess] = useState('')
+  const [mode, setMode] = useState('login') // 'login', 'signup', 'forgot'
+
+  async function handleForgotPassword(e) {
+    e.preventDefault()
+    if (!email) {
+      setError('Please enter your email address')
+      return
+    }
+    setLoading(true)
+    setError('')
+    setSuccess('')
+
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`
+      })
+      if (error) throw error
+      setSuccess('Password reset email sent! Check your inbox.')
+    } catch (err) {
+      setError(err.message)
+    }
+    setLoading(false)
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
     setLoading(true)
     setError('')
+    setSuccess('')
 
     try {
       if (mode === 'login') {
@@ -75,11 +99,11 @@ function Login({ onLogin }) {
             fontSize: '18px',
             letterSpacing: '0.5px'
           }}>
-            Pipeline Inspector Portal
+            {mode === 'forgot' ? 'Reset Your Password' : 'Pipeline Inspector Portal'}
           </p>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={mode === 'forgot' ? handleForgotPassword : handleSubmit}>
           <div style={{ marginBottom: '20px' }}>
             <label style={{ 
               display: 'block', 
@@ -111,59 +135,61 @@ function Login({ onLogin }) {
             />
           </div>
 
-          <div style={{ marginBottom: '24px' }}>
-            <label style={{ 
-              display: 'block', 
-              marginBottom: '8px', 
-              fontWeight: '600', 
-              fontSize: '18px',
-              color: '#3D3D3D'
-            }}>
-              Password
-            </label>
-            <div style={{ position: 'relative' }}>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-                style={{
-                  width: '100%',
-                  padding: '14px',
-                  paddingRight: '50px',
-                  border: '2px solid #e0e0e0',
-                  borderRadius: '8px',
-                  fontSize: '16px',
-                  boxSizing: 'border-box',
-                  transition: 'border-color 0.2s',
-                  outline: 'none'
-                }}
-                onFocus={(e) => e.target.style.borderColor = '#D35F28'}
-                onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
-                placeholder="••••••••"
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: 'absolute',
-                  right: '12px',
-                  top: '50%',
-                  transform: 'translateY(-50%)',
-                  background: 'none',
-                  border: 'none',
-                  cursor: 'pointer',
-                  fontSize: '18px',
-                  color: '#888',
-                  padding: '4px'
-                }}
-                title={showPassword ? 'Hide password' : 'Show password'}
-              >
-                {showPassword ? '🙈' : '👁️'}
-              </button>
+          {mode !== 'forgot' && (
+            <div style={{ marginBottom: '24px' }}>
+              <label style={{ 
+                display: 'block', 
+                marginBottom: '8px', 
+                fontWeight: '600', 
+                fontSize: '18px',
+                color: '#3D3D3D'
+              }}>
+                Password
+              </label>
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  style={{
+                    width: '100%',
+                    padding: '14px',
+                    paddingRight: '50px',
+                    border: '2px solid #e0e0e0',
+                    borderRadius: '8px',
+                    fontSize: '16px',
+                    boxSizing: 'border-box',
+                    transition: 'border-color 0.2s',
+                    outline: 'none'
+                  }}
+                  onFocus={(e) => e.target.style.borderColor = '#D35F28'}
+                  onBlur={(e) => e.target.style.borderColor = '#e0e0e0'}
+                  placeholder="••••••••"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '12px',
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    fontSize: '18px',
+                    color: '#888',
+                    padding: '4px'
+                  }}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >
+                  {showPassword ? '🙈' : '👁️'}
+                </button>
+              </div>
             </div>
-          </div>
+          )}
 
           {error && (
             <div style={{
@@ -176,6 +202,20 @@ function Login({ onLogin }) {
               border: error.includes('Check your email') ? '1px solid #c3e6cb' : '1px solid #feb2b2'
             }}>
               {error}
+            </div>
+          )}
+
+          {success && (
+            <div style={{
+              padding: '14px',
+              backgroundColor: '#d4edda',
+              color: '#155724',
+              borderRadius: '8px',
+              marginBottom: '20px',
+              fontSize: '18px',
+              border: '1px solid #c3e6cb'
+            }}>
+              {success}
             </div>
           )}
 
@@ -198,26 +238,65 @@ function Login({ onLogin }) {
             onMouseOver={(e) => !loading && (e.target.style.backgroundColor = '#B94F20')}
             onMouseOut={(e) => !loading && (e.target.style.backgroundColor = '#D35F28')}
           >
-            {loading ? 'Please wait...' : (mode === 'login' ? 'Sign In' : 'Create Account')}
+            {loading ? 'Please wait...' : (mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Create Account' : 'Send Reset Link')}
           </button>
         </form>
 
         <div style={{ textAlign: 'center', marginTop: '24px' }}>
-          <button
-            onClick={() => setMode(mode === 'login' ? 'signup' : 'login')}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: '#1E3A5F',
-              cursor: 'pointer',
-              fontSize: '18px',
-              fontWeight: '500'
-            }}
-            onMouseOver={(e) => e.target.style.color = '#D35F28'}
-            onMouseOut={(e) => e.target.style.color = '#1E3A5F'}
-          >
-            {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
-          </button>
+          {mode === 'forgot' ? (
+            <button
+              onClick={() => { setMode('login'); setError(''); setSuccess(''); }}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#1E3A5F',
+                cursor: 'pointer',
+                fontSize: '18px',
+                fontWeight: '500'
+              }}
+              onMouseOver={(e) => e.target.style.color = '#D35F28'}
+              onMouseOut={(e) => e.target.style.color = '#1E3A5F'}
+            >
+              ← Back to Sign In
+            </button>
+          ) : (
+            <>
+              <button
+                onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setSuccess(''); }}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: '#1E3A5F',
+                  cursor: 'pointer',
+                  fontSize: '18px',
+                  fontWeight: '500',
+                  display: 'block',
+                  margin: '0 auto 12px auto'
+                }}
+                onMouseOver={(e) => e.target.style.color = '#D35F28'}
+                onMouseOut={(e) => e.target.style.color = '#1E3A5F'}
+              >
+                {mode === 'login' ? "Don't have an account? Sign up" : 'Already have an account? Sign in'}
+              </button>
+              {mode === 'login' && (
+                <button
+                  onClick={() => { setMode('forgot'); setError(''); setSuccess(''); }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#888',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '400'
+                  }}
+                  onMouseOver={(e) => e.target.style.color = '#D35F28'}
+                  onMouseOut={(e) => e.target.style.color = '#888'}
+                >
+                  Forgot your password?
+                </button>
+              )}
+            </>
+          )}
         </div>
 
         <div style={{ 
