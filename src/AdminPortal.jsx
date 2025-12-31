@@ -526,7 +526,7 @@ function AdminPortal() {
           <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>{isSuperAdmin ? 'Super Admin' : 'Admin'} - {userProfile?.organizations?.name || 'All Organizations'}</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => navigate('/dashboard')} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Executive Dashboard</button>
+          <button onClick={() => navigate('/dashboard')} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>CMT Dashboard</button>
           <button onClick={() => navigate('/evm')} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>EVM Dashboard</button>
           <button onClick={() => navigate('/reconciliation')} style={{ padding: '10px 20px', backgroundColor: '#ffc107', color: 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Reconciliation</button>
           <button onClick={() => navigate('/changes')} style={{ padding: '10px 20px', backgroundColor: '#6f42c1', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Change Orders</button>
@@ -743,8 +743,67 @@ function AdminPortal() {
         {activeTab === 'setup' && (
           <div>
             <h2>⚙️ Client Setup</h2>
-            <p style={{ color: '#666', marginBottom: '20px' }}>Import rate sheets and configure new clients</p>
+            <p style={{ color: '#666', marginBottom: '20px' }}>Add new clients and import rate sheets</p>
             
+            {/* Add New Client Section */}
+            <div style={{ 
+              backgroundColor: 'white', 
+              padding: '20px', 
+              borderRadius: '8px', 
+              marginBottom: '20px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              border: '2px solid #28a745'
+            }}>
+              <h3 style={{ margin: '0 0 15px 0', color: '#28a745' }}>➕ Add New Client</h3>
+              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div style={{ flex: 1, minWidth: '200px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Client/Organization Name *</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g., FortisBC Energy Inc." 
+                    value={newOrg.name} 
+                    onChange={(e) => setNewOrg({ ...newOrg, name: e.target.value, slug: e.target.value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') })} 
+                    style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }} 
+                  />
+                </div>
+                <div style={{ minWidth: '200px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Slug (auto-generated)</label>
+                  <input 
+                    type="text" 
+                    placeholder="fortisbc-energy-inc" 
+                    value={newOrg.slug} 
+                    onChange={(e) => setNewOrg({ ...newOrg, slug: e.target.value })} 
+                    style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px', backgroundColor: '#f8f9fa' }} 
+                  />
+                </div>
+                <button 
+                  onClick={async () => {
+                    if (!newOrg.name) {
+                      alert('Please enter a client name')
+                      return
+                    }
+                    const { error } = await supabase.from('organizations').insert([{
+                      name: newOrg.name,
+                      slug: newOrg.slug || newOrg.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')
+                    }])
+                    if (error) {
+                      alert('Error creating client: ' + error.message)
+                    } else {
+                      alert(`✅ Client "${newOrg.name}" created successfully!`)
+                      setNewOrg({ name: '', slug: '' })
+                      fetchData()
+                    }
+                  }} 
+                  style={{ padding: '10px 25px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold', height: '42px' }}
+                >
+                  ➕ Add Client
+                </button>
+              </div>
+              <p style={{ margin: '10px 0 0 0', fontSize: '12px', color: '#666' }}>
+                After adding a client, select them below to import their labour and equipment rates.
+              </p>
+            </div>
+
             {/* Organization Selector */}
             <div style={{ 
               backgroundColor: 'white', 
@@ -754,7 +813,7 @@ function AdminPortal() {
               boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
             }}>
               <label style={{ fontWeight: '600', marginRight: '15px', fontSize: '16px' }}>
-                Select Organization:
+                Select Client for Rate Import:
               </label>
               <select 
                 value={selectedOrgForSetup}
@@ -767,14 +826,14 @@ function AdminPortal() {
                   fontSize: '15px'
                 }}
               >
-                <option value="">-- Select Organization --</option>
+                <option value="">-- Select Client --</option>
                 {organizations.map(org => (
                   <option key={org.id} value={org.id}>{org.name}</option>
                 ))}
               </select>
               {!selectedOrgForSetup && (
                 <p style={{ color: '#dc3545', marginTop: '10px', fontSize: '14px' }}>
-                  ⚠️ Please select an organization before importing rates
+                  ⚠️ Please select a client before importing rates
                 </p>
               )}
             </div>
