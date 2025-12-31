@@ -1,0 +1,14 @@
+equipment_type,rate_hourly,rate_daily
+Excavator 200,185.00,1480.00
+Excavator 300,225.00,1800.00
+Side Boom,250.00,2000.00
+Dozer D6,175.00,1400.00
+Dozer D8,195.00,1560.00
+Grader,165.00,1320.00
+Loader,145.00,1160.00
+Backhoe,125.00,1000.00
+Welding Truck,95.00,760.00
+Crew Truck,65.00,520.00
+Pickup Truck,45.00,360.00
+Lowbed,185.00,1480.00
+Pipe Truck,95.00,760.00

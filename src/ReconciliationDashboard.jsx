@@ -229,6 +229,23 @@ export default function ReconciliationDashboard() {
     if (error) {
       alert('Error saving correction: ' + error.message)
     } else {
+      // Also log to audit trail for Compliance Audit Trail visibility
+      const itemName = selectedItem.itemType === 'labour' ? selectedItem.name : selectedItem.type
+      const variance = selectedItem.lemHours - parseFloat(correctedValue)
+      
+      await supabase.from('report_audit_log').insert({
+        report_id: selectedItem.ticketNumber !== 'N/A' ? selectedItem.ticketNumber : null,
+        report_date: selectedItem.lemDate,
+        changed_by_name: adminName,
+        changed_by_role: 'admin',
+        change_type: 'reconciliation',
+        section: 'Reconciliation',
+        field_name: `${itemName} - Hours`,
+        old_value: selectedItem.lemHours.toString(),
+        new_value: correctedValue,
+        change_reason: reviewNotes || `Corrected based on Inspector Report. Variance: ${variance.toFixed(1)} hrs`
+      })
+      
       setShowReviewModal(false)
       loadData()
     }
@@ -259,6 +276,22 @@ export default function ReconciliationDashboard() {
     if (error) {
       alert('Error creating dispute: ' + error.message)
     } else {
+      // Also log to audit trail for Compliance Audit Trail visibility
+      const itemName = selectedItem.itemType === 'labour' ? selectedItem.name : selectedItem.type
+      
+      await supabase.from('report_audit_log').insert({
+        report_id: selectedItem.ticketNumber !== 'N/A' ? selectedItem.ticketNumber : null,
+        report_date: selectedItem.lemDate,
+        changed_by_name: adminName,
+        changed_by_role: 'admin',
+        change_type: 'dispute',
+        section: 'Reconciliation',
+        field_name: `${itemName} - Dispute`,
+        old_value: `LEM: ${selectedItem.lemHours} hrs`,
+        new_value: `Inspector: ${selectedItem.timesheetHours} hrs`,
+        change_reason: reviewNotes || `Flagged for contractor review. Variance: ${selectedItem.variance} hrs ($${selectedItem.varianceCost?.toFixed(0) || 0})`
+      })
+      
       setShowReviewModal(false)
       loadData()
     }
@@ -328,7 +361,186 @@ export default function ReconciliationDashboard() {
     const updateData = { status: newStatus, updated_at: new Date().toISOString() }
     if (newStatus === 'resolved') updateData.resolved_at = new Date().toISOString()
     const { error } = await supabase.from('disputes').update(updateData).eq('id', disputeId)
-    if (!error) loadData()
+    if (!error) {
+      // Log status change to audit trail
+      const dispute = disputes.find(d => d.id === disputeId)
+      if (dispute) {
+        await supabase.from('report_audit_log').insert({
+          report_date: dispute.lem_date,
+          changed_by_name: adminName,
+          changed_by_role: 'admin',
+          change_type: 'dispute_status',
+          section: 'Reconciliation',
+          field_name: `${dispute.item_name} - Status`,
+          old_value: dispute.status,
+          new_value: newStatus,
+          change_reason: `Dispute status updated to ${newStatus}`
+        })
+      }
+      loadData()
+    }
+  }
+
+  // Email dispute to contractor
+  async function emailDisputeToContractor(dispute) {
+    const projectName = PROJECT_NAME
+    const varianceCost = (dispute.variance_hours * 125).toFixed(2)
+    
+    const subject = encodeURIComponent(`LEM Dispute Notice - ${dispute.lem_id} - ${dispute.item_name}`)
+    
+    const body = encodeURIComponent(`
+DISPUTE NOTIFICATION
+════════════════════════════════════════════════════════
+
+Project: ${projectName}
+Field Log ID: ${dispute.lem_id}
+Date: ${dispute.lem_date}
+Foreman: ${dispute.foreman || 'N/A'}
+
+────────────────────────────────────────────────────────
+DISPUTED ITEM
+────────────────────────────────────────────────────────
+
+Type: ${dispute.dispute_type === 'labour' ? 'Labour' : 'Equipment'}
+Item: ${dispute.item_name}
+
+LEM Claimed Hours: ${dispute.lem_hours}
+Inspector Verified Hours: ${dispute.timesheet_hours}
+Variance: +${dispute.variance_hours} hours
+Estimated Cost Impact: $${varianceCost}
+
+────────────────────────────────────────────────────────
+NOTES
+────────────────────────────────────────────────────────
+
+${dispute.notes || 'No additional notes provided.'}
+
+────────────────────────────────────────────────────────
+ACTION REQUIRED
+────────────────────────────────────────────────────────
+
+Please review this discrepancy and provide supporting documentation or acknowledgment of the variance.
+
+Respond to this email with:
+1. Supporting documentation (timesheets, daily logs)
+2. Explanation of variance
+3. Acceptance or dispute of findings
+
+This notice was generated by Pipe-Up Inspector Platform.
+
+────────────────────────────────────────────────────────
+`)
+
+    // Open email client
+    window.open(`mailto:?subject=${subject}&body=${body}`, '_blank')
+    
+    // Update dispute status to show it was sent
+    await supabase.from('disputes').update({ 
+      status: 'disputed',
+      emailed_at: new Date().toISOString(),
+      emailed_by: adminName
+    }).eq('id', dispute.id)
+    
+    // Log to audit trail
+    await supabase.from('report_audit_log').insert({
+      report_date: dispute.lem_date,
+      changed_by_name: adminName,
+      changed_by_role: 'admin',
+      change_type: 'dispute_email',
+      section: 'Reconciliation',
+      field_name: `${dispute.item_name} - Email Sent`,
+      old_value: 'Not Sent',
+      new_value: 'Emailed to Contractor',
+      change_reason: `Dispute notice emailed. Variance: ${dispute.variance_hours} hrs ($${varianceCost})`
+    })
+    
+    loadData()
+  }
+
+  // Email all open disputes to contractor
+  async function emailAllDisputesToContractor() {
+    const openDisputes = disputes.filter(d => d.status === 'open' || d.status === 'disputed')
+    
+    if (openDisputes.length === 0) {
+      alert('No open disputes to email')
+      return
+    }
+    
+    const projectName = PROJECT_NAME
+    let totalVarianceHours = 0
+    let totalVarianceCost = 0
+    
+    let disputeList = ''
+    openDisputes.forEach(d => {
+      const cost = d.variance_hours * 125
+      totalVarianceHours += d.variance_hours
+      totalVarianceCost += cost
+      disputeList += `
+• ${d.lem_id} | ${d.lem_date} | ${d.item_name}
+  LEM: ${d.lem_hours} hrs → Inspector: ${d.timesheet_hours} hrs
+  Variance: +${d.variance_hours} hrs ($${cost.toFixed(2)})
+  ${d.notes ? `Notes: ${d.notes}` : ''}
+`
+    })
+    
+    const subject = encodeURIComponent(`LEM Dispute Summary - ${projectName} - ${openDisputes.length} Items`)
+    
+    const body = encodeURIComponent(`
+DISPUTE SUMMARY NOTIFICATION
+════════════════════════════════════════════════════════
+
+Project: ${projectName}
+Generated: ${new Date().toLocaleDateString()}
+Total Disputed Items: ${openDisputes.length}
+
+────────────────────────────────────────────────────────
+FINANCIAL SUMMARY
+────────────────────────────────────────────────────────
+
+Total Variance Hours: +${totalVarianceHours.toFixed(1)} hours
+Total Estimated Cost Impact: $${totalVarianceCost.toFixed(2)}
+
+────────────────────────────────────────────────────────
+DISPUTED ITEMS
+────────────────────────────────────────────────────────
+${disputeList}
+
+────────────────────────────────────────────────────────
+ACTION REQUIRED
+────────────────────────────────────────────────────────
+
+Please review all disputed items and provide supporting documentation.
+
+This notice was generated by Pipe-Up Inspector Platform.
+
+────────────────────────────────────────────────────────
+`)
+
+    window.open(`mailto:?subject=${subject}&body=${body}`, '_blank')
+    
+    // Update all open disputes to "disputed" (sent to contractor)
+    for (const dispute of openDisputes) {
+      await supabase.from('disputes').update({ 
+        status: 'disputed',
+        emailed_at: new Date().toISOString(),
+        emailed_by: adminName
+      }).eq('id', dispute.id)
+    }
+    
+    // Log to audit trail
+    await supabase.from('report_audit_log').insert({
+      changed_by_name: adminName,
+      changed_by_role: 'admin',
+      change_type: 'dispute_email_batch',
+      section: 'Reconciliation',
+      field_name: 'Batch Dispute Email',
+      old_value: `${openDisputes.length} disputes`,
+      new_value: 'Emailed to Contractor',
+      change_reason: `Batch dispute notice sent. Total variance: ${totalVarianceHours.toFixed(1)} hrs ($${totalVarianceCost.toFixed(2)})`
+    })
+    
+    // Reload data to show updated statuses
+    loadData()
   }
 
   // Export dispute report
@@ -379,7 +591,7 @@ export default function ReconciliationDashboard() {
 
   const statusColors = {
     open: { bg: '#fef3c7', text: '#92400e', label: 'Open' },
-    disputed: { bg: '#fee2e2', text: '#991b1b', label: 'Disputed' },
+    disputed: { bg: '#fee2e2', text: '#991b1b', label: 'Sent to Contractor' },
     under_review: { bg: '#dbeafe', text: '#1e40af', label: 'Under Review' },
     resolved: { bg: '#d1fae5', text: '#065f46', label: 'Resolved' },
     rejected: { bg: '#f3f4f6', text: '#374151', label: 'Rejected' }
@@ -490,7 +702,10 @@ export default function ReconciliationDashboard() {
             })}
           </div>
 
-          <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end' }}>
+          <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+            <button onClick={emailAllDisputesToContractor} style={{ backgroundColor: '#dc2626', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' }}>
+              📧 Email Dispute Log to Contractor
+            </button>
             <button onClick={exportDisputeReport} style={{ backgroundColor: '#059669', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' }}>
               📄 Export Dispute Report
             </button>
@@ -534,7 +749,7 @@ export default function ReconciliationDashboard() {
                       <td style={{ padding: '12px', textAlign: 'center' }}>
                         <select value={d.status} onChange={e => updateDisputeStatus(d.id, e.target.value)} style={{ border: '1px solid #d1d5db', borderRadius: '4px', padding: '4px 8px', fontSize: '12px' }}>
                           <option value="open">Open</option>
-                          <option value="disputed">Disputed</option>
+                          <option value="disputed">Sent to Contractor</option>
                           <option value="under_review">Under Review</option>
                           <option value="resolved">Resolved</option>
                           <option value="rejected">Rejected</option>
@@ -623,32 +838,260 @@ export default function ReconciliationDashboard() {
                   </div>
                 )}
 
-                {/* 3-Panel Summary */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '20px' }}>
-                  <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-                    <div style={{ backgroundColor: '#dc2626', color: 'white', padding: '10px 16px', fontWeight: '600' }}>💰 Contractor LEM</div>
-                    <div style={{ padding: '16px' }}>
-                      <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px' }}>{lemLabour.length} Workers | {lemEquipment.length} Equipment</div>
-                      <div style={{ backgroundColor: '#f9fafb', borderRadius: '4px', padding: '8px 12px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}><span>Labour:</span><strong>{lemLabourTotal.toFixed(1)} hrs</strong></div>
-                      <div style={{ backgroundColor: '#f9fafb', borderRadius: '4px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between' }}><span>Equipment:</span><strong>{lemEquipTotal.toFixed(1)} hrs</strong></div>
+                {/* 3-Panel Detailed View */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '20px' }}>
+                  {/* LEFT: Contractor LEM */}
+                  <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden', border: '2px solid #dc2626' }}>
+                    <div style={{ backgroundColor: '#dc2626', color: 'white', padding: '12px 16px', fontWeight: '600', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>💰 Contractor LEM</span>
+                      <span style={{ fontSize: '12px', opacity: 0.9 }}>${((parseFloat(selectedLem.total_labour_cost)||0) + (parseFloat(selectedLem.total_equipment_cost)||0)).toLocaleString()}</span>
+                    </div>
+                    <div style={{ padding: '12px' }}>
+                      <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
+                        <strong>Field Log:</strong> {selectedLem.field_log_id} | <strong>Date:</strong> {selectedLem.date}
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '12px' }}>
+                        <strong>Foreman:</strong> {selectedLem.foreman} | <strong>Account:</strong> {selectedLem.account_number}
+                      </div>
+                      
+                      {/* Labour Summary */}
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#dc2626', marginBottom: '6px', textTransform: 'uppercase' }}>
+                        Labour Entries ({lemLabour.length})
+                      </div>
+                      <div style={{ maxHeight: '120px', overflowY: 'auto', marginBottom: '12px', border: '1px solid #eee', borderRadius: '4px' }}>
+                        {lemLabour.length === 0 ? (
+                          <div style={{ padding: '10px', color: '#9ca3af', fontSize: '12px', textAlign: 'center' }}>No labour entries</div>
+                        ) : lemLabour.slice(0, 5).map((worker, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', borderBottom: '1px solid #f3f4f6', fontSize: '12px' }}>
+                            <span style={{ fontWeight: '500' }}>{worker.name || worker.employee_name}</span>
+                            <span style={{ fontFamily: 'monospace' }}>{((worker.rt_hours || worker.rt || 0) + (worker.ot_hours || worker.ot || 0)).toFixed(1)} hrs</span>
+                          </div>
+                        ))}
+                        {lemLabour.length > 5 && <div style={{ padding: '6px 10px', fontSize: '11px', color: '#6b7280', textAlign: 'center' }}>+{lemLabour.length - 5} more...</div>}
+                      </div>
+                      
+                      {/* Equipment Summary */}
+                      <div style={{ fontSize: '11px', fontWeight: '600', color: '#dc2626', marginBottom: '6px', textTransform: 'uppercase' }}>
+                        Equipment ({lemEquipment.length})
+                      </div>
+                      <div style={{ maxHeight: '80px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '4px' }}>
+                        {lemEquipment.length === 0 ? (
+                          <div style={{ padding: '10px', color: '#9ca3af', fontSize: '12px', textAlign: 'center' }}>No equipment</div>
+                        ) : lemEquipment.slice(0, 3).map((equip, i) => (
+                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', borderBottom: '1px solid #f3f4f6', fontSize: '12px' }}>
+                            <span>{equip.equipment_id || equip.unit_number} - {equip.type || equip.equipment_type}</span>
+                            <span style={{ fontFamily: 'monospace' }}>{equip.hours || 0} hrs</span>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      {/* Totals */}
+                      <div style={{ marginTop: '12px', padding: '10px', backgroundColor: '#fef2f2', borderRadius: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
+                          <span>Labour Total:</span>
+                          <strong>{lemLabourTotal.toFixed(1)} hrs</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                          <span>Equipment Total:</span>
+                          <strong>{lemEquipTotal.toFixed(1)} hrs</strong>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-                    <div style={{ backgroundColor: '#f59e0b', color: 'white', padding: '10px 16px', fontWeight: '600' }}>📝 Timesheet (OCR)</div>
-                    <div style={{ padding: '16px' }}>
-                      <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px' }}>{timesheetLabour.length} Workers | {timesheetEquipment.length} Equipment</div>
-                      <div style={{ backgroundColor: '#f9fafb', borderRadius: '4px', padding: '8px 12px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}><span>Labour:</span><strong>{tsLabourTotal.toFixed(1)} hrs</strong></div>
-                      <div style={{ backgroundColor: '#f9fafb', borderRadius: '4px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between' }}><span>Equipment:</span><strong>{tsEquipTotal.toFixed(1)} hrs</strong></div>
+                  
+                  {/* MIDDLE: Daily Timesheet Photo */}
+                  <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden', border: '2px solid #f59e0b' }}>
+                    <div style={{ backgroundColor: '#f59e0b', color: 'white', padding: '12px 16px', fontWeight: '600' }}>
+                      📝 Daily Timesheet
+                    </div>
+                    <div style={{ padding: '12px' }}>
+                      {selectedLem.timesheet_photo_url ? (
+                        <div>
+                          <div style={{ position: 'relative', backgroundColor: '#f8f8f8', borderRadius: '6px', overflow: 'hidden', marginBottom: '10px' }}>
+                            <img
+                              src={selectedLem.timesheet_photo_url}
+                              alt="Foreman Timesheet"
+                              style={{ width: '100%', height: '200px', objectFit: 'cover', cursor: 'pointer' }}
+                              onClick={() => window.open(selectedLem.timesheet_photo_url, '_blank')}
+                            />
+                            <button
+                              onClick={() => window.open(selectedLem.timesheet_photo_url, '_blank')}
+                              style={{
+                                position: 'absolute',
+                                bottom: '8px',
+                                right: '8px',
+                                padding: '6px 12px',
+                                backgroundColor: '#1f2937',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                cursor: 'pointer'
+                              }}
+                            >
+                              🔍 Full Screen
+                            </button>
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#6b7280', textAlign: 'center' }}>
+                            Click image to view full size
+                          </div>
+                        </div>
+                      ) : (
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          height: '220px',
+                          backgroundColor: '#fffbeb',
+                          borderRadius: '6px',
+                          border: '2px dashed #f59e0b',
+                          color: '#92400e'
+                        }}>
+                          <div style={{ fontSize: '48px', marginBottom: '10px' }}>📷</div>
+                          <div style={{ fontSize: '14px', fontWeight: '600' }}>No timesheet photo available</div>
+                          <div style={{ fontSize: '12px', marginTop: '5px', textAlign: 'center', padding: '0 20px' }}>
+                            Add timesheet_photo_url to contractor_lems table
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* OCR Data Summary */}
+                      <div style={{ marginTop: '12px', padding: '10px', backgroundColor: '#fefce8', borderRadius: '6px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: '600', color: '#92400e', marginBottom: '6px' }}>TIMESHEET DATA (OCR)</div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                          <span>Workers:</span>
+                          <strong>{timesheetLabour.length}</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', marginBottom: '4px' }}>
+                          <span>Labour Hours:</span>
+                          <strong>{tsLabourTotal.toFixed(1)} hrs</strong>
+                        </div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px' }}>
+                          <span>Equipment Hours:</span>
+                          <strong>{tsEquipTotal.toFixed(1)} hrs</strong>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
-                    <div style={{ backgroundColor: '#16a34a', color: 'white', padding: '10px 16px', fontWeight: '600' }}>👷 Inspector Report</div>
-                    <div style={{ padding: '16px' }}>
-                      {matchingReport ? (<>
-                        <div style={{ fontSize: '13px', color: '#6b7280', marginBottom: '12px' }}>Inspector: {matchingReport.inspector_name}</div>
-                        <div style={{ backgroundColor: '#f9fafb', borderRadius: '4px', padding: '8px 12px', marginBottom: '8px', display: 'flex', justifyContent: 'space-between' }}><span>Labour:</span><strong>{tsLabourTotal.toFixed(1)} hrs</strong></div>
-                        <div style={{ backgroundColor: '#f9fafb', borderRadius: '4px', padding: '8px 12px', display: 'flex', justifyContent: 'space-between' }}><span>Equipment:</span><strong>{tsEquipTotal.toFixed(1)} hrs</strong></div>
-                      </>) : <div style={{ textAlign: 'center', padding: '20px', color: '#9ca3af' }}>No matching report</div>}
+                  
+                  {/* RIGHT: Inspector Report */}
+                  <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden', border: '2px solid #16a34a' }}>
+                    <div style={{ backgroundColor: '#16a34a', color: 'white', padding: '12px 16px', fontWeight: '600', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>👷 Inspector Report</span>
+                      {matchingReport && <span style={{ fontSize: '12px', opacity: 0.9 }}>#{String(matchingReport.id || '').slice(0,8)}</span>}
+                    </div>
+                    <div style={{ padding: '12px' }}>
+                      {matchingReport ? (
+                        <>
+                          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '8px' }}>
+                            <strong>Date:</strong> {matchingReport.date || matchingReport.selected_date} | <strong>Inspector:</strong> {matchingReport.inspector_name}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '12px' }}>
+                            <strong>Spread:</strong> {matchingReport.spread || '-'} | <strong>Crew:</strong> {matchingReport.crew || '-'}
+                          </div>
+                          
+                          {/* Labour Summary */}
+                          <div style={{ fontSize: '11px', fontWeight: '600', color: '#16a34a', marginBottom: '6px', textTransform: 'uppercase' }}>
+                            Labour Entries ({timesheetLabour.length})
+                          </div>
+                          <div style={{ maxHeight: '120px', overflowY: 'auto', marginBottom: '12px', border: '1px solid #eee', borderRadius: '4px' }}>
+                            {timesheetLabour.length === 0 ? (
+                              <div style={{ padding: '10px', color: '#9ca3af', fontSize: '12px', textAlign: 'center' }}>No labour entries</div>
+                            ) : timesheetLabour.slice(0, 5).map((worker, i) => (
+                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', borderBottom: '1px solid #f3f4f6', fontSize: '12px' }}>
+                                <span style={{ fontWeight: '500' }}>{worker.employeeName || worker.name || worker.trade || 'Worker'}</span>
+                                <span style={{ fontFamily: 'monospace' }}>{((parseFloat(worker.hours) || 0) || ((parseFloat(worker.rt) || 0) + (parseFloat(worker.ot) || 0))).toFixed(1)} hrs</span>
+                              </div>
+                            ))}
+                            {timesheetLabour.length > 5 && <div style={{ padding: '6px 10px', fontSize: '11px', color: '#6b7280', textAlign: 'center' }}>+{timesheetLabour.length - 5} more...</div>}
+                          </div>
+                          
+                          {/* Equipment Summary */}
+                          <div style={{ fontSize: '11px', fontWeight: '600', color: '#16a34a', marginBottom: '6px', textTransform: 'uppercase' }}>
+                            Equipment ({timesheetEquipment.length})
+                          </div>
+                          <div style={{ maxHeight: '80px', overflowY: 'auto', border: '1px solid #eee', borderRadius: '4px' }}>
+                            {timesheetEquipment.length === 0 ? (
+                              <div style={{ padding: '10px', color: '#9ca3af', fontSize: '12px', textAlign: 'center' }}>No equipment</div>
+                            ) : timesheetEquipment.slice(0, 3).map((equip, i) => (
+                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 10px', borderBottom: '1px solid #f3f4f6', fontSize: '12px' }}>
+                                <span>{equip.type || equip.equipment_type || 'Equipment'}</span>
+                                <span style={{ fontFamily: 'monospace' }}>{equip.hours || 0} hrs</span>
+                              </div>
+                            ))}
+                          </div>
+                          
+                          {/* Totals */}
+                          <div style={{ marginTop: '12px', padding: '10px', backgroundColor: '#f0fdf4', borderRadius: '6px' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', marginBottom: '4px' }}>
+                              <span>Labour Total:</span>
+                              <strong>{tsLabourTotal.toFixed(1)} hrs</strong>
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px' }}>
+                              <span>Equipment Total:</span>
+                              <strong>{tsEquipTotal.toFixed(1)} hrs</strong>
+                            </div>
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{
+                          display: 'flex',
+                          flexDirection: 'column',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          height: '280px',
+                          backgroundColor: '#fef2f2',
+                          borderRadius: '6px',
+                          border: '2px dashed #fca5a5',
+                          color: '#991b1b'
+                        }}>
+                          <div style={{ fontSize: '48px', marginBottom: '10px' }}>❌</div>
+                          <div style={{ fontSize: '14px', fontWeight: '600' }}>No Matching Report</div>
+                          <div style={{ fontSize: '12px', marginTop: '5px', textAlign: 'center', padding: '0 20px' }}>
+                            No inspector report found for {selectedLem.date}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Variance Summary Bar */}
+                <div style={{ 
+                  display: 'flex', 
+                  justifyContent: 'space-between', 
+                  alignItems: 'center',
+                  padding: '12px 20px', 
+                  marginBottom: '20px',
+                  backgroundColor: labourVar + equipVar > 0 ? '#fef2f2' : '#f0fdf4', 
+                  borderRadius: '8px',
+                  border: `2px solid ${labourVar + equipVar > 0 ? '#fca5a5' : '#86efac'}`
+                }}>
+                  <div style={{ display: 'flex', gap: '30px' }}>
+                    <div>
+                      <span style={{ fontSize: '12px', color: '#6b7280' }}>Labour Variance: </span>
+                      <strong style={{ color: labourVar > 0 ? '#dc2626' : '#16a34a', fontSize: '16px' }}>
+                        {labourVar > 0 ? '+' : ''}{labourVar.toFixed(1)} hrs
+                      </strong>
+                      <span style={{ fontSize: '12px', color: '#6b7280', marginLeft: '8px' }}>
+                        (${(labourVar * 125).toFixed(0)})
+                      </span>
+                    </div>
+                    <div>
+                      <span style={{ fontSize: '12px', color: '#6b7280' }}>Equipment Variance: </span>
+                      <strong style={{ color: equipVar > 0 ? '#dc2626' : '#16a34a', fontSize: '16px' }}>
+                        {equipVar > 0 ? '+' : ''}{equipVar.toFixed(1)} hrs
+                      </strong>
+                      <span style={{ fontSize: '12px', color: '#6b7280', marginLeft: '8px' }}>
+                        (${(equipVar * 250).toFixed(0)})
+                      </span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign: 'right' }}>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>Total Financial Impact</div>
+                    <div style={{ fontSize: '20px', fontWeight: 'bold', color: labourVar + equipVar > 0 ? '#dc2626' : '#16a34a' }}>
+                      ${((labourVar * 125) + (equipVar * 250)).toLocaleString()}
                     </div>
                   </div>
                 </div>

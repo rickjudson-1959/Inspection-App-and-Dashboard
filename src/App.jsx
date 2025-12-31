@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import Dashboard from './Dashboard'
 import ProjectConfig from './ProjectConfig'
+import MyReports from './MyReports'
 import { supabase } from './supabase'
 import { useAuth } from './AuthContext.jsx'
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
@@ -2833,6 +2834,20 @@ Important:
     return <ProjectConfig onBack={() => setCurrentView('report')} />
   }
 
+  if (currentView === 'myreports') {
+    return (
+      <MyReports 
+        user={userProfile} 
+        onEditReport={(reportId) => {
+          // TODO: Load report data and switch to edit mode
+          alert(`Edit report: ${reportId}\n\nEdit functionality coming soon!`)
+          setCurrentView('report')
+        }}
+        onBack={() => setCurrentView('report')}
+      />
+    )
+  }
+
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', maxWidth: '1200px', margin: '0 auto', padding: '20px' }}>
       {/* Voice Input Animation Styles */}
@@ -2856,6 +2871,12 @@ Important:
           style={{ padding: '10px 20px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
         >
           Daily Report
+        </button>
+        <button
+          onClick={() => setCurrentView('myreports')}
+          style={{ padding: '10px 20px', backgroundColor: '#D35F28', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+        >
+          📋 My Reports
         </button>
         <button
           onClick={() => setCurrentView('dashboard')}

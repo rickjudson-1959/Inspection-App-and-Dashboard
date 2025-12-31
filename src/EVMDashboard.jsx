@@ -9,9 +9,10 @@ import { supabase } from './supabase'
 // ============================================================================
 // EARNED VALUE MANAGEMENT (EVM) EXECUTIVE DASHBOARD
 // For Pipeline Construction - C-Suite Monthly Review
+// Enhanced with Dynamic Colors, Days Behind Schedule, Actionable Insights
 // ============================================================================
 
-// Color scheme
+// Color scheme - Updated with dynamic thresholds
 const EVMColors = {
   EV: '#28a745',      // Earned Value - Green
   PV: '#007bff',      // Planned Value - Blue  
@@ -22,10 +23,90 @@ const EVMColors = {
     neutral: '#6c757d'
   },
   gauge: {
-    excellent: '#28a745',
+    excellent: '#28a745',  // Green: >= 1.0
     good: '#7cb342',
-    warning: '#ffc107',
-    danger: '#dc3545'
+    warning: '#ffc107',    // Amber: 0.90 - 0.99
+    danger: '#dc3545'      // Red: < 0.90
+  }
+}
+
+// Dynamic color getter based on new thresholds
+function getIndexColor(value) {
+  if (value >= 1.0) return EVMColors.gauge.excellent  // Green
+  if (value >= 0.90) return EVMColors.gauge.warning   // Amber
+  return EVMColors.gauge.danger                        // Red
+}
+
+function getIndexStatus(value) {
+  if (value >= 1.0) return 'On Track'
+  if (value >= 0.90) return 'Monitor'
+  return 'At Risk'
+}
+
+// ============================================================================
+// ACTIONABLE HEALTH ASSESSMENT GENERATOR
+// ============================================================================
+function generateHealthAssessment(metrics) {
+  const { SPI, CPI, VAC, SV, percentPhysical, percentScheduled } = metrics
+  
+  const issues = []
+  const recommendations = []
+  let status = 'GREEN'
+  let title = 'Project Performing Well'
+
+  // Schedule Analysis
+  if (SPI < 0.90) {
+    status = 'RED'
+    title = 'Immediate Attention Required'
+    issues.push('Critical schedule slippage detected')
+    recommendations.push('Schedule slippage detected. High-priority activities (Mainline Welding) are lagging.')
+    recommendations.push('Recommend re-evaluating crew counts or shifting resources from non-critical tasks.')
+    recommendations.push('Consider adding second shift or weekend operations to recover schedule.')
+    recommendations.push('Evaluate equipment utilization and reduce downtime.')
+  } else if (SPI < 1.0) {
+    if (status !== 'RED') {
+      status = 'AMBER'
+      title = 'Requires Monitoring'
+    }
+    issues.push('Schedule variance detected')
+    recommendations.push('Schedule slippage detected. High-priority activities may be lagging.')
+    recommendations.push('Recommend re-evaluating crew counts or shifting resources from non-critical tasks.')
+    recommendations.push('Review weather delays and time-lost factors for recovery opportunities.')
+  }
+
+  // Cost Analysis
+  if (CPI < 0.90) {
+    status = 'RED'
+    title = 'Immediate Attention Required'
+    issues.push('Significant cost overrun in progress')
+    recommendations.push('Conduct immediate variance analysis on labour and equipment costs.')
+    recommendations.push('Review change order exposure and scope creep impacts.')
+    recommendations.push('Evaluate subcontractor performance against contracted unit rates.')
+  } else if (CPI < 1.0) {
+    if (status !== 'RED') {
+      status = status === 'GREEN' ? 'AMBER' : status
+      title = status === 'AMBER' ? 'Requires Monitoring' : title
+    }
+    issues.push('Cost performance below target')
+    recommendations.push('Monitor overtime hours and equipment idle time.')
+    recommendations.push('Ensure accurate cost coding and allocation to work packages.')
+  }
+
+  // Good performance
+  if (SPI >= 1.0 && CPI >= 1.0) {
+    status = 'GREEN'
+    title = 'Project Performing Well'
+    recommendations.push('Maintain current production rates and crew configurations.')
+    recommendations.push('Continue proactive risk management practices.')
+    recommendations.push('Document lessons learned for application to future phases.')
+  }
+
+  return {
+    status,
+    title,
+    issues,
+    recommendations,
+    summary: issues.length > 0 ? issues.join('. ') + '.' : 'Both schedule and cost metrics are meeting or exceeding targets.'
   }
 }
 
@@ -59,44 +140,8 @@ CALCULATE(
     Costs[Date] <= MAX('Calendar'[Date])
 )
 
--- Cost Variance
-CV = [EV] - [AC]
-
--- Schedule Variance  
-SV = [EV] - [PV]
-
--- Cost Performance Index
-CPI = DIVIDE([EV], [AC], 0)
-
--- Schedule Performance Index
-SPI = DIVIDE([EV], [PV], 0)
-
--- Estimate at Completion (CPI method)
-EAC = DIVIDE([BAC], [CPI], [BAC])
-
--- Estimate at Completion (Mixed CPI*SPI method)
-EAC_Mixed = [AC] + DIVIDE([BAC] - [EV], [CPI] * [SPI], [BAC] - [EV])
-
--- Estimate to Complete
-ETC = [EAC] - [AC]
-
--- Variance at Completion
-VAC = [BAC] - [EAC]
-
--- To Complete Performance Index
-TCPI = DIVIDE([BAC] - [EV], [BAC] - [AC], 0)
-
--- Percent Complete (Physical)
-Pct_Physical = MAX(Progress[Physical_Percent_Complete])
-
--- Percent Spent
-Pct_Spent = DIVIDE([AC], [BAC], 0) * 100
-
--- Percent Scheduled
-Pct_Scheduled = DIVIDE([PV], [BAC], 0) * 100
-
--- Independent EAC (for comparison)
-IEAC = [AC] + ([BAC] - [EV])
+-- Days Behind Schedule
+Days_Behind = DIVIDE([SV], [Daily_Planned_Value], 0)
 */
 
 function EVMDashboard({ onBack }) {
@@ -105,13 +150,16 @@ function EVMDashboard({ onBack }) {
   const [loading, setLoading] = useState(true)
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0])
 
-  // Project configuration (would come from project master table)
+  // Project configuration
   const projectConfig = {
-    name: 'Eagle Mountain - Woodfibre Gas Pipeline',
+    name: 'FortisBC EGP Project',
+    fullName: 'Eagle Mountain - Woodfibre Gas Pipeline',
     totalBudget: 125000000, // $125M BAC
     baselineStart: '2024-06-01',
     baselineFinish: '2025-12-31',
-    totalLength: 52000 // 52km
+    totalLength: 56000, // 56km
+    dailyWeldingTarget: 500,
+    peakWorkforce: 600
   }
 
   useEffect(() => {
@@ -123,7 +171,7 @@ function EVMDashboard({ onBack }) {
     const { data, error } = await supabase
       .from('daily_tickets')
       .select('*')
-      .order('selected_date', { ascending: true })
+      .order('date', { ascending: true })
 
     if (!error && data) {
       setReports(data)
@@ -131,7 +179,6 @@ function EVMDashboard({ onBack }) {
     setLoading(false)
   }
 
-  // Calculate EVM metrics from actual project data
   const evmMetrics = useMemo(() => {
     if (reports.length === 0) {
       return generateSampleMetrics(projectConfig, asOfDate)
@@ -139,10 +186,13 @@ function EVMDashboard({ onBack }) {
     return calculateMetricsFromReports(reports, projectConfig, asOfDate)
   }, [reports, asOfDate, projectConfig])
 
-  // Generate S-Curve data
   const sCurveData = useMemo(() => {
     return generateSCurveData(projectConfig, asOfDate)
   }, [projectConfig, asOfDate])
+
+  const healthAssessment = useMemo(() => {
+    return generateHealthAssessment(evmMetrics)
+  }, [evmMetrics])
 
   if (loading) {
     return (
@@ -158,21 +208,14 @@ function EVMDashboard({ onBack }) {
       <div style={{ marginBottom: '20px' }}>
         <button
           onClick={() => navigate(-1)}
-          style={{ 
-            background: 'none', 
-            border: 'none', 
-            color: '#007bff', 
-            cursor: 'pointer', 
-            fontSize: '14px',
-            marginBottom: '10px'
-          }}
+          style={{ background: 'none', border: 'none', color: '#007bff', cursor: 'pointer', fontSize: '14px', marginBottom: '10px' }}
         >
           ← Back
         </button>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div>
             <h1 style={{ margin: '0 0 5px 0', fontSize: '24px' }}>Earned Value Management Dashboard</h1>
-            <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>{projectConfig.name}</p>
+            <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>{projectConfig.name} | {projectConfig.fullName}</p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             <label style={{ fontSize: '13px', color: '#666' }}>Data as of:</label>
@@ -186,7 +229,7 @@ function EVMDashboard({ onBack }) {
         </div>
       </div>
 
-      {/* SECTION 1: PRIMARY EVM KPIs */}
+      {/* SECTION 1: CORE EVM METRICS */}
       <div style={{ backgroundColor: '#1a237e', color: 'white', padding: '10px 15px', borderRadius: '4px 4px 0 0', fontWeight: 'bold' }}>
         CORE EARNED VALUE METRICS
       </div>
@@ -200,15 +243,16 @@ function EVMDashboard({ onBack }) {
         </div>
       </div>
 
-      {/* SECTION 2: PERFORMANCE INDICES */}
+      {/* SECTION 2: PERFORMANCE INDICES - With Dynamic Colors + Days Behind */}
       <div style={{ backgroundColor: '#00695c', color: 'white', padding: '10px 15px', borderRadius: '4px 4px 0 0', fontWeight: 'bold' }}>
         PERFORMANCE INDICES & FORECASTS
       </div>
       <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '0 0 4px 4px', marginBottom: '20px', border: '1px solid #ddd', borderTop: 'none' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '15px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '15px' }}>
           <PerformanceGauge label="Cost Performance Index (CPI)" value={evmMetrics.CPI} />
           <PerformanceGauge label="Schedule Performance Index (SPI)" value={evmMetrics.SPI} />
-          <KPICard title="Estimate at Completion" value={evmMetrics.EAC} subtitle={`Budget: ${formatCurrency(evmMetrics.BAC)}`} />
+          <DaysBehindCard daysBehind={evmMetrics.daysBehind} sv={evmMetrics.SV} dailyPV={evmMetrics.dailyPV} />
+          <EACCard eac={evmMetrics.EAC} bac={evmMetrics.BAC} vac={evmMetrics.VAC} />
           <KPICard title="Estimate to Complete" value={evmMetrics.ETC} subtitle="Remaining forecast spend" />
           <KPICard title="Variance at Completion" value={evmMetrics.VAC} subtitle={evmMetrics.VAC >= 0 ? "Projected savings" : "Projected overrun"} isVariance />
           <KPICard title="To-Complete PI (TCPI)" value={evmMetrics.TCPI} format="index" subtitle="Required future efficiency" />
@@ -297,35 +341,61 @@ function EVMDashboard({ onBack }) {
                   <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #dee2e6', color: evmMetrics.VAC >= 0 ? EVMColors.variance.positive : EVMColors.variance.negative, fontWeight: 'bold' }}>{formatCurrency(evmMetrics.VAC)}</td>
                   <td style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}><StatusBadge value={evmMetrics.VAC >= 0 ? 1.05 : 0.85} /></td>
                 </tr>
+                <tr style={{ backgroundColor: '#f8f9fa' }}>
+                  <td style={{ padding: '10px', borderBottom: '1px solid #dee2e6' }}>Schedule Variance (Days)</td>
+                  <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #dee2e6', color: evmMetrics.daysBehind <= 0 ? EVMColors.variance.positive : EVMColors.variance.negative, fontWeight: 'bold' }}>
+                    {evmMetrics.daysBehind <= 0 ? `${Math.abs(evmMetrics.daysBehind)} days ahead` : `${evmMetrics.daysBehind} days behind`}
+                  </td>
+                  <td style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}><StatusBadge value={evmMetrics.SPI} /></td>
+                </tr>
               </tbody>
             </table>
           </div>
         </div>
       </div>
 
-      {/* SECTION 5: EXECUTIVE SUMMARY */}
+      {/* SECTION 5: EXECUTIVE SUMMARY - Enhanced with Actionable Insights */}
       <div style={{ backgroundColor: '#37474f', color: 'white', padding: '10px 15px', borderRadius: '4px 4px 0 0', fontWeight: 'bold' }}>
-        EXECUTIVE SUMMARY
+        EXECUTIVE SUMMARY & RECOMMENDED ACTIONS
       </div>
       <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '0 0 4px 4px', border: '1px solid #ddd', borderTop: 'none' }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
           <div style={{ 
             padding: '15px',
-            backgroundColor: evmMetrics.CPI >= 1.0 && evmMetrics.SPI >= 1.0 ? '#e8f5e9' : evmMetrics.CPI >= 0.9 && evmMetrics.SPI >= 0.9 ? '#fff3e0' : '#ffebee',
+            backgroundColor: healthAssessment.status === 'GREEN' ? '#e8f5e9' : healthAssessment.status === 'AMBER' ? '#fff3e0' : '#ffebee',
             borderRadius: '8px',
-            borderLeft: `4px solid ${evmMetrics.CPI >= 1.0 && evmMetrics.SPI >= 1.0 ? EVMColors.gauge.excellent : evmMetrics.CPI >= 0.9 && evmMetrics.SPI >= 0.9 ? EVMColors.gauge.warning : EVMColors.gauge.danger}`
+            borderLeft: `4px solid ${healthAssessment.status === 'GREEN' ? EVMColors.gauge.excellent : healthAssessment.status === 'AMBER' ? EVMColors.gauge.warning : EVMColors.gauge.danger}`
           }}>
-            <h4 style={{ marginTop: 0, fontSize: '14px' }}>📊 Project Health Assessment</h4>
-            <p style={{ fontSize: '13px', lineHeight: '1.6', marginBottom: '10px' }}>
-              {evmMetrics.CPI >= 1.0 && evmMetrics.SPI >= 1.0 ? (
-                <>Project is performing <strong>above target</strong>. Work is progressing faster than planned while staying under budget. Current trajectory suggests completing <strong>{formatCurrency(Math.abs(evmMetrics.VAC))} under budget</strong>.</>
-              ) : evmMetrics.CPI >= 0.9 && evmMetrics.SPI >= 0.9 ? (
-                <>Project requires <strong>monitoring</strong>. Minor variances detected but within acceptable thresholds. Recommend reviewing resource allocation to prevent further slippage.</>
-              ) : (
-                <>Project is <strong>at risk</strong>. Significant variances detected. Immediate corrective action required. Current trajectory projects <strong>{formatCurrency(Math.abs(evmMetrics.VAC))} overrun</strong>.</>
-              )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
+              <span style={{
+                padding: '4px 12px',
+                backgroundColor: healthAssessment.status === 'GREEN' ? EVMColors.gauge.excellent : healthAssessment.status === 'AMBER' ? EVMColors.gauge.warning : EVMColors.gauge.danger,
+                color: healthAssessment.status === 'AMBER' ? '#000' : '#fff',
+                borderRadius: '20px',
+                fontSize: '11px',
+                fontWeight: '700'
+              }}>
+                {healthAssessment.status}
+              </span>
+              <h4 style={{ margin: 0, fontSize: '14px' }}>📊 {healthAssessment.title}</h4>
+            </div>
+            
+            <p style={{ fontSize: '13px', lineHeight: '1.6', marginBottom: '15px', color: '#333' }}>
+              {healthAssessment.summary}
             </p>
-            <div style={{ fontSize: '12px', color: '#666' }}>
+
+            <div style={{ marginTop: '10px' }}>
+              <div style={{ fontSize: '12px', fontWeight: '600', color: '#333', marginBottom: '8px' }}>
+                📋 Recommended Actions:
+              </div>
+              <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', lineHeight: '1.8', color: '#444' }}>
+                {healthAssessment.recommendations.map((rec, i) => (
+                  <li key={i}>{rec}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div style={{ fontSize: '12px', color: '#666', marginTop: '15px', paddingTop: '10px', borderTop: '1px solid #ddd' }}>
               <strong>TCPI Required:</strong> {evmMetrics.TCPI.toFixed(3)} - {evmMetrics.TCPI <= 1.0 ? ' Achievable with current performance' : evmMetrics.TCPI <= 1.1 ? ' Requires improved efficiency' : ' Significant improvement needed'}
             </div>
           </div>
@@ -340,8 +410,21 @@ function EVMDashboard({ onBack }) {
               <div><strong>VAC &gt; 0</strong><br/><span style={{ color: EVMColors.gauge.excellent }}>Projected savings</span></div>
               <div><strong>VAC &lt; 0</strong><br/><span style={{ color: EVMColors.gauge.danger }}>Projected overrun</span></div>
             </div>
+
+            <div style={{ marginTop: '15px', paddingTop: '15px', borderTop: '1px solid #ddd' }}>
+              <div style={{ fontSize: '11px', fontWeight: '600', marginBottom: '8px' }}>SPI/CPI Status Colors:</div>
+              <div style={{ display: 'flex', gap: '15px', fontSize: '11px' }}>
+                <span><span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: EVMColors.gauge.danger, borderRadius: '2px', marginRight: '5px' }}></span>&lt; 0.90 At Risk</span>
+                <span><span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: EVMColors.gauge.warning, borderRadius: '2px', marginRight: '5px' }}></span>0.90-0.99 Monitor</span>
+                <span><span style={{ display: 'inline-block', width: '12px', height: '12px', backgroundColor: EVMColors.gauge.excellent, borderRadius: '2px', marginRight: '5px' }}></span>≥ 1.0 On Track</span>
+              </div>
+            </div>
           </div>
         </div>
+      </div>
+
+      <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '11px', color: '#999' }}>
+        Generated by Pipe-Up | Data as of {asOfDate} | {projectConfig.name}
       </div>
     </div>
   )
@@ -364,22 +447,88 @@ function KPICard({ title, value, subtitle, format = 'currency', color, isVarianc
   )
 }
 
+function DaysBehindCard({ daysBehind, sv, dailyPV }) {
+  const isAhead = daysBehind <= 0
+  const color = isAhead ? EVMColors.gauge.excellent : daysBehind <= 10 ? EVMColors.gauge.warning : EVMColors.gauge.danger
+  const label = isAhead ? 'Days Ahead' : 'Days Behind'
+  
+  return (
+    <div style={{ 
+      padding: '15px', 
+      backgroundColor: isAhead ? '#e8f5e9' : daysBehind <= 10 ? '#fff3e0' : '#ffebee', 
+      borderRadius: '8px', 
+      border: `2px solid ${color}`,
+      textAlign: 'center'
+    }}>
+      <div style={{ fontSize: '11px', color: '#666', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        {label}
+      </div>
+      <div style={{ fontSize: '32px', fontWeight: 'bold', color, marginTop: '5px' }}>
+        {Math.abs(daysBehind)}
+      </div>
+      <div style={{ fontSize: '11px', color: '#999', marginTop: '3px' }}>
+        SV: {formatCurrency(sv)}
+      </div>
+      <div style={{ fontSize: '10px', color: '#aaa', marginTop: '2px' }}>
+        Daily PV: {formatCurrency(dailyPV)}
+      </div>
+    </div>
+  )
+}
+
+function EACCard({ eac, bac, vac }) {
+  const bufferPercent = bac > 0 ? ((vac / bac) * 100).toFixed(1) : 0
+  const isUnder = vac >= 0
+  
+  return (
+    <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef' }}>
+      <div style={{ fontSize: '11px', color: '#666', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+        Estimate at Completion
+      </div>
+      <div style={{ fontSize: '26px', fontWeight: 'bold', color: '#333', marginTop: '5px' }}>
+        {formatCurrency(eac)}
+      </div>
+      <div style={{ fontSize: '11px', color: '#999', marginTop: '3px' }}>
+        Budget: {formatCurrency(bac)}
+      </div>
+      <div style={{ 
+        marginTop: '8px', 
+        padding: '4px 8px', 
+        backgroundColor: isUnder ? '#e8f5e9' : '#ffebee',
+        borderRadius: '4px',
+        display: 'inline-block'
+      }}>
+        <span style={{ 
+          fontSize: '12px', 
+          fontWeight: '600',
+          color: isUnder ? EVMColors.gauge.excellent : EVMColors.gauge.danger
+        }}>
+          {isUnder ? '↓' : '↑'} {Math.abs(bufferPercent)}% {isUnder ? 'savings' : 'overrun'}
+        </span>
+      </div>
+    </div>
+  )
+}
+
 function PerformanceGauge({ label, value }) {
-  const getColor = (val) => val >= 1.0 ? EVMColors.gauge.excellent : val >= 0.95 ? EVMColors.gauge.good : val >= 0.9 ? EVMColors.gauge.warning : EVMColors.gauge.danger
-  const getStatus = (val) => val >= 1.0 ? 'On Track' : val >= 0.95 ? 'Monitor' : val >= 0.9 ? 'At Risk' : 'Critical'
+  const color = getIndexColor(value)
+  const status = getIndexStatus(value)
   const percentage = Math.min((value / 1.2) * 100, 100)
-  const color = getColor(value)
 
   return (
     <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef', textAlign: 'center' }}>
       <div style={{ fontSize: '11px', color: '#666', fontWeight: '500', marginBottom: '10px' }}>{label}</div>
       <div style={{ position: 'relative', height: '16px', marginBottom: '10px', borderRadius: '8px', overflow: 'hidden' }}>
-        <div style={{ position: 'absolute', width: '100%', height: '100%', background: `linear-gradient(to right, ${EVMColors.gauge.danger} 0%, ${EVMColors.gauge.danger} 75%, ${EVMColors.gauge.warning} 75%, ${EVMColors.gauge.warning} 79%, ${EVMColors.gauge.good} 79%, ${EVMColors.gauge.good} 83%, ${EVMColors.gauge.excellent} 83%)`, opacity: 0.2 }} />
+        <div style={{ 
+          position: 'absolute', width: '100%', height: '100%', 
+          background: `linear-gradient(to right, ${EVMColors.gauge.danger} 0%, ${EVMColors.gauge.danger} 75%, ${EVMColors.gauge.warning} 75%, ${EVMColors.gauge.warning} 83.3%, ${EVMColors.gauge.excellent} 83.3%)`, 
+          opacity: 0.2 
+        }} />
         <div style={{ position: 'absolute', width: `${percentage}%`, height: '100%', backgroundColor: color, transition: 'width 0.5s ease' }} />
         <div style={{ position: 'absolute', left: `${(1.0 / 1.2) * 100}%`, top: 0, bottom: 0, width: '2px', backgroundColor: '#333' }} />
       </div>
       <div style={{ fontSize: '28px', fontWeight: 'bold', color }}>{value.toFixed(2)}</div>
-      <div style={{ fontSize: '11px', color, fontWeight: '600', marginTop: '3px' }}>{getStatus(value)}</div>
+      <div style={{ fontSize: '11px', color, fontWeight: '600', marginTop: '3px' }}>{status}</div>
     </div>
   )
 }
@@ -421,9 +570,8 @@ function TripleComparison({ percentPhysical, percentSpent, percentScheduled }) {
 function StatusBadge({ value }) {
   const getProps = (val) => {
     if (val >= 1.0) return { text: 'On Track', bg: '#e8f5e9', color: EVMColors.gauge.excellent }
-    if (val >= 0.95) return { text: 'Monitor', bg: '#fff3e0', color: EVMColors.gauge.warning }
-    if (val >= 0.9) return { text: 'At Risk', bg: '#fff3e0', color: EVMColors.gauge.warning }
-    return { text: 'Critical', bg: '#ffebee', color: EVMColors.gauge.danger }
+    if (val >= 0.90) return { text: 'Monitor', bg: '#fff3e0', color: EVMColors.gauge.warning }
+    return { text: 'At Risk', bg: '#ffebee', color: EVMColors.gauge.danger }
   }
   const props = getProps(value)
   return <span style={{ padding: '4px 10px', backgroundColor: props.bg, color: props.color, borderRadius: '12px', fontSize: '11px', fontWeight: '600' }}>{props.text}</span>
@@ -436,6 +584,10 @@ function formatCurrency(value) {
   if (absValue >= 1000) return `${prefix}$${(absValue / 1000).toFixed(0)}k`
   return `${prefix}$${absValue.toFixed(0)}`
 }
+
+// ============================================================================
+// METRICS CALCULATION - Syncs with activity_blocks from InspectorReport
+// ============================================================================
 
 function generateSampleMetrics(projectConfig, asOfDate) {
   const BAC = projectConfig.totalBudget
@@ -459,11 +611,90 @@ function generateSampleMetrics(projectConfig, asOfDate) {
   const VAC = BAC - EAC
   const TCPI = (BAC - AC) !== 0 ? (BAC - EV) / (BAC - AC) : 0
 
-  return { BAC, PV, EV, AC, CV, SV, CPI, SPI, EAC, ETC, VAC, TCPI, percentPhysical: physicalPercent, percentSpent: spendPercent, percentScheduled: scheduledPercent }
+  const dailyPV = daysElapsed > 0 ? PV / daysElapsed : BAC / totalDays
+  const daysBehind = dailyPV > 0 ? Math.round(Math.abs(SV) / dailyPV) * (SV < 0 ? 1 : -1) : 0
+
+  return { BAC, PV, EV, AC, CV, SV, CPI, SPI, EAC, ETC, VAC, TCPI, percentPhysical: physicalPercent, percentSpent: spendPercent, percentScheduled: scheduledPercent, dailyPV, daysBehind }
 }
 
 function calculateMetricsFromReports(reports, projectConfig, asOfDate) {
-  return generateSampleMetrics(projectConfig, asOfDate)
+  const BAC = projectConfig.totalBudget
+  const cutoffDate = new Date(asOfDate)
+  
+  const relevantReports = reports.filter(r => new Date(r.date || r.selected_date) <= cutoffDate)
+  
+  if (relevantReports.length === 0) {
+    return generateSampleMetrics(projectConfig, asOfDate)
+  }
+
+  let totalActualMetres = 0
+  let totalLabourCost = 0
+  let totalEquipmentCost = 0
+
+  relevantReports.forEach(report => {
+    const blocks = Array.isArray(report.activity_blocks) ? report.activity_blocks : []
+    
+    blocks.forEach(block => {
+      if (block.startKP && block.endKP) {
+        const startM = parseKPToMetres(block.startKP)
+        const endM = parseKPToMetres(block.endKP)
+        if (startM !== null && endM !== null) {
+          totalActualMetres += Math.abs(endM - startM)
+        }
+      }
+
+      // Safely handle labourEntries - could be array or object
+      const labourEntries = Array.isArray(block.labourEntries) ? block.labourEntries : []
+      labourEntries.forEach(entry => {
+        const hours = ((entry.rt || 0) + (entry.ot || 0)) * (entry.count || 1)
+        const rate = entry.rate || 95
+        totalLabourCost += hours * rate
+      })
+
+      // Safely handle equipmentEntries - could be array or object
+      const equipmentEntries = Array.isArray(block.equipmentEntries) ? block.equipmentEntries : []
+      equipmentEntries.forEach(entry => {
+        const hours = entry.hours || 0
+        const rate = entry.rate || 200
+        totalEquipmentCost += hours * rate
+      })
+    })
+  })
+
+  const daysElapsed = Math.floor((cutoffDate - new Date(projectConfig.baselineStart)) / (1000 * 60 * 60 * 24))
+  const totalDays = Math.floor((new Date(projectConfig.baselineFinish) - new Date(projectConfig.baselineStart)) / (1000 * 60 * 60 * 24))
+  const scheduledPercent = Math.min((daysElapsed / totalDays) * 100, 100)
+  const physicalPercent = (totalActualMetres / projectConfig.totalLength) * 100
+
+  const PV = BAC * (scheduledPercent / 100)
+  const EV = BAC * (physicalPercent / 100)
+  const AC = totalLabourCost + totalEquipmentCost || BAC * (physicalPercent / 100) * 0.95
+
+  const CV = EV - AC
+  const SV = EV - PV
+  const CPI = AC > 0 ? EV / AC : 1
+  const SPI = PV > 0 ? EV / PV : 1
+  const EAC = CPI > 0 ? BAC / CPI : BAC
+  const ETC = EAC - AC
+  const VAC = BAC - EAC
+  const TCPI = (BAC - AC) > 0 ? (BAC - EV) / (BAC - AC) : 0
+
+  const dailyPV = daysElapsed > 0 ? PV / daysElapsed : BAC / totalDays
+  const daysBehind = dailyPV > 0 ? Math.round(Math.abs(SV) / dailyPV) * (SV < 0 ? 1 : -1) : 0
+  const spendPercent = (AC / BAC) * 100
+
+  return { BAC, PV, EV, AC, CV, SV, CPI, SPI, EAC, ETC, VAC, TCPI, percentPhysical: physicalPercent, percentSpent: spendPercent, percentScheduled: scheduledPercent, dailyPV, daysBehind }
+}
+
+function parseKPToMetres(kpString) {
+  if (!kpString) return null
+  const str = String(kpString).trim()
+  if (str.includes('+')) {
+    const [km, m] = str.split('+')
+    return (parseInt(km) || 0) * 1000 + (parseInt(m) || 0)
+  }
+  const num = parseFloat(str)
+  return isNaN(num) ? null : num * 1000
 }
 
 function generateSCurveData(projectConfig, asOfDate) {

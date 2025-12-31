@@ -5,11 +5,12 @@ import { AuthProvider, useAuth } from './AuthContext.jsx'
 import AdminPortal from './AdminPortal.jsx'
 import Dashboard from './Dashboard.jsx'
 import EVMDashboard from './EVMDashboard.jsx'
-import InspectorReport from './InspectorReport.jsx'
+import InspectorApp from './InspectorApp.jsx'
 import ReconciliationDashboard from './ReconciliationDashboard.jsx'
 import ChangeManagement from './ChangeManagement.jsx'
 import ReportsPage from './ReportsPage.jsx'
 import ContractorLEMs from './ContractorLEMs.jsx'
+import ChiefDashboard from './ChiefDashboard.jsx'
 import Login from './Login.jsx'
 import ResetPassword from './ResetPassword.jsx'
 import './index.css'
@@ -51,12 +52,15 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
   if (userProfile?.role === 'executive') {
     return <Navigate to="/evm" replace />
   }
+  if (userProfile?.role === 'chief_inspector') {
+    return <Navigate to="/chief" replace />
+  }
 
   return <Navigate to="/" replace />
 }
 
 function AppRoutes() {
-  const { user, userProfile, loading } = useAuth()
+  const { user, userProfile, loading, signOut } = useAuth()
 
   if (loading) {
     return (
@@ -81,9 +85,10 @@ function AppRoutes() {
         return '/admin'
       case 'executive':
         return '/evm'
+      case 'chief_inspector':
+        return '/chief'
       case 'pm':
       case 'cm':
-      case 'chief_inspector':
         return '/dashboard'
       case 'inspector':
         return '/inspector'
@@ -101,6 +106,12 @@ function AppRoutes() {
       <Route path="/admin" element={
         <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
           <AdminPortal />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/chief" element={
+        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'chief_inspector']}>
+          <ChiefDashboard />
         </ProtectedRoute>
       } />
 
@@ -146,9 +157,22 @@ function AppRoutes() {
         </ProtectedRoute>
       } />
 
+      {/* Inspector routes - now uses InspectorApp with My Reports */}
       <Route path="/inspector" element={
         <ProtectedRoute>
-          <InspectorReport />
+          <InspectorApp user={userProfile} onSignOut={signOut} />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/my-reports" element={
+        <ProtectedRoute>
+          <InspectorApp user={userProfile} onSignOut={signOut} />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/report/edit/:reportId" element={
+        <ProtectedRoute>
+          <InspectorApp user={userProfile} onSignOut={signOut} />
         </ProtectedRoute>
       } />
 

@@ -2,720 +2,66 @@ import './App.css'
 import { saveTieInTicket } from './saveLogic.js'
 import { useAuth } from './AuthContext.jsx'
 import React, { useState, useEffect, useRef } from 'react'
+import { useSearchParams, useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import { supabase } from './supabase'
-import MainlineWeldData from './MainlineWeldData.jsx'
-import TieInWeldData from './TieInWeldData.jsx'
-import BendingLog from './BendingLog.jsx'
-import StringingLog from './StringingLog.jsx'
+
+// Import constants from separate file
+import { 
+  PROJECT_NAME, 
+  PROJECT_SHORT, 
+  pipelineLocations, 
+  activityTypes, 
+  qualityFieldsByActivity, 
+  timeLostReasons, 
+  labourClassifications, 
+  equipmentTypes, 
+  createEmptyActivity 
+} from './constants.js'
+
+// Import ActivityBlock component (handles all specialized logs internally)
+import ActivityBlock from './ActivityBlock.jsx'
+
+// Report-level components (not part of activity blocks)
+import SafetyRecognition from './SafetyRecognition.jsx'
+import WildlifeSighting from './WildlifeSighting.jsx'
+import UnitPriceItemsLog from './UnitPriceItemsLog.jsx'
+import MatTracker from './MatTracker.jsx'
+import ReportWorkflow from './ReportWorkflow.jsx'
+import MiniMapWidget from './MiniMapWidget.jsx'
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
-// Project configuration
-const PROJECT_NAME = "Clearwater Pipeline - Demo Project"
-const PROJECT_SHORT = "CWP"
+// Constants now imported from constants.js
 
-// Pipeline locations for weather lookup
-const pipelineLocations = {
-  'Pipeline A': { lat: 53.5461, lon: -113.4938, name: 'Edmonton, AB' },
-  'Pipeline B': { lat: 51.0447, lon: -114.0719, name: 'Calgary, AB' },
-  'Pipeline C': { lat: 56.7267, lon: -111.3790, name: 'Fort McMurray, AB' }
-}
-
-// Activity types for pipeline construction
-const activityTypes = [
-  'Clearing',
-  'Access',
-  'Topsoil',
-  'Grading',
-  'Stringing',
-  'Bending',
-  'Welding - Mainline',
-  'Welding - Section Crew',
-  'Welding - Poor Boy',
-  'Welding - Tie-in',
-  'Coating',
-  'Ditch',
-  'Lower-in',
-  'Backfill',
-  'Tie-ins',
-  'Cleanup - Machine',
-  'Cleanup - Final',
-  'Hydrostatic Testing',
-  'HDD',
-  'HD Bores'
-]
-
-// Quality fields per activity type (API 1169 based)
-const qualityFieldsByActivity = {
-  'Clearing': [
-    // ═══════════════════════════════════════════════════════════════
-    // RIGHT-OF-WAY & BOUNDARIES
-    // ═══════════════════════════════════════════════════════════════
-    { name: 'rowWidthDesign', label: 'Design ROW Width (m)', type: 'number', placeholder: 'Per route sheets' },
-    { name: 'rowWidthActual', label: 'Actual ROW Width (m)', type: 'number', placeholder: 'Field measured' },
-    { name: 'rowWidthCompliant', label: 'ROW Width Compliant?', type: 'select', options: ['Yes', 'No - Over Width', 'No - Under Width'] },
-    { name: 'rowAlignmentVerified', label: 'ROW Alignment Verified vs Route Sheets?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'boundariesFlagged', label: 'Boundaries Flagged & Visible?', type: 'select', options: ['Yes', 'No', 'Partially'] },
-    { name: 'twsStaked', label: 'Temporary Workspace (TWS) Staked?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'legalSurveyPinsProtected', label: 'Legal Survey Pins Marked/Protected?', type: 'select', options: ['Yes', 'No', 'None Present', 'N/A'] },
-
-    // ═══════════════════════════════════════════════════════════════
-    // PRE-CLEARING APPROVALS & COMPLIANCE
-    // ═══════════════════════════════════════════════════════════════
-    { name: 'cgrPlanApproved', label: 'CGR Plan Approved & On-Site?', type: 'select', options: ['Yes', 'No'] },
-    { name: 'cgrPlanCompliance', label: 'Work Compliant with CGR Plan?', type: 'select', options: ['Yes', 'No', 'Partial Deviation'] },
-    { name: 'offRowApprovalsInPlace', label: 'Off-ROW Work Approvals in Place?', type: 'select', options: ['Yes', 'No', 'N/A - No Off-ROW Work'] },
-    { name: 'constructionLineListReviewed', label: 'Construction Line List Reviewed?', type: 'select', options: ['Yes', 'No'] },
-    { name: 'landownerRestrictionsNoted', label: 'Landowner Restrictions Noted?', type: 'select', options: ['Yes - Compliant', 'Yes - Non-Compliant', 'No Restrictions', 'N/A'] },
-    { name: 'landAgentContact', label: 'Land Agent Contact Maintained?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-
-    // ═══════════════════════════════════════════════════════════════
-    // ENVIRONMENTAL COMPLIANCE
-    // ═══════════════════════════════════════════════════════════════
-    { name: 'environmentalInspectorLiaison', label: 'Liaised with Environmental Inspector?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'timingConstraintsMet', label: 'Timing Constraints Met? (Wildlife windows)', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'wildlifeRegulationsCompliant', label: 'Wildlife Regulations Compliant?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'rarePlantProtection', label: 'Rare Plant Areas Protected?', type: 'select', options: ['Yes', 'No', 'None Identified', 'N/A'] },
-    { name: 'asrdCommitmentsMet', label: 'ASRD Commitments Met?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'groundDisturbanceCompliant', label: 'Ground Disturbance per Contract Docs?', type: 'select', options: ['Yes', 'No'] },
-
-    // ═══════════════════════════════════════════════════════════════
-    // BURIED FACILITIES & UTILITIES
-    // ═══════════════════════════════════════════════════════════════
-    { name: 'buriedFacilitiesIdentified', label: 'Buried Facilities Identified?', type: 'select', options: ['Yes', 'No', 'None Present'] },
-    { name: 'locatesComplete', label: 'Utility Locates Complete?', type: 'select', options: ['Yes', 'No', 'Pending', 'N/A'] },
-    { name: 'handExposingComplete', label: 'Hand/Hydrovac Exposing Complete?', type: 'select', options: ['Yes', 'No', 'In Progress', 'N/A'] },
-    { name: 'foreignCrossingsMarked', label: 'Foreign Crossings Marked?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-
-    // ═══════════════════════════════════════════════════════════════
-    // OVERHEAD POWER LINES
-    // ═══════════════════════════════════════════════════════════════
-    { name: 'powerLinesPresent', label: 'Overhead Power Lines Present?', type: 'select', options: ['Yes', 'No'] },
-    { name: 'powerLinesIdentified', label: 'Power Lines Identified per Specs?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'powerLinesMarked', label: 'Power Lines Marked per Safety Req?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'powerLinesClearance', label: 'Adequate Clearance Maintained?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'powerLineVoltage', label: 'Power Line Voltage (if known)', type: 'text', placeholder: 'e.g., 25kV, 138kV' },
-
-    // ═══════════════════════════════════════════════════════════════
-    // TIMBER SALVAGE
-    // ═══════════════════════════════════════════════════════════════
-    { name: 'timberSalvageRequired', label: 'Timber Salvage Required?', type: 'select', options: ['Yes', 'No'] },
-    { name: 'timberSalvageCompliant', label: 'Timber Harvesting per TSP Requirements?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'merchantableTimberSalvaged', label: 'Merchantable Timber Salvaged?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'timberDisposalMethod', label: 'Timber Disposal Method', type: 'select', options: ['Decked for Haul', 'Mulched', 'Burned', 'Rollback', 'Mixed Methods', 'N/A'] },
-
-    // ═══════════════════════════════════════════════════════════════
-    // TIMBER DECKING LOG
-    // ═══════════════════════════════════════════════════════════════
-    { name: 'timberDecksCreated', label: '🪵 Timber Decks Created Today?', type: 'select', options: ['Yes', 'No'] },
-    { name: 'deckId', label: 'Deck ID', type: 'text', placeholder: 'e.g., D-004' },
-    { name: 'deckStartKp', label: 'Deck Location - Start KP', type: 'number' },
-    { name: 'deckEndKp', label: 'Deck Location - End KP', type: 'number' },
-    { name: 'deckOwnerStatus', label: 'Deck Owner/Status', type: 'select', options: ['Crown', 'Private (Freehold)'] },
-    { name: 'deckSpeciesSort', label: 'Species Sort', type: 'select', options: ['Coniferous (Softwood)', 'Deciduous (Hardwood)', 'Mixed'] },
-    { name: 'deckCondition', label: 'Timber Condition', type: 'select', options: ['Green (Live)', 'Dry/Dead', 'Burned'] },
-    { name: 'deckCutSpecification', label: 'Cut Specification', type: 'select', options: ['Tree Length', 'Cut-to-Length'] },
-    { name: 'deckMinTopDiameter', label: 'Min Top Diameter (cm)', type: 'number' },
-    { name: 'deckDisposalDestination', label: 'Disposal/Destination', type: 'select', options: ['Haul to Mill', 'Rollback (Reclamation)', 'Firewood', 'Mulch/Burn'] },
-    { name: 'deckVolumeEstimate', label: 'Volume Estimate (m³)', type: 'number' },
-
-    // ═══════════════════════════════════════════════════════════════
-    // GRUBBING & STRIPPING
-    // ═══════════════════════════════════════════════════════════════
-    { name: 'grubbingComplete', label: 'Grubbing Complete?', type: 'select', options: ['Yes', 'No', 'In Progress', 'N/A'] },
-    { name: 'stumpHeightCompliant', label: 'Stump Height Compliant?', type: 'select', options: ['Pass', 'Fail', 'N/A'] },
-    { name: 'stumpHeightMax', label: 'Max Stump Height Observed (cm)', type: 'number', placeholder: 'Spec typically ≤15cm' },
-    { name: 'topsoilStripped', label: 'Topsoil Stripped & Stockpiled?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'topsoilSeparation', label: 'Topsoil Separated from Subsoil?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-
-    // ═══════════════════════════════════════════════════════════════
-    // WATERCOURSE CROSSINGS
-    // ═══════════════════════════════════════════════════════════════
-    { name: 'watercoursePresent', label: 'Watercourse in Work Area?', type: 'select', options: ['Yes', 'No'] },
-    { name: 'watercourseAccessCompliant', label: 'Access Clearing per Specifications?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'equipmentCrossingInstalled', label: 'Equipment Crossing Installed?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'equipmentCrossingType', label: 'Crossing Type', type: 'select', options: ['Temporary Bridge', 'Mat Crossing', 'Culvert', 'Ford', 'Other', 'N/A'] },
-    { name: 'regulatoryApprovalCompliant', label: 'Compliant with Regulatory Approvals?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'erosionControlsInstalled', label: 'Erosion Controls Installed?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-
-    // ═══════════════════════════════════════════════════════════════
-    // TEMPORARY FENCING
-    // ═══════════════════════════════════════════════════════════════
-    { name: 'tempFencingRequired', label: 'Temporary Fencing Required?', type: 'select', options: ['Yes', 'No'] },
-    { name: 'tempFencingInstalled', label: 'Temporary Fencing Installed?', type: 'select', options: ['Yes', 'No', 'In Progress', 'N/A'] },
-    { name: 'tempFencingType', label: 'Fencing Type', type: 'select', options: ['Page Wire', 'Barbed Wire', 'Electric', 'Snow Fence', 'Construction Fence', 'Other', 'N/A'] },
-    { name: 'tempFencingLength', label: 'Fencing Length Installed (m)', type: 'number', placeholder: 'Total meters' },
-    { name: 'gatesInstalled', label: 'Gates Installed?', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'gatesCount', label: 'Number of Gates', type: 'number' },
-
-    // ═══════════════════════════════════════════════════════════════
-    // GENERAL OBSERVATIONS
-    // ═══════════════════════════════════════════════════════════════
-    { name: 'safetyIssuesObserved', label: 'Safety Issues Observed?', type: 'select', options: ['None', 'Yes - Reported', 'Yes - Corrected'] },
-    { name: 'ncrRequired', label: 'NCR Required?', type: 'select', options: ['No', 'Yes - Issued', 'Yes - Pending'] },
-    { name: 'clearingInspectorNotes', label: 'Clearing Inspector Notes', type: 'textarea', placeholder: 'Additional observations, issues, or comments...' }
-  ],
-  'Access': [
-    { name: 'accessWidth', label: 'Access Width (m)', type: 'number' },
-    { name: 'surfaceCondition', label: 'Surface Condition', type: 'select', options: ['Good', 'Fair', 'Poor'] }
-  ],
-  'Topsoil': [
-    { name: 'stripDepth', label: 'Strip Depth (cm)', type: 'number' },
-    { name: 'stockpileLocation', label: 'Stockpile Location (KP)', type: 'text' }
-  ],
-  'Grading': [
-    { name: 'gradeTolerance', label: 'Grade Tolerance (+/- cm)', type: 'number' },
-    { name: 'slopePercent', label: 'Slope %', type: 'number' },
-    { name: 'compactionPercent', label: 'Compaction %', type: 'number' }
-  ],
-  'Stringing': [
-    { name: 'jointNumbers', label: 'Joint Numbers (from-to)', type: 'text' },
-    { name: 'heatNumbers', label: 'Heat Numbers', type: 'text' },
-    { name: 'coatingCondition', label: 'Coating Condition', type: 'select', options: ['Good', 'Damaged - Repaired', 'Damaged - Flagged'] },
-    { name: 'millCertVerified', label: 'Mill Cert Verified', type: 'select', options: ['Yes', 'No'] }
-  ],
-  'Bending': [
-    { name: 'bendAngle', label: 'Bend Angle (°)', type: 'number' },
-    { name: 'bendRadius', label: 'Bend Radius (m)', type: 'number' },
-    { name: 'ovalityPercent', label: 'Ovality %', type: 'number' },
-    { name: 'wrinkleCheck', label: 'Wrinkle Check', type: 'select', options: ['Pass', 'Fail', 'N/A'] },
-    { name: 'bendTemp', label: 'Temperature (°C)', type: 'number' },
-    { name: 'distanceToWeld', label: 'Distance to Nearest Weld (m)', type: 'number' }
-  ],
-  'Welding - Mainline': [
-    { name: 'weldNumber', label: 'Weld Number', type: 'text' },
-    { name: 'welderID', label: 'Welder ID', type: 'text' },
-    { name: 'wpsNumber', label: 'WPS Number', type: 'text' },
-    { name: 'preheatTemp', label: 'Preheat Temp (°C)', type: 'number' },
-    { name: 'ndtType', label: 'NDT Type', type: 'select', options: ['RT', 'UT', 'MT', 'PT', 'None'] },
-    { name: 'ndtResult', label: 'NDT Result', type: 'select', options: ['Accept', 'Reject', 'Pending'] },
-    { name: 'repairRequired', label: 'Repair Required', type: 'select', options: ['Yes', 'No'] },
-    { name: 'repairType', label: 'Repair Type', type: 'select', options: ['N/A', 'Root', 'Hot Pass', 'Fill', 'Cap', 'Full Cutout'] },
-    { name: 'repairPass', label: 'Repair Pass #', type: 'text' },
-    { name: 'rootOpening', label: 'Root Opening (mm)', type: 'number' },
-    { name: 'hiLo', label: 'Hi-Lo (mm)', type: 'number' },
-    { name: 'gap', label: 'Gap (mm)', type: 'number' }
-  ],
-  'Welding - Tie-in': [
-    { name: 'weldNumber', label: 'Weld Number', type: 'text' },
-    { name: 'welderID', label: 'Welder ID', type: 'text' },
-    { name: 'wpsNumber', label: 'WPS Number', type: 'text' },
-    { name: 'preheatTemp', label: 'Preheat Temp (°C)', type: 'number' },
-    { name: 'locationType', label: 'Location Type', type: 'select', options: ['Road Crossing', 'Water Crossing', 'Foreign Line', 'Valve', 'Other'] },
-    { name: 'ndtType', label: 'NDT Type', type: 'select', options: ['RT', 'UT', 'MT', 'PT', 'None'] },
-    { name: 'ndtResult', label: 'NDT Result', type: 'select', options: ['Accept', 'Reject', 'Pending'] },
-    { name: 'repairRequired', label: 'Repair Required', type: 'select', options: ['Yes', 'No'] },
-    { name: 'repairType', label: 'Repair Type', type: 'select', options: ['N/A', 'Root', 'Hot Pass', 'Fill', 'Cap', 'Full Cutout'] },
-    { name: 'repairPass', label: 'Repair Pass #', type: 'text' }
-  ],
-  'Coating': [
-    { name: 'coatingType', label: 'Coating System', type: 'select', options: ['FBE', '3LPE', '3LPP', 'Tape Wrap', 'Shrink Sleeve', 'Other'] },
-    { name: 'holidayVoltage', label: 'Holiday Test Voltage (V)', type: 'number' },
-    { name: 'voltageConstant', label: 'Voltage Constant', type: 'number' },
-    { name: 'dftThickness', label: 'DFT Thickness (mils)', type: 'number' },
-    { name: 'equipmentID', label: 'Equipment ID/Serial', type: 'text' },
-    { name: 'calibrationDate', label: 'Last Calibration Date', type: 'date' },
-    { name: 'holidaysFound', label: 'Holidays Found', type: 'number' },
-    { name: 'repairsCompleted', label: 'Repairs Completed', type: 'select', options: ['Yes', 'No', 'N/A'] },
-    { name: 'retestPass', label: 'Retest Pass', type: 'select', options: ['Yes', 'No', 'N/A'] }
-  ],
-  'Ditch': [
-    { name: 'trenchDepth', label: 'Trench Depth (m)', type: 'number' },
-    { name: 'trenchWidth', label: 'Trench Width (m)', type: 'number' },
-    { name: 'rockTrench', label: 'Rock Trench', type: 'select', options: ['Yes', 'No'] },
-    { name: 'extraDepth', label: 'Extra Depth Required', type: 'select', options: ['Yes', 'No'] }
-  ],
-  'Lower-in': [
-    { name: 'paddingDepth', label: 'Padding Depth (cm)', type: 'number' },
-    { name: 'depthOfCover', label: 'Depth of Cover (m)', type: 'number' },
-    { name: 'clearance', label: 'Clearance from Foreign Lines (m)', type: 'number' },
-    { name: 'liftPlanVerified', label: 'Lift Plan Verified', type: 'select', options: ['Yes', 'No'] },
-    { name: 'equipmentInspected', label: 'Equipment Inspected', type: 'select', options: ['Yes', 'No'] }
-  ],
-  'Backfill': [
-    { name: 'liftThickness', label: 'Lift Thickness (cm)', type: 'number' },
-    { name: 'compactionPercent', label: 'Compaction %', type: 'number' },
-    { name: 'rockShield', label: 'Rock Shield Used', type: 'select', options: ['Yes', 'No', 'N/A'] }
-  ],
-  'Tie-ins': [
-    { name: 'weldNumber', label: 'Weld Number', type: 'text' },
-    { name: 'welderID', label: 'Welder ID', type: 'text' },
-    { name: 'locationType', label: 'Location Type', type: 'select', options: ['Road Crossing', 'Water Crossing', 'Foreign Line', 'Valve', 'Other'] }
-  ],
-  'Cleanup - Machine': [
-    { name: 'gradingComplete', label: 'Grading Complete', type: 'select', options: ['Yes', 'No', 'In Progress'] },
-    { name: 'debrisRemoved', label: 'Debris Removed', type: 'select', options: ['Yes', 'No', 'In Progress'] }
-  ],
-  'Cleanup - Final': [
-    { name: 'seedingComplete', label: 'Seeding Complete', type: 'select', options: ['Yes', 'No', 'In Progress'] },
-    { name: 'fencingRestored', label: 'Fencing Restored', type: 'select', options: ['Yes', 'No', 'N/A'] }
-  ],
-  'Hydrostatic Testing': [
-    { name: 'testPressure', label: 'Test Pressure (psi)', type: 'number' },
-    { name: 'squeezeUpTime', label: 'Squeeze-up Time (min)', type: 'number' },
-    { name: 'holdTime', label: 'Hold Time (hrs)', type: 'number' },
-    { name: 'tempCompensation', label: 'Temp Compensation Applied', type: 'select', options: ['Yes', 'No'] },
-    { name: 'testResult', label: 'Test Result', type: 'select', options: ['Pass', 'Fail', 'In Progress'] }
-  ],
-  'HDD': [
-    { name: 'drillingPhase', label: 'Drilling Phase', type: 'select', options: ['Pilot Hole', 'Reaming', 'Pullback', 'Complete'] },
-    { name: 'fluidType', label: 'Drilling Fluid Type', type: 'text' },
-    { name: 'fluidViscosity', label: 'Fluid Viscosity', type: 'number' },
-    { name: 'pullbackForce', label: 'Pullback Force (lbs)', type: 'number' },
-    { name: 'entryAngle', label: 'Entry Angle (°)', type: 'number' },
-    { name: 'exitAngle', label: 'Exit Angle (°)', type: 'number' }
-  ],
-  'HD Bores': [
-    { name: 'boreLength', label: 'Bore Length (m)', type: 'number' },
-    { name: 'casingSize', label: 'Casing Size (in)', type: 'number' },
-    { name: 'carrierPipeSize', label: 'Carrier Pipe Size (in)', type: 'number' },
-    { name: 'annularSpace', label: 'Annular Space Filled', type: 'select', options: ['Yes', 'No'] }
-  ]
-}
-
-// Time lost reasons
-const timeLostReasons = [
-  'Weather',
-  'Environmental',
-  'Landowner Concerns',
-  'Move Arounds',
-  'Material Lay',
-  'Safety Issue',
-  'Equipment Breakdown',
-  'Waiting on Materials',
-  'Other'
-]
-
-// Labour classifications
-// Labour classifications from CX2-FC contract (72 classifications)
-const labourClassifications = [
-  'APPRENTICE OPER/OILER',
-  'ASSISTANT PROJECT ENGINEER',
-  'ASSISTANT SUPERINTENDENT',
-  'BUS/ CREWCAB DRIVER',
-  'CAMP MANAGER',
-  'CONSTRUCTION MANAGER',
-  'COST PLANNER/SCHEDULER',
-  'DUMP TRUCK DRIVER 12-23 Yds',
-  'ENGINEERING MANAGER',
-  'ENVIRONMENTAL COORDINATOR',
-  'EQUIPMENT CLERK',
-  'EQUIPMENT MANAGER',
-  'FIELD ENGINEER',
-  'FLAT DECK < 5 TON',
-  'FORKLIFT DRIVER (WAREHOUSE)',
-  'FRONT-END/TIE-IN WELDER ON AUTO WELD SPREAD',
-  'FRONT-END/TIE-IN WELDER ON STICK WELD SPREAD',
-  'FUEL TRUCK DRIVERS HELPER',
-  'FUEL/ WATER TRUCK DRIVER',
-  'GENERAL FOREMAN',
-  'GENERAL LABOURER',
-  'INTERMEDIATE OPER',
-  'LABOURER JOB STEWARD',
-  'LANDMAN',
-  'LOWBED/MULTIPURPOSE DRIVER',
-  'MASTER MECHANIC',
-  'MECH./SERVICE/ UTILITY WELD HELPER',
-  'MECHANIC/ SERVICEMAN/ LUBEMAN',
-  'MECHANIC/SERVICEMAN/LUBEMAN (NIGHT SHIFT)',
-  'NIGHT WATCHMAN/ SECURITY',
-  'NON-WELDER JOURNEYMAN/ FITTER ON AUTO WELD SPREAD',
-  'NON-WELDER JOURNEYMAN/ FITTER ON STICK WELD SPREAD',
-  'OFFICE CLERK',
-  'OFFICE CLERK (LOCAL HIRE)',
-  'OFFICE MANAGER',
-  'OPERATOR JOB STEWARD',
-  'PAYMASTER',
-  'PICKER TRUCK DRIVER > 12 TON',
-  'PICKUP/ PILOT CAR DRIVER',
-  'PNEUMATIC TOOLS/NOZZLEMAN',
-  'POWERSAW OPERATOR',
-  'PRINC. OPER 1 (NIGHT SHIFT)',
-  'PRINCIPAL OPER 1',
-  'PRINCIPAL OPER 2',
-  'PROJECT ADMINISTRATOR',
-  'PROJECT ENGINEER',
-  'PROJECT PLANNER',
-  'PURCHASING AGENT',
-  'QUALITY CONTROL SUPERVISOR',
-  'QUALITY CONTROL TECHNICIAN',
-  'SAFETY COORDINATOR',
-  'SENIOR SAFETY COORDINATOR',
-  'SET-IN/SET UP DRIVERS (BEND & WELD)',
-  'SPEC LABOUR (CARPENTER, ETC.)',
-  'STRAW - FITTER ON AUTO WELD SPREAD',
-  'STRAW - FITTER ON STICK WELD SPREAD',
-  'STRAW - LABOURER',
-  'STRAW - OPERATOR',
-  'SUPERINTENDENT',
-  'SWAMPER/DRILL HELPER',
-  'TEAMSTER - STEWARD',
-  'TRANSPORTATION COORDINATOR',
-  'UA JOB STEWARD ON AUTO WELD SPREAD',
-  'UA LOWER-IN FOREMAN',
-  'UA PIPE FOREMAN',
-  'UA TEST FOREMAN',
-  'UA TIE-IN FOREMAN',
-  'UA WELDER FOREMAN',
-  'UTILITY WELDER',
-  'WAREHOUSEMAN 1',
-  'WAREHOUSEMAN 2',
-  'WELDER HELPER'
-]
-
-// Equipment types from CX2-FC contract (323 types)
-const equipmentTypes = [
-  '100Kw Generator',
-  '1 Ton Sandblast Unit',
-  '2 Ton Sandblast Unit',
-  '2" Water Pump',
-  '42" Mandrel',
-  '5 Ton Sandblast Unit',
-  '5 Ton Stake Truck',
-  '60\' Portable Bridge',
-  'Air Booster',
-  'Air Compressor - 1000 CFM',
-  'Air Compressor - 1000 CFM x 350 PSI',
-  'Air Compressor - 1200 CFM',
-  'Air Compressor - 1250 CFM x 350 PSI (Oil Free)',
-  'Air Compressor - 1300 CFM x 365 PSI',
-  'Air Compressor - 150 to 185 CFM',
-  'Air Compressor - 1500 CFM',
-  'Air Compressor - 200 to 250 CFM',
-  'Air Compressor - 300 to 400 CFM',
-  'Air Compressor - 780 to 850 CFM',
-  'Air Compressor - 900 CFM',
-  'Air Compressor - 900 CFM x 350 PSI',
-  'Air Dryer - 2600 CFM x 350 PSI',
-  'Almand Heater',
-  'ARGO ATV Side By Side',
-  'Articulated Dump Truck - 30 Ton',
-  'Articulated Dump Truck - 35 Ton',
-  'Articulated Dump Truck - 40 Ton',
-  'Athey Wagon',
-  'Athey Wagon - 30 Tonne',
-  'ATV/Gator',
-  'Automatic Welding Tractor',
-  'Automobile',
-  'Backfill Blade Attach. for Cat 330-345 Hoes',
-  'Backhoe - Cat 315 (or equivalent)',
-  'Backhoe - Cat 320 (or equivalent)',
-  'Backhoe - Cat 322 (or equivalent)',
-  'Backhoe - Cat 324 (or equivalent)',
-  'Backhoe - Cat 325 (or equivalent)',
-  'Backhoe - Cat 329 (or equivalent)',
-  'Backhoe - Cat 330 (or equivalent)',
-  'Backhoe - Cat 330 c/w Thumb',
-  'Backhoe - Cat 330 Longstick',
-  'Backhoe - Cat 336 (or equivalent)',
-  'Backhoe - Cat 345 (or equivalent)',
-  'Backhoe - Cat 345 c/w Thumb',
-  'Backhoe - Cat 345 Longstick',
-  'Backhoe - Cat 365',
-  'Backhoe - Cat 374',
-  'Backhoe - Hitachi 870LC',
-  'Backhoe - Link Belt 1400 Long Stick',
-  'Bending Machine 16-30"',
-  'Bending Machine 20-36"',
-  'Bending Machine 32-42"',
-  'Bending Machine 36-48"',
-  'Boat & Motor',
-  'Booster for Lowboy',
-  'Bus',
-  'Cable Clam/Board - LS 98 Linkbelt',
-  'Cabbed Argo Side by Side c/w Trailer',
-  'Coating Pre-Heat Generator & Coil',
-  'Coating Truck - 5 Ton',
-  'Compressor Hoses - 2" x 50\'',
-  'Compressor Trailer',
-  'Cradle Bore Machine & Auger',
-  'CRC Auto Weld Pack',
-  'Crewcab - 1 Ton',
-  'Crewcab - 3/4 Ton',
-  'Diesel Generator 185Kw',
-  'Diesel Heater 390,000 BTU',
-  'Ditch Witch 1330 & Trailer',
-  'Ditching Wheel - BG 930',
-  'Ditching Wheel - Jetco 7254',
-  'Ditching Wheel - McKenzie 710',
-  'Ditching Wheel - TA 77',
-  'Ditching Wheel - Trenco 1360',
-  'Ditching Wheel Trailer',
-  'Dozer - Bush Rake Attachment',
-  'Dozer - Cat U Blade',
-  'Dozer - D10 (or equivalent)',
-  'Dozer - D4 (or equivalent)',
-  'Dozer - D4 LGP (or equivalent)',
-  'Dozer - D5 (or equivalent)',
-  'Dozer - D5 LGP (or equivalent)',
-  'Dozer - D6H (or equivalent)',
-  'Dozer - D6N (or equivalent)',
-  'Dozer - D6N LGP (or equivalent)',
-  'Dozer - D6R (or equivalent)',
-  'Dozer - D6R LGP (or equivalent)',
-  'Dozer - D6T (or equivalent)',
-  'Dozer - D6T LGP (or equivalent)',
-  'Dozer - D7E (or equivalent)',
-  'Dozer - D7R (or equivalent)',
-  'Dozer - D7R LGP (or equivalent)',
-  'Dozer - D8T (or equivalent)',
-  'Dozer - D9T (or equivalent)',
-  'Dual 100 Kw Generator',
-  'Dual 60 Kw Generator',
-  'Enviro-Pads',
-  'Farm Implement - Brush Hog',
-  'Farm Implement - Chisel Plow',
-  'Farm Implement - Cultivator',
-  'Farm Implement - Disc',
-  'Farm Implement - Mower',
-  'Farm Implement - Post Pounder',
-  'Farm Implement - Rock Picker',
-  'Farm Implement - Rock Rake',
-  'Farm Implement - Subsoiler',
-  'Farm Tractor - Challenger 75',
-  'Farm Tractor - Challenger MT844',
-  'Farm Tractor - Challenger MT845',
-  'Farm Tractor - Wheel < 100 HP',
-  'Farm Tractor - Wheel > 100 HP',
-  'Fence Truck - 1 Ton',
-  'Fill Pipe - 8" (2.5Km)',
-  'Fill Pipe - Load of 660 m',
-  'Flatdeck - 1 Ton',
-  'Flatdeck - 2 Ton',
-  'Flatdeck - 3 Ton',
-  'Flatdeck - 5 Ton',
-  'Flatdeck - 8 Ton',
-  'Flatdeck Bottle Truck',
-  'Floc Water Tank',
-  'Forklift - Zoom Boom',
-  'Frozen Topsoil Cutter (Attachment)',
-  'Fuel Tank',
-  'Fuel Tank - 2500 Litre Skid',
-  'Fuel Truck - Single Axle',
-  'Fuel Truck - Tandem',
-  'Gas Powered Auger',
-  'Generator - 10 kW',
-  'Generator - 100 kW',
-  'Generator - 20 kW',
-  'Generator - 2500 Watt',
-  'Generator - 30 kW',
-  'Generator - 3000 Watt',
-  'Generator - 3500 Watt',
-  'Generator - 5 kW',
-  'Generator - 5000 Watt',
-  'Generator - 60 kW',
-  'Generator - 6500 Watt',
-  'Generator Pump & Light 15-20kW',
-  'Generator Pump & Light 8-10kW',
-  'Generator Pump Pkg 35kW',
-  'Generator Pump Pkg 75kW',
-  'Grader - Cat G12',
-  'Grader - Cat G14',
-  'Grader - Cat G140',
-  'Grader - Cat G16',
-  'Grader - Cat G160',
-  'Highboy Trailer',
-  'Hoe - Bucket Rake Attachment',
-  'Hoe - Chuck Blade Attachment',
-  'Hoe Pac Attachment for Cat 324-336 Hoes',
-  'Hoe Ram Attachment for Cat 330/345',
-  'Hydraulic Clam - Cat 330 Longstick',
-  'Hydraulic Road Sweeper',
-  'Hydrovac Truck',
-  'Induction Coil',
-  'Jeep for Lowboy',
-  'Light Tower - 6 kW',
-  'Light Tower - 20 kW',
-  'Lincoln Welder',
-  'Loader - Cat 930',
-  'Loader - Cat 950',
-  'Loader - Cat 966',
-  'Loader - Cat 980',
-  'Loader - Cat 988',
-  'Loader - Cat IT 28',
-  'Loader - Cat IT 38',
-  'Loader - Cat IT 62',
-  'Loader Attachment - Pipe/Pole Grapple',
-  'Lowboy Trailer',
-  'Lowboy Trailer (40 Wheeler)',
-  'Lowboy Trailer (48 Wheeler)',
-  'Lowboy/Highboy Truck Tractor',
-  'Mainline Sandblast Unit - Dual',
-  'Mandrel',
-  'Mechanics Rig',
-  'Mulcher',
-  'Nodwell - 6 Man & Mat. Size',
-  'Non-Articulated Dump Truck',
-  'Office Trailer',
-  'Ozzie Padder',
-  'Packer - Crowfoot',
-  'Panther T8 All Terrain Dump Vehicle',
-  'Picker - 45 Ton',
-  'Picker Truck - 8 Ton',
-  'Picker Truck - 10 Ton',
-  'Picker Truck - 12 Ton',
-  'Picker Truck - 15 Ton',
-  'Picker Truck - 17 Ton',
-  'Picker Truck - 25 Ton',
-  'Picker Truck - 30 Ton',
-  'Picker/Hiab Truck - 1 Ton',
-  'Picker/Hiab Truck - 3 Ton',
-  'Pickup - 1/2 Ton',
-  'Pickup - 3/4 Ton',
-  'Pigging Head (10")',
-  'Pigging Head (16")',
-  'Pigging Head (20")',
-  'Pigging Head (24")',
-  'Pigging Head (30")',
-  'Pigging Head (36")',
-  'Pigging Head (42")',
-  'Pipe Ramming Tool',
-  'Pipe Rollers (80,000lb)',
-  'Pipeline Roller Cradles (Each)',
-  'Plate Tamper - Walk Behind (1000Lb)',
-  'Pole Trailer',
-  'Portable Bridge 60"',
-  'Portable Heater BT400-460H',
-  'Portable Plug In Panel with Generator',
-  'Portable Shop',
-  'Portable Shop Heater - Allmand',
-  'Power Dozer',
-  'Power Unit for Induction Coil',
-  'Powersaw',
-  'Pressure Washer - Landa MCV4',
-  'Propane Station Unit',
-  'Propane/Preheat Truck',
-  'Rake - Hoe Attachment',
-  'Rig Mat - 8\' x 20\'',
-  'Rig Mat - 8\' x 30\'',
-  'Rig Mat - 8\' x 40\'',
-  'Ripper Shank for Cat 345 Backhoe',
-  'Rock Splitter',
-  'Roller Packer 90" Contour',
-  'Rolli Cradles & Spreader Bars',
-  'Rubber Tired Hoe',
-  'Rubber Tired Hoe - Cat 420/430',
-  'Scissor Neck Trailer',
-  'Screw Anchor Attachment (Single) to Hoe',
-  'Self Centering Pallet Forks',
-  'Service Truck',
-  'Shamrock Backhoe 320',
-  'Sheeps Foot Drum Packer',
-  'Shoring Box',
-  'Sideboom - Cat 561/PL61',
-  'Sideboom - Cat 571',
-  'Sideboom - Cat 572',
-  'Sideboom - Cat 572R',
-  'Sideboom - Cat 583',
-  'Sideboom - Cat 583T',
-  'Sideboom - Cat 587T',
-  'Sideboom - Cat 594',
-  'Sideboom - Liebherr RL64',
-  'Silt Fence Installation Attachment',
-  'Skagit',
-  'Skid Mounted - Mainline Coating Unit',
-  'Skid Sloop',
-  'Skid Steer',
-  'Skid Truck Tractor',
-  'Sled',
-  'Slop Tanks',
-  'Sno Cat',
-  'Sno Cat - Piston Bully PF 300',
-  'Snow Making Equipment',
-  'Snowmobile',
-  'Snowplow/Sander Truck',
-  'Solar Road Sign Boards',
-  'Spray Coating Truck',
-  'Stepdeck Trailer',
-  'Storage Containers',
-  'Storage Trailer/Van',
-  'Stringing Truck Tractor',
-  'Strong Box Snow Pusher',
-  'Suburban',
-  'Surge Tank',
-  'Swamp Mats (Set of 4)',
-  'Swenson Spreader',
-  'Tag-A-Long Trailer (6 Ton)',
-  'Tag-A-Long Trailer (10 Ton)',
-  'Tag-A-Long Trailer (20 Ton)',
-  'Tag-A-Long Trailer (Farm Wagon)',
-  'Tag-A-Long Trailer (Utility)',
-  'Tesmac Ditcher',
-  'Test - 1" Squeeze Pump',
-  'Test - 3" Squeeze Pump',
-  'Test - Boiler',
-  'Test - Fill Pump 6 x 6',
-  'Test - Fill Pump 8 x 6',
-  'Test - Fill Pump 10 x 8',
-  'Test - Honda Squeeze Pump',
-  'Test Trailer & Instrumentation',
-  'Texas Winch Truck',
-  'Track Bore Machine & Auger',
-  'Track Morooka',
-  'Trailer - B-Train',
-  'Transition Machine (Includes Power Unit)',
-  'Transition Machine (Without Power Unit)',
-  'Trombone Trailer',
-  'Utility Welder Rig',
-  'Viking Power Dozer',
-  'Wacker 1301 - Ground Heater and Generator',
-  'Warehouse Trailer/Van',
-  'Warehouse Trailer/Van Diesel Heated Storage',
-  'Wash Unit - Steam, Water Truck',
-  'Washroom Trailer',
-  'Water Canon',
-  'Water Pump - 2"',
-  'Water Pump - 3"',
-  'Water Pump - 4"',
-  'Water Pump - 6"',
-  'Water Pump - 8"',
-  'Water Pump - 10" Electric',
-  'Water Tank Trailer',
-  'Water Tank for Test',
-  'Water Truck',
-  'Weld - Auto Repair Shack',
-  'Weld - Buffing Tractor (ATV Style)',
-  'Weld - Internal Repair Unit',
-  'Weld - Quad Welder/Tack Rig',
-  'Weld - Sleigh',
-  'Weld - Weld Platform (Attachment)',
-  'Weld - Welding Shack',
-  'Welding Machine',
-  'Welding Rig'
-]
-
-// Create empty activity block
-function createEmptyActivity() {
-  return {
-    id: Date.now() + Math.random(),
-    activityType: '',
-    contractor: '',
-    foreman: '',
-    ticketNumber: '',
-    startKP: '',
-    endKP: '',
-    workDescription: '',
-    labourEntries: [],
-    equipmentEntries: [],
-    qualityData: {},
-    workPhotos: [],
-    timeLostReason: '',
-    timeLostHours: '',
-    timeLostDetails: ''
-  }
-}
 
 function InspectorReport() {
   const { signOut, userProfile } = useAuth()
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
   const [saving, setSaving] = useState(false)
+
+  // Edit mode
+  const editReportId = searchParams.get('edit')
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [originalReportData, setOriginalReportData] = useState(null)
+  const [loadingReport, setLoadingReport] = useState(false)
+
+  // User role and report tracking
+  const [currentUserRole, setCurrentUserRole] = useState('inspector')
+  const [currentReportId, setCurrentReportId] = useState(null)
 
   // Header fields
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [inspectorName, setInspectorName] = useState('')
   const [spread, setSpread] = useState('')
+  const [afe, setAfe] = useState('')
   const [pipeline, setPipeline] = useState('')
+  
+  // Unit Price Items (report-level toggle)
+  const [unitPriceItemsEnabled, setUnitPriceItemsEnabled] = useState(false)
+  const [unitPriceData, setUnitPriceData] = useState({ items: [], comments: '' })
   
   // Weather fields
   const [weather, setWeather] = useState('')
@@ -739,6 +85,8 @@ function InspectorReport() {
 
   // General fields
   const [safetyNotes, setSafetyNotes] = useState('')
+  const [safetyRecognitionData, setSafetyRecognitionData] = useState({ enabled: false, cards: [] })
+  const [wildlifeSightingData, setWildlifeSightingData] = useState({ enabled: false, sightings: [] })
   const [landEnvironment, setLandEnvironment] = useState('')
   const [generalComments, setGeneralComments] = useState('')
   const [visitors, setVisitors] = useState([])
@@ -758,6 +106,23 @@ function InspectorReport() {
 
   // OCR Ticket Scanning
   const [scanningBlock, setScanningBlock] = useState(null)
+
+  // Auto-save / Draft functionality
+  const [draftSaved, setDraftSaved] = useState(false)
+  const [showDraftIndicator, setShowDraftIndicator] = useState(false)
+  const [draftRestorePrompt, setDraftRestorePrompt] = useState(false)
+  const [pendingDraft, setPendingDraft] = useState(null)
+  const draftTimeoutRef = useRef(null)
+  const DRAFT_STORAGE_KEY = 'pipeup_inspector_draft'
+
+  // Chainage tracking (moved here for auto-save dependency)
+  const [chainageReasons, setChainageReasons] = useState({}) // { blockId: { overlapReason: '', gapReason: '' } }
+
+  // Pipeline Map visibility
+  const [showMap, setShowMap] = useState(true)
+
+  // Collapsible sections
+  const [trackableItemsExpanded, setTrackableItemsExpanded] = useState(false)
 
   // Convert image file to base64
   async function imageToBase64(file) {
@@ -1048,6 +413,195 @@ Important:
     return null
   }
 
+  // ============================================
+  // AUTO-SAVE / DRAFT FUNCTIONALITY
+  // ============================================
+
+  // Check for existing draft on component mount
+  useEffect(() => {
+    // Don't check for draft if we're in edit mode
+    if (isEditMode || editReportId) return
+
+    try {
+      const savedDraft = localStorage.getItem(DRAFT_STORAGE_KEY)
+      if (savedDraft) {
+        const draft = JSON.parse(savedDraft)
+        // Check if draft is less than 7 days old
+        const draftAge = Date.now() - (draft.savedAt || 0)
+        const sevenDays = 7 * 24 * 60 * 60 * 1000
+        
+        if (draftAge < sevenDays && draft.activityBlocks?.length > 0) {
+          setPendingDraft(draft)
+          setDraftRestorePrompt(true)
+        } else {
+          // Draft is too old, clear it
+          localStorage.removeItem(DRAFT_STORAGE_KEY)
+        }
+      }
+    } catch (err) {
+      console.error('Error checking for draft:', err)
+      localStorage.removeItem(DRAFT_STORAGE_KEY)
+    }
+  }, [isEditMode, editReportId])
+
+  // Auto-save to localStorage when key fields change
+  useEffect(() => {
+    // Don't auto-save if we're in edit mode or haven't made any changes
+    if (isEditMode || editReportId) return
+    // Don't auto-save if showing restore prompt
+    if (draftRestorePrompt) return
+
+    // Debounce the save to avoid excessive writes
+    if (draftTimeoutRef.current) {
+      clearTimeout(draftTimeoutRef.current)
+    }
+
+    draftTimeoutRef.current = setTimeout(() => {
+      // Only save if there's meaningful data
+      const hasData = inspectorName || 
+                      spread || 
+                      activityBlocks.some(b => b.activityType || b.workDescription || b.labourEntries.length > 0) ||
+                      safetyNotes ||
+                      generalComments
+
+      if (!hasData) return
+
+      try {
+        const draftData = {
+          savedAt: Date.now(),
+          selectedDate,
+          inspectorName,
+          spread,
+          afe,
+          pipeline,
+          weather,
+          precipitation,
+          tempHigh,
+          tempLow,
+          windSpeed,
+          rowCondition,
+          startTime,
+          stopTime,
+          // Activity blocks (excluding file objects which can't be serialized)
+          activityBlocks: activityBlocks.map(block => ({
+            ...block,
+            workPhotos: [], // Can't serialize File objects
+            ticketPhoto: null
+          })),
+          safetyNotes,
+          safetyRecognitionData,
+          wildlifeSightingData,
+          landEnvironment,
+          generalComments,
+          visitors,
+          inspectorMileage,
+          unitPriceItemsEnabled,
+          unitPriceData,
+          chainageReasons
+        }
+
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData))
+        setDraftSaved(true)
+        
+        // Show the indicator briefly
+        setShowDraftIndicator(true)
+        setTimeout(() => setShowDraftIndicator(false), 2000)
+        
+        console.log('📝 Draft auto-saved')
+      } catch (err) {
+        console.error('Error saving draft:', err)
+      }
+    }, 1500) // 1.5 second debounce
+
+    return () => {
+      if (draftTimeoutRef.current) {
+        clearTimeout(draftTimeoutRef.current)
+      }
+    }
+  }, [
+    selectedDate, inspectorName, spread, afe, pipeline,
+    weather, precipitation, tempHigh, tempLow, windSpeed, rowCondition,
+    startTime, stopTime, activityBlocks, safetyNotes, safetyRecognitionData,
+    wildlifeSightingData, landEnvironment, generalComments, visitors,
+    inspectorMileage, unitPriceItemsEnabled, unitPriceData, chainageReasons,
+    isEditMode, editReportId, draftRestorePrompt
+  ])
+
+  // Restore draft data
+  function restoreDraft() {
+    if (!pendingDraft) return
+
+    try {
+      setSelectedDate(pendingDraft.selectedDate || new Date().toISOString().split('T')[0])
+      setInspectorName(pendingDraft.inspectorName || '')
+      setSpread(pendingDraft.spread || '')
+      setAfe(pendingDraft.afe || '')
+      setPipeline(pendingDraft.pipeline || '')
+      setWeather(pendingDraft.weather || '')
+      setPrecipitation(pendingDraft.precipitation || '')
+      setTempHigh(pendingDraft.tempHigh || '')
+      setTempLow(pendingDraft.tempLow || '')
+      setWindSpeed(pendingDraft.windSpeed || '')
+      setRowCondition(pendingDraft.rowCondition || '')
+      setStartTime(pendingDraft.startTime || '')
+      setStopTime(pendingDraft.stopTime || '')
+      setActivityBlocks(pendingDraft.activityBlocks || [createEmptyActivity()])
+      setSafetyNotes(pendingDraft.safetyNotes || '')
+      setSafetyRecognitionData(pendingDraft.safetyRecognitionData || { enabled: false, cards: [] })
+      setWildlifeSightingData(pendingDraft.wildlifeSightingData || { enabled: false, sightings: [] })
+      setLandEnvironment(pendingDraft.landEnvironment || '')
+      setGeneralComments(pendingDraft.generalComments || '')
+      setVisitors(pendingDraft.visitors || [])
+      setInspectorMileage(pendingDraft.inspectorMileage || '')
+      setUnitPriceItemsEnabled(pendingDraft.unitPriceItemsEnabled || false)
+      setUnitPriceData(pendingDraft.unitPriceData || { items: [], comments: '' })
+      setChainageReasons(pendingDraft.chainageReasons || {})
+
+      console.log('✅ Draft restored successfully')
+    } catch (err) {
+      console.error('Error restoring draft:', err)
+      alert('Error restoring draft. Starting with a fresh report.')
+    }
+
+    setDraftRestorePrompt(false)
+    setPendingDraft(null)
+  }
+
+  // Decline draft and start fresh
+  function declineDraft() {
+    localStorage.removeItem(DRAFT_STORAGE_KEY)
+    setDraftRestorePrompt(false)
+    setPendingDraft(null)
+    console.log('🗑️ Draft declined and cleared')
+  }
+
+  // Manually clear draft
+  function clearDraft() {
+    if (confirm('Are you sure you want to clear the saved draft? This will reset the form to empty.')) {
+      localStorage.removeItem(DRAFT_STORAGE_KEY)
+      setDraftSaved(false)
+      setActivityBlocks([createEmptyActivity()])
+      setVisitors([])
+      setSafetyNotes('')
+      setSafetyRecognitionData({ enabled: false, cards: [] })
+      setWildlifeSightingData({ enabled: false, sightings: [] })
+      setLandEnvironment('')
+      setGeneralComments('')
+      setInspectorMileage('')
+      setUnitPriceItemsEnabled(false)
+      setUnitPriceData({ items: [], comments: '' })
+      setChainageReasons({})
+      console.log('🗑️ Draft cleared manually')
+    }
+  }
+
+  // Clear draft after successful save (called from saveReport)
+  function clearDraftAfterSave() {
+    localStorage.removeItem(DRAFT_STORAGE_KEY)
+    setDraftSaved(false)
+    console.log('🗑️ Draft cleared after successful save')
+  }
+
   // Initialize speech recognition
   useEffect(() => {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
@@ -1297,8 +851,7 @@ Important:
   const [existingChainages, setExistingChainages] = useState({})
   // Block-level chainage status (overlap/gap warnings per block)
   const [blockChainageStatus, setBlockChainageStatus] = useState({})
-  // Reasons for chainage overlaps/gaps (required before saving)
-  const [chainageReasons, setChainageReasons] = useState({}) // { blockId: { overlapReason: '', gapReason: '' } }
+  // Note: chainageReasons state is declared earlier in the file (needed for auto-save)
 
   // Helper to parse KP string to metres
   function parseKPToMetres(kpStr) {
@@ -1593,6 +1146,115 @@ Important:
     }
   }, [])
 
+  // Fetch user role
+  useEffect(() => {
+    async function fetchUserRole() {
+      if (!userProfile?.id) return
+      try {
+        const { data, error } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userProfile.id)
+          .single()
+        
+        if (data && data.role) {
+          setCurrentUserRole(data.role)
+        }
+      } catch (err) {
+        console.log('No role found, defaulting to inspector')
+      }
+    }
+    fetchUserRole()
+  }, [userProfile])
+
+  // Load report for editing
+  useEffect(() => {
+    async function loadReportForEdit() {
+      if (!editReportId) return
+      
+      setLoadingReport(true)
+      try {
+        const { data: report, error } = await supabase
+          .from('daily_tickets')
+          .select('*')
+          .eq('id', editReportId)
+          .single()
+
+        if (error) throw error
+        if (!report) {
+          alert('Report not found')
+          navigate('/admin')
+          return
+        }
+
+        // Store original for comparison
+        setOriginalReportData(report)
+        setIsEditMode(true)
+        setCurrentReportId(editReportId)
+
+        // Populate all fields from report
+        setSelectedDate(report.date || '')
+        setInspectorName(report.inspector_name || '')
+        setSpread(report.spread || '')
+        setAfe(report.afe || '')
+        setPipeline(report.pipeline || '')
+        setWeather(report.weather || '')
+        setPrecipitation(report.precipitation || '')
+        setTempHigh(report.temp_high || '')
+        setTempLow(report.temp_low || '')
+        setWindSpeed(report.wind_speed || '')
+        setRowCondition(report.row_condition || '')
+        setStartTime(report.start_time || '')
+        setStopTime(report.stop_time || '')
+        setSafetyNotes(report.safety_notes || '')
+        setSafetyRecognitionData(report.safety_recognition || { enabled: false, cards: [] })
+        setLandEnvironment(report.land_environment || '')
+        setWildlifeSightingData(report.wildlife_sighting || { enabled: false, sightings: [] })
+        setGeneralComments(report.general_comments || '')
+        setVisitors(report.visitors || [])
+        setInspectorMileage(report.inspector_mileage || '')
+        setInspectorEquipment(report.inspector_equipment || [])
+        setUnitPriceItemsEnabled(report.unit_price_items_enabled || false)
+        setUnitPriceData(report.unit_price_data || { items: [], comments: '' })
+
+        // Load activity blocks
+        if (report.activity_blocks && report.activity_blocks.length > 0) {
+          const loadedBlocks = report.activity_blocks.map((block, idx) => ({
+            id: `block-${Date.now()}-${idx}`,
+            activityType: block.activityType || '',
+            contractor: block.contractor || '',
+            foreman: block.foreman || '',
+            startKP: block.startKP || '',
+            endKP: block.endKP || '',
+            workDescription: block.workDescription || '',
+            labourEntries: block.labourEntries || [],
+            equipmentEntries: block.equipmentEntries || [],
+            qualityData: block.qualityData || {},
+            workPhotos: [],  // Photos can't be re-loaded easily
+            ticketPhoto: null,
+            timeLostReason: block.timeLostReason || 'None',
+            timeLostHours: block.timeLostHours || '',
+            timeLostDetails: block.timeLostDetails || '',
+            weldData: block.weldData || null,
+            bendingData: block.bendingData || null,
+            stringingData: block.stringingData || null,
+            coatingData: block.coatingData || null,
+            clearingData: block.clearingData || null
+          }))
+          setActivityBlocks(loadedBlocks)
+        }
+
+        console.log('Report loaded for editing:', report.id)
+      } catch (err) {
+        console.error('Error loading report:', err)
+        alert('Error loading report: ' + err.message)
+      }
+      setLoadingReport(false)
+    }
+
+    loadReportForEdit()
+  }, [editReportId])
+
   // Fetch weather
   async function fetchWeather() {
     if (!pipeline || !pipelineLocations[pipeline]) {
@@ -1645,6 +1307,108 @@ Important:
       const warnings = checkChainageOverlaps(updatedBlocks)
       setOverlapWarnings(warnings)
     }
+    
+    // Fetch previous meters when activity type is selected
+    if (field === 'activityType' && value) {
+      fetchPreviousMeters(blockId, value)
+    }
+    
+    // Fetch previous weld count when Coating activity is selected
+    if (field === 'activityType' && value === 'Coating') {
+      fetchPreviousWeldCount(blockId)
+    }
+  }
+
+  // Fetch cumulative meters from previous reports for this activity type
+  async function fetchPreviousMeters(blockId, activityType) {
+    try {
+      const { data, error } = await supabase
+        .from('inspector_reports')
+        .select('activities, date')
+        .eq('pipeline', pipeline)
+        .order('date', { ascending: false })
+        .neq('date', selectedDate) // Exclude current date
+        .limit(100)
+      
+      if (error) {
+        console.error('Error fetching previous meters:', error)
+        return
+      }
+      
+      let totalPreviousMeters = 0
+      
+      // Search through reports for matching activity types
+      for (const report of data || []) {
+        const activities = report.activities || []
+        for (const activity of activities) {
+          if (activity.activityType === activityType) {
+            // Calculate meters from startKP and endKP
+            if (activity.startKP && activity.endKP) {
+              const startM = parseKPToMetres(activity.startKP)
+              const endM = parseKPToMetres(activity.endKP)
+              if (startM !== null && endM !== null) {
+                totalPreviousMeters += Math.abs(endM - startM)
+              }
+            }
+            // Also check for stored metersToday value
+            if (activity.metersToday) {
+              totalPreviousMeters += parseFloat(activity.metersToday) || 0
+            }
+          }
+        }
+      }
+      
+      // Update the block with previous meters
+      setActivityBlocks(prev => prev.map(block => 
+        block.id === blockId 
+          ? { ...block, metersPrevious: totalPreviousMeters.toFixed(0) }
+          : block
+      ))
+      
+      console.log(`Previous meters for ${activityType}: ${totalPreviousMeters}m`)
+    } catch (err) {
+      console.error('Error in fetchPreviousMeters:', err)
+    }
+  }
+
+  // Fetch cumulative weld count from previous Coating reports
+  async function fetchPreviousWeldCount(blockId) {
+    try {
+      const { data, error } = await supabase
+        .from('daily_reports')
+        .select('activity_blocks')
+        .order('report_date', { ascending: false })
+        .limit(50)
+      
+      if (error) {
+        console.error('Error fetching previous reports:', error)
+        return
+      }
+      
+      let totalPreviousWelds = 0
+      
+      // Search through reports for Coating activities with weld counts
+      for (const report of data || []) {
+        const blocks = report.activity_blocks || []
+        for (const block of blocks) {
+          if (block.activityType === 'Coating' && block.totalWeldsCoated) {
+            // Found the most recent total - use it as our "previous"
+            totalPreviousWelds = parseInt(block.totalWeldsCoated) || 0
+            break
+          }
+        }
+        if (totalPreviousWelds > 0) break
+      }
+      
+      // Update the block with the previous count
+      setActivityBlocks(prev => prev.map(block => 
+        block.id === blockId 
+          ? { ...block, weldsCoatedPreviously: totalPreviousWelds } 
+          : block
+      ))
+    } catch (err) {
+      console.error('Error fetching previous weld count:', err)
+    }
   }
 
   function updateQualityData(blockId, fieldName, value) {
@@ -1695,6 +1459,151 @@ Important:
       return block
     }))
   }
+
+  function updateCoatingData(blockId, coatingData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          coatingData: coatingData
+        }
+      }
+      return block
+    }))
+  }
+
+  function updateClearingData(blockId, clearingData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          clearingData: clearingData
+        }
+      }
+      return block
+    }))
+  }
+
+  function updateHDDData(blockId, hddData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          hddData: hddData
+        }
+      }
+      return block
+    }))
+  }
+
+  function updatePilingData(blockId, pilingData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          pilingData: pilingData
+        }
+      }
+      return block
+    }))
+  }
+
+  function updateCleaningLogData(blockId, cleaningLogData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          cleaningLogData: cleaningLogData
+        }
+      }
+      return block
+    }))
+  }
+
+  function updateHydrovacData(blockId, hydrovacData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          hydrovacData: hydrovacData
+        }
+      }
+      return block
+    }))
+  }
+
+  function updateWelderTestingData(blockId, welderTestingData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          welderTestingData: welderTestingData
+        }
+      }
+      return block
+    }))
+  }
+
+  function updateHydrotestData(blockId, hydrotestData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          hydrotestData: hydrotestData
+        }
+      }
+      return block
+    }))
+  }
+
+  function updateTieInCompletionData(blockId, tieInCompletionData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          tieInCompletionData: tieInCompletionData
+        }
+      }
+      return block
+    }))
+  }
+
+  function updateDitchData(blockId, ditchData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          ditchData: ditchData
+        }
+      }
+      return block
+    }))
+  }
+
+  function updateGradingData(blockId, gradingData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          gradingData: gradingData
+        }
+      }
+      return block
+    }))
+  }
+
+  function updateCounterboreData(blockId, counterboreData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          counterboreData: counterboreData
+        }
+      }
+      return block
+    }))
+  }
+
   // Labour management for activity blocks
   // RT = Regular Time, OT = Overtime, JH = Jump Hours (bonus)
   function addLabourToBlock(blockId, employeeName, classification, rt, ot, jh, count) {
@@ -1957,7 +1866,8 @@ Important:
               description: photo.description,
               inspector: inspectorName,
               date: selectedDate,
-              spread: spread
+              spread: spread,
+              afe: afe
             })
           }
         }
@@ -1982,10 +1892,11 @@ Important:
         })
       }
 
-      // Save to database
-      const { data: insertedTicket, error: dbError } = await supabase.from('daily_tickets').insert([{
+      // Build report data object
+      const reportData = {
         date: selectedDate,
         spread: spread,
+        afe: afe,
         inspector_name: inspectorName,
         pipeline: pipeline,
         weather: weather,
@@ -1998,36 +1909,174 @@ Important:
         stop_time: stopTime || null,
         activity_blocks: processedBlocks,
         safety_notes: safetyNotes,
+        safety_recognition: safetyRecognitionData,
         land_environment: landEnvironment,
+        wildlife_sighting: wildlifeSightingData,
         general_comments: generalComments,
         visitors: visitors,
         inspector_mileage: parseFloat(inspectorMileage) || null,
-        inspector_equipment: inspectorEquipment
-      }]).select('id').single()
-
-      if (dbError) throw dbError
-
-      const ticketId = insertedTicket.id
-
-      // Save tie-in data if present
-      for (const block of activityBlocks) {
-        if (block.activityType === 'Welding - Tie-in' && block.weldData?.tieIns?.length > 0) {
-          await saveTieInTicket({ tieIns: block.weldData.tieIns })
-          if (!tieInResult.success) {
-            console.error('Failed to save tie-ins:', tieInResult.error)
-          }
-        }
+        inspector_equipment: inspectorEquipment,
+        unit_price_items_enabled: unitPriceItemsEnabled,
+        unit_price_data: unitPriceData
       }
 
-      alert('Report saved successfully!')
+      // ==================== EDIT MODE ====================
+      if (isEditMode && currentReportId) {
+        // Prompt for edit reason
+        const editReason = prompt('Please enter a reason for this edit:')
+        if (!editReason) {
+          setSaving(false)
+          return
+        }
 
-      // Clear form
-      setActivityBlocks([createEmptyActivity()])
-      setVisitors([])
-      setSafetyNotes('')
-      setLandEnvironment('')
-      setGeneralComments('')
-      setInspectorMileage('')
+        // Compare and log changes
+        const changes = []
+        if (originalReportData) {
+          // Header fields
+          if (originalReportData.date !== selectedDate) changes.push({ section: 'Header', field: 'date', old: originalReportData.date, new: selectedDate })
+          if (originalReportData.inspector_name !== inspectorName) changes.push({ section: 'Header', field: 'inspector_name', old: originalReportData.inspector_name, new: inspectorName })
+          if (originalReportData.spread !== spread) changes.push({ section: 'Header', field: 'spread', old: originalReportData.spread, new: spread })
+          if (originalReportData.pipeline !== pipeline) changes.push({ section: 'Header', field: 'pipeline', old: originalReportData.pipeline, new: pipeline })
+          
+          // Weather fields
+          if (originalReportData.weather !== weather) changes.push({ section: 'Weather', field: 'weather', old: originalReportData.weather, new: weather })
+          if (String(originalReportData.temp_high) !== String(tempHigh)) changes.push({ section: 'Weather', field: 'temp_high', old: originalReportData.temp_high, new: tempHigh })
+          if (String(originalReportData.temp_low) !== String(tempLow)) changes.push({ section: 'Weather', field: 'temp_low', old: originalReportData.temp_low, new: tempLow })
+          
+          // Time
+          if (originalReportData.start_time !== startTime) changes.push({ section: 'Time', field: 'start_time', old: originalReportData.start_time, new: startTime })
+          if (originalReportData.stop_time !== stopTime) changes.push({ section: 'Time', field: 'stop_time', old: originalReportData.stop_time, new: stopTime })
+          
+          // Notes
+          if (originalReportData.safety_notes !== safetyNotes) changes.push({ section: 'Notes', field: 'safety_notes', old: originalReportData.safety_notes?.substring(0, 100), new: safetyNotes?.substring(0, 100) })
+          if (originalReportData.land_environment !== landEnvironment) changes.push({ section: 'Notes', field: 'land_environment', old: originalReportData.land_environment?.substring(0, 100), new: landEnvironment?.substring(0, 100) })
+          if (originalReportData.general_comments !== generalComments) changes.push({ section: 'Notes', field: 'general_comments', old: originalReportData.general_comments?.substring(0, 100), new: generalComments?.substring(0, 100) })
+          
+          // Activity blocks - log that they were modified
+          if (JSON.stringify(originalReportData.activity_blocks) !== JSON.stringify(processedBlocks)) {
+            changes.push({ section: 'Activities', field: 'activity_blocks', old: `${(originalReportData.activity_blocks || []).length} activities`, new: `${processedBlocks.length} activities` })
+          }
+        }
+
+        // Update the report
+        const { error: updateError } = await supabase
+          .from('daily_tickets')
+          .update(reportData)
+          .eq('id', currentReportId)
+
+        if (updateError) throw updateError
+
+        // Log each change to audit trail
+        for (const change of changes) {
+          await supabase.from('report_audit_log').insert({
+            report_id: currentReportId,
+            report_date: selectedDate,
+            changed_by: userProfile?.id,
+            changed_by_name: userProfile?.full_name || userProfile?.email,
+            changed_by_role: currentUserRole,
+            change_type: 'edit',
+            section: change.section,
+            field_name: change.field,
+            old_value: String(change.old || ''),
+            new_value: String(change.new || ''),
+            change_reason: editReason
+          })
+        }
+
+        // If no specific field changes detected, still log the edit
+        if (changes.length === 0) {
+          await supabase.from('report_audit_log').insert({
+            report_id: currentReportId,
+            report_date: selectedDate,
+            changed_by: userProfile?.id,
+            changed_by_name: userProfile?.full_name || userProfile?.email,
+            changed_by_role: currentUserRole,
+            change_type: 'edit',
+            change_reason: editReason
+          })
+        }
+
+        alert(`Report updated successfully! ${changes.length} field(s) changed.`)
+        
+        // Return to admin portal
+        navigate('/admin')
+
+      } else {
+        // ==================== CREATE MODE ====================
+        const { data: insertedTicket, error: dbError } = await supabase.from('daily_tickets').insert([reportData]).select('id').single()
+
+        if (dbError) throw dbError
+
+        const ticketId = insertedTicket.id
+        setCurrentReportId(ticketId)
+
+        // Log to audit trail
+        await supabase.from('report_audit_log').insert({
+          report_id: ticketId,
+          report_date: selectedDate,
+          changed_by: userProfile?.id,
+          changed_by_name: inspectorName || userProfile?.email,
+          changed_by_role: currentUserRole,
+          change_type: 'create'
+        })
+
+        // Initialize report status as draft
+        await supabase.from('report_status').insert({
+          report_id: ticketId,
+          status: 'draft',
+          submitted_by: userProfile?.id,
+          submitted_by_name: inspectorName || userProfile?.email
+        })
+
+        // Save tie-in data if present
+        for (const block of activityBlocks) {
+          if (block.activityType === 'Welding - Tie-in' && block.weldData?.tieIns?.length > 0) {
+            await saveTieInTicket({ tieIns: block.weldData.tieIns })
+          }
+        }
+
+        // Send email copy to inspector
+        try {
+          const emailResponse = await fetch('/api/send-report-email', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              to: userProfile?.email,
+              inspectorName: inspectorName,
+              reportDate: selectedDate,
+              spread: spread,
+              afe: afe,
+              pipeline: pipeline,
+              activities: processedBlocks,
+              weather: `${weather || ''} - High: ${tempHigh || '?'}°C, Low: ${tempLow || '?'}°C`,
+              safetyNotes: safetyNotes,
+              reportId: ticketId
+            })
+          })
+          const emailResult = await emailResponse.json()
+          if (emailResult.success) {
+            console.log('Email sent successfully')
+          } else {
+            console.error('Email failed:', emailResult.error)
+          }
+        } catch (emailErr) {
+          console.error('Email error:', emailErr)
+          // Don't block save if email fails
+        }
+
+        alert('Report saved successfully! A copy has been emailed to you.')
+
+        // Clear the auto-saved draft after successful save
+        clearDraftAfterSave()
+
+        // Clear form
+        setActivityBlocks([createEmptyActivity()])
+        setVisitors([])
+        setSafetyNotes('')
+        setLandEnvironment('')
+        setGeneralComments('')
+        setInspectorMileage('')
+      }
 
     } catch (error) {
       console.error('Save error:', error)
@@ -2671,7 +2720,7 @@ Important:
       'Welding - Mainline',
   'Welding - Section Crew',
   'Welding - Poor Boy', 'Welding - Tie-in', 'Coating', 'Lowering-in',
-      'Backfill', 'Hydro Test', 'Tie-ins', 'Cleanup - Machine', 'Cleanup - Final',
+      'Backfill', 'Hydro Test', 'Tie-in Completion', 'Cleanup - Machine', 'Cleanup - Final',
       'HDD', 'HD Bores', 'Other'
     ]
 
@@ -2862,106 +2911,6 @@ Important:
     XLSX.writeFile(wb, filename)
   }
 
-  // Render quality fields for an activity
-  function renderQualityFields(block) {
-    if (!block.activityType) {
-      return <p style={{ color: '#666', fontStyle: 'italic' }}>Select an activity type to see quality checks</p>
-    }
-
-    // Use appropriate weld component based on activity type
-    if (block.activityType === 'Welding - Tie-in') {
-      return (
-        <TieInWeldData
-          contractor={block.contractor}
-          foreman={block.foreman}
-          blockId={block.id}
-          reportId={null}
-          existingData={block.weldData || {}}
-          onDataChange={(data) => updateWeldData(block.id, data)}
-        />
-      )
-    }
-
-    // Use MainlineWeldData for mainline, section crew, and poor boy welding
-    if (block.activityType === 'Welding - Mainline' || block.activityType === 'Welding - Section Crew' || block.activityType === 'Welding - Poor Boy') {
-      return (
-        <MainlineWeldData
-          contractor={block.contractor}
-          foreman={block.foreman}
-          blockId={block.id}
-          reportId={null}
-          existingData={block.weldData || {}}
-          onDataChange={(data) => updateWeldData(block.id, data)}
-        />
-      )
-    }
-
-    // Use BendingLog for bending activity
-    if (block.activityType === 'Bending') {
-      return (
-        <BendingLog
-          contractor={block.contractor}
-          foreman={block.foreman}
-          blockId={block.id}
-          reportId={null}
-          existingData={block.bendData || {}}
-          onDataChange={(data) => updateBendData(block.id, data)}
-        />
-      )
-    }
-
-    // Use StringingLog for stringing activity
-    if (block.activityType === 'Stringing') {
-      return (
-        <StringingLog
-          contractor={block.contractor}
-          foreman={block.foreman}
-          blockId={block.id}
-          reportId={null}
-          existingData={block.stringData || {}}
-          onDataChange={(data) => updateStringData(block.id, data)}
-        />
-      )
-    }
-
-    // Default quality fields for other activities
-    if (!qualityFieldsByActivity[block.activityType]) {
-      return <p style={{ color: '#666', fontStyle: 'italic' }}>No quality checks defined for this activity</p>
-    }
-
-    const fields = qualityFieldsByActivity[block.activityType]
-    
-    return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px' }}>
-        {fields.map(field => (
-          <div key={field.name}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>
-              {field.label}
-            </label>
-            {field.type === 'select' ? (
-              <select
-                value={block.qualityData[field.name] || ''}
-                onChange={(e) => updateQualityData(block.id, field.name, e.target.value)}
-                style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
-              >
-                <option value="">Select...</option>
-                {field.options.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type={field.type}
-                value={block.qualityData[field.name] || ''}
-                onChange={(e) => updateQualityData(block.id, field.name, e.target.value)}
-                style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
-              />
-            )}
-          </div>
-        ))}
-      </div>
-    )
-  }
 
   // Main render
   return (
@@ -2978,21 +2927,191 @@ Important:
           70% { box-shadow: 0 0 0 10px rgba(220, 53, 69, 0); }
           100% { box-shadow: 0 0 0 0 rgba(220, 53, 69, 0); }
         }
+        @keyframes fadeInOut {
+          0% { opacity: 0; transform: translateY(-10px); }
+          15% { opacity: 1; transform: translateY(0); }
+          85% { opacity: 1; transform: translateY(0); }
+          100% { opacity: 0; transform: translateY(-10px); }
+        }
       `}</style>
 
+      {/* Draft Restore Prompt Modal */}
+      {draftRestorePrompt && pendingDraft && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            padding: '30px',
+            borderRadius: '12px',
+            maxWidth: '500px',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+            textAlign: 'center'
+          }}>
+            <div style={{ fontSize: '48px', marginBottom: '15px' }}>📋</div>
+            <h2 style={{ margin: '0 0 15px 0', color: '#003366' }}>Unsaved Draft Found</h2>
+            <p style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px' }}>
+              We found an auto-saved draft from your previous session.
+            </p>
+            <div style={{ 
+              backgroundColor: '#f8f9fa', 
+              padding: '12px', 
+              borderRadius: '6px', 
+              marginBottom: '20px',
+              fontSize: '13px',
+              color: '#495057'
+            }}>
+              <strong>Date:</strong> {pendingDraft.selectedDate || 'Not set'}<br/>
+              <strong>Inspector:</strong> {pendingDraft.inspectorName || 'Not set'}<br/>
+              <strong>Activities:</strong> {pendingDraft.activityBlocks?.filter(b => b.activityType).length || 0} recorded<br/>
+              <strong>Saved:</strong> {pendingDraft.savedAt ? new Date(pendingDraft.savedAt).toLocaleString() : 'Unknown'}
+            </div>
+            <p style={{ margin: '0 0 20px 0', color: '#666', fontSize: '14px' }}>
+              Would you like to restore this draft?
+            </p>
+            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+              <button
+                onClick={restoreDraft}
+                style={{
+                  padding: '12px 30px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: 'bold'
+                }}
+              >
+                ✓ Restore Draft
+              </button>
+              <button
+                onClick={declineDraft}
+                style={{
+                  padding: '12px 30px',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '16px'
+                }}
+              >
+                Start Fresh
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Draft Saved Indicator */}
+      {showDraftIndicator && (
+        <div style={{
+          position: 'fixed',
+          top: '20px',
+          right: '20px',
+          backgroundColor: '#28a745',
+          color: 'white',
+          padding: '10px 20px',
+          borderRadius: '6px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+          zIndex: 9999,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          animation: 'fadeInOut 2s ease-in-out'
+        }}>
+          <span style={{ 
+            width: '10px', 
+            height: '10px', 
+            backgroundColor: '#90EE90', 
+            borderRadius: '50%',
+            display: 'inline-block'
+          }}></span>
+          Draft Saved
+        </div>
+      )}
+
       {/* Header */}
-      <div style={{ backgroundColor: '#003366', color: 'white', padding: '20px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ backgroundColor: isEditMode ? '#856404' : '#003366', color: 'white', padding: '20px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        {isEditMode && (
+          <button
+            onClick={() => navigate('/admin')}
+            style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}
+          >
+            ← Back to Admin
+          </button>
+        )}
         <div style={{ textAlign: 'center', flex: 1 }}>
           <h1 style={{ margin: 0, fontSize: '18px' }}>{PROJECT_NAME}</h1>
-          <h2 style={{ margin: '5px 0 0 0', fontSize: '24px' }}>Daily Inspector Report</h2>
+          <h2 style={{ margin: '5px 0 0 0', fontSize: '24px' }}>
+            {isEditMode ? '✏️ EDITING REPORT' : 'Daily Inspector Report'}
+          </h2>
+          {isEditMode && (
+            <p style={{ margin: '5px 0 0 0', fontSize: '12px', opacity: 0.9 }}>
+              Changes will be logged to audit trail
+            </p>
+          )}
         </div>
-        <button
-          onClick={signOut}
-          style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}
-        >
-          Sign Out
-        </button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button
+            onClick={() => setShowMap(!showMap)}
+            style={{ 
+              padding: '10px 20px', 
+              backgroundColor: showMap ? '#28a745' : '#17a2b8', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '4px', 
+              cursor: 'pointer', 
+              fontSize: '14px' 
+            }}
+          >
+            🗺️ {showMap ? 'Hide Map' : 'Show Map'}
+          </button>
+          <button
+            onClick={signOut}
+            style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}
+          >
+            Sign Out
+          </button>
+        </div>
       </div>
+
+      {/* Pipeline Map Section */}
+      {showMap && (
+        <div style={{ marginBottom: '20px' }}>
+          <MiniMapWidget 
+            startKP={activityBlocks[0]?.startKP || ''}
+            endKP={activityBlocks[0]?.endKP || ''}
+            pipeline={pipeline || 'south'}
+            height="350px"
+            onKPSync={(gpsData) => {
+              // When GPS syncs, could auto-fill KP field
+              console.log('GPS synced:', gpsData)
+              // Optionally update the first activity block's startKP
+              // setActivityBlocks(blocks => blocks.map((b, i) => 
+              //   i === 0 ? { ...b, startKP: gpsData.kpFormatted } : b
+              // ))
+            }}
+          />
+        </div>
+      )}
+
+      {/* Loading indicator for edit mode */}
+      {loadingReport && (
+        <div style={{ backgroundColor: '#fff3cd', padding: '20px', borderRadius: '8px', marginBottom: '20px', textAlign: 'center' }}>
+          <p style={{ margin: 0, color: '#856404' }}>Loading report for editing...</p>
+        </div>
+      )}
 
       {/* SECTION 1: HEADER */}
       <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #dee2e6' }}>
@@ -3027,6 +3146,16 @@ Important:
               value={spread}
               onChange={(e) => setSpread(e.target.value)}
               placeholder="Spread number"
+              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>AFE #</label>
+            <input
+              type="text"
+              value={afe}
+              onChange={(e) => setAfe(e.target.value)}
+              placeholder="AFE number"
               style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
             />
           </div>
@@ -3142,664 +3271,106 @@ Important:
         </div>
       </div>
 
+      {/* REPORT WORKFLOW - Submit/Approve/Audit Trail */}
+      <ReportWorkflow
+        reportId={currentReportId}
+        reportDate={selectedDate}
+        currentUser={{
+          id: userProfile?.id,
+          name: inspectorName || userProfile?.email,
+          email: userProfile?.email,
+          role: currentUserRole
+        }}
+        onStatusChange={(status) => console.log('Report status:', status)}
+      />
+
+      {/* ACTIVITIES SECTION HEADER */}
+      <div style={{ 
+        backgroundColor: '#007bff', 
+        padding: '15px 20px', 
+        borderRadius: '8px', 
+        marginBottom: '20px', 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'center',
+        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+      }}>
+        <div>
+          <h2 style={{ margin: 0, color: 'white' }}>📋 ACTIVITIES ({activityBlocks.length})</h2>
+          <p style={{ margin: '5px 0 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '13px' }}>
+            Add activities for each crew you're inspecting today
+          </p>
+        </div>
+        <button
+          onClick={addActivityBlock}
+          style={{ 
+            padding: '12px 24px', 
+            backgroundColor: '#28a745', 
+            color: 'white', 
+            border: 'none', 
+            borderRadius: '6px', 
+            cursor: 'pointer', 
+            fontSize: '15px', 
+            fontWeight: 'bold',
+            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+          }}
+        >
+          + Add Activity
+        </button>
+      </div>
+
       {/* ACTIVITY BLOCKS */}
       {activityBlocks.map((block, blockIndex) => (
-        <div key={block.id} style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '2px solid #007bff', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #007bff', paddingBottom: '10px', marginBottom: '15px' }}>
-            <h2 style={{ margin: 0, color: '#007bff' }}>
-              ACTIVITY {blockIndex + 1}: {block.activityType || '(Select Type)'}
-            </h2>
-            <button
-              onClick={() => removeActivityBlock(block.id)}
-              style={{ padding: '6px 12px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
-            >
-              Remove Activity
-            </button>
-          </div>
-
-          {/* Activity Type & Basic Info */}
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Activity Type *</label>
-              <select
-                value={block.activityType}
-                onChange={(e) => updateActivityBlock(block.id, 'activityType', e.target.value)}
-                style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-              >
-                <option value="">Select Activity</option>
-                {activityTypes.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Contractor</label>
-              <input
-                type="text"
-                value={block.contractor}
-                onChange={(e) => updateActivityBlock(block.id, 'contractor', e.target.value)}
-                placeholder="Contractor name"
-                style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Foreman</label>
-              <input
-                type="text"
-                value={block.foreman}
-                onChange={(e) => updateActivityBlock(block.id, 'foreman', e.target.value)}
-                placeholder="Foreman name"
-                style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>
-                Start KP
-                {blockChainageStatus[block.id]?.suggestedStartKP && !block.startKP && (
-                  <button
-                    onClick={() => updateActivityBlock(block.id, 'startKP', blockChainageStatus[block.id].suggestedStartKP)}
-                    style={{ marginLeft: '8px', padding: '2px 8px', fontSize: '10px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
-                    title="Use suggested start based on last recorded chainage"
-                  >
-                    Use {blockChainageStatus[block.id].suggestedStartKP}
-                  </button>
-                )}
-              </label>
-              <input
-                type="text"
-                value={block.startKP}
-                onChange={(e) => updateActivityBlock(block.id, 'startKP', e.target.value)}
-                placeholder="e.g. 5+250"
-                style={{ 
-                  width: '100%', 
-                  padding: '10px', 
-                  border: blockChainageStatus[block.id]?.hasOverlap ? '2px solid #dc3545' : 
-                          blockChainageStatus[block.id]?.hasGap ? '2px solid #ffc107' : '1px solid #ced4da', 
-                  borderRadius: '4px',
-                  backgroundColor: blockChainageStatus[block.id]?.hasOverlap ? '#fff5f5' : 
-                                   blockChainageStatus[block.id]?.hasGap ? '#fffbf0' : 'white'
-                }}
-              />
-            </div>
-            <div>
-              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>End KP</label>
-              <input
-                type="text"
-                value={block.endKP}
-                onChange={(e) => updateActivityBlock(block.id, 'endKP', e.target.value)}
-                placeholder="e.g. 6+100"
-                style={{ 
-                  width: '100%', 
-                  padding: '10px', 
-                  border: blockChainageStatus[block.id]?.hasOverlap ? '2px solid #dc3545' : 
-                          blockChainageStatus[block.id]?.hasGap ? '2px solid #ffc107' : '1px solid #ced4da', 
-                  borderRadius: '4px',
-                  backgroundColor: blockChainageStatus[block.id]?.hasOverlap ? '#fff5f5' : 
-                                   blockChainageStatus[block.id]?.hasGap ? '#fffbf0' : 'white'
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Chainage Status Alerts */}
-          {blockChainageStatus[block.id]?.hasOverlap && (
-            <div style={{ marginBottom: '15px', padding: '15px', backgroundColor: '#f8d7da', border: '2px solid #dc3545', borderRadius: '6px' }}>
-              <strong style={{ color: '#721c24', fontSize: '14px' }}>⚠️ CHAINAGE OVERLAP DETECTED</strong>
-              {blockChainageStatus[block.id].overlaps.map((overlap, idx) => (
-                <p key={idx} style={{ margin: '8px 0', fontSize: '13px', color: '#721c24' }}>
-                  Your range overlaps with {overlap.range.date}: {overlap.range.startKP} - {overlap.range.endKP}
-                </p>
-              ))}
-              <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#fff', borderRadius: '4px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#721c24', marginBottom: '5px' }}>
-                  ✍️ Reason for overlap (REQUIRED to save):
-                </label>
-                <textarea
-                  value={chainageReasons[block.id]?.overlapReason || ''}
-                  onChange={(e) => setChainageReasons({
-                    ...chainageReasons,
-                    [block.id]: { ...chainageReasons[block.id], overlapReason: e.target.value }
-                  })}
-                  placeholder="e.g., Re-work required due to coating damage, Tie-in weld at station..."
-                  rows={2}
-                  style={{ 
-                    width: '100%', 
-                    padding: '8px', 
-                    border: chainageReasons[block.id]?.overlapReason ? '2px solid #28a745' : '2px solid #dc3545',
-                    borderRadius: '4px',
-                    fontSize: '13px'
-                  }}
-                />
-                {!chainageReasons[block.id]?.overlapReason && (
-                  <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#dc3545', fontWeight: 'bold' }}>
-                    ⛔ You must provide a reason before saving the report
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {blockChainageStatus[block.id]?.hasGap && (
-            <div style={{ marginBottom: '15px', padding: '15px', backgroundColor: '#fff3cd', border: '2px solid #ffc107', borderRadius: '6px' }}>
-              <strong style={{ color: '#856404', fontSize: '14px' }}>📍 CHAINAGE GAP DETECTED</strong>
-              {blockChainageStatus[block.id].gaps.map((gap, idx) => (
-                <p key={idx} style={{ margin: '8px 0', fontSize: '13px', color: '#856404' }}>
-                  Unrecorded section: {gap.startKP} to {gap.endKP} ({gap.metres}m gap)
-                </p>
-              ))}
-              <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#fff', borderRadius: '4px' }}>
-                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#856404', marginBottom: '5px' }}>
-                  ✍️ Reason for gap (REQUIRED to save):
-                </label>
-                <textarea
-                  value={chainageReasons[block.id]?.gapReason || ''}
-                  onChange={(e) => setChainageReasons({
-                    ...chainageReasons,
-                    [block.id]: { ...chainageReasons[block.id], gapReason: e.target.value }
-                  })}
-                  placeholder="e.g., Section completed by another crew, Road crossing permit pending, Wetland area - environmental hold..."
-                  rows={2}
-                  style={{ 
-                    width: '100%', 
-                    padding: '8px', 
-                    border: chainageReasons[block.id]?.gapReason ? '2px solid #28a745' : '2px solid #ffc107',
-                    borderRadius: '4px',
-                    fontSize: '13px'
-                  }}
-                />
-                {!chainageReasons[block.id]?.gapReason && (
-                  <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#856404', fontWeight: 'bold' }}>
-                    ⛔ You must provide a reason before saving the report
-                  </p>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Existing Coverage Info */}
-          {block.activityType && blockChainageStatus[block.id]?.coverage?.length > 0 && (
-            <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#e7f3ff', border: '1px solid #b8daff', borderRadius: '6px' }}>
-              <strong style={{ color: '#004085', fontSize: '12px' }}>📊 Existing {block.activityType} Coverage:</strong>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px', marginTop: '5px' }}>
-                {mergeRanges(blockChainageStatus[block.id].coverage).slice(0, 5).map((range, idx) => (
-                  <span key={idx} style={{ padding: '2px 8px', backgroundColor: '#cce5ff', borderRadius: '3px', fontSize: '11px', color: '#004085' }}>
-                    {formatMetresToKP(range.start)} → {formatMetresToKP(range.end)}
-                  </span>
-                ))}
-                {blockChainageStatus[block.id].coverage.length > 5 && (
-                  <span style={{ padding: '2px 8px', fontSize: '11px', color: '#004085' }}>
-                    +{blockChainageStatus[block.id].coverage.length - 5} more
-                  </span>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Work Description */}
-          <div style={{ marginBottom: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-              <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Work Description</label>
-              <VoiceButton fieldId={`workDescription_${block.id}`} />
-            </div>
-            <textarea
-              value={block.workDescription}
-              onChange={(e) => updateActivityBlock(block.id, 'workDescription', e.target.value)}
-              placeholder="Describe the work performed... (use 🎤 for voice input)"
-              rows={3}
-              style={{ 
-                width: '100%', 
-                padding: '10px', 
-                border: isListening === `workDescription_${block.id}` ? '2px solid #dc3545' : '1px solid #ced4da', 
-                borderRadius: '4px', 
-                resize: 'vertical',
-                backgroundColor: isListening === `workDescription_${block.id}` ? '#fff5f5' : 'white'
-              }}
-            />
-            {isListening === `workDescription_${block.id}` && (
-              <div style={{ marginTop: '5px', padding: '8px 10px', backgroundColor: '#f8d7da', borderRadius: '4px', fontSize: '12px', color: '#721c24' }}>
-                <strong>🔴 Listening...</strong> Speak now. Say "period", "comma", or "new line" for punctuation. Click Stop when done.
-              </div>
-            )}
-          </div>
-
-          {/* Quality Checks */}
-          <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '8px' }}>
-            <h4 style={{ margin: '0 0 15px 0', color: '#856404' }}>⚙️ Quality Checks</h4>
-            {renderQualityFields(block)}
-          </div>
-
-          {/* Daily Contractor Ticket */}
-          <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#e7f3ff', borderRadius: '8px' }}>
-            <h4 style={{ margin: '0 0 15px 0', color: '#004085' }}>📋 Daily Contractor Ticket</h4>
-            <div style={{ marginBottom: '10px' }}>
-              <label style={{ fontWeight: 'bold', marginRight: '10px' }}>Ticket #:</label>
-              <input
-                type="text"
-                placeholder="Enter ticket number"
-                value={block.ticketNumber || ''}
-                onChange={(e) => updateBlock(block.id, 'ticketNumber', e.target.value)}
-                style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '150px' }}
-              />
-            </div>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <label style={{ padding: '10px 20px', backgroundColor: '#007bff', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}>
-                📁 Upload from Gallery
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleTicketPhotoSelect(block.id, e)}
-                  style={{ display: 'none' }}
-                />
-              </label>
-              <label style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}>
-                📷 Take Photo
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(e) => handleTicketPhotoSelect(block.id, e)}
-                  style={{ display: 'none' }}
-                />
-              </label>
-              {block.ticketPhoto && (
-                <button
-                  onClick={() => scanTicketWithOCR(block.id)}
-                  disabled={scanningBlock === block.id}
-                  style={{ 
-                    padding: '10px 20px', 
-                    backgroundColor: scanningBlock === block.id ? '#6c757d' : '#17a2b8', 
-                    color: 'white', 
-                    border: 'none', 
-                    borderRadius: '4px', 
-                    cursor: scanningBlock === block.id ? 'wait' : 'pointer', 
-                    fontSize: '14px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '5px'
-                  }}
-                >
-                  {scanningBlock === block.id ? (
-                    <>⏳ Scanning...</>
-                  ) : (
-                    <>🔍 Scan Ticket (OCR)</>
-                  )}
-                </button>
-              )}
-              {block.ticketPhoto && (
-                <span style={{ color: '#28a745', fontWeight: 'bold' }}>✓ {block.ticketPhoto.name}</span>
-              )}
-            </div>
-            {block.ticketPhoto && (
-              <div style={{ marginTop: '10px' }}>
-                <img 
-                  src={URL.createObjectURL(block.ticketPhoto)} 
-                  alt="Ticket preview" 
-                  style={{ maxWidth: '200px', maxHeight: '150px', borderRadius: '4px', border: '1px solid #dee2e6' }}
-                />
-                <button
-                  onClick={() => updateActivityBlock(block.id, 'ticketPhoto', null)}
-                  style={{ marginLeft: '10px', padding: '5px 10px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
-                >
-                  Remove
-                </button>
-              </div>
-            )}
-            {scanningBlock === block.id && (
-              <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#d1ecf1', borderRadius: '4px', color: '#0c5460' }}>
-                <strong>🔍 Scanning ticket with AI...</strong>
-                <p style={{ margin: '5px 0 0 0', fontSize: '13px' }}>
-                  Extracting personnel names, classifications, equipment, and hours. This may take a few seconds.
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* Manpower */}
-          <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#d4edda', borderRadius: '8px' }}>
-            <h4 style={{ margin: '0 0 5px 0', color: '#155724' }}>👷 Manpower</h4>
-            <p style={{ margin: '0 0 15px 0', fontSize: '12px', color: '#155724' }}>
-              RT = Regular Time | OT = Overtime | JH = Jump Hours (bonus)
-            </p>
-            
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-              <div style={{ flex: 1, minWidth: '120px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Employee Name</label>
-                <input
-                  type="text"
-                  placeholder="Name"
-                  value={currentLabour.employeeName}
-                  onChange={(e) => setCurrentLabour({ ...currentLabour, employeeName: e.target.value })}
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px' }}
-                />
-              </div>
-              <div style={{ flex: 2, minWidth: '180px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Classification</label>
-                <select
-                  value={currentLabour.classification}
-                  onChange={(e) => setCurrentLabour({ ...currentLabour, classification: e.target.value })}
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px' }}
-                >
-                  <option value="">Select Classification</option>
-                  {labourClassifications.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </div>
-              <div style={{ width: '60px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', color: '#155724' }}>RT</label>
-                <input
-                  type="number"
-                  placeholder="8"
-                  value={currentLabour.rt}
-                  onChange={(e) => setCurrentLabour({ ...currentLabour, rt: e.target.value })}
-                  style={{ width: '100%', padding: '8px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#d4edda' }}
-                />
-              </div>
-              <div style={{ width: '60px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', color: '#856404' }}>OT</label>
-                <input
-                  type="number"
-                  placeholder="0"
-                  value={currentLabour.ot}
-                  onChange={(e) => setCurrentLabour({ ...currentLabour, ot: e.target.value })}
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ffc107', borderRadius: '4px', backgroundColor: '#fff3cd' }}
-                />
-              </div>
-              <div style={{ width: '60px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', color: '#004085' }}>JH</label>
-                <input
-                  type="number"
-                  placeholder="0"
-                  value={currentLabour.jh}
-                  onChange={(e) => setCurrentLabour({ ...currentLabour, jh: e.target.value })}
-                  style={{ width: '100%', padding: '8px', border: '1px solid #007bff', borderRadius: '4px', backgroundColor: '#cce5ff' }}
-                />
-              </div>
-              <div style={{ width: '55px' }}>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Count</label>
-                <input
-                  type="number"
-                  placeholder="1"
-                  value={currentLabour.count}
-                  onChange={(e) => setCurrentLabour({ ...currentLabour, count: e.target.value })}
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px' }}
-                />
-              </div>
-              <button
-                onClick={() => {
-                  addLabourToBlock(block.id, currentLabour.employeeName, currentLabour.classification, currentLabour.rt, currentLabour.ot, currentLabour.jh, currentLabour.count)
-                  setCurrentLabour({ employeeName: '', classification: '', rt: '', ot: '', jh: '', count: '1' })
-                }}
-                style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-              >
-                Add
-              </button>
-            </div>
-
-            {block.labourEntries.length > 0 && (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#c3e6cb' }}>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Employee</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Classification</th>
-                    <th style={{ padding: '8px', textAlign: 'center', width: '55px' }}>RT</th>
-                    <th style={{ padding: '8px', textAlign: 'center', width: '55px' }}>OT</th>
-                    <th style={{ padding: '8px', textAlign: 'center', width: '65px' }}>JH</th>
-                    <th style={{ padding: '8px', textAlign: 'center', width: '50px' }}>Cnt</th>
-                    <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {block.labourEntries.map(entry => {
-                    // Calculate RT/OT if not already set (for backwards compatibility)
-                    const rt = entry.rt !== undefined ? entry.rt : Math.min(entry.hours || 0, 8)
-                    const ot = entry.ot !== undefined ? entry.ot : Math.max(0, (entry.hours || 0) - 8)
-                    const jh = entry.jh !== undefined ? entry.jh : 0
-                    return (
-                      <tr key={entry.id} style={{ backgroundColor: '#fff' }}>
-                        <td style={{ padding: '6px 8px', borderBottom: '1px solid #dee2e6' }}>{entry.employeeName || '-'}</td>
-                        <td style={{ padding: '6px 8px', borderBottom: '1px solid #dee2e6', fontSize: '12px' }}>{entry.classification}</td>
-                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#d4edda' }}>{rt}</td>
-                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: ot > 0 ? '#fff3cd' : '#fff' }}>{ot > 0 ? ot : '-'}</td>
-                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: jh > 0 ? '#cce5ff' : '#fff' }}>
-                          <input
-                            type="number"
-                            value={jh || ''}
-                            onChange={(e) => updateLabourJH(block.id, entry.id, e.target.value)}
-                            placeholder="0"
-                            style={{ 
-                              width: '45px', 
-                              padding: '4px', 
-                              border: '1px solid #ced4da', 
-                              borderRadius: '3px', 
-                              textAlign: 'center',
-                              fontSize: '12px'
-                            }}
-                          />
-                        </td>
-                        <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.count}</td>
-                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                          <button
-                            onClick={() => removeLabourFromBlock(block.id, entry.id)}
-                            style={{ padding: '2px 6px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
-                          >
-                            ✕
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {/* Equipment */}
-          <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#cce5ff', borderRadius: '8px' }}>
-            <h4 style={{ margin: '0 0 15px 0', color: '#004085' }}>🚜 Equipment</h4>
-            
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
-              <select
-                value={currentEquipment.type}
-                onChange={(e) => setCurrentEquipment({ ...currentEquipment, type: e.target.value })}
-                style={{ flex: 2, minWidth: '200px', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px' }}
-              >
-                <option value="">Select Equipment</option>
-                {equipmentTypes.map(t => (
-                  <option key={t} value={t}>{t}</option>
-                ))}
-              </select>
-              <input
-                type="number"
-                placeholder="Hours"
-                value={currentEquipment.hours}
-                onChange={(e) => setCurrentEquipment({ ...currentEquipment, hours: e.target.value })}
-                style={{ width: '80px', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px' }}
-              />
-              <input
-                type="number"
-                placeholder="Count"
-                value={currentEquipment.count}
-                onChange={(e) => setCurrentEquipment({ ...currentEquipment, count: e.target.value })}
-                style={{ width: '80px', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px' }}
-              />
-              <button
-                onClick={() => {
-                  addEquipmentToBlock(block.id, currentEquipment.type, currentEquipment.hours, currentEquipment.count)
-                  setCurrentEquipment({ type: '', hours: '', count: '' })
-                }}
-                style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-              >
-                Add
-              </button>
-            </div>
-
-            {block.equipmentEntries.length > 0 && (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#b8daff' }}>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Equipment</th>
-                    <th style={{ padding: '8px', textAlign: 'center', width: '80px' }}>Hours</th>
-                    <th style={{ padding: '8px', textAlign: 'center', width: '80px' }}>Count</th>
-                    <th style={{ padding: '8px', textAlign: 'center', width: '60px' }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {block.equipmentEntries.map(entry => (
-                    <tr key={entry.id} style={{ backgroundColor: '#fff' }}>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6' }}>{entry.type}</td>
-                      <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.hours}</td>
-                      <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.count}</td>
-                      <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                        <button
-                          onClick={() => removeEquipmentFromBlock(block.id, entry.id)}
-                          style={{ padding: '2px 8px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
-                        >
-                          ✕
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-
-          {/* Time Lost */}
-          <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f8d7da', borderRadius: '8px' }}>
-            <h4 style={{ margin: '0 0 15px 0', color: '#721c24' }}>⏱️ Time Lost</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Reason</label>
-                <select
-                  value={block.timeLostReason || ''}
-                  onChange={(e) => updateActivityBlock(block.id, 'timeLostReason', e.target.value)}
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
-                >
-                  <option value="">None</option>
-                  {timeLostReasons.map(r => (
-                    <option key={r} value={r}>{r}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Hours Lost</label>
-                <input
-                  type="number"
-                  value={block.timeLostHours || ''}
-                  onChange={(e) => updateActivityBlock(block.id, 'timeLostHours', e.target.value)}
-                  placeholder="0"
-                  style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
-                />
-              </div>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Details</label>
-                  <VoiceButton fieldId={`timeLostDetails_${block.id}`} style={{ padding: '4px 8px', fontSize: '11px' }} />
-                </div>
-                <input
-                  type="text"
-                  value={block.timeLostDetails || ''}
-                  onChange={(e) => updateActivityBlock(block.id, 'timeLostDetails', e.target.value)}
-                  placeholder="Describe reason for time lost... (use 🎤 for voice)"
-                  style={{ 
-                    width: '100%', 
-                    padding: '8px', 
-                    border: isListening === `timeLostDetails_${block.id}` ? '2px solid #dc3545' : '1px solid #ced4da', 
-                    borderRadius: '4px', 
-                    fontSize: '13px',
-                    backgroundColor: isListening === `timeLostDetails_${block.id}` ? '#fff5f5' : 'white'
-                  }}
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Work Photos */}
-          <div style={{ padding: '15px', backgroundColor: '#e9ecef', borderRadius: '8px' }}>
-            <h4 style={{ margin: '0 0 15px 0', color: '#495057' }}>📷 Work Photos</h4>
-            <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '15px' }}>
-              <label style={{ padding: '10px 20px', backgroundColor: '#007bff', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}>
-                📁 Upload from Gallery
-                <input
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={(e) => handleWorkPhotosSelect(block.id, e)}
-                  style={{ display: 'none' }}
-                />
-              </label>
-              <label style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}>
-                📷 Take Photo
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="environment"
-                  onChange={(e) => handleWorkPhotosSelect(block.id, e)}
-                  style={{ display: 'none' }}
-                />
-              </label>
-              <span style={{ color: '#666', fontSize: '13px', alignSelf: 'center' }}>
-                {block.workPhotos.length > 0 ? `${block.workPhotos.length} photo(s) added` : 'No photos yet'}
-              </span>
-            </div>
-            
-            {block.workPhotos.length > 0 && (
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', marginTop: '15px' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#dee2e6' }}>
-                    <th style={{ padding: '8px', textAlign: 'center', width: '80px' }}>Preview</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Filename</th>
-                    <th style={{ padding: '8px', textAlign: 'left', width: '120px' }}>Location (KP)</th>
-                    <th style={{ padding: '8px', textAlign: 'left' }}>Description</th>
-                    <th style={{ padding: '8px', textAlign: 'center', width: '60px' }}></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {block.workPhotos.map((photo, photoIdx) => (
-                    <tr key={photoIdx} style={{ backgroundColor: '#fff' }}>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6', textAlign: 'center' }}>
-                        <img 
-                          src={URL.createObjectURL(photo.file)} 
-                          alt={`Photo ${photoIdx + 1}`}
-                          style={{ width: '60px', height: '45px', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer' }}
-                          onClick={() => window.open(URL.createObjectURL(photo.file), '_blank')}
-                        />
-                      </td>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6', fontSize: '12px' }}>{photo.file.name}</td>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6' }}>
-                        <input
-                          type="text"
-                          value={photo.location}
-                          onChange={(e) => updatePhotoMetadata(block.id, photoIdx, 'location', e.target.value)}
-                          placeholder="e.g. 5+250"
-                          style={{ width: '100%', padding: '4px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '12px' }}
-                        />
-                      </td>
-                      <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6' }}>
-                        <input
-                          type="text"
-                          value={photo.description}
-                          onChange={(e) => updatePhotoMetadata(block.id, photoIdx, 'description', e.target.value)}
-                          placeholder="Description..."
-                          style={{ width: '100%', padding: '4px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '12px' }}
-                        />
-                      </td>
-                      <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                        <button
-                          onClick={() => removeWorkPhoto(block.id, photoIdx)}
-                          style={{ padding: '2px 8px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
-                        >
-                          ✕
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </div>
-        </div>
+        <ActivityBlock
+          key={block.id}
+          block={block}
+          blockIndex={blockIndex}
+          // Context data
+          selectedDate={selectedDate}
+          spread={spread}
+          afe={afe}
+          weather={weather}
+          tempHigh={tempHigh}
+          tempLow={tempLow}
+          inspectorName={inspectorName}
+          // Chainage status
+          blockChainageStatus={blockChainageStatus[block.id]}
+          chainageReasons={chainageReasons}
+          setChainageReasons={setChainageReasons}
+          // Voice state
+          isListening={isListening}
+          VoiceButton={VoiceButton}
+          // Handlers
+          updateActivityBlock={updateActivityBlock}
+          removeActivityBlock={removeActivityBlock}
+          updateQualityData={updateQualityData}
+          updateWeldData={updateWeldData}
+          updateBendData={updateBendData}
+          updateStringData={updateStringData}
+          updateCoatingData={updateCoatingData}
+          updateClearingData={updateClearingData}
+          updateHDDData={updateHDDData}
+          updatePilingData={updatePilingData}
+          updateCleaningLogData={updateCleaningLogData}
+          updateHydrovacData={updateHydrovacData}
+          updateWelderTestingData={updateWelderTestingData}
+          updateHydrotestData={updateHydrotestData}
+          updateTieInCompletionData={updateTieInCompletionData}
+          updateDitchData={updateDitchData}
+          updateGradingData={updateGradingData}
+          updateCounterboreData={updateCounterboreData}
+          addLabourToBlock={addLabourToBlock}
+          updateLabourJH={updateLabourJH}
+          removeLabourFromBlock={removeLabourFromBlock}
+          addEquipmentToBlock={addEquipmentToBlock}
+          removeEquipmentFromBlock={removeEquipmentFromBlock}
+          handleWorkPhotosSelect={handleWorkPhotosSelect}
+          updatePhotoMetadata={updatePhotoMetadata}
+          removeWorkPhoto={removeWorkPhoto}
+          // For section toggle
+          setActivityBlocks={setActivityBlocks}
+          activityBlocks={activityBlocks}
+        />
       ))}
 
       {/* Add Activity Button */}
@@ -3810,6 +3381,86 @@ Important:
         >
           + Add Another Activity
         </button>
+      </div>
+
+      {/* TRACKABLE ITEMS - Collapsible */}
+      <div style={{ backgroundColor: '#fff', borderRadius: '8px', marginBottom: '20px', border: '2px solid #6f42c1', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+        <div 
+          onClick={() => setTrackableItemsExpanded(!trackableItemsExpanded)}
+          style={{ 
+            padding: '15px 20px',
+            backgroundColor: trackableItemsExpanded ? '#6f42c1' : '#f8f9fa',
+            color: trackableItemsExpanded ? 'white' : '#6f42c1',
+            cursor: 'pointer',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            borderBottom: trackableItemsExpanded ? '2px solid #6f42c1' : 'none'
+          }}
+        >
+          <h2 style={{ margin: 0, fontSize: '18px' }}>📦 TRACKABLE ITEMS</h2>
+          <span style={{ fontSize: '14px' }}>
+            {trackableItemsExpanded ? '▼ Collapse' : '▶ Expand'}
+          </span>
+        </div>
+        
+        {trackableItemsExpanded && (
+          <div style={{ padding: '20px' }}>
+            {/* Mat Tracker */}
+            <MatTracker
+              projectId={pipeline || 'default'}
+              reportDate={selectedDate}
+              reportId={null}
+              inspector={inspectorName}
+              onDataChange={(data) => console.log('Mat data:', data)}
+            />
+            
+            {/* Unit Price Items Toggle */}
+            <div style={{ 
+              backgroundColor: '#fff3cd', 
+              border: '1px solid #ffc107', 
+              borderRadius: '8px', 
+              padding: '15px',
+              marginTop: '15px'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: unitPriceItemsEnabled ? '15px' : '0' }}>
+                <label style={{ fontWeight: 'bold', fontSize: '14px' }}>📦 Unit Price Items Installed Today?</label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="unitPriceItems"
+                    value="Yes"
+                    checked={unitPriceItemsEnabled}
+                    onChange={() => setUnitPriceItemsEnabled(true)}
+                  />
+                  Yes
+                </label>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
+                  <input
+                    type="radio"
+                    name="unitPriceItems"
+                    value="No"
+                    checked={!unitPriceItemsEnabled}
+                    onChange={() => setUnitPriceItemsEnabled(false)}
+                  />
+                  No
+                </label>
+              </div>
+              
+              {unitPriceItemsEnabled && (
+                <UnitPriceItemsLog
+                  data={unitPriceData}
+                  onChange={setUnitPriceData}
+                  reportDate={selectedDate}
+                  spread={spread}
+                  afe={afe}
+                />
+              )}
+            </div>
+            
+            {/* Future trackable items: Crossings, Visitors, Sand Padding, etc. */}
+          </div>
+        )}
       </div>
 
       {/* SAFETY / ENVIRONMENT / COMMENTS */}
@@ -3841,6 +3492,15 @@ Important:
             </div>
           )}
         </div>
+
+        {/* Safety Recognition Cards */}
+        <SafetyRecognition
+          data={safetyRecognitionData}
+          onChange={setSafetyRecognitionData}
+          inspectorName={inspectorName}
+          reportDate={selectedDate}
+        />
+
         <div style={{ marginBottom: '15px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Land & Environment</label>
@@ -3865,6 +3525,16 @@ Important:
             </div>
           )}
         </div>
+
+        {/* Wildlife Sighting Records */}
+        <WildlifeSighting
+          data={wildlifeSightingData}
+          onChange={setWildlifeSightingData}
+          inspectorName={inspectorName}
+          reportDate={selectedDate}
+        />
+
+        {/* UNIT PRICE ITEMS TOGGLE */}
         <div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
             <label style={{ fontSize: '12px', fontWeight: 'bold' }}>General Comments</label>
@@ -4033,34 +3703,72 @@ Important:
 
       {/* SAVE BUTTONS */}
       <div style={{ backgroundColor: '#e9ecef', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
-        <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', flexWrap: 'wrap', marginBottom: '15px' }}>
-          <button
-            onClick={() => exportToExcel()}
-            style={{ padding: '15px 30px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px' }}
-          >
-            📊 Excel Export
-          </button>
-          <button
-            onClick={() => exportToPDF()}
-            style={{ padding: '15px 30px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px' }}
-          >
-            📄 PDF Export
-          </button>
-          <button
-            onClick={() => saveReport(true)}
-            disabled={saving}
-            style={{ padding: '15px 40px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px', fontWeight: 'bold' }}
-          >
-            {saving ? 'Saving...' : '💾 Save & Export'}
-          </button>
+        {/* Draft Status Indicator */}
+        {draftSaved && !isEditMode && (
+          <div style={{ 
+            textAlign: 'center', 
+            marginBottom: '15px',
+            padding: '8px 15px',
+            backgroundColor: '#d4edda',
+            borderRadius: '6px',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            margin: '0 auto 15px auto',
+            width: 'fit-content'
+          }}>
+            <span style={{ 
+              width: '8px', 
+              height: '8px', 
+              backgroundColor: '#28a745', 
+              borderRadius: '50%',
+              display: 'inline-block'
+            }}></span>
+            <span style={{ fontSize: '13px', color: '#155724' }}>
+              Draft auto-saved locally
+            </span>
+          </div>
+        )}
+        
+        <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <button
             onClick={() => saveReport(false)}
             disabled={saving}
-            style={{ padding: '15px 30px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '16px' }}
+            style={{ padding: '18px 50px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' }}
           >
-            {saving ? 'Saving...' : '💾 Save Only'}
+            {saving ? 'Saving...' : '💾 Save Report'}
+          </button>
+          <button
+            onClick={() => exportToPDF()}
+            style={{ padding: '18px 50px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' }}
+          >
+            📄 Download PDF
           </button>
         </div>
+        
+        <p style={{ textAlign: 'center', margin: '15px 0 0 0', fontSize: '13px', color: '#666' }}>
+          Save Report will store to database and email you a copy
+        </p>
+        
+        {/* Clear Draft Button */}
+        {draftSaved && !isEditMode && (
+          <div style={{ textAlign: 'center', marginTop: '15px' }}>
+            <button
+              onClick={clearDraft}
+              style={{ 
+                padding: '8px 20px', 
+                backgroundColor: 'transparent', 
+                color: '#6c757d', 
+                border: '1px solid #6c757d', 
+                borderRadius: '4px', 
+                cursor: 'pointer', 
+                fontSize: '13px'
+              }}
+            >
+              🗑️ Clear Draft & Start Fresh
+            </button>
+          </div>
+        )}
       </div>
     </div>
   )
