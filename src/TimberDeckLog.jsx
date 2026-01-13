@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabase';
+import { useActivityAudit } from './useActivityAudit';
 
 /**
  * TimberDeckLog Component
@@ -34,6 +35,17 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(null);
 
+  // Audit trail hook
+  const { 
+    initializeEntryValues,
+    logEntryFieldChange,
+    logEntryAdd,
+    logEntryDelete
+  } = useActivityAudit(dailyReportId, 'TimberDeckLog');
+  
+  // Ref for tracking entry values
+  const entryValuesRef = useRef({});
+
   // Load existing decks for this daily report
   useEffect(() => {
     if (dailyReportId) {
@@ -59,16 +71,36 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
     }
   };
 
+  // Audit-aware handlers
+  const handleEntryFieldFocus = (entryId, fieldName, currentValue) => {
+    initializeEntryValues(entryValuesRef, entryId, fieldName, currentValue);
+  };
+
+  const handleEntryFieldBlur = (entryId, fieldName, newValue, displayName, entryLabel) => {
+    logEntryFieldChange(entryValuesRef, entryId, fieldName, newValue, displayName, entryLabel);
+  };
+
+  // Get entry label for audit trail
+  const getEntryLabel = (deck, index) => {
+    return deck.deck_id || `Deck #${index + 1}`;
+  };
+
   const addDeck = () => {
-    setDecks([...decks, { ...emptyDeck, id: Date.now() }]);
+    const newDeck = { ...emptyDeck, id: Date.now() };
+    setDecks([...decks, newDeck]);
     setSaved(false);
+    logEntryAdd('Timber Deck', `Entry #${decks.length + 1}`);
   };
 
   const removeDeck = (index) => {
     if (decks.length > 1) {
+      const deckToRemove = decks[index];
+      const deckLabel = deckToRemove?.deck_id || `Deck #${index + 1}`;
+      
       const updated = decks.filter((_, i) => i !== index);
       setDecks(updated);
       setSaved(false);
+      logEntryDelete('Timber Deck', deckLabel);
     }
   };
 
@@ -360,7 +392,9 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
                 style={styles.input}
                 placeholder="e.g., D-004"
                 value={deck.deck_id}
+                onFocus={() => handleEntryFieldFocus(deck.id, 'deck_id', deck.deck_id)}
                 onChange={(e) => updateDeck(index, 'deck_id', e.target.value)}
+                onBlur={(e) => handleEntryFieldBlur(deck.id, 'deck_id', e.target.value, 'Deck ID', getEntryLabel(deck, index))}
               />
             </div>
 
@@ -374,7 +408,9 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
                   style={styles.input}
                   placeholder="Start KP"
                   value={deck.start_kp}
+                  onFocus={() => handleEntryFieldFocus(deck.id, 'start_kp', deck.start_kp)}
                   onChange={(e) => updateDeck(index, 'start_kp', e.target.value)}
+                  onBlur={(e) => handleEntryFieldBlur(deck.id, 'start_kp', e.target.value, 'Start KP', getEntryLabel(deck, index))}
                 />
                 <input
                   type="number"
@@ -382,7 +418,9 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
                   style={styles.input}
                   placeholder="End KP"
                   value={deck.end_kp}
+                  onFocus={() => handleEntryFieldFocus(deck.id, 'end_kp', deck.end_kp)}
                   onChange={(e) => updateDeck(index, 'end_kp', e.target.value)}
+                  onBlur={(e) => handleEntryFieldBlur(deck.id, 'end_kp', e.target.value, 'End KP', getEntryLabel(deck, index))}
                 />
               </div>
             </div>
@@ -393,7 +431,11 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
               <select
                 style={styles.select}
                 value={deck.owner_status}
-                onChange={(e) => updateDeck(index, 'owner_status', e.target.value)}
+                onFocus={() => handleEntryFieldFocus(deck.id, 'owner_status', deck.owner_status)}
+                onChange={(e) => {
+                  updateDeck(index, 'owner_status', e.target.value);
+                  handleEntryFieldBlur(deck.id, 'owner_status', e.target.value, 'Owner Status', getEntryLabel(deck, index));
+                }}
               >
                 {OWNER_OPTIONS.map(opt => (
                   <option key={opt} value={opt}>{opt}</option>
@@ -407,7 +449,11 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
               <select
                 style={styles.select}
                 value={deck.species_sort}
-                onChange={(e) => updateDeck(index, 'species_sort', e.target.value)}
+                onFocus={() => handleEntryFieldFocus(deck.id, 'species_sort', deck.species_sort)}
+                onChange={(e) => {
+                  updateDeck(index, 'species_sort', e.target.value);
+                  handleEntryFieldBlur(deck.id, 'species_sort', e.target.value, 'Species Sort', getEntryLabel(deck, index));
+                }}
               >
                 {SPECIES_OPTIONS.map(opt => (
                   <option key={opt} value={opt}>{opt}</option>
@@ -421,7 +467,11 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
               <select
                 style={styles.select}
                 value={deck.condition}
-                onChange={(e) => updateDeck(index, 'condition', e.target.value)}
+                onFocus={() => handleEntryFieldFocus(deck.id, 'condition', deck.condition)}
+                onChange={(e) => {
+                  updateDeck(index, 'condition', e.target.value);
+                  handleEntryFieldBlur(deck.id, 'condition', e.target.value, 'Condition', getEntryLabel(deck, index));
+                }}
               >
                 {CONDITION_OPTIONS.map(opt => (
                   <option key={opt} value={opt}>{opt}</option>
@@ -435,7 +485,11 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
               <select
                 style={styles.select}
                 value={deck.disposal_destination}
-                onChange={(e) => updateDeck(index, 'disposal_destination', e.target.value)}
+                onFocus={() => handleEntryFieldFocus(deck.id, 'disposal_destination', deck.disposal_destination)}
+                onChange={(e) => {
+                  updateDeck(index, 'disposal_destination', e.target.value);
+                  handleEntryFieldBlur(deck.id, 'disposal_destination', e.target.value, 'Disposal Destination', getEntryLabel(deck, index));
+                }}
               >
                 {DISPOSAL_OPTIONS.map(opt => (
                   <option key={opt} value={opt}>{opt}</option>
@@ -450,7 +504,11 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
                 <select
                   style={styles.select}
                   value={deck.cut_specification}
-                  onChange={(e) => updateDeck(index, 'cut_specification', e.target.value)}
+                  onFocus={() => handleEntryFieldFocus(deck.id, 'cut_specification', deck.cut_specification)}
+                  onChange={(e) => {
+                    updateDeck(index, 'cut_specification', e.target.value);
+                    handleEntryFieldBlur(deck.id, 'cut_specification', e.target.value, 'Cut Specification', getEntryLabel(deck, index));
+                  }}
                 >
                   {CUT_SPEC_OPTIONS.map(opt => (
                     <option key={opt} value={opt}>{opt}</option>
@@ -461,7 +519,9 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
                   style={styles.input}
                   placeholder="Min ⌀ (cm)"
                   value={deck.min_top_diameter_cm}
+                  onFocus={() => handleEntryFieldFocus(deck.id, 'min_top_diameter_cm', deck.min_top_diameter_cm)}
                   onChange={(e) => updateDeck(index, 'min_top_diameter_cm', e.target.value)}
+                  onBlur={(e) => handleEntryFieldBlur(deck.id, 'min_top_diameter_cm', e.target.value, 'Min Top Diameter', getEntryLabel(deck, index))}
                 />
               </div>
             </div>
@@ -476,12 +536,18 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
                   style={styles.input}
                   placeholder="Volume"
                   value={deck.volume_estimate}
+                  onFocus={() => handleEntryFieldFocus(deck.id, 'volume_estimate', deck.volume_estimate)}
                   onChange={(e) => updateDeck(index, 'volume_estimate', e.target.value)}
+                  onBlur={(e) => handleEntryFieldBlur(deck.id, 'volume_estimate', e.target.value, 'Volume Estimate', getEntryLabel(deck, index))}
                 />
                 <select
                   style={styles.select}
                   value={deck.volume_unit}
-                  onChange={(e) => updateDeck(index, 'volume_unit', e.target.value)}
+                  onFocus={() => handleEntryFieldFocus(deck.id, 'volume_unit', deck.volume_unit)}
+                  onChange={(e) => {
+                    updateDeck(index, 'volume_unit', e.target.value);
+                    handleEntryFieldBlur(deck.id, 'volume_unit', e.target.value, 'Volume Unit', getEntryLabel(deck, index));
+                  }}
                 >
                   <option value="m³">m³</option>
                   <option value="pieces">Pieces</option>
@@ -496,7 +562,9 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
                 style={styles.textarea}
                 placeholder="Additional observations, issues, or comments..."
                 value={deck.notes}
+                onFocus={() => handleEntryFieldFocus(deck.id, 'notes', deck.notes)}
                 onChange={(e) => updateDeck(index, 'notes', e.target.value)}
+                onBlur={(e) => handleEntryFieldBlur(deck.id, 'notes', e.target.value, 'Notes', getEntryLabel(deck, index))}
               />
             </div>
           </div>
