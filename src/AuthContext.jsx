@@ -11,6 +11,35 @@ export function AuthProvider({ children }) {
   const [userProfile, setUserProfile] = useState(null)
   const [loading, setLoading] = useState(true)
 
+  async function fetchUserProfile(userId) {
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select(`
+          *,
+          organizations (id, name, slug)
+        `)
+        .eq('id', userId)
+        .single()
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching profile:', error)
+      }
+      setUserProfile(data)
+    } catch (err) {
+      console.error('Profile fetch error:', err)
+    }
+    setLoading(false)
+  }
+
+  async function handleSignOut() {
+    // Clear login time on sign out
+    localStorage.removeItem('pipeup_login_time')
+    await supabase.auth.signOut()
+    setUser(null)
+    setUserProfile(null)
+  }
+
   // Check and enforce session timeout
   useEffect(() => {
     const checkSessionTimeout = () => {
@@ -65,35 +94,6 @@ export function AuthProvider({ children }) {
 
     return () => subscription.unsubscribe()
   }, [])
-
-  async function fetchUserProfile(userId) {
-    try {
-      const { data, error } = await supabase
-        .from('user_profiles')
-        .select(`
-          *,
-          organizations (id, name, slug)
-        `)
-        .eq('id', userId)
-        .single()
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching profile:', error)
-      }
-      setUserProfile(data)
-    } catch (err) {
-      console.error('Profile fetch error:', err)
-    }
-    setLoading(false)
-  }
-
-  async function handleSignOut() {
-    // Clear login time on sign out
-    localStorage.removeItem('pipeup_login_time')
-    await supabase.auth.signOut()
-    setUser(null)
-    setUserProfile(null)
-  }
 
   // Keep signOut name for backwards compatibility
   const signOut = handleSignOut
