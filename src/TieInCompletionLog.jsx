@@ -1,17 +1,31 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
+import { useActivityAudit } from './useActivityAudit'
 
-function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday }) {
+function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday, logId, reportId }) {
   const [showCrossings, setShowCrossings] = useState(data?.crossingsEnabled || false)
   const [showAnodes, setShowAnodes] = useState(data?.anodesEnabled || false)
 
+  // Audit trail hook
+  const { 
+    initializeOriginalValues,
+    initializeEntryValues,
+    logFieldChange,
+    logNestedFieldChange,
+    logEntryFieldChange,
+    logEntryAdd,
+    logEntryDelete
+  } = useActivityAudit(logId || reportId, 'TieInCompletionLog')
+  
+  // Refs for tracking original values
+  const originalValuesRef = useRef({})
+  const nestedValuesRef = useRef({})
+  const entryValuesRef = useRef({})
+
   // Default structure
   const defaultData = {
-    // Basic info
     tieInLocation: '',
     fromKP: '',
     toKP: '',
-    
-    // Backfill details
     backfill: {
       method: '',
       liftThickness: '',
@@ -22,11 +36,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
       paddingMaterial: '',
       paddingDepth: ''
     },
-    
-    // Cathodic Protection
     cathodicProtection: {
       installed: '',
-      installedBy: '', // 'contractor' or 'thirdParty'
+      installedBy: '',
       thirdPartyName: '',
       cpType: '',
       testStationInstalled: '',
@@ -34,26 +46,17 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
       wireColor: '',
       connectionMethod: ''
     },
-    
-    // Road/Pipe Crossings
     crossingsEnabled: false,
     crossings: [],
-    
-    // Third Party Crossings
     thirdPartyCrossings: [],
-    
-    // Anodes
     anodesEnabled: false,
     anodes: [],
-    
-    // Pipe Support
     pipeSupport: {
       required: '',
       type: '',
       location: '',
       details: ''
     },
-    
     comments: ''
   }
 
@@ -67,6 +70,34 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
     crossings: data?.crossings || [],
     thirdPartyCrossings: data?.thirdPartyCrossings || [],
     anodes: data?.anodes || []
+  }
+
+  // Audit-aware field handlers
+  const handleFieldFocus = (fieldName, currentValue) => {
+    initializeOriginalValues(originalValuesRef, fieldName, currentValue)
+  }
+
+  const handleFieldBlur = (fieldName, newValue, displayName) => {
+    logFieldChange(originalValuesRef, fieldName, newValue, displayName)
+  }
+
+  const handleNestedFieldFocus = (parentField, fieldName, currentValue) => {
+    const key = `${parentField}.${fieldName}`
+    if (!nestedValuesRef.current[key]) {
+      nestedValuesRef.current[key] = currentValue
+    }
+  }
+
+  const handleNestedFieldBlur = (parentField, fieldName, newValue, displayName) => {
+    logNestedFieldChange(nestedValuesRef, parentField, fieldName, newValue, displayName)
+  }
+
+  const handleEntryFieldFocus = (entryId, fieldName, currentValue) => {
+    initializeEntryValues(entryValuesRef, entryId, fieldName, currentValue)
+  }
+
+  const handleEntryFieldBlur = (entryId, fieldName, newValue, displayName, entryLabel) => {
+    logEntryFieldChange(entryValuesRef, entryId, fieldName, newValue, displayName, entryLabel)
   }
 
   const updateField = (field, value) => {
@@ -110,6 +141,7 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
       comments: ''
     }
     onChange({ ...tieInData, thirdPartyCrossings: [...tieInData.thirdPartyCrossings, newCrossing] })
+    logEntryAdd('Third Party Crossing', `Crossing #${tieInData.thirdPartyCrossings.length + 1}`)
   }
 
   const updateThirdPartyCrossing = (id, field, value) => {
@@ -123,7 +155,12 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
   }
 
   const removeThirdPartyCrossing = (id) => {
+    const crossingToRemove = tieInData.thirdPartyCrossings.find(c => c.id === id)
+    const crossingIndex = tieInData.thirdPartyCrossings.findIndex(c => c.id === id)
+    const crossingLabel = crossingToRemove?.facilityOwner || `Crossing #${crossingIndex + 1}`
+    
     onChange({ ...tieInData, thirdPartyCrossings: tieInData.thirdPartyCrossings.filter(c => c.id !== id) })
+    logEntryDelete('Third Party Crossing', crossingLabel)
   }
 
   // Anodes
@@ -136,7 +173,7 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
   const addAnode = () => {
     const newAnode = {
       id: Date.now(),
-      anodeType: '', // 'single' or 'bed'
+      anodeType: '',
       location: '',
       kp: '',
       depth: '',
@@ -148,6 +185,7 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
       comments: ''
     }
     onChange({ ...tieInData, anodes: [...tieInData.anodes, newAnode] })
+    logEntryAdd('Anode', `Anode #${tieInData.anodes.length + 1}`)
   }
 
   const updateAnode = (id, field, value) => {
@@ -161,8 +199,17 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
   }
 
   const removeAnode = (id) => {
+    const anodeToRemove = tieInData.anodes.find(a => a.id === id)
+    const anodeIndex = tieInData.anodes.findIndex(a => a.id === id)
+    const anodeLabel = anodeToRemove?.kp || `Anode #${anodeIndex + 1}`
+    
     onChange({ ...tieInData, anodes: tieInData.anodes.filter(a => a.id !== id) })
+    logEntryDelete('Anode', anodeLabel)
   }
+
+  // Get entry labels
+  const getCrossingLabel = (crossing, index) => crossing.facilityOwner || `Crossing #${index + 1}`
+  const getAnodeLabel = (anode, index) => anode.kp || `Anode #${index + 1}`
 
   // Styles
   const sectionStyle = {
@@ -210,37 +257,6 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
     cursor: 'pointer'
   }
 
-  const tableStyle = {
-    width: '100%',
-    borderCollapse: 'collapse',
-    fontSize: '13px'
-  }
-
-  const thStyle = {
-    padding: '8px',
-    backgroundColor: '#fd7e14',
-    color: 'white',
-    textAlign: 'center',
-    fontWeight: 'bold',
-    fontSize: '11px',
-    border: '1px solid #e8590c'
-  }
-
-  const tdStyle = {
-    padding: '6px',
-    border: '1px solid #dee2e6',
-    textAlign: 'center'
-  }
-
-  const tableInputStyle = {
-    width: '100%',
-    padding: '6px',
-    border: '1px solid #ced4da',
-    borderRadius: '4px',
-    fontSize: '12px',
-    boxSizing: 'border-box'
-  }
-
   return (
     <div style={{ marginTop: '15px' }}>
       {/* INHERITED INFO BAR */}
@@ -283,7 +299,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
             <input
               type="text"
               value={tieInData.tieInLocation}
+              onFocus={() => handleFieldFocus('tieInLocation', tieInData.tieInLocation)}
               onChange={(e) => updateField('tieInLocation', e.target.value)}
+              onBlur={(e) => handleFieldBlur('tieInLocation', e.target.value, 'Tie-in Location')}
               placeholder="e.g. Road Crossing #3, Valve Station, Foreign Line Crossing"
               style={inputStyle}
             />
@@ -299,7 +317,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
             <label style={labelStyle}>Backfill Method</label>
             <select
               value={tieInData.backfill.method}
-              onChange={(e) => updateBackfill('method', e.target.value)}
+              onFocus={() => handleNestedFieldFocus('backfill', 'method', tieInData.backfill.method)}
+              onChange={(e) => {
+                updateBackfill('method', e.target.value)
+                handleNestedFieldBlur('backfill', 'method', e.target.value, 'Backfill Method')
+              }}
               style={selectStyle}
             >
               <option value="">Select...</option>
@@ -312,7 +334,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
             <label style={labelStyle}>Padding Material</label>
             <select
               value={tieInData.backfill.paddingMaterial}
-              onChange={(e) => updateBackfill('paddingMaterial', e.target.value)}
+              onFocus={() => handleNestedFieldFocus('backfill', 'paddingMaterial', tieInData.backfill.paddingMaterial)}
+              onChange={(e) => {
+                updateBackfill('paddingMaterial', e.target.value)
+                handleNestedFieldBlur('backfill', 'paddingMaterial', e.target.value, 'Padding Material')
+              }}
               style={selectStyle}
             >
               <option value="">Select...</option>
@@ -327,7 +353,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
             <input
               type="number"
               value={tieInData.backfill.paddingDepth}
+              onFocus={() => handleNestedFieldFocus('backfill', 'paddingDepth', tieInData.backfill.paddingDepth)}
               onChange={(e) => updateBackfill('paddingDepth', e.target.value)}
+              onBlur={(e) => handleNestedFieldBlur('backfill', 'paddingDepth', e.target.value, 'Padding Depth')}
               placeholder="e.g. 150"
               style={inputStyle}
             />
@@ -337,7 +365,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
             <input
               type="number"
               value={tieInData.backfill.liftThickness}
+              onFocus={() => handleNestedFieldFocus('backfill', 'liftThickness', tieInData.backfill.liftThickness)}
               onChange={(e) => updateBackfill('liftThickness', e.target.value)}
+              onBlur={(e) => handleNestedFieldBlur('backfill', 'liftThickness', e.target.value, 'Lift Thickness')}
               placeholder="e.g. 300"
               style={inputStyle}
             />
@@ -347,7 +377,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
             <input
               type="number"
               value={tieInData.backfill.numberOfLifts}
+              onFocus={() => handleNestedFieldFocus('backfill', 'numberOfLifts', tieInData.backfill.numberOfLifts)}
               onChange={(e) => updateBackfill('numberOfLifts', e.target.value)}
+              onBlur={(e) => handleNestedFieldBlur('backfill', 'numberOfLifts', e.target.value, 'Number of Lifts')}
               placeholder="e.g. 3"
               style={inputStyle}
             />
@@ -356,7 +388,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
             <label style={labelStyle}>Compaction Method</label>
             <select
               value={tieInData.backfill.compactionMethod}
-              onChange={(e) => updateBackfill('compactionMethod', e.target.value)}
+              onFocus={() => handleNestedFieldFocus('backfill', 'compactionMethod', tieInData.backfill.compactionMethod)}
+              onChange={(e) => {
+                updateBackfill('compactionMethod', e.target.value)
+                handleNestedFieldBlur('backfill', 'compactionMethod', e.target.value, 'Compaction Method')
+              }}
               style={selectStyle}
             >
               <option value="">Select...</option>
@@ -371,7 +407,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
             <label style={labelStyle}>Compaction Test Required</label>
             <select
               value={tieInData.backfill.compactionTestRequired}
-              onChange={(e) => updateBackfill('compactionTestRequired', e.target.value)}
+              onFocus={() => handleNestedFieldFocus('backfill', 'compactionTestRequired', tieInData.backfill.compactionTestRequired)}
+              onChange={(e) => {
+                updateBackfill('compactionTestRequired', e.target.value)
+                handleNestedFieldBlur('backfill', 'compactionTestRequired', e.target.value, 'Compaction Test Required')
+              }}
               style={selectStyle}
             >
               <option value="">Select...</option>
@@ -384,7 +424,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
               <label style={labelStyle}>Compaction Test Passed</label>
               <select
                 value={tieInData.backfill.compactionTestPassed}
-                onChange={(e) => updateBackfill('compactionTestPassed', e.target.value)}
+                onFocus={() => handleNestedFieldFocus('backfill', 'compactionTestPassed', tieInData.backfill.compactionTestPassed)}
+                onChange={(e) => {
+                  updateBackfill('compactionTestPassed', e.target.value)
+                  handleNestedFieldBlur('backfill', 'compactionTestPassed', e.target.value, 'Compaction Test Passed')
+                }}
                 style={selectStyle}
               >
                 <option value="">Select...</option>
@@ -405,7 +449,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
             <label style={labelStyle}>CP Installed</label>
             <select
               value={tieInData.cathodicProtection.installed}
-              onChange={(e) => updateCP('installed', e.target.value)}
+              onFocus={() => handleNestedFieldFocus('cathodicProtection', 'installed', tieInData.cathodicProtection.installed)}
+              onChange={(e) => {
+                updateCP('installed', e.target.value)
+                handleNestedFieldBlur('cathodicProtection', 'installed', e.target.value, 'CP Installed')
+              }}
               style={selectStyle}
             >
               <option value="">Select...</option>
@@ -420,7 +468,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                 <label style={labelStyle}>Installed By</label>
                 <select
                   value={tieInData.cathodicProtection.installedBy}
-                  onChange={(e) => updateCP('installedBy', e.target.value)}
+                  onFocus={() => handleNestedFieldFocus('cathodicProtection', 'installedBy', tieInData.cathodicProtection.installedBy)}
+                  onChange={(e) => {
+                    updateCP('installedBy', e.target.value)
+                    handleNestedFieldBlur('cathodicProtection', 'installedBy', e.target.value, 'CP Installed By')
+                  }}
                   style={selectStyle}
                 >
                   <option value="">Select...</option>
@@ -434,7 +486,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                   <input
                     type="text"
                     value={tieInData.cathodicProtection.thirdPartyName}
+                    onFocus={() => handleNestedFieldFocus('cathodicProtection', 'thirdPartyName', tieInData.cathodicProtection.thirdPartyName)}
                     onChange={(e) => updateCP('thirdPartyName', e.target.value)}
+                    onBlur={(e) => handleNestedFieldBlur('cathodicProtection', 'thirdPartyName', e.target.value, 'CP Third Party Name')}
                     placeholder="Company name"
                     style={inputStyle}
                   />
@@ -444,7 +498,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                 <label style={labelStyle}>CP Type</label>
                 <select
                   value={tieInData.cathodicProtection.cpType}
-                  onChange={(e) => updateCP('cpType', e.target.value)}
+                  onFocus={() => handleNestedFieldFocus('cathodicProtection', 'cpType', tieInData.cathodicProtection.cpType)}
+                  onChange={(e) => {
+                    updateCP('cpType', e.target.value)
+                    handleNestedFieldBlur('cathodicProtection', 'cpType', e.target.value, 'CP Type')
+                  }}
                   style={selectStyle}
                 >
                   <option value="">Select...</option>
@@ -458,7 +516,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                 <label style={labelStyle}>Connection Method</label>
                 <select
                   value={tieInData.cathodicProtection.connectionMethod}
-                  onChange={(e) => updateCP('connectionMethod', e.target.value)}
+                  onFocus={() => handleNestedFieldFocus('cathodicProtection', 'connectionMethod', tieInData.cathodicProtection.connectionMethod)}
+                  onChange={(e) => {
+                    updateCP('connectionMethod', e.target.value)
+                    handleNestedFieldBlur('cathodicProtection', 'connectionMethod', e.target.value, 'CP Connection Method')
+                  }}
                   style={selectStyle}
                 >
                   <option value="">Select...</option>
@@ -473,7 +535,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                 <input
                   type="text"
                   value={tieInData.cathodicProtection.wireColor}
+                  onFocus={() => handleNestedFieldFocus('cathodicProtection', 'wireColor', tieInData.cathodicProtection.wireColor)}
                   onChange={(e) => updateCP('wireColor', e.target.value)}
+                  onBlur={(e) => handleNestedFieldBlur('cathodicProtection', 'wireColor', e.target.value, 'Wire Color')}
                   placeholder="e.g. Red, Blue"
                   style={inputStyle}
                 />
@@ -482,7 +546,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                 <label style={labelStyle}>Test Station Installed</label>
                 <select
                   value={tieInData.cathodicProtection.testStationInstalled}
-                  onChange={(e) => updateCP('testStationInstalled', e.target.value)}
+                  onFocus={() => handleNestedFieldFocus('cathodicProtection', 'testStationInstalled', tieInData.cathodicProtection.testStationInstalled)}
+                  onChange={(e) => {
+                    updateCP('testStationInstalled', e.target.value)
+                    handleNestedFieldBlur('cathodicProtection', 'testStationInstalled', e.target.value, 'Test Station Installed')
+                  }}
                   style={selectStyle}
                 >
                   <option value="">Select...</option>
@@ -496,7 +564,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                   <input
                     type="text"
                     value={tieInData.cathodicProtection.testStationLocation}
+                    onFocus={() => handleNestedFieldFocus('cathodicProtection', 'testStationLocation', tieInData.cathodicProtection.testStationLocation)}
                     onChange={(e) => updateCP('testStationLocation', e.target.value)}
+                    onBlur={(e) => handleNestedFieldBlur('cathodicProtection', 'testStationLocation', e.target.value, 'Test Station Location')}
                     placeholder="e.g. KP 5+250, 3m N of CL"
                     style={inputStyle}
                   />
@@ -564,7 +634,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                     <label style={labelStyle}>Crossing Type</label>
                     <select
                       value={crossing.crossingType}
-                      onChange={(e) => updateThirdPartyCrossing(crossing.id, 'crossingType', e.target.value)}
+                      onFocus={() => handleEntryFieldFocus(crossing.id, 'crossingType', crossing.crossingType)}
+                      onChange={(e) => {
+                        updateThirdPartyCrossing(crossing.id, 'crossingType', e.target.value)
+                        handleEntryFieldBlur(crossing.id, 'crossingType', e.target.value, 'Crossing Type', getCrossingLabel(crossing, idx))
+                      }}
                       style={selectStyle}
                     >
                       <option value="">Select...</option>
@@ -582,7 +656,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                     <input
                       type="text"
                       value={crossing.facilityOwner}
+                      onFocus={() => handleEntryFieldFocus(crossing.id, 'facilityOwner', crossing.facilityOwner)}
                       onChange={(e) => updateThirdPartyCrossing(crossing.id, 'facilityOwner', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(crossing.id, 'facilityOwner', e.target.value, 'Facility Owner', getCrossingLabel(crossing, idx))}
                       placeholder="e.g. ATCO, Telus"
                       style={inputStyle}
                     />
@@ -592,7 +668,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                     <input
                       type="text"
                       value={crossing.facilityType}
+                      onFocus={() => handleEntryFieldFocus(crossing.id, 'facilityType', crossing.facilityType)}
                       onChange={(e) => updateThirdPartyCrossing(crossing.id, 'facilityType', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(crossing.id, 'facilityType', e.target.value, 'Facility Type', getCrossingLabel(crossing, idx))}
                       placeholder='e.g. 6" Gas, 48" fiber'
                       style={inputStyle}
                     />
@@ -603,7 +681,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                       type="number"
                       step="0.01"
                       value={crossing.ourPipeDepth}
+                      onFocus={() => handleEntryFieldFocus(crossing.id, 'ourPipeDepth', crossing.ourPipeDepth)}
                       onChange={(e) => updateThirdPartyCrossing(crossing.id, 'ourPipeDepth', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(crossing.id, 'ourPipeDepth', e.target.value, 'Our Pipe Depth', getCrossingLabel(crossing, idx))}
                       placeholder="e.g. 1.2"
                       style={inputStyle}
                     />
@@ -614,7 +694,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                       type="number"
                       step="0.01"
                       value={crossing.thirdPartyDepth}
+                      onFocus={() => handleEntryFieldFocus(crossing.id, 'thirdPartyDepth', crossing.thirdPartyDepth)}
                       onChange={(e) => updateThirdPartyCrossing(crossing.id, 'thirdPartyDepth', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(crossing.id, 'thirdPartyDepth', e.target.value, '3rd Party Depth', getCrossingLabel(crossing, idx))}
                       placeholder="e.g. 0.8"
                       style={inputStyle}
                     />
@@ -625,7 +707,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                       type="number"
                       step="0.01"
                       value={crossing.separationDistance}
+                      onFocus={() => handleEntryFieldFocus(crossing.id, 'separationDistance', crossing.separationDistance)}
                       onChange={(e) => updateThirdPartyCrossing(crossing.id, 'separationDistance', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(crossing.id, 'separationDistance', e.target.value, 'Separation Distance', getCrossingLabel(crossing, idx))}
                       placeholder="Measured"
                       style={inputStyle}
                     />
@@ -636,7 +720,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                       type="number"
                       step="0.01"
                       value={crossing.minimumRequired}
+                      onFocus={() => handleEntryFieldFocus(crossing.id, 'minimumRequired', crossing.minimumRequired)}
                       onChange={(e) => updateThirdPartyCrossing(crossing.id, 'minimumRequired', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(crossing.id, 'minimumRequired', e.target.value, 'Minimum Required', getCrossingLabel(crossing, idx))}
                       placeholder="Per regulation"
                       style={inputStyle}
                     />
@@ -645,7 +731,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                     <label style={labelStyle}>Compliant</label>
                     <select
                       value={crossing.compliant}
-                      onChange={(e) => updateThirdPartyCrossing(crossing.id, 'compliant', e.target.value)}
+                      onFocus={() => handleEntryFieldFocus(crossing.id, 'compliant', crossing.compliant)}
+                      onChange={(e) => {
+                        updateThirdPartyCrossing(crossing.id, 'compliant', e.target.value)
+                        handleEntryFieldBlur(crossing.id, 'compliant', e.target.value, 'Compliant', getCrossingLabel(crossing, idx))
+                      }}
                       style={{
                         ...selectStyle,
                         backgroundColor: crossing.compliant === 'Yes' ? '#d4edda' : 
@@ -662,7 +752,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                     <input
                       type="text"
                       value={crossing.surveyedBy}
+                      onFocus={() => handleEntryFieldFocus(crossing.id, 'surveyedBy', crossing.surveyedBy)}
                       onChange={(e) => updateThirdPartyCrossing(crossing.id, 'surveyedBy', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(crossing.id, 'surveyedBy', e.target.value, 'Surveyed By', getCrossingLabel(crossing, idx))}
                       placeholder="Surveyor name"
                       style={inputStyle}
                     />
@@ -672,7 +764,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                     <input
                       type="text"
                       value={crossing.comments}
+                      onFocus={() => handleEntryFieldFocus(crossing.id, 'comments', crossing.comments)}
                       onChange={(e) => updateThirdPartyCrossing(crossing.id, 'comments', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(crossing.id, 'comments', e.target.value, 'Comments', getCrossingLabel(crossing, idx))}
                       placeholder="Additional notes..."
                       style={inputStyle}
                     />
@@ -692,7 +786,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
             <label style={labelStyle}>Pipe Support Required</label>
             <select
               value={tieInData.pipeSupport.required}
-              onChange={(e) => updatePipeSupport('required', e.target.value)}
+              onFocus={() => handleNestedFieldFocus('pipeSupport', 'required', tieInData.pipeSupport.required)}
+              onChange={(e) => {
+                updatePipeSupport('required', e.target.value)
+                handleNestedFieldBlur('pipeSupport', 'required', e.target.value, 'Pipe Support Required')
+              }}
               style={selectStyle}
             >
               <option value="">Select...</option>
@@ -706,7 +804,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                 <label style={labelStyle}>Support Type</label>
                 <select
                   value={tieInData.pipeSupport.type}
-                  onChange={(e) => updatePipeSupport('type', e.target.value)}
+                  onFocus={() => handleNestedFieldFocus('pipeSupport', 'type', tieInData.pipeSupport.type)}
+                  onChange={(e) => {
+                    updatePipeSupport('type', e.target.value)
+                    handleNestedFieldBlur('pipeSupport', 'type', e.target.value, 'Support Type')
+                  }}
                   style={selectStyle}
                 >
                   <option value="">Select...</option>
@@ -723,7 +825,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                 <input
                   type="text"
                   value={tieInData.pipeSupport.location}
+                  onFocus={() => handleNestedFieldFocus('pipeSupport', 'location', tieInData.pipeSupport.location)}
                   onChange={(e) => updatePipeSupport('location', e.target.value)}
+                  onBlur={(e) => handleNestedFieldBlur('pipeSupport', 'location', e.target.value, 'Support Location')}
                   placeholder="e.g. Road Crossing KP 5+250"
                   style={inputStyle}
                 />
@@ -733,7 +837,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                 <input
                   type="text"
                   value={tieInData.pipeSupport.details}
+                  onFocus={() => handleNestedFieldFocus('pipeSupport', 'details', tieInData.pipeSupport.details)}
                   onChange={(e) => updatePipeSupport('details', e.target.value)}
+                  onBlur={(e) => handleNestedFieldBlur('pipeSupport', 'details', e.target.value, 'Support Details')}
                   placeholder="Support specifications, dimensions..."
                   style={inputStyle}
                 />
@@ -816,7 +922,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                       <label style={labelStyle}>Type</label>
                       <select
                         value={anode.anodeType}
-                        onChange={(e) => updateAnode(anode.id, 'anodeType', e.target.value)}
+                        onFocus={() => handleEntryFieldFocus(anode.id, 'anodeType', anode.anodeType)}
+                        onChange={(e) => {
+                          updateAnode(anode.id, 'anodeType', e.target.value)
+                          handleEntryFieldBlur(anode.id, 'anodeType', e.target.value, 'Anode Type', getAnodeLabel(anode, idx))
+                        }}
                         style={selectStyle}
                       >
                         <option value="">Select...</option>
@@ -830,7 +940,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                       <label style={labelStyle}>Material</label>
                       <select
                         value={anode.material}
-                        onChange={(e) => updateAnode(anode.id, 'material', e.target.value)}
+                        onFocus={() => handleEntryFieldFocus(anode.id, 'material', anode.material)}
+                        onChange={(e) => {
+                          updateAnode(anode.id, 'material', e.target.value)
+                          handleEntryFieldBlur(anode.id, 'material', e.target.value, 'Material', getAnodeLabel(anode, idx))
+                        }}
                         style={selectStyle}
                       >
                         <option value="">Select...</option>
@@ -844,7 +958,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                       <input
                         type="text"
                         value={anode.kp}
+                        onFocus={() => handleEntryFieldFocus(anode.id, 'kp', anode.kp)}
                         onChange={(e) => updateAnode(anode.id, 'kp', e.target.value)}
+                        onBlur={(e) => handleEntryFieldBlur(anode.id, 'kp', e.target.value, 'Location KP', getAnodeLabel(anode, idx))}
                         placeholder="e.g. 5+250"
                         style={inputStyle}
                       />
@@ -855,7 +971,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                         type="number"
                         step="0.1"
                         value={anode.depth}
+                        onFocus={() => handleEntryFieldFocus(anode.id, 'depth', anode.depth)}
                         onChange={(e) => updateAnode(anode.id, 'depth', e.target.value)}
+                        onBlur={(e) => handleEntryFieldBlur(anode.id, 'depth', e.target.value, 'Depth', getAnodeLabel(anode, idx))}
                         placeholder="e.g. 2.0"
                         style={inputStyle}
                       />
@@ -865,7 +983,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                       <input
                         type="number"
                         value={anode.weight}
+                        onFocus={() => handleEntryFieldFocus(anode.id, 'weight', anode.weight)}
                         onChange={(e) => updateAnode(anode.id, 'weight', e.target.value)}
+                        onBlur={(e) => handleEntryFieldBlur(anode.id, 'weight', e.target.value, 'Weight', getAnodeLabel(anode, idx))}
                         placeholder="e.g. 17"
                         style={inputStyle}
                       />
@@ -875,7 +995,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                       <input
                         type="number"
                         value={anode.quantity}
+                        onFocus={() => handleEntryFieldFocus(anode.id, 'quantity', anode.quantity)}
                         onChange={(e) => updateAnode(anode.id, 'quantity', e.target.value)}
+                        onBlur={(e) => handleEntryFieldBlur(anode.id, 'quantity', e.target.value, 'Quantity', getAnodeLabel(anode, idx))}
                         placeholder="e.g. 1"
                         style={inputStyle}
                       />
@@ -885,7 +1007,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                       <input
                         type="text"
                         value={anode.installedBy}
+                        onFocus={() => handleEntryFieldFocus(anode.id, 'installedBy', anode.installedBy)}
                         onChange={(e) => updateAnode(anode.id, 'installedBy', e.target.value)}
+                        onBlur={(e) => handleEntryFieldBlur(anode.id, 'installedBy', e.target.value, 'Installed By', getAnodeLabel(anode, idx))}
                         placeholder="Contractor name"
                         style={inputStyle}
                       />
@@ -894,7 +1018,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                       <label style={labelStyle}>Test Lead Installed</label>
                       <select
                         value={anode.testLeadInstalled}
-                        onChange={(e) => updateAnode(anode.id, 'testLeadInstalled', e.target.value)}
+                        onFocus={() => handleEntryFieldFocus(anode.id, 'testLeadInstalled', anode.testLeadInstalled)}
+                        onChange={(e) => {
+                          updateAnode(anode.id, 'testLeadInstalled', e.target.value)
+                          handleEntryFieldBlur(anode.id, 'testLeadInstalled', e.target.value, 'Test Lead Installed', getAnodeLabel(anode, idx))
+                        }}
                         style={selectStyle}
                       >
                         <option value="">Select...</option>
@@ -907,7 +1035,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                       <input
                         type="text"
                         value={anode.comments}
+                        onFocus={() => handleEntryFieldFocus(anode.id, 'comments', anode.comments)}
                         onChange={(e) => updateAnode(anode.id, 'comments', e.target.value)}
+                        onBlur={(e) => handleEntryFieldBlur(anode.id, 'comments', e.target.value, 'Comments', getAnodeLabel(anode, idx))}
                         placeholder="Additional notes..."
                         style={inputStyle}
                       />
@@ -925,7 +1055,9 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
         <div style={sectionHeaderStyle}>📝 COMMENTS</div>
         <textarea
           value={tieInData.comments}
+          onFocus={() => handleFieldFocus('comments', tieInData.comments)}
           onChange={(e) => updateField('comments', e.target.value)}
+          onBlur={(e) => handleFieldBlur('comments', e.target.value, 'Comments')}
           placeholder="Additional comments, observations, or notes..."
           style={{
             width: '100%',
