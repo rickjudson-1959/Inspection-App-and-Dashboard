@@ -1,6 +1,23 @@
-import React from 'react'
+import React, { useRef } from 'react'
+import { useActivityAudit } from './useActivityAudit'
 
-function PilingLog({ data, onChange }) {
+function PilingLog({ data, onChange, logId, reportId }) {
+  // Audit trail hook
+  const { 
+    initializeOriginalValues,
+    initializeEntryValues,
+    logFieldChange,
+    logNestedFieldChange,
+    logEntryFieldChange,
+    logEntryAdd,
+    logEntryDelete
+  } = useActivityAudit(logId || reportId, 'PilingLog')
+  
+  // Refs for tracking original values
+  const originalValuesRef = useRef({})
+  const nestedValuesRef = useRef({})
+  const entryValuesRef = useRef({})
+
   // Default structure
   const defaultData = {
     reportDate: '',
@@ -49,6 +66,34 @@ function PilingLog({ data, onChange }) {
     locations: data?.locations || []
   }
 
+  // Audit-aware field handlers
+  const handleFieldFocus = (fieldName, currentValue) => {
+    initializeOriginalValues(originalValuesRef, fieldName, currentValue)
+  }
+
+  const handleFieldBlur = (fieldName, newValue, displayName) => {
+    logFieldChange(originalValuesRef, fieldName, newValue, displayName)
+  }
+
+  const handleNestedFieldFocus = (parentField, fieldName, currentValue) => {
+    const key = `${parentField}.${fieldName}`
+    if (!nestedValuesRef.current[key]) {
+      nestedValuesRef.current[key] = currentValue
+    }
+  }
+
+  const handleNestedFieldBlur = (parentField, fieldName, newValue, displayName) => {
+    logNestedFieldChange(nestedValuesRef, parentField, fieldName, newValue, displayName)
+  }
+
+  const handleEntryFieldFocus = (entryId, fieldName, currentValue) => {
+    initializeEntryValues(entryValuesRef, entryId, fieldName, currentValue)
+  }
+
+  const handleEntryFieldBlur = (entryId, fieldName, newValue, displayName, entryLabel) => {
+    logEntryFieldChange(entryValuesRef, entryId, fieldName, newValue, displayName, entryLabel)
+  }
+
   const updateField = (field, value) => {
     const updated = { ...pilingData, [field]: value }
     
@@ -67,13 +112,36 @@ function PilingLog({ data, onChange }) {
   }
 
   const updateVerification = (field, value) => {
-    onChange({
-      ...pilingData,
-      verifications: {
-        ...pilingData.verifications,
-        [field]: value
-      }
-    })
+    // Log the verification change
+    const displayNames = {
+      materialTraceability: 'Material Traceability',
+      locationPerDrawings: 'Location Per Drawings',
+      clearOfFacilities: 'Clear of Facilities',
+      plumbAndVertical: 'Plumb and Vertical',
+      spliceWelding: 'Splice Welding',
+      qcDocumentation: 'QC Documentation'
+    }
+    
+    const oldValue = pilingData.verifications[field]
+    if (oldValue !== value) {
+      handleNestedFieldFocus('verifications', field, oldValue)
+      onChange({
+        ...pilingData,
+        verifications: {
+          ...pilingData.verifications,
+          [field]: value
+        }
+      })
+      handleNestedFieldBlur('verifications', field, value, displayNames[field] || field)
+    } else {
+      onChange({
+        ...pilingData,
+        verifications: {
+          ...pilingData.verifications,
+          [field]: value
+        }
+      })
+    }
   }
 
   const addLocation = () => {
@@ -87,6 +155,7 @@ function PilingLog({ data, onChange }) {
       pilesToDate: ''
     }
     onChange({ ...pilingData, locations: [...pilingData.locations, newLocation] })
+    logEntryAdd('Piling Location', `Entry #${pilingData.locations.length + 1}`)
   }
 
   const updateLocation = (id, field, value) => {
@@ -107,7 +176,17 @@ function PilingLog({ data, onChange }) {
   }
 
   const removeLocation = (id) => {
+    const locationToRemove = pilingData.locations.find(l => l.id === id)
+    const locationIndex = pilingData.locations.findIndex(l => l.id === id)
+    const locationLabel = locationToRemove?.location || `Entry #${locationIndex + 1}`
+    
     onChange({ ...pilingData, locations: pilingData.locations.filter(l => l.id !== id) })
+    logEntryDelete('Piling Location', locationLabel)
+  }
+
+  // Get entry label for audit trail
+  const getEntryLabel = (location, index) => {
+    return location.location || `Location #${index + 1}`
   }
 
   // Styles
@@ -190,20 +269,6 @@ function PilingLog({ data, onChange }) {
     fontWeight: 'bold'
   }
 
-  const radioGroupStyle = {
-    display: 'flex',
-    gap: '15px',
-    justifyContent: 'center'
-  }
-
-  const radioLabelStyle = {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-    fontSize: '13px',
-    cursor: 'pointer'
-  }
-
   const verificationItems = [
     { key: 'materialTraceability', label: 'Pile material traceability has been properly recorded and filed' },
     { key: 'locationPerDrawings', label: 'Pile location in accordance with IFC drawings' },
@@ -224,7 +289,9 @@ function PilingLog({ data, onChange }) {
             <input
               type="date"
               value={pilingData.reportDate}
+              onFocus={() => handleFieldFocus('reportDate', pilingData.reportDate)}
               onChange={(e) => updateField('reportDate', e.target.value)}
+              onBlur={(e) => handleFieldBlur('reportDate', e.target.value, 'Report Date')}
               style={inputStyle}
             />
           </div>
@@ -233,7 +300,9 @@ function PilingLog({ data, onChange }) {
             <input
               type="text"
               value={pilingData.contractor}
+              onFocus={() => handleFieldFocus('contractor', pilingData.contractor)}
               onChange={(e) => updateField('contractor', e.target.value)}
+              onBlur={(e) => handleFieldBlur('contractor', e.target.value, 'Contractor')}
               placeholder="Main contractor"
               style={inputStyle}
             />
@@ -243,7 +312,9 @@ function PilingLog({ data, onChange }) {
             <input
               type="text"
               value={pilingData.foreman}
+              onFocus={() => handleFieldFocus('foreman', pilingData.foreman)}
               onChange={(e) => updateField('foreman', e.target.value)}
+              onBlur={(e) => handleFieldBlur('foreman', e.target.value, 'Foreman')}
               placeholder="Foreman name"
               style={inputStyle}
             />
@@ -253,7 +324,9 @@ function PilingLog({ data, onChange }) {
             <input
               type="text"
               value={pilingData.pilingContractor}
+              onFocus={() => handleFieldFocus('pilingContractor', pilingData.pilingContractor)}
               onChange={(e) => updateField('pilingContractor', e.target.value)}
+              onBlur={(e) => handleFieldBlur('pilingContractor', e.target.value, 'Piling Contractor')}
               placeholder="Piling contractor"
               style={inputStyle}
             />
@@ -263,7 +336,9 @@ function PilingLog({ data, onChange }) {
             <input
               type="text"
               value={pilingData.pileDriverNumber}
+              onFocus={() => handleFieldFocus('pileDriverNumber', pilingData.pileDriverNumber)}
               onChange={(e) => updateField('pileDriverNumber', e.target.value)}
+              onBlur={(e) => handleFieldBlur('pileDriverNumber', e.target.value, 'Pile Driver Number')}
               placeholder="Driver number"
               style={inputStyle}
             />
@@ -309,13 +384,15 @@ function PilingLog({ data, onChange }) {
               </tr>
             </thead>
             <tbody>
-              {pilingData.locations.map(loc => (
+              {pilingData.locations.map((loc, index) => (
                 <tr key={loc.id}>
                   <td style={tdStyle}>
                     <input
                       type="text"
                       value={loc.location}
+                      onFocus={() => handleEntryFieldFocus(loc.id, 'location', loc.location)}
                       onChange={(e) => updateLocation(loc.id, 'location', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(loc.id, 'location', e.target.value, 'Location', getEntryLabel(loc, index))}
                       style={tableInputStyle}
                       placeholder="Location"
                     />
@@ -324,7 +401,9 @@ function PilingLog({ data, onChange }) {
                     <input
                       type="text"
                       value={loc.drawingNumber}
+                      onFocus={() => handleEntryFieldFocus(loc.id, 'drawingNumber', loc.drawingNumber)}
                       onChange={(e) => updateLocation(loc.id, 'drawingNumber', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(loc.id, 'drawingNumber', e.target.value, 'Drawing Number', getEntryLabel(loc, index))}
                       style={tableInputStyle}
                       placeholder="Drawing #"
                     />
@@ -333,7 +412,9 @@ function PilingLog({ data, onChange }) {
                     <input
                       type="number"
                       value={loc.pilesRequired}
+                      onFocus={() => handleEntryFieldFocus(loc.id, 'pilesRequired', loc.pilesRequired)}
                       onChange={(e) => updateLocation(loc.id, 'pilesRequired', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(loc.id, 'pilesRequired', e.target.value, 'Piles Required', getEntryLabel(loc, index))}
                       style={tableInputStyle}
                       placeholder="0"
                     />
@@ -342,7 +423,9 @@ function PilingLog({ data, onChange }) {
                     <input
                       type="number"
                       value={loc.pilesToday}
+                      onFocus={() => handleEntryFieldFocus(loc.id, 'pilesToday', loc.pilesToday)}
                       onChange={(e) => updateLocation(loc.id, 'pilesToday', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(loc.id, 'pilesToday', e.target.value, 'Piles Today', getEntryLabel(loc, index))}
                       style={tableInputStyle}
                       placeholder="0"
                     />
@@ -351,7 +434,9 @@ function PilingLog({ data, onChange }) {
                     <input
                       type="number"
                       value={loc.pilesPrevious}
+                      onFocus={() => handleEntryFieldFocus(loc.id, 'pilesPrevious', loc.pilesPrevious)}
                       onChange={(e) => updateLocation(loc.id, 'pilesPrevious', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(loc.id, 'pilesPrevious', e.target.value, 'Piles Previous', getEntryLabel(loc, index))}
                       style={tableInputStyle}
                       placeholder="0"
                     />
@@ -406,7 +491,9 @@ function PilingLog({ data, onChange }) {
             <input
               type="text"
               value={pilingData.pileNo}
+              onFocus={() => handleFieldFocus('pileNo', pilingData.pileNo)}
               onChange={(e) => updateField('pileNo', e.target.value)}
+              onBlur={(e) => handleFieldBlur('pileNo', e.target.value, 'Pile No.')}
               placeholder="Pile number"
               style={inputStyle}
             />
@@ -416,7 +503,9 @@ function PilingLog({ data, onChange }) {
             <input
               type="text"
               value={pilingData.pileTypeSize}
+              onFocus={() => handleFieldFocus('pileTypeSize', pilingData.pileTypeSize)}
               onChange={(e) => updateField('pileTypeSize', e.target.value)}
+              onBlur={(e) => handleFieldBlur('pileTypeSize', e.target.value, 'Pile Type/Size')}
               placeholder="Type and size"
               style={inputStyle}
             />
@@ -426,7 +515,9 @@ function PilingLog({ data, onChange }) {
             <input
               type="number"
               value={pilingData.noOfSplices}
+              onFocus={() => handleFieldFocus('noOfSplices', pilingData.noOfSplices)}
               onChange={(e) => updateField('noOfSplices', e.target.value)}
+              onBlur={(e) => handleFieldBlur('noOfSplices', e.target.value, 'No. of Splices')}
               placeholder="0"
               style={inputStyle}
             />
@@ -436,7 +527,9 @@ function PilingLog({ data, onChange }) {
             <input
               type="number"
               value={pilingData.finalLength}
+              onFocus={() => handleFieldFocus('finalLength', pilingData.finalLength)}
               onChange={(e) => updateField('finalLength', e.target.value)}
+              onBlur={(e) => handleFieldBlur('finalLength', e.target.value, 'Final Length')}
               placeholder="Length"
               style={inputStyle}
             />
@@ -446,7 +539,9 @@ function PilingLog({ data, onChange }) {
             <input
               type="text"
               value={pilingData.hammerType}
+              onFocus={() => handleFieldFocus('hammerType', pilingData.hammerType)}
               onChange={(e) => updateField('hammerType', e.target.value)}
+              onBlur={(e) => handleFieldBlur('hammerType', e.target.value, 'Hammer Type')}
               placeholder="Hammer type"
               style={inputStyle}
             />
@@ -456,7 +551,9 @@ function PilingLog({ data, onChange }) {
             <input
               type="number"
               value={pilingData.hammerWeightKg}
+              onFocus={() => handleFieldFocus('hammerWeightKg', pilingData.hammerWeightKg)}
               onChange={(e) => updateField('hammerWeightKg', e.target.value)}
+              onBlur={(e) => handleFieldBlur('hammerWeightKg', e.target.value, 'Hammer Weight')}
               placeholder="kg"
               style={inputStyle}
             />
@@ -467,7 +564,9 @@ function PilingLog({ data, onChange }) {
               type="number"
               step="0.01"
               value={pilingData.dropDistanceM}
+              onFocus={() => handleFieldFocus('dropDistanceM', pilingData.dropDistanceM)}
               onChange={(e) => updateField('dropDistanceM', e.target.value)}
+              onBlur={(e) => handleFieldBlur('dropDistanceM', e.target.value, 'Drop Distance')}
               placeholder="m"
               style={inputStyle}
             />
@@ -487,7 +586,9 @@ function PilingLog({ data, onChange }) {
             <input
               type="text"
               value={pilingData.refusalCriteria}
+              onFocus={() => handleFieldFocus('refusalCriteria', pilingData.refusalCriteria)}
               onChange={(e) => updateField('refusalCriteria', e.target.value)}
+              onBlur={(e) => handleFieldBlur('refusalCriteria', e.target.value, 'Refusal Criteria')}
               placeholder="Criteria"
               style={inputStyle}
             />
@@ -497,7 +598,9 @@ function PilingLog({ data, onChange }) {
             <input
               type="text"
               value={pilingData.gradeElevation}
+              onFocus={() => handleFieldFocus('gradeElevation', pilingData.gradeElevation)}
               onChange={(e) => updateField('gradeElevation', e.target.value)}
+              onBlur={(e) => handleFieldBlur('gradeElevation', e.target.value, 'Grade Elevation')}
               placeholder="Elevation"
               style={inputStyle}
             />
@@ -507,7 +610,9 @@ function PilingLog({ data, onChange }) {
             <input
               type="text"
               value={pilingData.cutOffElevation}
+              onFocus={() => handleFieldFocus('cutOffElevation', pilingData.cutOffElevation)}
               onChange={(e) => updateField('cutOffElevation', e.target.value)}
+              onBlur={(e) => handleFieldBlur('cutOffElevation', e.target.value, 'Cut Off Elevation')}
               placeholder="Elevation"
               style={inputStyle}
             />
@@ -572,7 +677,9 @@ function PilingLog({ data, onChange }) {
         <div style={sectionHeaderStyle}>📝 COMMENTS</div>
         <textarea
           value={pilingData.comments}
+          onFocus={() => handleFieldFocus('comments', pilingData.comments)}
           onChange={(e) => updateField('comments', e.target.value)}
+          onBlur={(e) => handleFieldBlur('comments', e.target.value, 'Comments')}
           placeholder="Additional comments, observations, or notes..."
           style={{
             width: '100%',
