@@ -1,7 +1,22 @@
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
+import { useActivityAudit } from './useActivityAudit'
 
-function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday }) {
+function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday, logId, reportId }) {
   const [showRockTrench, setShowRockTrench] = useState(data?.rockTrench?.enabled || false)
+
+  // Audit trail hook
+  const { 
+    initializeOriginalValues,
+    initializeEntryValues,
+    logFieldChange,
+    logEntryFieldChange,
+    logEntryAdd,
+    logEntryDelete
+  } = useActivityAudit(logId || reportId, 'DitchLog')
+  
+  // Refs for tracking original values
+  const originalValuesRef = useRef({})
+  const entryValuesRef = useRef({})
 
   // Default structure
   const defaultData = {
@@ -59,6 +74,23 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
     }
   }
 
+  // Audit-aware field handlers
+  const handleFieldFocus = (fieldName, currentValue) => {
+    initializeOriginalValues(originalValuesRef, fieldName, currentValue)
+  }
+
+  const handleFieldBlur = (fieldName, newValue, displayName) => {
+    logFieldChange(originalValuesRef, fieldName, newValue, displayName)
+  }
+
+  const handleEntryFieldFocus = (entryId, fieldName, currentValue) => {
+    initializeEntryValues(entryValuesRef, entryId, fieldName, currentValue)
+  }
+
+  const handleEntryFieldBlur = (entryId, fieldName, newValue, displayName, entryLabel) => {
+    logEntryFieldChange(entryValuesRef, entryId, fieldName, newValue, displayName, entryLabel)
+  }
+
   const updateField = (field, value) => {
     onChange({ ...ditchData, [field]: value })
   }
@@ -92,6 +124,7 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
         entries: [...ditchData.rockTrench.entries, newEntry] 
       } 
     })
+    logEntryAdd('Rock Trench Section', `Section #${ditchData.rockTrench.entries.length + 1}`)
   }
 
   const updateRockTrenchEntry = (id, field, value) => {
@@ -118,6 +151,10 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
   }
 
   const removeRockTrenchEntry = (id) => {
+    const entryToRemove = ditchData.rockTrench.entries.find(e => e.id === id)
+    const entryIndex = ditchData.rockTrench.entries.findIndex(e => e.id === id)
+    const entryLabel = entryToRemove?.startKP ? `${entryToRemove.startKP} - ${entryToRemove.endKP}` : `Section #${entryIndex + 1}`
+    
     onChange({ 
       ...ditchData, 
       rockTrench: { 
@@ -125,6 +162,12 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
         entries: ditchData.rockTrench.entries.filter(e => e.id !== id) 
       } 
     })
+    logEntryDelete('Rock Trench Section', entryLabel)
+  }
+
+  // Get entry label for audit trail
+  const getEntryLabel = (entry, index) => {
+    return entry.startKP ? `${entry.startKP} - ${entry.endKP}` : `Section #${index + 1}`
   }
 
   // Styles
@@ -173,12 +216,6 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
     cursor: 'pointer'
   }
 
-  const readOnlyStyle = {
-    ...inputStyle,
-    backgroundColor: '#e9ecef',
-    cursor: 'not-allowed'
-  }
-
   return (
     <div style={{ marginTop: '15px' }}>
       {/* INHERITED INFO BAR */}
@@ -220,7 +257,11 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
             <label style={labelStyle}>Ditching Equipment</label>
             <select
               value={ditchData.ditchingEquipment}
-              onChange={(e) => updateField('ditchingEquipment', e.target.value)}
+              onFocus={() => handleFieldFocus('ditchingEquipment', ditchData.ditchingEquipment)}
+              onChange={(e) => {
+                updateField('ditchingEquipment', e.target.value)
+                handleFieldBlur('ditchingEquipment', e.target.value, 'Ditching Equipment')
+              }}
               style={selectStyle}
             >
               <option value="">Select...</option>
@@ -237,7 +278,9 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
               <input
                 type="text"
                 value={ditchData.equipmentOther}
+                onFocus={() => handleFieldFocus('equipmentOther', ditchData.equipmentOther)}
                 onChange={(e) => updateField('equipmentOther', e.target.value)}
+                onBlur={(e) => handleFieldBlur('equipmentOther', e.target.value, 'Other Equipment')}
                 placeholder="Specify equipment"
                 style={inputStyle}
               />
@@ -256,7 +299,9 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
               type="number"
               step="0.01"
               value={ditchData.specifiedDepth}
+              onFocus={() => handleFieldFocus('specifiedDepth', ditchData.specifiedDepth)}
               onChange={(e) => updateField('specifiedDepth', e.target.value)}
+              onBlur={(e) => handleFieldBlur('specifiedDepth', e.target.value, 'Specified Depth')}
               placeholder="Per drawings"
               style={inputStyle}
             />
@@ -267,7 +312,9 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
               type="number"
               step="0.01"
               value={ditchData.actualDepth}
+              onFocus={() => handleFieldFocus('actualDepth', ditchData.actualDepth)}
               onChange={(e) => updateField('actualDepth', e.target.value)}
+              onBlur={(e) => handleFieldBlur('actualDepth', e.target.value, 'Actual Depth')}
               placeholder="As measured"
               style={inputStyle}
             />
@@ -278,7 +325,9 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
               type="number"
               step="0.01"
               value={ditchData.specifiedWidth}
+              onFocus={() => handleFieldFocus('specifiedWidth', ditchData.specifiedWidth)}
               onChange={(e) => updateField('specifiedWidth', e.target.value)}
+              onBlur={(e) => handleFieldBlur('specifiedWidth', e.target.value, 'Specified Width')}
               placeholder="Per drawings"
               style={inputStyle}
             />
@@ -289,7 +338,9 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
               type="number"
               step="0.01"
               value={ditchData.actualWidth}
+              onFocus={() => handleFieldFocus('actualWidth', ditchData.actualWidth)}
               onChange={(e) => updateField('actualWidth', e.target.value)}
+              onBlur={(e) => handleFieldBlur('actualWidth', e.target.value, 'Actual Width')}
               placeholder="As measured"
               style={inputStyle}
             />
@@ -306,7 +357,11 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
               <label style={labelStyle}>Minimum Depth Met?</label>
               <select
                 value={ditchData.minimumDepthMet}
-                onChange={(e) => updateField('minimumDepthMet', e.target.value)}
+                onFocus={() => handleFieldFocus('minimumDepthMet', ditchData.minimumDepthMet)}
+                onChange={(e) => {
+                  updateField('minimumDepthMet', e.target.value)
+                  handleFieldBlur('minimumDepthMet', e.target.value, 'Minimum Depth Met')
+                }}
                 style={{
                   ...selectStyle,
                   backgroundColor: ditchData.minimumDepthMet === 'Yes' ? '#d4edda' : 
@@ -332,8 +387,10 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                   <label style={labelStyle}>Reason Minimum Depth Not Met *</label>
                   <textarea
                     value={ditchData.depthNotMetReason}
+                    onFocus={() => handleFieldFocus('depthNotMetReason', ditchData.depthNotMetReason)}
                     onChange={(e) => updateField('depthNotMetReason', e.target.value)}
-                    placeholder="Explain why minimum depth could not be achieved (e.g. rock encountered, high water table, existing utilities, permit restrictions)..."
+                    onBlur={(e) => handleFieldBlur('depthNotMetReason', e.target.value, 'Depth Not Met Reason')}
+                    placeholder="Explain why minimum depth could not be achieved..."
                     style={{
                       ...inputStyle,
                       minHeight: '80px',
@@ -346,7 +403,9 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                   <input
                     type="text"
                     value={ditchData.depthNotMetSignoff}
+                    onFocus={() => handleFieldFocus('depthNotMetSignoff', ditchData.depthNotMetSignoff)}
                     onChange={(e) => updateField('depthNotMetSignoff', e.target.value)}
+                    onBlur={(e) => handleFieldBlur('depthNotMetSignoff', e.target.value, 'Depth Signoff Name')}
                     placeholder="Chief Inspector / CM"
                     style={inputStyle}
                   />
@@ -355,7 +414,11 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                   <label style={labelStyle}>Role *</label>
                   <select
                     value={ditchData.depthNotMetSignoffRole}
-                    onChange={(e) => updateField('depthNotMetSignoffRole', e.target.value)}
+                    onFocus={() => handleFieldFocus('depthNotMetSignoffRole', ditchData.depthNotMetSignoffRole)}
+                    onChange={(e) => {
+                      updateField('depthNotMetSignoffRole', e.target.value)
+                      handleFieldBlur('depthNotMetSignoffRole', e.target.value, 'Depth Signoff Role')
+                    }}
                     style={selectStyle}
                   >
                     <option value="">Select...</option>
@@ -370,7 +433,9 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                   <input
                     type="date"
                     value={ditchData.depthNotMetDate}
+                    onFocus={() => handleFieldFocus('depthNotMetDate', ditchData.depthNotMetDate)}
                     onChange={(e) => updateField('depthNotMetDate', e.target.value)}
+                    onBlur={(e) => handleFieldBlur('depthNotMetDate', e.target.value, 'Depth Signoff Date')}
                     style={inputStyle}
                   />
                 </div>
@@ -454,7 +519,9 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                       <input
                         type="text"
                         value={entry.startKP}
+                        onFocus={() => handleEntryFieldFocus(entry.id, 'startKP', entry.startKP)}
                         onChange={(e) => updateRockTrenchEntry(entry.id, 'startKP', e.target.value)}
+                        onBlur={(e) => handleEntryFieldBlur(entry.id, 'startKP', e.target.value, 'Start KP', getEntryLabel(entry, idx))}
                         placeholder="e.g. 5+200"
                         style={inputStyle}
                       />
@@ -464,7 +531,9 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                       <input
                         type="text"
                         value={entry.endKP}
+                        onFocus={() => handleEntryFieldFocus(entry.id, 'endKP', entry.endKP)}
                         onChange={(e) => updateRockTrenchEntry(entry.id, 'endKP', e.target.value)}
+                        onBlur={(e) => handleEntryFieldBlur(entry.id, 'endKP', e.target.value, 'End KP', getEntryLabel(entry, idx))}
                         placeholder="e.g. 5+350"
                         style={inputStyle}
                       />
@@ -483,7 +552,11 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                       <label style={labelStyle}>Rock Type</label>
                       <select
                         value={entry.rockType}
-                        onChange={(e) => updateRockTrenchEntry(entry.id, 'rockType', e.target.value)}
+                        onFocus={() => handleEntryFieldFocus(entry.id, 'rockType', entry.rockType)}
+                        onChange={(e) => {
+                          updateRockTrenchEntry(entry.id, 'rockType', e.target.value)
+                          handleEntryFieldBlur(entry.id, 'rockType', e.target.value, 'Rock Type', getEntryLabel(entry, idx))
+                        }}
                         style={selectStyle}
                       >
                         <option value="">Select...</option>
@@ -500,7 +573,11 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                       <label style={labelStyle}>Equipment Used</label>
                       <select
                         value={entry.equipment}
-                        onChange={(e) => updateRockTrenchEntry(entry.id, 'equipment', e.target.value)}
+                        onFocus={() => handleEntryFieldFocus(entry.id, 'equipment', entry.equipment)}
+                        onChange={(e) => {
+                          updateRockTrenchEntry(entry.id, 'equipment', e.target.value)
+                          handleEntryFieldBlur(entry.id, 'equipment', e.target.value, 'Equipment', getEntryLabel(entry, idx))
+                        }}
                         style={selectStyle}
                       >
                         <option value="">Select...</option>
@@ -519,7 +596,9 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                         <input
                           type="text"
                           value={entry.equipmentOther}
+                          onFocus={() => handleEntryFieldFocus(entry.id, 'equipmentOther', entry.equipmentOther)}
                           onChange={(e) => updateRockTrenchEntry(entry.id, 'equipmentOther', e.target.value)}
+                          onBlur={(e) => handleEntryFieldBlur(entry.id, 'equipmentOther', e.target.value, 'Other Equipment', getEntryLabel(entry, idx))}
                           placeholder="Specify equipment"
                           style={inputStyle}
                         />
@@ -531,7 +610,9 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                         type="number"
                         step="0.01"
                         value={entry.depthAchieved}
+                        onFocus={() => handleEntryFieldFocus(entry.id, 'depthAchieved', entry.depthAchieved)}
                         onChange={(e) => updateRockTrenchEntry(entry.id, 'depthAchieved', e.target.value)}
+                        onBlur={(e) => handleEntryFieldBlur(entry.id, 'depthAchieved', e.target.value, 'Depth Achieved', getEntryLabel(entry, idx))}
                         placeholder="Actual depth"
                         style={inputStyle}
                       />
@@ -541,7 +622,9 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                       <input
                         type="text"
                         value={entry.comments}
+                        onFocus={() => handleEntryFieldFocus(entry.id, 'comments', entry.comments)}
                         onChange={(e) => updateRockTrenchEntry(entry.id, 'comments', e.target.value)}
+                        onBlur={(e) => handleEntryFieldBlur(entry.id, 'comments', e.target.value, 'Comments', getEntryLabel(entry, idx))}
                         placeholder="Production rate, challenges, etc."
                         style={inputStyle}
                       />
@@ -571,7 +654,11 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
             <label style={labelStyle}>Extra Depth Required?</label>
             <select
               value={ditchData.extraDepthRequired}
-              onChange={(e) => updateField('extraDepthRequired', e.target.value)}
+              onFocus={() => handleFieldFocus('extraDepthRequired', ditchData.extraDepthRequired)}
+              onChange={(e) => {
+                updateField('extraDepthRequired', e.target.value)
+                handleFieldBlur('extraDepthRequired', e.target.value, 'Extra Depth Required')
+              }}
               style={selectStyle}
             >
               <option value="">Select...</option>
@@ -587,7 +674,9 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                   type="number"
                   step="0.01"
                   value={ditchData.extraDepthAmount}
+                  onFocus={() => handleFieldFocus('extraDepthAmount', ditchData.extraDepthAmount)}
                   onChange={(e) => updateField('extraDepthAmount', e.target.value)}
+                  onBlur={(e) => handleFieldBlur('extraDepthAmount', e.target.value, 'Extra Depth Amount')}
                   placeholder="Additional depth"
                   style={inputStyle}
                 />
@@ -596,7 +685,11 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                 <label style={labelStyle}>In Drawings?</label>
                 <select
                   value={ditchData.extraDepthInDrawings}
-                  onChange={(e) => updateField('extraDepthInDrawings', e.target.value)}
+                  onFocus={() => handleFieldFocus('extraDepthInDrawings', ditchData.extraDepthInDrawings)}
+                  onChange={(e) => {
+                    updateField('extraDepthInDrawings', e.target.value)
+                    handleFieldBlur('extraDepthInDrawings', e.target.value, 'Extra Depth In Drawings')
+                  }}
                   style={{
                     ...selectStyle,
                     backgroundColor: ditchData.extraDepthInDrawings === 'Yes' ? '#d4edda' : 
@@ -612,8 +705,10 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                 <label style={labelStyle}>Reason for Extra Depth *</label>
                 <textarea
                   value={ditchData.extraDepthReason}
+                  onFocus={() => handleFieldFocus('extraDepthReason', ditchData.extraDepthReason)}
                   onChange={(e) => updateField('extraDepthReason', e.target.value)}
-                  placeholder="Explain why extra depth was required (e.g. crossing clearance, future development, client request, foreign line clearance, regulatory requirement)..."
+                  onBlur={(e) => handleFieldBlur('extraDepthReason', e.target.value, 'Extra Depth Reason')}
+                  placeholder="Explain why extra depth was required..."
                   style={{
                     ...inputStyle,
                     minHeight: '60px',
@@ -634,7 +729,11 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
             <label style={labelStyle}>Soil Conditions</label>
             <select
               value={ditchData.soilConditions}
-              onChange={(e) => updateField('soilConditions', e.target.value)}
+              onFocus={() => handleFieldFocus('soilConditions', ditchData.soilConditions)}
+              onChange={(e) => {
+                updateField('soilConditions', e.target.value)
+                handleFieldBlur('soilConditions', e.target.value, 'Soil Conditions')
+              }}
               style={selectStyle}
             >
               <option value="">Select...</option>
@@ -651,7 +750,11 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
             <label style={labelStyle}>Groundwater Encountered?</label>
             <select
               value={ditchData.groundwaterEncountered}
-              onChange={(e) => updateField('groundwaterEncountered', e.target.value)}
+              onFocus={() => handleFieldFocus('groundwaterEncountered', ditchData.groundwaterEncountered)}
+              onChange={(e) => {
+                updateField('groundwaterEncountered', e.target.value)
+                handleFieldBlur('groundwaterEncountered', e.target.value, 'Groundwater Encountered')
+              }}
               style={selectStyle}
             >
               <option value="">Select...</option>
@@ -667,7 +770,9 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                   type="number"
                   step="0.1"
                   value={ditchData.groundwaterDepth}
+                  onFocus={() => handleFieldFocus('groundwaterDepth', ditchData.groundwaterDepth)}
                   onChange={(e) => updateField('groundwaterDepth', e.target.value)}
+                  onBlur={(e) => handleFieldBlur('groundwaterDepth', e.target.value, 'Groundwater Depth')}
                   placeholder="Depth to water"
                   style={inputStyle}
                 />
@@ -676,7 +781,11 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                 <label style={labelStyle}>Dewatering Required?</label>
                 <select
                   value={ditchData.dewateringRequired}
-                  onChange={(e) => updateField('dewateringRequired', e.target.value)}
+                  onFocus={() => handleFieldFocus('dewateringRequired', ditchData.dewateringRequired)}
+                  onChange={(e) => {
+                    updateField('dewateringRequired', e.target.value)
+                    handleFieldBlur('dewateringRequired', e.target.value, 'Dewatering Required')
+                  }}
                   style={selectStyle}
                 >
                   <option value="">Select...</option>
@@ -694,7 +803,9 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
         <div style={sectionHeaderStyle}>📝 COMMENTS</div>
         <textarea
           value={ditchData.comments}
+          onFocus={() => handleFieldFocus('comments', ditchData.comments)}
           onChange={(e) => updateField('comments', e.target.value)}
+          onBlur={(e) => handleFieldBlur('comments', e.target.value, 'Comments')}
           placeholder="Additional comments, observations, production notes..."
           style={{
             width: '100%',
