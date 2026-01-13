@@ -1,6 +1,23 @@
-import React from 'react'
+import React, { useRef } from 'react'
+import { useActivityAudit } from './useActivityAudit'
 
-function HydrovacLog({ data, onChange }) {
+function HydrovacLog({ data, onChange, logId, reportId }) {
+  // Audit trail hook
+  const { 
+    initializeOriginalValues,
+    initializeEntryValues,
+    logFieldChange,
+    logNestedFieldChange,
+    logEntryFieldChange,
+    logEntryAdd,
+    logEntryDelete
+  } = useActivityAudit(logId || reportId, 'HydrovacLog')
+  
+  // Refs for tracking original values
+  const originalValuesRef = useRef({})
+  const nestedValuesRef = useRef({})
+  const entryValuesRef = useRef({})
+
   // Default structure
   const defaultData = {
     reportDate: '',
@@ -37,6 +54,34 @@ function HydrovacLog({ data, onChange }) {
 
   const updateField = (field, value) => {
     onChange({ ...hydrovacData, [field]: value })
+  }
+
+  // Audit-aware field handlers
+  const handleFieldFocus = (fieldName, currentValue) => {
+    initializeOriginalValues(originalValuesRef, fieldName, currentValue)
+  }
+
+  const handleFieldBlur = (fieldName, newValue, displayName) => {
+    logFieldChange(originalValuesRef, fieldName, newValue, displayName)
+  }
+
+  const handleNestedFieldFocus = (parentField, fieldName, currentValue) => {
+    const key = `${parentField}.${fieldName}`
+    if (!nestedValuesRef.current[key]) {
+      nestedValuesRef.current[key] = currentValue
+    }
+  }
+
+  const handleNestedFieldBlur = (parentField, fieldName, newValue, displayName) => {
+    logNestedFieldChange(nestedValuesRef, parentField, fieldName, newValue, displayName)
+  }
+
+  const handleEntryFieldFocus = (entryId, fieldName, currentValue) => {
+    initializeEntryValues(entryValuesRef, entryId, fieldName, currentValue)
+  }
+
+  const handleEntryFieldBlur = (entryId, fieldName, newValue, displayName, entryLabel) => {
+    logEntryFieldChange(entryValuesRef, entryId, fieldName, newValue, displayName, entryLabel)
   }
 
   const updateHoles = (field, value) => {
@@ -91,6 +136,7 @@ function HydrovacLog({ data, onChange }) {
       comments: ''
     }
     onChange({ ...hydrovacData, facilities: [...hydrovacData.facilities, newFacility] })
+    logEntryAdd('Facility', `Entry #${hydrovacData.facilities.length + 1}`)
   }
 
   const updateFacility = (id, field, value) => {
@@ -104,7 +150,17 @@ function HydrovacLog({ data, onChange }) {
   }
 
   const removeFacility = (id) => {
+    const facilityToRemove = hydrovacData.facilities.find(f => f.id === id)
+    const facilityIndex = hydrovacData.facilities.findIndex(f => f.id === id)
+    const facilityLabel = facilityToRemove?.station || `Entry #${facilityIndex + 1}`
+    
     onChange({ ...hydrovacData, facilities: hydrovacData.facilities.filter(f => f.id !== id) })
+    logEntryDelete('Facility', facilityLabel)
+  }
+
+  // Get entry label for audit trail
+  const getEntryLabel = (facility, index) => {
+    return facility.station || `Facility #${index + 1}`
   }
 
   // Styles
@@ -210,7 +266,9 @@ function HydrovacLog({ data, onChange }) {
             <input
               type="date"
               value={hydrovacData.reportDate}
+              onFocus={() => handleFieldFocus('reportDate', hydrovacData.reportDate)}
               onChange={(e) => updateField('reportDate', e.target.value)}
+              onBlur={(e) => handleFieldBlur('reportDate', e.target.value, 'Report Date')}
               style={inputStyle}
             />
           </div>
@@ -219,7 +277,9 @@ function HydrovacLog({ data, onChange }) {
             <input
               type="text"
               value={hydrovacData.contractor}
+              onFocus={() => handleFieldFocus('contractor', hydrovacData.contractor)}
               onChange={(e) => updateField('contractor', e.target.value)}
+              onBlur={(e) => handleFieldBlur('contractor', e.target.value, 'Contractor')}
               placeholder="Contractor name"
               style={inputStyle}
             />
@@ -229,7 +289,9 @@ function HydrovacLog({ data, onChange }) {
             <input
               type="text"
               value={hydrovacData.foreman}
+              onFocus={() => handleFieldFocus('foreman', hydrovacData.foreman)}
               onChange={(e) => updateField('foreman', e.target.value)}
+              onBlur={(e) => handleFieldBlur('foreman', e.target.value, 'Foreman')}
               placeholder="Foreman name"
               style={inputStyle}
             />
@@ -256,7 +318,9 @@ function HydrovacLog({ data, onChange }) {
                 <input
                   type="number"
                   value={hydrovacData.holes.parallelToday}
+                  onFocus={() => handleNestedFieldFocus('holes', 'parallelToday', hydrovacData.holes.parallelToday)}
                   onChange={(e) => updateHoles('parallelToday', e.target.value)}
+                  onBlur={(e) => handleNestedFieldBlur('holes', 'parallelToday', e.target.value, 'Parallel Today')}
                   style={tableInputStyle}
                   placeholder="0"
                 />
@@ -265,7 +329,9 @@ function HydrovacLog({ data, onChange }) {
                 <input
                   type="number"
                   value={hydrovacData.holes.parallelPrevious}
+                  onFocus={() => handleNestedFieldFocus('holes', 'parallelPrevious', hydrovacData.holes.parallelPrevious)}
                   onChange={(e) => updateHoles('parallelPrevious', e.target.value)}
+                  onBlur={(e) => handleNestedFieldBlur('holes', 'parallelPrevious', e.target.value, 'Parallel Previous')}
                   style={tableInputStyle}
                   placeholder="0"
                 />
@@ -285,7 +351,9 @@ function HydrovacLog({ data, onChange }) {
                 <input
                   type="number"
                   value={hydrovacData.holes.crossingToday}
+                  onFocus={() => handleNestedFieldFocus('holes', 'crossingToday', hydrovacData.holes.crossingToday)}
                   onChange={(e) => updateHoles('crossingToday', e.target.value)}
+                  onBlur={(e) => handleNestedFieldBlur('holes', 'crossingToday', e.target.value, 'Crossing Today')}
                   style={tableInputStyle}
                   placeholder="0"
                 />
@@ -294,7 +362,9 @@ function HydrovacLog({ data, onChange }) {
                 <input
                   type="number"
                   value={hydrovacData.holes.crossingPrevious}
+                  onFocus={() => handleNestedFieldFocus('holes', 'crossingPrevious', hydrovacData.holes.crossingPrevious)}
                   onChange={(e) => updateHoles('crossingPrevious', e.target.value)}
+                  onBlur={(e) => handleNestedFieldBlur('holes', 'crossingPrevious', e.target.value, 'Crossing Previous')}
                   style={tableInputStyle}
                   placeholder="0"
                 />
@@ -411,13 +481,15 @@ function HydrovacLog({ data, onChange }) {
                 </tr>
               </thead>
               <tbody>
-                {hydrovacData.facilities.map(fac => (
+                {hydrovacData.facilities.map((fac, index) => (
                   <tr key={fac.id}>
                     <td style={tdStyle}>
                       <input
                         type="text"
                         value={fac.station}
+                        onFocus={() => handleEntryFieldFocus(fac.id, 'station', fac.station)}
                         onChange={(e) => updateFacility(fac.id, 'station', e.target.value)}
+                        onBlur={(e) => handleEntryFieldBlur(fac.id, 'station', e.target.value, 'Station', getEntryLabel(fac, index))}
                         style={tableInputStyle}
                         placeholder="Station"
                       />
@@ -426,7 +498,9 @@ function HydrovacLog({ data, onChange }) {
                       <input
                         type="text"
                         value={fac.owner}
+                        onFocus={() => handleEntryFieldFocus(fac.id, 'owner', fac.owner)}
                         onChange={(e) => updateFacility(fac.id, 'owner', e.target.value)}
+                        onBlur={(e) => handleEntryFieldBlur(fac.id, 'owner', e.target.value, 'Owner', getEntryLabel(fac, index))}
                         style={tableInputStyle}
                         placeholder="Owner"
                       />
@@ -434,7 +508,11 @@ function HydrovacLog({ data, onChange }) {
                     <td style={tdStyle}>
                       <select
                         value={fac.px}
-                        onChange={(e) => updateFacility(fac.id, 'px', e.target.value)}
+                        onFocus={() => handleEntryFieldFocus(fac.id, 'px', fac.px)}
+                        onChange={(e) => {
+                          updateFacility(fac.id, 'px', e.target.value)
+                          handleEntryFieldBlur(fac.id, 'px', e.target.value, 'P/X', getEntryLabel(fac, index))
+                        }}
                         style={selectStyle}
                       >
                         <option value="">-</option>
@@ -445,7 +523,11 @@ function HydrovacLog({ data, onChange }) {
                     <td style={tdStyle}>
                       <select
                         value={fac.facilityType}
-                        onChange={(e) => updateFacility(fac.id, 'facilityType', e.target.value)}
+                        onFocus={() => handleEntryFieldFocus(fac.id, 'facilityType', fac.facilityType)}
+                        onChange={(e) => {
+                          updateFacility(fac.id, 'facilityType', e.target.value)
+                          handleEntryFieldBlur(fac.id, 'facilityType', e.target.value, 'Facility Type', getEntryLabel(fac, index))
+                        }}
                         style={selectStyle}
                       >
                         <option value="">Select...</option>
@@ -460,7 +542,9 @@ function HydrovacLog({ data, onChange }) {
                         type="number"
                         step="0.01"
                         value={fac.depthM}
+                        onFocus={() => handleEntryFieldFocus(fac.id, 'depthM', fac.depthM)}
                         onChange={(e) => updateFacility(fac.id, 'depthM', e.target.value)}
+                        onBlur={(e) => handleEntryFieldBlur(fac.id, 'depthM', e.target.value, 'Depth (m)', getEntryLabel(fac, index))}
                         style={tableInputStyle}
                         placeholder="m"
                       />
@@ -468,7 +552,11 @@ function HydrovacLog({ data, onChange }) {
                     <td style={tdStyle}>
                       <select
                         value={fac.boundary}
-                        onChange={(e) => updateFacility(fac.id, 'boundary', e.target.value)}
+                        onFocus={() => handleEntryFieldFocus(fac.id, 'boundary', fac.boundary)}
+                        onChange={(e) => {
+                          updateFacility(fac.id, 'boundary', e.target.value)
+                          handleEntryFieldBlur(fac.id, 'boundary', e.target.value, 'Boundary', getEntryLabel(fac, index))
+                        }}
                         style={selectStyle}
                       >
                         <option value="">-</option>
@@ -482,7 +570,9 @@ function HydrovacLog({ data, onChange }) {
                       <input
                         type="text"
                         value={fac.gpsCoordinates}
+                        onFocus={() => handleEntryFieldFocus(fac.id, 'gpsCoordinates', fac.gpsCoordinates)}
                         onChange={(e) => updateFacility(fac.id, 'gpsCoordinates', e.target.value)}
+                        onBlur={(e) => handleEntryFieldBlur(fac.id, 'gpsCoordinates', e.target.value, 'GPS Coordinates', getEntryLabel(fac, index))}
                         style={tableInputStyle}
                         placeholder="GPS coords"
                       />
@@ -491,7 +581,9 @@ function HydrovacLog({ data, onChange }) {
                       <input
                         type="text"
                         value={fac.comments}
+                        onFocus={() => handleEntryFieldFocus(fac.id, 'comments', fac.comments)}
                         onChange={(e) => updateFacility(fac.id, 'comments', e.target.value)}
+                        onBlur={(e) => handleEntryFieldBlur(fac.id, 'comments', e.target.value, 'Comments', getEntryLabel(fac, index))}
                         style={tableInputStyle}
                         placeholder="Comments"
                       />
