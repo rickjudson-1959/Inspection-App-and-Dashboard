@@ -1,6 +1,23 @@
-import React from 'react'
+import React, { useRef } from 'react'
+import { useActivityAudit } from './useActivityAudit'
 
-function HDDLog({ data, onChange }) {
+function HDDLog({ data, onChange, logId, reportId }) {
+  // Audit trail hook
+  const { 
+    initializeOriginalValues,
+    initializeEntryValues,
+    logFieldChange,
+    logNestedFieldChange,
+    logEntryFieldChange,
+    logEntryAdd,
+    logEntryDelete
+  } = useActivityAudit(logId || reportId, 'HDDLog')
+  
+  // Refs for tracking original values
+  const originalValuesRef = useRef({})
+  const nestedValuesRef = useRef({})
+  const entryValuesRef = useRef({})
+
   // Default structure
   const defaultData = {
     hddDate: '',
@@ -43,6 +60,34 @@ function HDDLog({ data, onChange }) {
       ...defaultData.drillingProgress,
       ...(data?.drillingProgress || {})
     }
+  }
+
+  // Audit-aware field handlers
+  const handleFieldFocus = (fieldName, currentValue) => {
+    initializeOriginalValues(originalValuesRef, fieldName, currentValue)
+  }
+
+  const handleFieldBlur = (fieldName, newValue, displayName) => {
+    logFieldChange(originalValuesRef, fieldName, newValue, displayName)
+  }
+
+  const handleNestedFieldFocus = (parentField, fieldName, currentValue) => {
+    const key = `${parentField}.${fieldName}`
+    if (!nestedValuesRef.current[key]) {
+      nestedValuesRef.current[key] = currentValue
+    }
+  }
+
+  const handleNestedFieldBlur = (parentField, fieldName, newValue, displayName) => {
+    logNestedFieldChange(nestedValuesRef, parentField, fieldName, newValue, displayName)
+  }
+
+  const handleEntryFieldFocus = (entryId, fieldName, currentValue) => {
+    initializeEntryValues(entryValuesRef, entryId, fieldName, currentValue)
+  }
+
+  const handleEntryFieldBlur = (entryId, fieldName, newValue, displayName, entryLabel) => {
+    logEntryFieldChange(entryValuesRef, entryId, fieldName, newValue, displayName, entryLabel)
   }
 
   const updateField = (field, value) => {
@@ -106,6 +151,7 @@ function HDDLog({ data, onChange }) {
       comments: ''
     }
     onChange({ ...hddData, mudTracking: [...hddData.mudTracking, newEntry] })
+    logEntryAdd('Mud Entry', `Entry #${hddData.mudTracking.length + 1}`)
   }
 
   const updateMudEntry = (id, field, value) => {
@@ -116,7 +162,17 @@ function HDDLog({ data, onChange }) {
   }
 
   const removeMudEntry = (id) => {
+    const entryToRemove = hddData.mudTracking.find(e => e.id === id)
+    const entryIndex = hddData.mudTracking.findIndex(e => e.id === id)
+    const entryLabel = entryToRemove?.company || entryToRemove?.ticketNo || `Entry #${entryIndex + 1}`
+    
     onChange({ ...hddData, mudTracking: hddData.mudTracking.filter(e => e.id !== id) })
+    logEntryDelete('Mud Entry', entryLabel)
+  }
+
+  // Get entry label for audit trail
+  const getEntryLabel = (entry, index) => {
+    return entry.company || entry.ticketNo || `Entry #${index + 1}`
   }
 
   // Styles
@@ -158,12 +214,6 @@ function HDDLog({ data, onChange }) {
     borderRadius: '4px',
     fontSize: '14px',
     boxSizing: 'border-box'
-  }
-
-  const smallInputStyle = {
-    ...inputStyle,
-    padding: '6px',
-    fontSize: '13px'
   }
 
   const tableStyle = {
@@ -212,6 +262,26 @@ function HDDLog({ data, onChange }) {
     fontWeight: 'bold'
   }
 
+  // Activity display names for audit
+  const activityNames = {
+    sitePreparation: 'Site Preparation',
+    rigSetUp: 'Rig Set Up',
+    setCasing: 'Set Casing',
+    removeCasing: 'Remove Casing',
+    siteDemobilization: 'Site Demobilization'
+  }
+
+  // Drilling stage display names
+  const drillingNames = {
+    pilotHole: 'Pilot Hole',
+    ream1: '#1 Ream',
+    ream2: '#2 Ream',
+    ream3: '#3 Ream',
+    ream4: '#4 Ream',
+    swabPass: 'Swab Pass',
+    pipePull: 'Pipe Pull'
+  }
+
   return (
     <div style={{ marginTop: '15px' }}>
       {/* HEADER INFO */}
@@ -223,7 +293,9 @@ function HDDLog({ data, onChange }) {
             <input
               type="date"
               value={hddData.hddDate}
+              onFocus={() => handleFieldFocus('hddDate', hddData.hddDate)}
               onChange={(e) => updateField('hddDate', e.target.value)}
+              onBlur={(e) => handleFieldBlur('hddDate', e.target.value, 'HDD Date')}
               style={inputStyle}
             />
           </div>
@@ -232,7 +304,9 @@ function HDDLog({ data, onChange }) {
             <input
               type="text"
               value={hddData.drillContractor}
+              onFocus={() => handleFieldFocus('drillContractor', hddData.drillContractor)}
               onChange={(e) => updateField('drillContractor', e.target.value)}
+              onBlur={(e) => handleFieldBlur('drillContractor', e.target.value, 'Drill Contractor')}
               placeholder="HDD Contractor name"
               style={inputStyle}
             />
@@ -242,7 +316,9 @@ function HDDLog({ data, onChange }) {
             <input
               type="text"
               value={hddData.mainlineContractor}
+              onFocus={() => handleFieldFocus('mainlineContractor', hddData.mainlineContractor)}
               onChange={(e) => updateField('mainlineContractor', e.target.value)}
+              onBlur={(e) => handleFieldBlur('mainlineContractor', e.target.value, 'Mainline Contractor')}
               placeholder="Mainline Contractor"
               style={inputStyle}
             />
@@ -252,7 +328,9 @@ function HDDLog({ data, onChange }) {
             <input
               type="text"
               value={hddData.foreman}
+              onFocus={() => handleFieldFocus('foreman', hddData.foreman)}
               onChange={(e) => updateField('foreman', e.target.value)}
+              onBlur={(e) => handleFieldBlur('foreman', e.target.value, 'Foreman')}
               placeholder="Foreman name"
               style={inputStyle}
             />
@@ -262,7 +340,9 @@ function HDDLog({ data, onChange }) {
             <input
               type="text"
               value={hddData.drillLocationKP}
+              onFocus={() => handleFieldFocus('drillLocationKP', hddData.drillLocationKP)}
               onChange={(e) => updateField('drillLocationKP', e.target.value)}
+              onBlur={(e) => handleFieldBlur('drillLocationKP', e.target.value, 'Drill Location')}
               placeholder="e.g. 5+250"
               style={inputStyle}
             />
@@ -272,7 +352,9 @@ function HDDLog({ data, onChange }) {
             <input
               type="number"
               value={hddData.drillLengthM}
+              onFocus={() => handleFieldFocus('drillLengthM', hddData.drillLengthM)}
               onChange={(e) => updateField('drillLengthM', e.target.value)}
+              onBlur={(e) => handleFieldBlur('drillLengthM', e.target.value, 'Drill Length')}
               placeholder="Total length"
               style={inputStyle}
             />
@@ -282,7 +364,9 @@ function HDDLog({ data, onChange }) {
             <input
               type="number"
               value={hddData.drillsToDateM}
+              onFocus={() => handleFieldFocus('drillsToDateM', hddData.drillsToDateM)}
               onChange={(e) => updateField('drillsToDateM', e.target.value)}
+              onBlur={(e) => handleFieldBlur('drillsToDateM', e.target.value, 'Drills To Date')}
               placeholder="Cumulative"
               style={inputStyle}
             />
@@ -292,7 +376,9 @@ function HDDLog({ data, onChange }) {
             <input
               type="text"
               value={hddData.pipeSize}
+              onFocus={() => handleFieldFocus('pipeSize', hddData.pipeSize)}
               onChange={(e) => updateField('pipeSize', e.target.value)}
+              onBlur={(e) => handleFieldBlur('pipeSize', e.target.value, 'Pipe Size')}
               placeholder="e.g. 12 inch"
               style={inputStyle}
             />
@@ -313,173 +399,59 @@ function HDDLog({ data, onChange }) {
             </tr>
           </thead>
           <tbody>
-            <tr>
-              <td style={tdLabelStyle}>Site Preparation</td>
-              <td style={tdStyle}>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={hddData.activities.sitePreparation.today}
-                  onChange={(e) => updateActivity('sitePreparation', 'today', e.target.value)}
-                  style={tableInputStyle}
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={hddData.activities.sitePreparation.previous}
-                  onChange={(e) => updateActivity('sitePreparation', 'previous', e.target.value)}
-                  style={tableInputStyle}
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="text"
-                  value={hddData.activities.sitePreparation.toDate}
-                  readOnly
-                  style={calculatedStyle}
-                />
-              </td>
-            </tr>
-            <tr>
-              <td style={tdLabelStyle}>Rig Set Up</td>
-              <td style={tdStyle}>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={hddData.activities.rigSetUp.today}
-                  onChange={(e) => updateActivity('rigSetUp', 'today', e.target.value)}
-                  style={tableInputStyle}
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={hddData.activities.rigSetUp.previous}
-                  onChange={(e) => updateActivity('rigSetUp', 'previous', e.target.value)}
-                  style={tableInputStyle}
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="text"
-                  value={hddData.activities.rigSetUp.toDate}
-                  readOnly
-                  style={calculatedStyle}
-                />
-              </td>
-            </tr>
-            <tr>
-              <td style={tdLabelStyle}>
-                Set Casing (If Applicable)
-                <div style={{ marginTop: '5px' }}>
-                  <span style={{ fontSize: '11px', color: '#666' }}>Length (m): </span>
+            {Object.keys(hddData.activities).map(actKey => (
+              <tr key={actKey}>
+                <td style={tdLabelStyle}>
+                  {activityNames[actKey]}
+                  {actKey === 'setCasing' && (
+                    <div style={{ marginTop: '5px' }}>
+                      <span style={{ fontSize: '11px', color: '#666' }}>Length (m): </span>
+                      <input
+                        type="number"
+                        value={hddData.activities.setCasing.lengthM}
+                        onFocus={() => handleNestedFieldFocus('activities.setCasing', 'lengthM', hddData.activities.setCasing.lengthM)}
+                        onChange={(e) => updateActivity('setCasing', 'lengthM', e.target.value)}
+                        onBlur={(e) => handleNestedFieldBlur('activities.setCasing', 'lengthM', e.target.value, 'Set Casing Length')}
+                        style={{ ...tableInputStyle, width: '80px', display: 'inline-block' }}
+                        placeholder="m"
+                      />
+                    </div>
+                  )}
+                </td>
+                <td style={tdStyle}>
                   <input
                     type="number"
-                    value={hddData.activities.setCasing.lengthM}
-                    onChange={(e) => updateActivity('setCasing', 'lengthM', e.target.value)}
-                    style={{ ...tableInputStyle, width: '80px', display: 'inline-block' }}
-                    placeholder="m"
+                    min="0"
+                    max="100"
+                    value={hddData.activities[actKey].today}
+                    onFocus={() => handleNestedFieldFocus(`activities.${actKey}`, 'today', hddData.activities[actKey].today)}
+                    onChange={(e) => updateActivity(actKey, 'today', e.target.value)}
+                    onBlur={(e) => handleNestedFieldBlur(`activities.${actKey}`, 'today', e.target.value, `${activityNames[actKey]} Today`)}
+                    style={tableInputStyle}
                   />
-                </div>
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={hddData.activities.setCasing.today}
-                  onChange={(e) => updateActivity('setCasing', 'today', e.target.value)}
-                  style={tableInputStyle}
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={hddData.activities.setCasing.previous}
-                  onChange={(e) => updateActivity('setCasing', 'previous', e.target.value)}
-                  style={tableInputStyle}
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="text"
-                  value={hddData.activities.setCasing.toDate}
-                  readOnly
-                  style={calculatedStyle}
-                />
-              </td>
-            </tr>
-            <tr>
-              <td style={tdLabelStyle}>Remove Casing</td>
-              <td style={tdStyle}>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={hddData.activities.removeCasing.today}
-                  onChange={(e) => updateActivity('removeCasing', 'today', e.target.value)}
-                  style={tableInputStyle}
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={hddData.activities.removeCasing.previous}
-                  onChange={(e) => updateActivity('removeCasing', 'previous', e.target.value)}
-                  style={tableInputStyle}
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="text"
-                  value={hddData.activities.removeCasing.toDate}
-                  readOnly
-                  style={calculatedStyle}
-                />
-              </td>
-            </tr>
-            <tr>
-              <td style={tdLabelStyle}>Site Demobilization</td>
-              <td style={tdStyle}>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={hddData.activities.siteDemobilization.today}
-                  onChange={(e) => updateActivity('siteDemobilization', 'today', e.target.value)}
-                  style={tableInputStyle}
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="number"
-                  min="0"
-                  max="100"
-                  value={hddData.activities.siteDemobilization.previous}
-                  onChange={(e) => updateActivity('siteDemobilization', 'previous', e.target.value)}
-                  style={tableInputStyle}
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="text"
-                  value={hddData.activities.siteDemobilization.toDate}
-                  readOnly
-                  style={calculatedStyle}
-                />
-              </td>
-            </tr>
+                </td>
+                <td style={tdStyle}>
+                  <input
+                    type="number"
+                    min="0"
+                    max="100"
+                    value={hddData.activities[actKey].previous}
+                    onFocus={() => handleNestedFieldFocus(`activities.${actKey}`, 'previous', hddData.activities[actKey].previous)}
+                    onChange={(e) => updateActivity(actKey, 'previous', e.target.value)}
+                    onBlur={(e) => handleNestedFieldBlur(`activities.${actKey}`, 'previous', e.target.value, `${activityNames[actKey]} Previous`)}
+                    style={tableInputStyle}
+                  />
+                </td>
+                <td style={tdStyle}>
+                  <input
+                    type="text"
+                    value={hddData.activities[actKey].toDate}
+                    readOnly
+                    style={calculatedStyle}
+                  />
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -499,22 +471,16 @@ function HDDLog({ data, onChange }) {
             </tr>
           </thead>
           <tbody>
-            {[
-              { key: 'pilotHole', label: 'Pilot Hole' },
-              { key: 'ream1', label: '#1 Ream' },
-              { key: 'ream2', label: '#2 Ream' },
-              { key: 'ream3', label: '#3 Ream' },
-              { key: 'ream4', label: '#4 Ream' },
-              { key: 'swabPass', label: 'Swab Pass' },
-              { key: 'pipePull', label: 'Pipe Pull' }
-            ].map(item => (
-              <tr key={item.key}>
-                <td style={tdLabelStyle}>{item.label}</td>
+            {Object.keys(hddData.drillingProgress).map(itemKey => (
+              <tr key={itemKey}>
+                <td style={tdLabelStyle}>{drillingNames[itemKey]}</td>
                 <td style={tdStyle}>
                   <input
                     type="number"
-                    value={hddData.drillingProgress[item.key].sizeInches}
-                    onChange={(e) => updateDrilling(item.key, 'sizeInches', e.target.value)}
+                    value={hddData.drillingProgress[itemKey].sizeInches}
+                    onFocus={() => handleNestedFieldFocus(`drillingProgress.${itemKey}`, 'sizeInches', hddData.drillingProgress[itemKey].sizeInches)}
+                    onChange={(e) => updateDrilling(itemKey, 'sizeInches', e.target.value)}
+                    onBlur={(e) => handleNestedFieldBlur(`drillingProgress.${itemKey}`, 'sizeInches', e.target.value, `${drillingNames[itemKey]} Size`)}
                     style={tableInputStyle}
                     placeholder="in"
                   />
@@ -522,8 +488,10 @@ function HDDLog({ data, onChange }) {
                 <td style={tdStyle}>
                   <input
                     type="number"
-                    value={hddData.drillingProgress[item.key].todayM}
-                    onChange={(e) => updateDrilling(item.key, 'todayM', e.target.value)}
+                    value={hddData.drillingProgress[itemKey].todayM}
+                    onFocus={() => handleNestedFieldFocus(`drillingProgress.${itemKey}`, 'todayM', hddData.drillingProgress[itemKey].todayM)}
+                    onChange={(e) => updateDrilling(itemKey, 'todayM', e.target.value)}
+                    onBlur={(e) => handleNestedFieldBlur(`drillingProgress.${itemKey}`, 'todayM', e.target.value, `${drillingNames[itemKey]} Today`)}
                     style={tableInputStyle}
                     placeholder="m"
                   />
@@ -531,8 +499,10 @@ function HDDLog({ data, onChange }) {
                 <td style={tdStyle}>
                   <input
                     type="number"
-                    value={hddData.drillingProgress[item.key].previousM}
-                    onChange={(e) => updateDrilling(item.key, 'previousM', e.target.value)}
+                    value={hddData.drillingProgress[itemKey].previousM}
+                    onFocus={() => handleNestedFieldFocus(`drillingProgress.${itemKey}`, 'previousM', hddData.drillingProgress[itemKey].previousM)}
+                    onChange={(e) => updateDrilling(itemKey, 'previousM', e.target.value)}
+                    onBlur={(e) => handleNestedFieldBlur(`drillingProgress.${itemKey}`, 'previousM', e.target.value, `${drillingNames[itemKey]} Previous`)}
                     style={tableInputStyle}
                     placeholder="m"
                   />
@@ -540,7 +510,7 @@ function HDDLog({ data, onChange }) {
                 <td style={tdStyle}>
                   <input
                     type="text"
-                    value={hddData.drillingProgress[item.key].toDateM}
+                    value={hddData.drillingProgress[itemKey].toDateM}
                     readOnly
                     style={calculatedStyle}
                   />
@@ -548,7 +518,7 @@ function HDDLog({ data, onChange }) {
                 <td style={tdStyle}>
                   <input
                     type="text"
-                    value={hddData.drillingProgress[item.key].percentComplete ? `${hddData.drillingProgress[item.key].percentComplete}%` : ''}
+                    value={hddData.drillingProgress[itemKey].percentComplete ? `${hddData.drillingProgress[itemKey].percentComplete}%` : ''}
                     readOnly
                     style={calculatedStyle}
                   />
@@ -596,13 +566,15 @@ function HDDLog({ data, onChange }) {
               </tr>
             </thead>
             <tbody>
-              {hddData.mudTracking.map(entry => (
+              {hddData.mudTracking.map((entry, index) => (
                 <tr key={entry.id}>
                   <td style={tdStyle}>
                     <input
                       type="text"
                       value={entry.company}
+                      onFocus={() => handleEntryFieldFocus(entry.id, 'company', entry.company)}
                       onChange={(e) => updateMudEntry(entry.id, 'company', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(entry.id, 'company', e.target.value, 'Company', getEntryLabel(entry, index))}
                       style={tableInputStyle}
                       placeholder="Company"
                     />
@@ -611,7 +583,9 @@ function HDDLog({ data, onChange }) {
                     <input
                       type="text"
                       value={entry.ticketNo}
+                      onFocus={() => handleEntryFieldFocus(entry.id, 'ticketNo', entry.ticketNo)}
                       onChange={(e) => updateMudEntry(entry.id, 'ticketNo', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(entry.id, 'ticketNo', e.target.value, 'Ticket No.', getEntryLabel(entry, index))}
                       style={tableInputStyle}
                       placeholder="Ticket #"
                     />
@@ -620,7 +594,9 @@ function HDDLog({ data, onChange }) {
                     <input
                       type="number"
                       value={entry.noOfLoads}
+                      onFocus={() => handleEntryFieldFocus(entry.id, 'noOfLoads', entry.noOfLoads)}
                       onChange={(e) => updateMudEntry(entry.id, 'noOfLoads', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(entry.id, 'noOfLoads', e.target.value, 'No. of Loads', getEntryLabel(entry, index))}
                       style={tableInputStyle}
                       placeholder="0"
                     />
@@ -629,7 +605,9 @@ function HDDLog({ data, onChange }) {
                     <input
                       type="number"
                       value={entry.noOfCubes}
+                      onFocus={() => handleEntryFieldFocus(entry.id, 'noOfCubes', entry.noOfCubes)}
                       onChange={(e) => updateMudEntry(entry.id, 'noOfCubes', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(entry.id, 'noOfCubes', e.target.value, 'No. of Cubes', getEntryLabel(entry, index))}
                       style={tableInputStyle}
                       placeholder="0"
                     />
@@ -638,7 +616,9 @@ function HDDLog({ data, onChange }) {
                     <input
                       type="text"
                       value={entry.comments}
+                      onFocus={() => handleEntryFieldFocus(entry.id, 'comments', entry.comments)}
                       onChange={(e) => updateMudEntry(entry.id, 'comments', e.target.value)}
+                      onBlur={(e) => handleEntryFieldBlur(entry.id, 'comments', e.target.value, 'Comments', getEntryLabel(entry, index))}
                       style={tableInputStyle}
                       placeholder="Mud or water"
                     />
@@ -680,7 +660,9 @@ function HDDLog({ data, onChange }) {
         <div style={sectionHeaderStyle}>📝 COMMENTS</div>
         <textarea
           value={hddData.comments}
+          onFocus={() => handleFieldFocus('comments', hddData.comments)}
           onChange={(e) => updateField('comments', e.target.value)}
+          onBlur={(e) => handleFieldBlur('comments', e.target.value, 'Comments')}
           placeholder="Additional comments, issues, or notes..."
           style={{
             width: '100%',
