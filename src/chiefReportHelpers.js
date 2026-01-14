@@ -689,7 +689,7 @@ export async function saveSectionProgress(summaryId, reportDate, sections) {
     await supabase
       .from('section_progress')
       .delete()
-      .eq('report_date', reportDate)
+      .eq('progress_date', reportDate)
 
     // Insert new data
     const records = []
@@ -698,7 +698,7 @@ export async function saveSectionProgress(summaryId, reportDate, sections) {
         if (section[activityType]?.daily_actual_lm > 0) {
           records.push({
             summary_id: summaryId,
-            report_date: reportDate,
+            progress_date: reportDate,
             section_name: section.section_name,
             kp_start: section.kp_start,
             kp_end: section.kp_end,
@@ -733,12 +733,12 @@ export async function saveWeldingProgress(summaryId, reportDate, weldingData) {
     await supabase
       .from('welding_progress')
       .delete()
-      .eq('report_date', reportDate)
+      .eq('progress_date', reportDate)
 
     // Insert new data
     const records = weldingData.map(w => ({
       summary_id: summaryId,
-      report_date: reportDate,
+      progress_date: reportDate,
       weld_type: w.weld_type,
       today_lm: w.today_lm,
       previous_lm: w.previous_lm,
@@ -772,12 +772,12 @@ export async function saveReportPhotos(summaryId, reportDate, photos) {
     await supabase
       .from('report_photos')
       .delete()
-      .eq('report_date', reportDate)
+      .eq('photo_date', reportDate)
 
     // Insert new photos
     const records = photos.map((photo, idx) => ({
       summary_id: summaryId,
-      report_date: reportDate,
+      photo_date: reportDate,
       source_report_id: photo.source_report_id,
       kp_location: photo.kp_location,
       location_description: photo.location_description,
