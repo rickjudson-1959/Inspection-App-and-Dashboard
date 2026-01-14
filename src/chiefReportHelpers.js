@@ -6,6 +6,226 @@ import { supabase } from './supabase'
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
 // =============================================
+// PROJECT BASELINE & PROGRESS FUNCTIONS
+// =============================================
+
+/**
+ * Fetch project baselines (planned values)
+ */
+export async function fetchProjectBaselines() {
+  try {
+    const { data, error } = await supabase
+      .from('project_baselines')
+      .select('*')
+      .eq('is_active', true)
+      .order('activity_type')
+
+    if (error) throw error
+    
+    // Aggregate by activity type (sum multiple segments)
+    const aggregated = {}
+    ;(data || []).forEach(item => {
+      const actType = item.activity_type
+      if (!aggregated[actType]) {
+        aggregated[actType] = {
+          activity_type: actType,
+          planned_metres: 0,
+          budgeted_total: 0,
+          planned_daily_rate: item.planned_daily_rate || 0
+        }
+      }
+      aggregated[actType].planned_metres += parseFloat(item.planned_metres) || 0
+      aggregated[actType].budgeted_total += parseFloat(item.budgeted_total) || 0
+    })
+    
+    return Object.values(aggregated)
+  } catch (err) {
+    console.error('Error fetching project baselines:', err)
+    return []
+  }
+}
+
+/**
+ * Calculate cumulative progress from all daily_tickets up to a given date
+ */
+export async function calculateCumulativeProgress(upToDate) {
+  try {
+    // Fetch all reports up to and including the date
+    const { data: reports, error } = await supabase
+      .from('daily_tickets')
+      .select('id, date, activity_blocks')
+      .lte('date', upToDate)
+      .order('date', { ascending: true })
+
+    if (error) throw error
+
+    // Aggregate metres by activity type
+    const progressByActivity = {}
+    
+    ;(reports || []).forEach(report => {
+      const blocks = report.activity_blocks || []
+      blocks.forEach(block => {
+        const actType = block.activityType || 'Unknown'
+        const metres = parseFloat(block.metres) || 0
+        
+        if (!progressByActivity[actType]) {
+          progressByActivity[actType] = {
+            activity_type: actType,
+            completed_to_date: 0,
+            report_count: 0
+          }
+        }
+        progressByActivity[actType].completed_to_date += metres
+        progressByActivity[actType].report_count += 1
+      })
+    })
+
+    return Object.values(progressByActivity)
+  } catch (err) {
+    console.error('Error calculating cumulative progress:', err)
+    return []
+  }
+}
+
+/**
+ * Calculate daily progress for a specific date
+ */
+export async function calculateDailyProgress(reportDate) {
+  try {
+    const { data: reports, error } = await supabase
+      .from('daily_tickets')
+      .select('id, date, activity_blocks, spread')
+      .eq('date', reportDate)
+
+    if (error) throw error
+
+    // Aggregate by activity type and spread for the day
+    const dailyProgress = {}
+    
+    ;(reports || []).forEach(report => {
+      const spread = report.spread || 'Unknown'
+      const blocks = report.activity_blocks || []
+      
+      blocks.forEach(block => {
+        const actType = block.activityType || 'Unknown'
+        const metres = parseFloat(block.metres) || 0
+        const key = `${actType}|${spread}`
+        
+        if (!dailyProgress[key]) {
+          dailyProgress[key] = {
+            activity_type: actType,
+            spread: spread,
+            daily_actual_lm: 0,
+            start_kp: block.startKP,
+            end_kp: block.endKP
+          }
+        }
+        dailyProgress[key].daily_actual_lm += metres
+        
+        // Track KP range
+        if (block.startKP && (!dailyProgress[key].start_kp || block.startKP < dailyProgress[key].start_kp)) {
+          dailyProgress[key].start_kp = block.startKP
+        }
+        if (block.endKP && (!dailyProgress[key].end_kp || block.endKP > dailyProgress[key].end_kp)) {
+          dailyProgress[key].end_kp = block.endKP
+        }
+      })
+    })
+
+    return Object.values(dailyProgress)
+  } catch (err) {
+    console.error('Error calculating daily progress:', err)
+    return []
+  }
+}
+
+/**
+ * Get month-to-date progress for a given month
+ */
+export async function calculateMTDProgress(year, month) {
+  try {
+    const startOfMonth = `${year}-${String(month).padStart(2, '0')}-01`
+    const endOfMonth = new Date(year, month, 0).toISOString().split('T')[0]
+    
+    const { data: reports, error } = await supabase
+      .from('daily_tickets')
+      .select('id, date, activity_blocks')
+      .gte('date', startOfMonth)
+      .lte('date', endOfMonth)
+
+    if (error) throw error
+
+    const mtdByActivity = {}
+    
+    ;(reports || []).forEach(report => {
+      const blocks = report.activity_blocks || []
+      blocks.forEach(block => {
+        const actType = block.activityType || 'Unknown'
+        const metres = parseFloat(block.metres) || 0
+        
+        if (!mtdByActivity[actType]) {
+          mtdByActivity[actType] = { activity_type: actType, mtd_metres: 0 }
+        }
+        mtdByActivity[actType].mtd_metres += metres
+      })
+    })
+
+    return Object.values(mtdByActivity)
+  } catch (err) {
+    console.error('Error calculating MTD progress:', err)
+    return []
+  }
+}
+
+/**
+ * Build complete progress data for Daily Summary Report
+ */
+export async function buildProgressData(reportDate) {
+  const [baselines, cumulative, daily, mtd] = await Promise.all([
+    fetchProjectBaselines(),
+    calculateCumulativeProgress(reportDate),
+    calculateDailyProgress(reportDate),
+    calculateMTDProgress(
+      new Date(reportDate).getFullYear(),
+      new Date(reportDate).getMonth() + 1
+    )
+  ])
+
+  // Merge all data
+  const activities = [
+    'Clearing', 'Grading', 'Stringing', 'Bending', 
+    'Welding - Mainline', 'Welding - Tie-in', 'Coating', 
+    'Lowering-In', 'Backfill', 'Cleanup', 'HDD', 'Hydrotest'
+  ]
+
+  const progressData = activities.map(activity => {
+    const baseline = baselines.find(b => b.activity_type === activity) || {}
+    const cumulativeData = cumulative.find(c => c.activity_type === activity) || {}
+    const dailyData = daily.filter(d => d.activity_type === activity)
+    const mtdData = mtd.find(m => m.activity_type === activity) || {}
+    
+    const planned = parseFloat(baseline.planned_metres) || 0
+    const completed = parseFloat(cumulativeData.completed_to_date) || 0
+    const todayActual = dailyData.reduce((sum, d) => sum + (d.daily_actual_lm || 0), 0)
+    const monthToDate = parseFloat(mtdData.mtd_metres) || 0
+    
+    return {
+      activity_type: activity,
+      total_planned: planned,
+      completed_to_date: completed,
+      remaining: planned - completed,
+      percent_complete: planned > 0 ? ((completed / planned) * 100).toFixed(1) : 0,
+      daily_actual: todayActual,
+      daily_planned: parseFloat(baseline.planned_daily_rate) || 0,
+      mtd_actual: monthToDate,
+      daily_details: dailyData
+    }
+  })
+
+  return progressData
+}
+
+// =============================================
 // DATA AGGREGATION FUNCTIONS
 // =============================================
 

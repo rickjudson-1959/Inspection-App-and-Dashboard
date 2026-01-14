@@ -21,7 +21,11 @@ import {
   saveSectionProgress,
   saveWeldingProgress,
   saveReportPhotos,
-  fetchDailySummary
+  fetchDailySummary,
+  buildProgressData,
+  fetchProjectBaselines,
+  calculateCumulativeProgress,
+  calculateMTDProgress
 } from './chiefReportHelpers.js'
 
 function ChiefDashboard() {
@@ -66,6 +70,7 @@ function ChiefDashboard() {
   const [weatherData, setWeatherData] = useState({})
   const [photosData, setPhotosData] = useState({ all: [], byKP: {} })
   const [selectedPhotos, setSelectedPhotos] = useState([])
+  const [fullProgressData, setFullProgressData] = useState([]) // From project_baselines + daily_tickets
 
   // =============================================
   // REVIEW TAB FUNCTIONS
@@ -189,6 +194,12 @@ function ChiefDashboard() {
       const reports = await fetchApprovedReportsForDate(summaryDate)
       console.log('Fetched reports for date:', reports?.length, reports)
       setSourceReports(reports)
+
+      // Fetch real progress data from project_baselines and daily_tickets
+      console.log('Building progress data from baselines and tickets...')
+      const progressData = await buildProgressData(summaryDate)
+      console.log('Progress data:', progressData)
+      setFullProgressData(progressData)
 
       if (!existingSummary && reports.length > 0) {
         console.log('Aggregating from reports...')
@@ -966,6 +977,181 @@ function ChiefDashboard() {
                         </td>
                       </tr>
                     </tfoot>
+                  </table>
+                </div>
+              </div>
+
+              {/* SECTION 2 - PROGRESS (PLANNED vs ACTUAL) - Full Width */}
+              <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', gridColumn: '1 / -1' }}>
+                <div style={{ backgroundColor: '#007bff', padding: '12px 20px', borderRadius: '8px 8px 0 0' }}>
+                  <h3 style={{ margin: 0, color: 'white', fontSize: '16px' }}>📊 Section 2 - Progress (Planned vs Actual)</h3>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    {/* Civil Progress */}
+                    <div>
+                      <h4 style={{ margin: '0 0 10px 0', color: '#1a5f2a', borderBottom: '2px solid #1a5f2a', paddingBottom: '5px' }}>Civil Progress (lm)</h4>
+                      <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: '#e9ecef' }}>
+                            <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #dee2e6' }}>Section</th>
+                            <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #dee2e6' }}>Daily Plan</th>
+                            <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #dee2e6' }}>Daily Actual</th>
+                            <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #dee2e6' }}>Delta</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(sectionProgress.filter(s => s.activity_type === 'Civil' || s.Civil?.daily_actual_lm > 0) || []).map((section, idx) => {
+                            const planned = section.daily_planned_lm || section.Civil?.daily_planned_lm || 0
+                            const actual = section.daily_actual_lm || section.Civil?.daily_actual_lm || 0
+                            const delta = actual - planned
+                            return (
+                              <tr key={idx}>
+                                <td style={{ padding: '8px', border: '1px solid #dee2e6' }}>{section.section_name}</td>
+                                <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #dee2e6' }}>{planned}</td>
+                                <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #dee2e6' }}>{actual}</td>
+                                <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #dee2e6', color: delta >= 0 ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
+                                  {delta >= 0 ? '+' : ''}{delta}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                          {sectionProgress.filter(s => s.activity_type === 'Civil' || s.Civil?.daily_actual_lm > 0).length === 0 && (
+                            <tr><td colSpan="4" style={{ padding: '15px', textAlign: 'center', color: '#666', border: '1px solid #dee2e6' }}>No civil progress data</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    {/* Mechanical Progress */}
+                    <div>
+                      <h4 style={{ margin: '0 0 10px 0', color: '#fd7e14', borderBottom: '2px solid #fd7e14', paddingBottom: '5px' }}>Mechanical Progress (lm)</h4>
+                      <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: '#e9ecef' }}>
+                            <th style={{ padding: '8px', textAlign: 'left', border: '1px solid #dee2e6' }}>Section</th>
+                            <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #dee2e6' }}>Daily Plan</th>
+                            <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #dee2e6' }}>Daily Actual</th>
+                            <th style={{ padding: '8px', textAlign: 'right', border: '1px solid #dee2e6' }}>Delta</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {(sectionProgress.filter(s => s.activity_type === 'Mechanical' || s.Mechanical?.daily_actual_lm > 0) || []).map((section, idx) => {
+                            const planned = section.daily_planned_lm || section.Mechanical?.daily_planned_lm || 0
+                            const actual = section.daily_actual_lm || section.Mechanical?.daily_actual_lm || 0
+                            const delta = actual - planned
+                            return (
+                              <tr key={idx}>
+                                <td style={{ padding: '8px', border: '1px solid #dee2e6' }}>{section.section_name}</td>
+                                <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #dee2e6' }}>{planned}</td>
+                                <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #dee2e6' }}>{actual}</td>
+                                <td style={{ padding: '8px', textAlign: 'right', border: '1px solid #dee2e6', color: delta >= 0 ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
+                                  {delta >= 0 ? '+' : ''}{delta}
+                                </td>
+                              </tr>
+                            )
+                          })}
+                          {sectionProgress.filter(s => s.activity_type === 'Mechanical' || s.Mechanical?.daily_actual_lm > 0).length === 0 && (
+                            <tr><td colSpan="4" style={{ padding: '15px', textAlign: 'center', color: '#666', border: '1px solid #dee2e6' }}>No mechanical progress data</td></tr>
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* TARGET FOR JANUARY - Full Width */}
+              <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', gridColumn: '1 / -1' }}>
+                <div style={{ backgroundColor: '#6f42c1', padding: '12px 20px', borderRadius: '8px 8px 0 0' }}>
+                  <h3 style={{ margin: 0, color: 'white', fontSize: '16px' }}>🎯 Target for {new Date(summaryDate).toLocaleString('default', { month: 'long' })}</h3>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#f8f9fa' }}>
+                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Activity</th>
+                        <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Daily Target</th>
+                        <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Daily Actual</th>
+                        <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>MTD Actual</th>
+                        <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Variance</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fullProgressData.filter(p => p.total_planned > 0).map((item, idx) => {
+                        const dailyTarget = item.daily_planned || 0
+                        const dailyActual = item.daily_actual || 0
+                        const mtdActual = item.mtd_actual || 0
+                        const variance = dailyActual - dailyTarget
+                        return (
+                          <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#fff' : '#f8f9fa' }}>
+                            <td style={{ padding: '10px', borderBottom: '1px solid #eee' }}>{item.activity_type}</td>
+                            <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #eee' }}>{dailyTarget.toLocaleString()} lm</td>
+                            <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #eee', fontWeight: 'bold', color: dailyActual > 0 ? '#28a745' : '#666' }}>{dailyActual.toLocaleString()} lm</td>
+                            <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #eee' }}>{mtdActual.toLocaleString()} lm</td>
+                            <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #eee', color: variance >= 0 ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
+                              {variance >= 0 ? '+' : ''}{variance.toLocaleString()}
+                            </td>
+                          </tr>
+                        )
+                      })}
+                      {fullProgressData.filter(p => p.total_planned > 0).length === 0 && (
+                        <tr><td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No baseline data found. Check project_baselines table.</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* PROGRESS TO DATE - Full Width */}
+              <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', gridColumn: '1 / -1' }}>
+                <div style={{ backgroundColor: '#20c997', padding: '12px 20px', borderRadius: '8px 8px 0 0' }}>
+                  <h3 style={{ margin: 0, color: 'white', fontSize: '16px' }}>📈 Progress to Date</h3>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#f8f9fa' }}>
+                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '25%' }}>Activity</th>
+                        <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Total Planned</th>
+                        <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Completed</th>
+                        <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Remaining</th>
+                        <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #dee2e6', width: '30%' }}>% Complete</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {fullProgressData.filter(p => p.total_planned > 0).map((item, idx) => {
+                        const completed = item.completed_to_date || 0
+                        const total = item.total_planned || 0
+                        const remaining = item.remaining || (total - completed)
+                        const pct = parseFloat(item.percent_complete) || 0
+                        return (
+                          <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#fff' : '#f8f9fa' }}>
+                            <td style={{ padding: '10px', borderBottom: '1px solid #eee', fontWeight: '500' }}>{item.activity_type}</td>
+                            <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #eee' }}>{total.toLocaleString()} lm</td>
+                            <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #eee', color: completed > 0 ? '#28a745' : '#666', fontWeight: 'bold' }}>{completed.toLocaleString()}</td>
+                            <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #eee', color: '#dc3545' }}>{remaining.toLocaleString()}</td>
+                            <td style={{ padding: '10px', borderBottom: '1px solid #eee' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                                <div style={{ flex: 1, backgroundColor: '#e9ecef', borderRadius: '10px', height: '20px', overflow: 'hidden' }}>
+                                  <div style={{ 
+                                    width: `${Math.min(pct, 100)}%`, 
+                                    height: '100%', 
+                                    backgroundColor: pct >= 90 ? '#28a745' : pct >= 50 ? '#ffc107' : '#17a2b8',
+                                    borderRadius: '10px',
+                                    transition: 'width 0.3s ease'
+                                  }}></div>
+                                </div>
+                                <span style={{ fontSize: '12px', fontWeight: 'bold', minWidth: '40px' }}>{pct}%</span>
+                              </div>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                      {fullProgressData.filter(p => p.total_planned > 0).length === 0 && (
+                        <tr><td colSpan="5" style={{ padding: '20px', textAlign: 'center', color: '#666' }}>No baseline data found. Check project_baselines table.</td></tr>
+                      )}
+                    </tbody>
                   </table>
                 </div>
               </div>
