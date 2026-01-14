@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import { supabase } from './supabase'
 // Import constants from separate file
-import { 
+import { createEmptyActivity, 
   PROJECT_NAME, 
   PROJECT_SHORT, 
   pipelineLocations, 
