@@ -1,300 +1,240 @@
-// useActivityAudit.js - Reusable audit hook for activity log components
-// This hook provides standardized audit logging for all activity types
-import { useRef, useCallback } from 'react'
-import { logAuditChanges, formatAuditValue } from './auditHelpers'
+// useActivityAudit.js - Standalone audit hook for activity Log components
+// No external dependencies - everything is self-contained
+
+import { useCallback, useRef } from 'react'
+import { supabase } from './supabase'
 
 /**
- * Custom hook for activity audit logging
- * @param {Object} options - Configuration options
- * @param {string} options.reportId - The report ID (required for logging)
- * @param {string} options.reportDate - The report date
- * @param {string} options.entityType - The entity type (e.g., 'ditching', 'grading', 'hdd')
- * @param {Object} options.currentUser - The current user object { id, name, email, role }
- * @param {string} options.defaultKP - Default KP location for audit entries
+ * Format a value for audit trail display
  */
-export function useActivityAudit({ 
-  reportId, 
-  reportDate, 
-  entityType, 
-  currentUser,
-  defaultKP = null
-}) {
-  // Track original values for fields
-  const originalValuesRef = useRef({})
-  // Track original values for repeatable entries
-  const originalEntriesRef = useRef({})
-  // Track if initialized
-  const initializedRef = useRef(false)
+function formatAuditValue(value) {
+  if (value === null || value === undefined || value === '') return '(empty)'
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No'
+  if (typeof value === 'object') return JSON.stringify(value)
+  return String(value)
+}
+
+/**
+ * Custom hook for activity-level audit logging
+ * Used by all Log components (HydrotestLog, DitchLog, etc.)
+ * 
+ * @param {string} logId - The activity block ID or report ID
+ * @param {string} entityType - The type of log (e.g., 'HydrotestLog', 'DitchLog')
+ */
+export function useActivityAudit(logId, entityType) {
+  const loggingRef = useRef(false)
 
   /**
-   * Initialize original values from data object
-   * Call this in useEffect when data loads
+   * Get current user from Supabase auth
    */
-  const initializeOriginalValues = useCallback((data) => {
-    if (!initializedRef.current && data) {
-      originalValuesRef.current = JSON.parse(JSON.stringify(data))
-      initializedRef.current = true
-    }
-  }, [])
-
-  /**
-   * Initialize original entry values for repeatable items
-   * Call this in useEffect when entries change
-   */
-  const initializeEntryValues = useCallback((entries, idField = 'id') => {
-    if (!entries) return
-    entries.forEach(entry => {
-      const entryId = entry[idField]
-      if (entryId && !originalEntriesRef.current[entryId]) {
-        originalEntriesRef.current[entryId] = { ...entry }
+  const getCurrentUser = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (user) {
+        // Try to get profile for name and role
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('full_name, role')
+          .eq('id', user.id)
+          .single()
+        
+        return {
+          id: user.id,
+          email: user.email,
+          name: profile?.full_name || user.email?.split('@')[0] || 'Unknown',
+          role: profile?.role || 'inspector'
+        }
       }
-    })
+    } catch (err) {
+      console.warn('Could not get current user:', err)
+    }
+    return null
   }, [])
 
   /**
-   * Log a field change on blur
-   * @param {string} field - Field name
-   * @param {*} currentValue - Current value of the field
-   * @param {string} section - Section name for categorization
-   * @param {Object} options - Additional options { kpStart, kpEnd }
+   * Log a field change to the audit trail
    */
-  const logFieldChange = useCallback(async (field, currentValue, section, options = {}) => {
-    if (!reportId) return
-
-    const oldValue = originalValuesRef.current[field]
-    const newValue = currentValue
-
-    // Only log if value actually changed
+  const logChange = useCallback(async (fieldName, oldValue, newValue, section = null, additionalData = {}) => {
+    // Skip if no actual change
     if (formatAuditValue(oldValue) === formatAuditValue(newValue)) return
+    
+    // Skip if no logId
+    if (!logId) {
+      console.warn('Audit: No logId provided, skipping audit log')
+      return
+    }
+
+    // Prevent duplicate logging
+    if (loggingRef.current) return
+    loggingRef.current = true
 
     try {
-      await logAuditChanges({
-        reportId,
-        reportDate,
-        entityType,
-        entityId: `${entityType}:${reportId}`,
-        changeType: 'edit',
-        changes: [{
-          section: section || entityType,
-          field_name: field,
-          old_value: formatAuditValue(oldValue),
-          new_value: formatAuditValue(newValue),
-          kp_start: options.kpStart || defaultKP,
-          kp_end: options.kpEnd || null
-        }],
-        user: currentUser
-      })
-
-      // Update original value after logging
-      originalValuesRef.current[field] = newValue
-    } catch (err) {
-      console.error('Audit log error:', err)
-    }
-  }, [reportId, reportDate, entityType, currentUser, defaultKP])
-
-  /**
-   * Log a nested field change (e.g., activities.sitePreparation.today)
-   * @param {Array} path - Path to the field ['activities', 'sitePreparation', 'today']
-   * @param {*} currentValue - Current value
-   * @param {string} section - Section name
-   * @param {Object} options - Additional options
-   */
-  const logNestedFieldChange = useCallback(async (path, currentValue, section, options = {}) => {
-    if (!reportId) return
-
-    // Navigate to the old value using path
-    let oldValue = originalValuesRef.current
-    for (const key of path) {
-      if (oldValue && typeof oldValue === 'object') {
-        oldValue = oldValue[key]
-      } else {
-        oldValue = undefined
-        break
+      const user = await getCurrentUser()
+      
+      const auditEntry = {
+        report_id: typeof logId === 'number' ? logId : null,
+        entity_type: entityType,
+        entity_id: String(logId),
+        section: section || entityType,
+        field_name: fieldName,
+        old_value: formatAuditValue(oldValue),
+        new_value: formatAuditValue(newValue),
+        change_type: 'edit',
+        action_type: 'field_change',
+        changed_by: user?.id || null,
+        changed_by_name: user?.name || null,
+        changed_by_email: user?.email || null,
+        changed_by_role: user?.role || null,
+        changed_at: new Date().toISOString(),
+        ...additionalData
       }
-    }
 
-    // Only log if value actually changed
-    if (formatAuditValue(oldValue) === formatAuditValue(currentValue)) return
+      const { error } = await supabase
+        .from('report_audit_log')
+        .insert(auditEntry)
 
-    try {
-      await logAuditChanges({
-        reportId,
-        reportDate,
-        entityType,
-        entityId: `${entityType}:${reportId}`,
-        changeType: 'edit',
-        changes: [{
-          section: section || path.join(' - '),
-          field_name: path[path.length - 1],
-          old_value: formatAuditValue(oldValue),
-          new_value: formatAuditValue(currentValue),
-          kp_start: options.kpStart || defaultKP,
-          kp_end: options.kpEnd || null
-        }],
-        user: currentUser
-      })
-
-      // Update original value after logging
-      let target = originalValuesRef.current
-      for (let i = 0; i < path.length - 1; i++) {
-        if (!target[path[i]]) target[path[i]] = {}
-        target = target[path[i]]
-      }
-      target[path[path.length - 1]] = currentValue
-    } catch (err) {
-      console.error('Audit log error:', err)
-    }
-  }, [reportId, reportDate, entityType, currentUser, defaultKP])
-
-  /**
-   * Log an entry field change for repeatable items
-   * @param {string|number} entryId - The entry ID
-   * @param {string} field - Field name
-   * @param {*} currentValue - Current value
-   * @param {string} section - Section name
-   * @param {Object} options - Additional options { kpStart, kpEnd }
-   */
-  const logEntryFieldChange = useCallback(async (entryId, field, currentValue, section, options = {}) => {
-    if (!reportId) return
-
-    const original = originalEntriesRef.current[entryId]
-    if (!original) return
-
-    const oldValue = original[field]
-
-    // Only log if value actually changed
-    if (formatAuditValue(oldValue) === formatAuditValue(currentValue)) return
-
-    try {
-      await logAuditChanges({
-        reportId,
-        reportDate,
-        entityType,
-        entityId: `${entityType}_entry:${entryId}`,
-        changeType: 'edit',
-        changes: [{
-          section: section || entityType,
-          field_name: field,
-          old_value: formatAuditValue(oldValue),
-          new_value: formatAuditValue(currentValue),
-          kp_start: options.kpStart || defaultKP,
-          kp_end: options.kpEnd || null
-        }],
-        user: currentUser
-      })
-
-      // Update original value after logging
-      originalEntriesRef.current[entryId] = { 
-        ...originalEntriesRef.current[entryId], 
-        [field]: currentValue 
+      if (error) {
+        console.error('Audit log error:', error)
       }
     } catch (err) {
-      console.error('Audit log error:', err)
+      console.error('Audit logging failed:', err)
+    } finally {
+      loggingRef.current = false
     }
-  }, [reportId, reportDate, entityType, currentUser, defaultKP])
+  }, [logId, entityType, getCurrentUser])
 
   /**
-   * Log entry addition
-   * @param {Object} entry - The new entry
-   * @param {string} section - Section name
-   * @param {string} description - Description of what was added
+   * Initialize original values ref for a field
    */
-  const logEntryAdd = useCallback(async (entry, section, description = 'New entry added') => {
-    if (!reportId) return
+  const initializeOriginalValues = useCallback((ref, fieldName, currentValue) => {
+    if (ref.current[fieldName] === undefined) {
+      ref.current[fieldName] = currentValue
+    }
+  }, [])
 
+  /**
+   * Initialize entry-level values ref
+   */
+  const initializeEntryValues = useCallback((ref, entryId, fieldName, currentValue) => {
+    const key = `${entryId}-${fieldName}`
+    if (ref.current[key] === undefined) {
+      ref.current[key] = currentValue
+    }
+  }, [])
+
+  /**
+   * Log a simple field change (for top-level fields)
+   */
+  const logFieldChange = useCallback((originalRef, fieldName, newValue, displayName = null) => {
+    const oldValue = originalRef.current[fieldName]
+    if (oldValue !== undefined && formatAuditValue(oldValue) !== formatAuditValue(newValue)) {
+      logChange(displayName || fieldName, oldValue, newValue)
+    }
+    // Clear the stored value
+    delete originalRef.current[fieldName]
+  }, [logChange])
+
+  /**
+   * Log a nested field change (for fields inside objects like checklist.permitsInPlace)
+   */
+  const logNestedFieldChange = useCallback((nestedRef, parentField, fieldName, newValue, displayName = null) => {
+    const key = `${parentField}.${fieldName}`
+    const oldValue = nestedRef.current[key]
+    if (oldValue !== undefined && formatAuditValue(oldValue) !== formatAuditValue(newValue)) {
+      logChange(displayName || fieldName, oldValue, newValue, parentField)
+    }
+    // Clear the stored value
+    delete nestedRef.current[key]
+  }, [logChange])
+
+  /**
+   * Log a field change within an entry (for repeatable entries like readings, runs, etc.)
+   */
+  const logEntryFieldChange = useCallback((entryRef, entryId, fieldName, newValue, displayName = null, entryLabel = null) => {
+    const key = `${entryId}-${fieldName}`
+    const oldValue = entryRef.current[key]
+    if (oldValue !== undefined && formatAuditValue(oldValue) !== formatAuditValue(newValue)) {
+      const section = entryLabel ? `${entityType} - ${entryLabel}` : entityType
+      logChange(displayName || fieldName, oldValue, newValue, section)
+    }
+    // Clear the stored value
+    delete entryRef.current[key]
+  }, [logChange, entityType])
+
+  /**
+   * Log when an entry is added
+   */
+  const logEntryAdd = useCallback(async (entryType, entryLabel = null) => {
+    if (!logId) return
+    
     try {
-      await logAuditChanges({
-        reportId,
-        reportDate,
-        entityType,
-        entityId: `${entityType}_entry:${entry.id}`,
-        changeType: 'create',
-        changes: [{
-          section: section || entityType,
-          field_name: 'entry_added',
-          old_value: null,
-          new_value: description,
-          kp_start: entry.kp || entry.startKP || entry.kpStart || defaultKP
-        }],
-        user: currentUser
-      })
+      const user = await getCurrentUser()
+      
+      const auditEntry = {
+        report_id: typeof logId === 'number' ? logId : null,
+        entity_type: entityType,
+        entity_id: String(logId),
+        section: entityType,
+        field_name: entryType,
+        old_value: null,
+        new_value: entryLabel || `New ${entryType}`,
+        change_type: 'create',
+        action_type: 'entry_add',
+        changed_by: user?.id || null,
+        changed_by_name: user?.name || null,
+        changed_by_email: user?.email || null,
+        changed_by_role: user?.role || null,
+        changed_at: new Date().toISOString()
+      }
+
+      await supabase.from('report_audit_log').insert(auditEntry)
     } catch (err) {
-      console.error('Audit log error:', err)
+      console.error('Audit entry add logging failed:', err)
     }
-  }, [reportId, reportDate, entityType, currentUser, defaultKP])
+  }, [logId, entityType, getCurrentUser])
 
   /**
-   * Log entry deletion
-   * @param {Object} entry - The entry being deleted
-   * @param {string} section - Section name
-   * @param {string} summary - Summary of what was deleted
+   * Log when an entry is deleted
    */
-  const logEntryDelete = useCallback(async (entry, section, summary) => {
-    if (!reportId) return
-
+  const logEntryDelete = useCallback(async (entryType, entryLabel = null) => {
+    if (!logId) return
+    
     try {
-      await logAuditChanges({
-        reportId,
-        reportDate,
-        entityType,
-        entityId: `${entityType}_entry:${entry.id}`,
-        changeType: 'delete',
-        changes: [{
-          section: section || entityType,
-          field_name: 'entry_deleted',
-          old_value: summary || `Entry ${entry.id} deleted`,
-          new_value: null,
-          kp_start: entry.kp || entry.startKP || entry.kpStart || defaultKP
-        }],
-        user: currentUser
-      })
+      const user = await getCurrentUser()
+      
+      const auditEntry = {
+        report_id: typeof logId === 'number' ? logId : null,
+        entity_type: entityType,
+        entity_id: String(logId),
+        section: entityType,
+        field_name: entryType,
+        old_value: entryLabel || entryType,
+        new_value: null,
+        change_type: 'delete',
+        action_type: 'entry_delete',
+        changed_by: user?.id || null,
+        changed_by_name: user?.name || null,
+        changed_by_email: user?.email || null,
+        changed_by_role: user?.role || null,
+        changed_at: new Date().toISOString()
+      }
 
-      // Clean up ref
-      delete originalEntriesRef.current[entry.id]
+      await supabase.from('report_audit_log').insert(auditEntry)
     } catch (err) {
-      console.error('Audit log error:', err)
+      console.error('Audit entry delete logging failed:', err)
     }
-  }, [reportId, reportDate, entityType, currentUser, defaultKP])
-
-  /**
-   * Create an onBlur handler for a field
-   * @param {string} field - Field name
-   * @param {function} getValue - Function to get current value
-   * @param {string} section - Section name
-   * @param {Object} options - Additional options
-   */
-  const createBlurHandler = useCallback((field, getValue, section, options = {}) => {
-    return () => logFieldChange(field, getValue(), section, options)
-  }, [logFieldChange])
-
-  /**
-   * Create an onBlur handler for an entry field
-   * @param {string|number} entryId - Entry ID
-   * @param {string} field - Field name
-   * @param {function} getValue - Function to get current value
-   * @param {string} section - Section name
-   * @param {Object} options - Additional options
-   */
-  const createEntryBlurHandler = useCallback((entryId, field, getValue, section, options = {}) => {
-    return () => logEntryFieldChange(entryId, field, getValue(), section, options)
-  }, [logEntryFieldChange])
+  }, [logId, entityType, getCurrentUser])
 
   return {
-    // Initialization
-    initializeOriginalValues,
-    initializeEntryValues,
-    // Logging functions
+    logChange,
     logFieldChange,
     logNestedFieldChange,
     logEntryFieldChange,
     logEntryAdd,
     logEntryDelete,
-    // Handler creators
-    createBlurHandler,
-    createEntryBlurHandler,
-    // Refs (for advanced usage)
-    originalValuesRef,
-    originalEntriesRef
+    initializeOriginalValues,
+    initializeEntryValues,
+    formatAuditValue
   }
 }
 
