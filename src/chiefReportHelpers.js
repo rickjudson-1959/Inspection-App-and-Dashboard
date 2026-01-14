@@ -14,24 +14,57 @@ const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
  */
 export async function fetchApprovedReportsForDate(reportDate) {
   try {
-    // Get all approved report IDs for the date
+    console.log('Fetching approved reports for date:', reportDate)
+    
+    // Get all approved report IDs
     const { data: statusData, error: statusError } = await supabase
       .from('report_status')
       .select('report_id')
       .eq('status', 'approved')
 
-    if (statusError) throw statusError
+    if (statusError) {
+      console.error('Error fetching report_status:', statusError)
+      throw statusError
+    }
 
+    console.log('Approved report IDs:', statusData)
     const approvedIds = (statusData || []).map(s => s.report_id)
 
-    // Get the actual reports for that date
+    if (approvedIds.length === 0) {
+      console.log('No approved reports found in report_status')
+      // Fallback: get all reports for that date regardless of status
+      const { data: allReports, error: allError } = await supabase
+        .from('daily_tickets')
+        .select('*')
+        .eq('date', reportDate)
+      
+      console.log('All reports for date (fallback):', allReports?.length || 0)
+      return allReports || []
+    }
+
+    // Get the actual reports for that date that are approved
     const { data: reports, error: reportsError } = await supabase
       .from('daily_tickets')
       .select('*')
       .eq('date', reportDate)
       .in('id', approvedIds)
 
-    if (reportsError) throw reportsError
+    if (reportsError) {
+      console.error('Error fetching daily_tickets:', reportsError)
+      throw reportsError
+    }
+
+    console.log('Approved reports for date:', reports?.length || 0)
+    
+    // If no approved reports for this date, try without the date filter to debug
+    if (!reports || reports.length === 0) {
+      console.log('No approved reports for this specific date, checking all approved...')
+      const { data: allApproved } = await supabase
+        .from('daily_tickets')
+        .select('id, date, inspector_name')
+        .in('id', approvedIds)
+      console.log('All approved reports (any date):', allApproved)
+    }
 
     return reports || []
   } catch (err) {

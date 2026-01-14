@@ -159,8 +159,10 @@ function ChiefDashboard() {
   // =============================================
   async function loadSummaryForDate() {
     setSummaryLoading(true)
+    console.log('Loading summary for date:', summaryDate)
     try {
       const existingSummary = await fetchDailySummary(summaryDate)
+      console.log('Existing summary:', existingSummary)
       
       if (existingSummary) {
         setSummaryData(existingSummary)
@@ -185,11 +187,14 @@ function ChiefDashboard() {
       }
 
       const reports = await fetchApprovedReportsForDate(summaryDate)
+      console.log('Fetched reports for date:', reports?.length, reports)
       setSourceReports(reports)
 
       if (!existingSummary && reports.length > 0) {
+        console.log('Aggregating from reports...')
         await aggregateFromReports(reports)
       } else if (!existingSummary && reports.length === 0) {
+        console.log('No reports found, resetting data')
         resetSummaryData()
       }
     } catch (err) {
@@ -668,7 +673,7 @@ function ChiefDashboard() {
                       <td style={{ padding: '15px', borderBottom: '1px solid #eee', fontSize: '13px' }}>{(report.ticket?.activity_blocks || []).map(b => b.activityType).filter(Boolean).join(', ') || '-'}</td>
                       <td style={{ padding: '15px', borderBottom: '1px solid #eee', fontFamily: 'monospace', color: '#28a745' }}>{getKPRange(report.ticket?.activity_blocks)}</td>
                       <td style={{ padding: '15px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
-                        <button onClick={() => navigate(`/report?id=${report.report_id}`)} style={{ padding: '8px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}>View</button>
+                        <button onClick={() => navigate(`/report?id=${report.ticket?.id || report.report_id}`)} style={{ padding: '8px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}>View</button>
                         <button onClick={() => acceptReport(report.report_id)} style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px', fontWeight: 'bold' }}>Accept</button>
                         <button onClick={() => openRejectModal(report)} style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Reject</button>
                       </td>
