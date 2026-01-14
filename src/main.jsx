@@ -6,6 +6,7 @@ import AdminPortal from './AdminPortal.jsx'
 import Dashboard from './Dashboard.jsx'
 import EVMDashboard from './EVMDashboard.jsx'
 import InspectorApp from './InspectorApp.jsx'
+import ReportViewer from './ReportViewer.jsx'
 import ReconciliationDashboard from './ReconciliationDashboard.jsx'
 import ChangeManagement from './ChangeManagement.jsx'
 import ReportsPage from './ReportsPage.jsx'
@@ -154,6 +155,13 @@ function AppRoutes() {
       <Route path="/contractor-lems" element={
         <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector']}>
           <ContractorLEMs />
+        </ProtectedRoute>
+      } />
+
+      {/* Report Viewer - for viewing individual reports */}
+      <Route path="/report" element={
+        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'pm', 'cm', 'chief_inspector', 'inspector']}>
+          <ReportViewer />
         </ProtectedRoute>
       } />
 
