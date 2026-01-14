@@ -590,7 +590,11 @@ function ChiefDashboard() {
           <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>{userProfile?.full_name || userProfile?.email}</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => navigate('/inspector')} style={{ padding: '10px 20px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>New Report</button>
+          <button onClick={() => {
+            // Clear any saved draft before navigating to force a new report
+            localStorage.removeItem('pipeup_inspector_draft')
+            navigate('/inspector')
+          }} style={{ padding: '10px 20px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>New Report</button>
           <button onClick={() => navigate('/dashboard')} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Dashboard</button>
           <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign Out</button>
         </div>
