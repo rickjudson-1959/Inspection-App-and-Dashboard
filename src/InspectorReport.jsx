@@ -1323,8 +1323,8 @@ Important:
   async function fetchPreviousMeters(blockId, activityType) {
     try {
       const { data, error } = await supabase
-        .from('inspector_reports')
-        .select('activities, date')
+        .from('daily_tickets')
+        .select('activity_blocks, date')
         .eq('pipeline', pipeline)
         .order('date', { ascending: false })
         .neq('date', selectedDate) // Exclude current date
