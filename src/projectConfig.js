@@ -44,18 +44,18 @@ export const PROJECT_CONFIG = {
   
   // Map Configuration
   map: {
-    defaultCenter: [49.50, -123.00], // Squamish area
+    defaultCenter: [49.50, -123.00],
     defaultZoom: 10,
     startPoint: { lat: 49.2838, lon: -122.7932, name: 'Coquitlam Station' },
     endPoint: { lat: 49.6750, lon: -123.2550, name: 'Woodfibre LNG' },
   },
   
-  // Spreads / Segments
+  // Spreads / Segments - with coordinates for weather lookup
   spreads: [
-    { id: 'EGP Mainline', name: 'Mainline Segment', startKP: '0+000', endKP: '47+000' },
-    { id: 'EGP Tunnel', name: 'Tunnel Segment', startKP: '47+000', endKP: '56+000' },
-    { id: 'EGP Crossings', name: 'Special Crossings', startKP: '0+000', endKP: '56+000' },
-    { id: 'EGP Facilities', name: 'Valve Stations & Facilities', startKP: '0+000', endKP: '56+000' },
+    { id: 'EGP Mainline', name: 'Mainline Segment', startKP: '0+000', endKP: '47+000', lat: 49.4500, lon: -123.1000 },
+    { id: 'EGP Tunnel', name: 'Tunnel Segment', startKP: '47+000', endKP: '56+000', lat: 49.6200, lon: -123.2000 },
+    { id: 'EGP Crossings', name: 'Special Crossings', startKP: '0+000', endKP: '56+000', lat: 49.5000, lon: -123.1500 },
+    { id: 'EGP Facilities', name: 'Valve Stations & Facilities', startKP: '0+000', endKP: '56+000', lat: 49.3500, lon: -122.9000 },
   ],
   
   // Environmental & Regulatory Presets
@@ -130,7 +130,6 @@ export const PROJECT_CONFIG = {
   ],
 }
 
-// Export individual configs for easy importing
 export const PROJECT_NAME = PROJECT_CONFIG.name
 export const PROJECT_SPECS = PROJECT_CONFIG.specs
 export const PROJECT_BUDGET = PROJECT_CONFIG.budget
