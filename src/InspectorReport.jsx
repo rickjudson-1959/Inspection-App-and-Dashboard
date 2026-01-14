@@ -27,6 +27,24 @@ import UnitPriceItemsLog from './UnitPriceItemsLog.jsx'
 import MatTracker from './MatTracker.jsx'
 import ReportWorkflow from './ReportWorkflow.jsx'
 import MiniMapWidget from './MiniMapWidget.jsx'
+const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
+const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
+
+// Constants now imported from constants.js
+
+
+function InspectorReport() {
+  const { signOut, userProfile } = useAuth()
+  const [searchParams] = useSearchParams()
+  const navigate = useNavigate()
+  const [saving, setSaving] = useState(false)
+
+  // Edit mode
+  const editReportId = searchParams.get('edit')
+  const [isEditMode, setIsEditMode] = useState(false)
+  const [originalReportData, setOriginalReportData] = useState(null)
+  const [loadingReport, setLoadingReport] = useState(false)
+
   // User role and report tracking
   const [currentUserRole, setCurrentUserRole] = useState('inspector')
   const [currentReportId, setCurrentReportId] = useState(null)
@@ -1242,8 +1260,7 @@ Important:
     }
     
     setFetchingWeather(true)
-    const selectedSpread = PROJECT_SPREADS.find(s => s.id === pipeline) || { lat: 49.45, lon: -123.1 }
-    const loc = { lat: selectedSpread.lat, lon: selectedSpread.lon }
+    const selectedSpread = PROJECT_SPREADS.find(s => s.id === pipeline) || { lat: 49.45, lon: -123.1 }; const loc = { lat: selectedSpread.lat, lon: selectedSpread.lon }
     
     try {
       const response = await fetch(
