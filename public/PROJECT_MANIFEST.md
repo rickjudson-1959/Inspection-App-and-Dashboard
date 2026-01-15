@@ -1,8 +1,8 @@
 # PIPE-UP PROJECT MANIFEST
 ## Pipeline Inspector SaaS Application
 
-**Last Updated:** January 13, 2026  
-**Version:** 1.5  
+**Last Updated:** January 15, 2026  
+**Version:** 1.6  
 **Stack:** React + Vite + Supabase + Vercel  
 **Live URL:** https://app.pipe-up.ca  
 **API Domain:** https://api.pipe-up.ca (custom domain verified)
@@ -23,6 +23,7 @@
 | `auditHelpers.js` | ~300 | Audit trail utility functions (legacy) |
 | `auditLogger.js` | ~200 | **V2** - Precision-based audit logging with auto-classification |
 | `useActivityAudit.js` | ~150 | **CORE HOOK** - Reusable audit hook for ALL activity Log components |
+| `egpRouteData.js` | ~180K | **NEW Jan 15** - EGP pipeline survey data extracted from KMZ |
 
 ### 📊 DASHBOARDS & ADMIN
 | File | Lines | Purpose |
@@ -41,7 +42,7 @@
 | File | Lines | Purpose |
 |------|-------|---------|
 | `InspectorReport.jsx` | ~167K | **MAIN FORM** - Daily inspection entry, PDF export |
-| `ActivityBlock.jsx` | 75,440 | Activity block component (labour, equipment, QA) - **Passes audit props to all Logs** |
+| `ActivityBlock.jsx` | 75,440 | **UPDATED Jan 15** - Fixed manpower/equipment/meters layout spacing |
 | `ReportViewer.jsx` | 23,210 | Read-only report view for admin/chief |
 | `ReportWorkflow.jsx` | 16,503 | Submit/approve/revision workflow |
 | `RequestRevision.jsx` | 9,342 | Revision request handling |
@@ -99,7 +100,8 @@
 |------|-------|---------|
 | `PipelineMap.jsx` | 21,619 | Full pipeline map |
 | `MapDashboard.jsx` | 9,146 | Map dashboard |
-| `MiniMapWidget.jsx` | 14,385 | Embedded map widget |
+| `MiniMapWidget.jsx` | ~850 | **UPDATED Jan 15** - Real EGP survey data with all layers |
+| `egpRouteData.js` | ~180K | **NEW Jan 15** - Extracted KMZ survey data |
 | `kpUtils.js` | 9,928 | KP parsing/formatting utilities |
 
 ### 📧 NOTIFICATIONS
@@ -117,6 +119,33 @@
 | `ComplianceAuditTrail.jsx` | 28,057 | Audit trail viewer |
 | `SafetyRecognition.jsx` | 26,130 | Safety/Hazard recognition cards |
 | `WildlifeSighting.jsx` | 24,576 | Wildlife sightings |
+
+---
+
+## 🗺️ EGP ROUTE DATA (NEW Jan 15)
+
+### Data Extracted from FortisBC KMZ Files
+| Data Type | Count | Source |
+|-----------|-------|--------|
+| Centerline coordinates | 774 | North Line asbuilt survey |
+| KP markers | 367 | Every 100m from KP 0+000 to 38+470 |
+| Welds | 451 | Field weld locations with IDs |
+| Bends (horizontal) | 248 | Left/Right/Over bends with angles |
+| Sag bends (vertical) | 108 | Vertical sag bends |
+| Footprint polygons | 248 | Construction corridor boundaries |
+| Open ends | 36 | Begin/Leave pipe string markers |
+| Bore faces (HDD) | 2 | Railway crossing entry/exit |
+
+### MiniMapWidget Layer Toggles
+- ✅ Footprint (248 polygons) - Purple shaded
+- ✅ Centerline (774 points) - Orange line
+- ✅ KP Markers (367) - Blue dots
+- ✅ Welds (451) - Red dots
+- ✅ Bends (248) - Orange dots
+- ✅ Sag Bends (108) - Brown dots (off by default)
+- ✅ Open Ends (36) - Green/Red dots
+- ✅ HDD/Bore Faces (2) - Cyan dots
+- ✅ Pipeline Start/End markers
 
 ---
 
@@ -211,49 +240,26 @@ report_audit_log (
   regulatory_category TEXT,   -- 'integrity', 'environmental', 'soil_handling', 'indigenous_social', 'archaeological', 'general'
   joint_number TEXT,
   weld_number TEXT,
-  heat_number TEXT,
-  mtr_number TEXT,
-  latitude DECIMAL,
-  longitude DECIMAL
+  metadata JSONB
 )
 ```
 
-### useActivityAudit Hook Pattern
-All audit-enabled Log components follow this pattern:
-
+### Usage Pattern
 ```jsx
-import { useActivityAudit } from './useActivityAudit'
+import { useActivityAudit } from './useActivityAudit.js'
 
-function SomeLog({ data, onChange, logId, reportId }) {
-  const { 
-    initializeOriginalValues,
-    initializeEntryValues,
-    logFieldChange,
-    logNestedFieldChange,
-    logEntryFieldChange,
-    logEntryAdd,
-    logEntryDelete
-  } = useActivityAudit(logId || reportId, 'SomeLog')
-  
-  const originalValuesRef = useRef({})
-  const nestedValuesRef = useRef({})
-  const entryValuesRef = useRef({})
+function SomeLog({ logId, reportId, data, onUpdate }) {
+  const { createAuditProps, logEntryAdd, logEntryDelete, logEntryFieldChange } = useActivityAudit({
+    entityType: 'SomeLog',
+    logId,
+    reportId
+  })
 
-  // Field tracking with onFocus/onBlur pattern
-  const handleFieldFocus = (fieldName, currentValue) => {
-    initializeOriginalValues(originalValuesRef, fieldName, currentValue)
-  }
-
-  const handleFieldBlur = (fieldName, newValue, displayName) => {
-    logFieldChange(originalValuesRef, fieldName, newValue, displayName)
-  }
-
-  // JSX with audit handlers
   return (
     <input
-      onFocus={() => handleFieldFocus('fieldName', data.fieldName)}
-      onChange={(e) => updateField('fieldName', e.target.value)}
-      onBlur={(e) => handleFieldBlur('fieldName', e.target.value, 'Display Name')}
+      {...createAuditProps('fieldName', data.fieldName, 'Section Name')}
+      value={data.fieldName || ''}
+      onChange={(e) => onUpdate('fieldName', e.target.value)}
     />
   )
 }
@@ -286,6 +292,7 @@ function SomeLog({ data, onChange, logId, reportId }) {
 | `/contractor-lems` | ContractorLEMs | Admin/PM/CM/Chief |
 | `/audit` | AuditDashboard | Admin/Chief |
 | `/regulatory` | RegulatoryDashboard | Admin/Chief/Auditor |
+| `/map` | MapDashboard | All authenticated |
 
 ---
 
@@ -308,6 +315,9 @@ function SomeLog({ data, onChange, logId, reportId }) {
 
 | Date | Files Changed | What Changed |
 |------|---------------|--------------|
+| **Jan 15, 2026** | `egpRouteData.js` | **NEW** - Extracted all EGP survey data from KMZ files |
+| **Jan 15, 2026** | `MiniMapWidget.jsx` | **MAJOR UPDATE** - Real survey data: 774 centerline pts, 367 KP markers, 451 welds, 248 bends, 108 sag bends, 248 footprint polygons, 36 open ends, 2 HDD bore faces |
+| **Jan 15, 2026** | `ActivityBlock.jsx` | **UPDATED** - Fixed manpower/equipment/meters layout with CSS grid, proper spacing, box-sizing |
 | **Jan 13, 2026** | `useActivityAudit.js` | **DEPLOYED** - Core audit hook for all Log components |
 | **Jan 13, 2026** | `EquipmentCleaningLog.jsx` | **DEPLOYED** - Full audit trail |
 | **Jan 13, 2026** | `WelderTestingLog.jsx` | **DEPLOYED** - Full audit trail |
@@ -372,8 +382,9 @@ When starting a new session with Claude, upload:
 2. **Always:** `main.jsx` (routes)
 3. **If working on activities:** `constants.js`
 4. **If working on audit:** `useActivityAudit.js`
-5. **If debugging:** The specific component + related files
-6. **If adding features:** Related components
+5. **If working on maps:** `MiniMapWidget.jsx`, `egpRouteData.js`
+6. **If debugging:** The specific component + related files
+7. **If adding features:** Related components
 
 ---
 
@@ -402,6 +413,19 @@ When starting a new session with Claude, upload:
   // ... other props
 />
 ```
+
+### EGP Route Data Architecture (NEW)
+- `egpRouteData.js` contains all extracted survey data
+- Imported by `MiniMapWidget.jsx` for map display
+- Data structure:
+  - `route.coordinates` - 774 centerline points
+  - `kpMarkers` - 367 KP markers with lat/lon
+  - `welds` - 451 welds with station, description
+  - `bends` - 248 horizontal bends
+  - `sagBends` - 108 vertical sag bends
+  - `footprint` - 248 polygon arrays for construction corridor
+  - `openEnds` - 36 begin/leave markers
+  - `boreFaces` - 2 HDD entry/exit points
 
 ### Trackable Items
 - Managed by `TrackableItemsTracker.jsx`
