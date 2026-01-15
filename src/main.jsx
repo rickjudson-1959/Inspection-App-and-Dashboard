@@ -117,16 +117,15 @@ function AppRoutes() {
           <NDTAuditorDashboard />
         </ProtectedRoute>
       } />
-
       <Route path="/chief" element={
+        <ProtectedRoute allowedRoles={["super_admin", "admin", "chief_inspector"]}>
+          <ChiefDashboard />
+        </ProtectedRoute>
+      } />
 
       <Route path="/assistant-chief" element={
         <ProtectedRoute allowedRoles={["super_admin", "admin", "chief_inspector", "assistant_chief_inspector"]}>
           <AssistantChiefDashboard />
-        </ProtectedRoute>
-      } />
-        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'chief_inspector']}>
-          <ChiefDashboard />
         </ProtectedRoute>
       } />
 
