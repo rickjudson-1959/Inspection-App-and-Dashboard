@@ -70,6 +70,29 @@ function AssistantChiefDashboard() {
   const [complianceLoading, setComplianceLoading] = useState(false)
   
   // =============================================
+  // DAILY OBSERVATION STATE
+  // =============================================
+  const [observationDate, setObservationDate] = useState(new Date().toISOString().split('T')[0])
+  const [observation, setObservation] = useState({
+    safety_observations: '',
+    safety_flagged: false,
+    environmental_compliance: '',
+    environmental_flagged: false,
+    technical_quality: '',
+    technical_flagged: false,
+    progress_logistics: '',
+    progress_flagged: false,
+    general_notes: '',
+    weather_conditions: '',
+    time_on_row: ''
+  })
+  const [observationPhotos, setObservationPhotos] = useState([])
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [savingObservation, setSavingObservation] = useState(false)
+  const [existingObservation, setExistingObservation] = useState(null)
+  const [observationHistory, setObservationHistory] = useState([])
+  
+  // =============================================
   // STATS
   // =============================================
   const [stats, setStats] = useState({
@@ -92,7 +115,8 @@ function AssistantChiefDashboard() {
     if (activeTab === 'assignments') fetchAssignments()
     if (activeTab === 'deficiencies') fetchDeficiencies()
     if (activeTab === 'compliance') fetchComplianceIssues()
-  }, [activeTab, deficiencyFilter, assignmentDate])
+    if (activeTab === 'observation') fetchExistingObservation()
+  }, [activeTab, deficiencyFilter, assignmentDate, observationDate])
 
   async function fetchAllData() {
     await Promise.all([
@@ -343,6 +367,223 @@ function AssistantChiefDashboard() {
   }
 
   // =============================================
+  // DAILY OBSERVATION FUNCTIONS
+  // =============================================
+  async function fetchExistingObservation() {
+    try {
+      // Check if observation exists for this date
+      const { data } = await supabase
+        .from('assistant_chief_observations')
+        .select('*')
+        .eq('observation_date', observationDate)
+        .eq('observer_id', userProfile?.id)
+        .single()
+      
+      if (data) {
+        setExistingObservation(data)
+        setObservation({
+          safety_observations: data.safety_observations || '',
+          safety_flagged: data.safety_flagged || false,
+          environmental_compliance: data.environmental_compliance || '',
+          environmental_flagged: data.environmental_flagged || false,
+          technical_quality: data.technical_quality || '',
+          technical_flagged: data.technical_flagged || false,
+          progress_logistics: data.progress_logistics || '',
+          progress_flagged: data.progress_flagged || false,
+          general_notes: data.general_notes || '',
+          weather_conditions: data.weather_conditions || '',
+          time_on_row: data.time_on_row || ''
+        })
+        // Fetch associated photos
+        if (data.id) {
+          const { data: photos } = await supabase
+            .from('observation_photos')
+            .select('*')
+            .eq('observation_id', data.id)
+            .order('created_at', { ascending: false })
+          setObservationPhotos(photos || [])
+        }
+      } else {
+        // Reset form for new observation
+        setExistingObservation(null)
+        setObservation({
+          safety_observations: '',
+          safety_flagged: false,
+          environmental_compliance: '',
+          environmental_flagged: false,
+          technical_quality: '',
+          technical_flagged: false,
+          progress_logistics: '',
+          progress_flagged: false,
+          general_notes: '',
+          weather_conditions: '',
+          time_on_row: ''
+        })
+        setObservationPhotos([])
+      }
+      
+      // Fetch observation history
+      const { data: history } = await supabase
+        .from('assistant_chief_observations')
+        .select('id, observation_date, safety_flagged, environmental_flagged, technical_flagged, progress_flagged, created_at')
+        .eq('observer_id', userProfile?.id)
+        .order('observation_date', { ascending: false })
+        .limit(10)
+      
+      setObservationHistory(history || [])
+    } catch (err) {
+      // No existing observation - that's fine
+      setExistingObservation(null)
+    }
+  }
+
+  async function saveObservation() {
+    setSavingObservation(true)
+    try {
+      const observationData = {
+        observation_date: observationDate,
+        observer_id: userProfile?.id,
+        observer_name: userProfile?.full_name,
+        safety_observations: observation.safety_observations,
+        safety_flagged: observation.safety_flagged,
+        environmental_compliance: observation.environmental_compliance,
+        environmental_flagged: observation.environmental_flagged,
+        technical_quality: observation.technical_quality,
+        technical_flagged: observation.technical_flagged,
+        progress_logistics: observation.progress_logistics,
+        progress_flagged: observation.progress_flagged,
+        general_notes: observation.general_notes,
+        weather_conditions: observation.weather_conditions,
+        time_on_row: observation.time_on_row,
+        updated_at: new Date().toISOString()
+      }
+      
+      if (existingObservation) {
+        // Update existing
+        const { error } = await supabase
+          .from('assistant_chief_observations')
+          .update(observationData)
+          .eq('id', existingObservation.id)
+        
+        if (error) throw error
+      } else {
+        // Insert new
+        observationData.created_at = new Date().toISOString()
+        const { data, error } = await supabase
+          .from('assistant_chief_observations')
+          .insert(observationData)
+          .select()
+          .single()
+        
+        if (error) throw error
+        setExistingObservation(data)
+      }
+      
+      alert('Observation saved successfully!')
+      fetchExistingObservation()
+    } catch (err) {
+      console.error('Error saving observation:', err)
+      alert('Error: ' + err.message)
+    }
+    setSavingObservation(false)
+  }
+
+  async function handlePhotoUpload(event) {
+    const file = event.target.files?.[0]
+    if (!file) return
+    
+    // Must have an observation saved first
+    if (!existingObservation) {
+      alert('Please save the observation first before adding photos')
+      return
+    }
+    
+    setUploadingPhoto(true)
+    try {
+      // Get geolocation
+      let geoData = { latitude: null, longitude: null, accuracy: null, direction: null }
+      
+      if (navigator.geolocation) {
+        try {
+          const position = await new Promise((resolve, reject) => {
+            navigator.geolocation.getCurrentPosition(resolve, reject, {
+              enableHighAccuracy: true,
+              timeout: 10000
+            })
+          })
+          geoData = {
+            latitude: parseFloat(position.coords.latitude.toFixed(6)),
+            longitude: parseFloat(position.coords.longitude.toFixed(6)),
+            accuracy: parseFloat(position.coords.accuracy.toFixed(1)),
+            direction: position.coords.heading ? parseFloat(position.coords.heading.toFixed(1)) : null
+          }
+        } catch (geoErr) {
+          console.warn('Geolocation error:', geoErr)
+        }
+      }
+      
+      // Upload to Supabase Storage
+      const fileExt = file.name.split('.').pop()
+      const fileName = `observation_${existingObservation.id}_${Date.now()}.${fileExt}`
+      const filePath = `observation-photos/${fileName}`
+      
+      const { error: uploadError } = await supabase.storage
+        .from('photos')
+        .upload(filePath, file)
+      
+      if (uploadError) throw uploadError
+      
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('photos')
+        .getPublicUrl(filePath)
+      
+      // Save photo record with geotag data
+      const { error: dbError } = await supabase
+        .from('observation_photos')
+        .insert({
+          observation_id: existingObservation.id,
+          photo_url: urlData.publicUrl,
+          file_path: filePath,
+          latitude: geoData.latitude,
+          longitude: geoData.longitude,
+          accuracy_m: geoData.accuracy,
+          direction_deg: geoData.direction,
+          caption: '',
+          taken_at: new Date().toISOString(),
+          created_at: new Date().toISOString()
+        })
+      
+      if (dbError) throw dbError
+      
+      // Refresh photos
+      fetchExistingObservation()
+      alert('Photo uploaded successfully!')
+    } catch (err) {
+      console.error('Error uploading photo:', err)
+      alert('Error uploading photo: ' + err.message)
+    }
+    setUploadingPhoto(false)
+    event.target.value = '' // Reset input
+  }
+
+  async function deletePhoto(photoId) {
+    if (!confirm('Delete this photo?')) return
+    
+    try {
+      const { error } = await supabase
+        .from('observation_photos')
+        .delete()
+        .eq('id', photoId)
+      
+      if (error) throw error
+      fetchExistingObservation()
+    } catch (err) {
+      console.error('Error deleting photo:', err)
+    }
+  }
+
+  // =============================================
   // STATS
   // =============================================
   async function fetchStats() {
@@ -495,6 +736,9 @@ function AssistantChiefDashboard() {
           </button>
           <button style={tabStyle(activeTab === 'compliance')} onClick={() => setActiveTab('compliance')}>
             ✅ Compliance Monitor
+          </button>
+          <button style={tabStyle(activeTab === 'observation')} onClick={() => setActiveTab('observation')}>
+            📝 Daily Observation
           </button>
         </div>
       </div>
@@ -879,6 +1123,344 @@ function AssistantChiefDashboard() {
                   ))}
                 </div>
               )}
+            </div>
+          </div>
+        )}
+
+        {/* ============================================= */}
+        {/* DAILY OBSERVATION TAB */}
+        {/* ============================================= */}
+        {activeTab === 'observation' && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: '20px' }}>
+            {/* Main Observation Form */}
+            <div>
+              <div style={cardStyle}>
+                <div style={cardHeaderStyle('#6f42c1')}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '18px' }}>📝 Daily Field Observation Report</h2>
+                      <p style={{ margin: '5px 0 0 0', fontSize: '12px', opacity: 0.8 }}>
+                        Independent leadership oversight documentation
+                      </p>
+                    </div>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                      <input
+                        type="date"
+                        value={observationDate}
+                        onChange={e => setObservationDate(e.target.value)}
+                        style={{ padding: '8px 12px', borderRadius: '4px', border: 'none' }}
+                      />
+                      {existingObservation && (
+                        <span style={{ backgroundColor: '#28a745', color: 'white', padding: '4px 10px', borderRadius: '4px', fontSize: '11px' }}>
+                          ✓ Saved
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  {/* Header Info */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '25px' }}>
+                    <div>
+                      <label style={labelStyle}>Weather Conditions</label>
+                      <input
+                        type="text"
+                        value={observation.weather_conditions}
+                        onChange={e => setObservation({ ...observation, weather_conditions: e.target.value })}
+                        style={inputStyle}
+                        placeholder="e.g., Clear, 15°C, light wind"
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>Time on ROW</label>
+                      <input
+                        type="text"
+                        value={observation.time_on_row}
+                        onChange={e => setObservation({ ...observation, time_on_row: e.target.value })}
+                        style={inputStyle}
+                        placeholder="e.g., 07:00 - 17:30"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Safety Observations */}
+                  <div style={{ marginBottom: '25px', backgroundColor: '#fff5f5', padding: '20px', borderRadius: '8px', borderLeft: '4px solid #dc3545' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <label style={{ ...labelStyle, margin: 0, color: '#dc3545', fontSize: '14px' }}>
+                        🦺 Safety Observations
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                        <input
+                          type="checkbox"
+                          checked={observation.safety_flagged}
+                          onChange={e => setObservation({ ...observation, safety_flagged: e.target.checked })}
+                        />
+                        <span style={{ color: observation.safety_flagged ? '#dc3545' : '#666', fontWeight: observation.safety_flagged ? 'bold' : 'normal' }}>
+                          🚩 Flag for Chief
+                        </span>
+                      </label>
+                    </div>
+                    <textarea
+                      value={observation.safety_observations}
+                      onChange={e => setObservation({ ...observation, safety_observations: e.target.value })}
+                      style={{ ...inputStyle, height: '120px', resize: 'vertical' }}
+                      placeholder="Document safety observations, toolbox talks attended, PPE compliance, hazard identifications, near misses, safety recognitions..."
+                    />
+                    {observation.safety_flagged && (
+                      <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#dc3545' }}>
+                        ⚠️ This section will be highlighted for the Chief Inspector's review
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Environmental Compliance */}
+                  <div style={{ marginBottom: '25px', backgroundColor: '#f0fff4', padding: '20px', borderRadius: '8px', borderLeft: '4px solid #28a745' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <label style={{ ...labelStyle, margin: 0, color: '#28a745', fontSize: '14px' }}>
+                        🌿 Environmental Compliance
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                        <input
+                          type="checkbox"
+                          checked={observation.environmental_flagged}
+                          onChange={e => setObservation({ ...observation, environmental_flagged: e.target.checked })}
+                        />
+                        <span style={{ color: observation.environmental_flagged ? '#28a745' : '#666', fontWeight: observation.environmental_flagged ? 'bold' : 'normal' }}>
+                          🚩 Flag for Chief
+                        </span>
+                      </label>
+                    </div>
+                    <textarea
+                      value={observation.environmental_compliance}
+                      onChange={e => setObservation({ ...observation, environmental_compliance: e.target.value })}
+                      style={{ ...inputStyle, height: '120px', resize: 'vertical' }}
+                      placeholder="Document environmental compliance, topsoil segregation, erosion control, wildlife sightings, watercourse crossings, spill prevention..."
+                    />
+                    {observation.environmental_flagged && (
+                      <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#28a745' }}>
+                        ⚠️ This section will be highlighted for the Chief Inspector's review
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Technical/Quality */}
+                  <div style={{ marginBottom: '25px', backgroundColor: '#f0f7ff', padding: '20px', borderRadius: '8px', borderLeft: '4px solid #17a2b8' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <label style={{ ...labelStyle, margin: 0, color: '#17a2b8', fontSize: '14px' }}>
+                        🔧 Technical / Quality Observations
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                        <input
+                          type="checkbox"
+                          checked={observation.technical_flagged}
+                          onChange={e => setObservation({ ...observation, technical_flagged: e.target.checked })}
+                        />
+                        <span style={{ color: observation.technical_flagged ? '#17a2b8' : '#666', fontWeight: observation.technical_flagged ? 'bold' : 'normal' }}>
+                          🚩 Flag for Chief
+                        </span>
+                      </label>
+                    </div>
+                    <textarea
+                      value={observation.technical_quality}
+                      onChange={e => setObservation({ ...observation, technical_quality: e.target.value })}
+                      style={{ ...inputStyle, height: '120px', resize: 'vertical' }}
+                      placeholder="Document technical observations, welding quality, coating inspection, pipe handling, specification compliance, workmanship issues..."
+                    />
+                    {observation.technical_flagged && (
+                      <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#17a2b8' }}>
+                        ⚠️ This section will be highlighted for the Chief Inspector's review
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Progress/Logistics */}
+                  <div style={{ marginBottom: '25px', backgroundColor: '#fff8e7', padding: '20px', borderRadius: '8px', borderLeft: '4px solid #ffc107' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                      <label style={{ ...labelStyle, margin: 0, color: '#856404', fontSize: '14px' }}>
+                        📊 Progress / Logistics
+                      </label>
+                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                        <input
+                          type="checkbox"
+                          checked={observation.progress_flagged}
+                          onChange={e => setObservation({ ...observation, progress_flagged: e.target.checked })}
+                        />
+                        <span style={{ color: observation.progress_flagged ? '#856404' : '#666', fontWeight: observation.progress_flagged ? 'bold' : 'normal' }}>
+                          🚩 Flag for Chief
+                        </span>
+                      </label>
+                    </div>
+                    <textarea
+                      value={observation.progress_logistics}
+                      onChange={e => setObservation({ ...observation, progress_logistics: e.target.value })}
+                      style={{ ...inputStyle, height: '120px', resize: 'vertical' }}
+                      placeholder="Document progress observations, crew counts, equipment utilization, material deliveries, schedule concerns, contractor coordination..."
+                    />
+                    {observation.progress_flagged && (
+                      <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#856404' }}>
+                        ⚠️ This section will be highlighted for the Chief Inspector's review
+                      </p>
+                    )}
+                  </div>
+
+                  {/* General Notes */}
+                  <div style={{ marginBottom: '25px' }}>
+                    <label style={labelStyle}>📋 General Notes</label>
+                    <textarea
+                      value={observation.general_notes}
+                      onChange={e => setObservation({ ...observation, general_notes: e.target.value })}
+                      style={{ ...inputStyle, height: '100px', resize: 'vertical' }}
+                      placeholder="Any additional observations, contractor interface notes, meetings attended, action items..."
+                    />
+                  </div>
+
+                  {/* Save Button */}
+                  <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                    <button
+                      onClick={saveObservation}
+                      disabled={savingObservation}
+                      style={{
+                        padding: '15px 40px',
+                        backgroundColor: savingObservation ? '#6c757d' : '#28a745',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: savingObservation ? 'not-allowed' : 'pointer',
+                        fontWeight: 'bold',
+                        fontSize: '16px'
+                      }}
+                    >
+                      {savingObservation ? 'Saving...' : existingObservation ? '💾 Update Observation' : '💾 Save Observation'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Photo Upload Section */}
+              <div style={cardStyle}>
+                <div style={cardHeaderStyle('#17a2b8')}>
+                  <h3 style={{ margin: 0, fontSize: '16px' }}>📷 Geotagged Photos</h3>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '11px', opacity: 0.8 }}>
+                    Photos are automatically tagged with GPS coordinates
+                  </p>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  {/* Upload Button */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <label style={{
+                      display: 'inline-block',
+                      padding: '12px 24px',
+                      backgroundColor: existingObservation ? '#17a2b8' : '#ccc',
+                      color: 'white',
+                      borderRadius: '4px',
+                      cursor: existingObservation ? 'pointer' : 'not-allowed',
+                      fontWeight: 'bold'
+                    }}>
+                      {uploadingPhoto ? 'Uploading...' : '📷 Add Photo'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        capture="environment"
+                        onChange={handlePhotoUpload}
+                        disabled={!existingObservation || uploadingPhoto}
+                        style={{ display: 'none' }}
+                      />
+                    </label>
+                    {!existingObservation && (
+                      <p style={{ margin: '10px 0 0 0', fontSize: '12px', color: '#666' }}>
+                        Save observation first to enable photo uploads
+                      </p>
+                    )}
+                  </div>
+
+                  {/* Photo Grid */}
+                  {observationPhotos.length > 0 ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '15px' }}>
+                      {observationPhotos.map(photo => (
+                        <div key={photo.id} style={{ backgroundColor: '#f8f9fa', borderRadius: '8px', overflow: 'hidden' }}>
+                          <div style={{ height: '150px', backgroundColor: '#ddd' }}>
+                            {photo.photo_url && (
+                              <img src={photo.photo_url} alt="Observation" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            )}
+                          </div>
+                          <div style={{ padding: '10px', fontSize: '10px', fontFamily: 'monospace', color: '#666' }}>
+                            <div>📍 {photo.latitude?.toFixed(6)}, {photo.longitude?.toFixed(6)}</div>
+                            <div>🧭 {photo.direction_deg ? `${photo.direction_deg.toFixed(1)}°` : '-'} | 📏 ±{photo.accuracy_m?.toFixed(1)}m</div>
+                            <div style={{ marginTop: '5px' }}>
+                              <button
+                                onClick={() => deletePhoto(photo.id)}
+                                style={{ padding: '4px 8px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}
+                              >
+                                Delete
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '30px', color: '#666' }}>
+                      No photos added yet
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Sidebar - History */}
+            <div>
+              <div style={cardStyle}>
+                <div style={cardHeaderStyle('#6c757d')}>
+                  <h3 style={{ margin: 0, fontSize: '14px' }}>📅 Recent Observations</h3>
+                </div>
+                <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                  {observationHistory.length === 0 ? (
+                    <div style={{ padding: '20px', textAlign: 'center', color: '#666', fontSize: '13px' }}>
+                      No previous observations
+                    </div>
+                  ) : (
+                    observationHistory.map(obs => (
+                      <div
+                        key={obs.id}
+                        onClick={() => setObservationDate(obs.observation_date)}
+                        style={{
+                          padding: '12px 15px',
+                          borderBottom: '1px solid #eee',
+                          cursor: 'pointer',
+                          backgroundColor: obs.observation_date === observationDate ? '#e7f3ff' : 'transparent'
+                        }}
+                      >
+                        <div style={{ fontWeight: 'bold', marginBottom: '5px' }}>{obs.observation_date}</div>
+                        <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap' }}>
+                          {obs.safety_flagged && <span style={{ fontSize: '10px', backgroundColor: '#dc3545', color: 'white', padding: '2px 6px', borderRadius: '3px' }}>Safety</span>}
+                          {obs.environmental_flagged && <span style={{ fontSize: '10px', backgroundColor: '#28a745', color: 'white', padding: '2px 6px', borderRadius: '3px' }}>Env</span>}
+                          {obs.technical_flagged && <span style={{ fontSize: '10px', backgroundColor: '#17a2b8', color: 'white', padding: '2px 6px', borderRadius: '3px' }}>Tech</span>}
+                          {obs.progress_flagged && <span style={{ fontSize: '10px', backgroundColor: '#ffc107', color: '#000', padding: '2px 6px', borderRadius: '3px' }}>Progress</span>}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+
+              {/* Flagged Summary */}
+              <div style={{ ...cardStyle, marginTop: '20px' }}>
+                <div style={{ padding: '15px', backgroundColor: '#f8f9fa' }}>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#495057' }}>🚩 Flagged for Chief</h4>
+                  <div style={{ fontSize: '12px', color: '#666' }}>
+                    {(observation.safety_flagged || observation.environmental_flagged || observation.technical_flagged || observation.progress_flagged) ? (
+                      <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                        {observation.safety_flagged && <li style={{ color: '#dc3545' }}>Safety Observations</li>}
+                        {observation.environmental_flagged && <li style={{ color: '#28a745' }}>Environmental</li>}
+                        {observation.technical_flagged && <li style={{ color: '#17a2b8' }}>Technical/Quality</li>}
+                        {observation.progress_flagged && <li style={{ color: '#856404' }}>Progress/Logistics</li>}
+                      </ul>
+                    ) : (
+                      <p style={{ margin: 0, fontStyle: 'italic' }}>No sections flagged</p>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         )}
