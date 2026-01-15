@@ -74,8 +74,9 @@ function calculateROWBuffer(routeCoords, bufferMeters = 30) {
   return [...leftSide, ...rightSide.reverse(), leftSide[0]]
 }
 
-// Pre-calculate ROW buffer polygon
-const rowBufferPolygon = calculateROWBuffer(egpRouteCoordinates, 30)
+// Get pipeline start and end points
+const pipelineStart = egpKPMarkers.length > 0 ? egpKPMarkers[0] : null
+const pipelineEnd = egpKPMarkers.length > 0 ? egpKPMarkers[egpKPMarkers.length - 1] : null
 
 // Parse KP string to km value
 function parseKPToKm(kpString) {
@@ -194,6 +195,20 @@ export default function MiniMapWidget({
     iconAnchor: [7, 7],
     popupAnchor: [0, -10]
   }), [])
+
+  // Pipeline start/end marker icons
+  const startEndIcon = useMemo(() => L.divIcon({
+    className: 'start-end-marker',
+    html: '<div style="background-color:#e74c3c;width:20px;height:20px;border-radius:50%;border:3px solid white;box-shadow:0 2px 8px rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;"><div style="width:8px;height:8px;background:white;border-radius:50%;"></div></div>',
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+    popupAnchor: [0, -12]
+  }), [])
+
+  // Calculate ROW buffer polygon
+  const rowBufferPolygon = useMemo(() => {
+    return calculateROWBuffer(egpRouteCoordinates, 30)
+  }, [])
 
   // Select route based on pipeline (both use EGP data now)
   const route = egpFullRoute
@@ -444,6 +459,42 @@ export default function MiniMapWidget({
               }}
             />
 
+            {/* Pipeline Start Marker (KP 0) */}
+            {pipelineStart && (
+              <Marker position={[pipelineStart.lat, pipelineStart.lon]} icon={startEndIcon}>
+                <Popup>
+                  <div style={{ fontSize: '12px', textAlign: 'center', minWidth: '150px' }}>
+                    <div style={{ fontWeight: 'bold', color: '#e74c3c', marginBottom: '5px' }}>
+                      🚩 PIPELINE START
+                    </div>
+                    <div><strong>{pipelineStart.name}</strong></div>
+                    <div style={{ fontSize: '10px', color: '#666', marginTop: '3px' }}>
+                      Lat: {pipelineStart.lat.toFixed(6)}<br/>
+                      Lon: {pipelineStart.lon.toFixed(6)}
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
+
+            {/* Pipeline End Marker (KP 38.47) */}
+            {pipelineEnd && (
+              <Marker position={[pipelineEnd.lat, pipelineEnd.lon]} icon={startEndIcon}>
+                <Popup>
+                  <div style={{ fontSize: '12px', textAlign: 'center', minWidth: '150px' }}>
+                    <div style={{ fontWeight: 'bold', color: '#e74c3c', marginBottom: '5px' }}>
+                      🏁 PIPELINE END
+                    </div>
+                    <div><strong>{pipelineEnd.name}</strong></div>
+                    <div style={{ fontSize: '10px', color: '#666', marginTop: '3px' }}>
+                      Lat: {pipelineEnd.lat.toFixed(6)}<br/>
+                      Lon: {pipelineEnd.lon.toFixed(6)}
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
+
             {/* Work Area Highlight (if start and end KP are set) */}
             {startPosition && endPosition && (
               <Polyline
@@ -651,8 +702,9 @@ export default function MiniMapWidget({
           }}>
             <span><span style={{ color: '#9b59b6', opacity: 0.5 }}>▓▓</span> ROW (30m)</span>
             <span><span style={{ color: '#ff6600' }}>━━</span> Centerline</span>
+            <span><span style={{ color: '#e74c3c' }}>◉</span> Start/End</span>
             <span><span style={{ color: '#28a745' }}>━━</span> Work Area</span>
-            <span><span style={{ color: '#007bff' }}>●</span> KP Markers</span>
+            <span><span style={{ color: '#007bff' }}>●</span> KP</span>
             <span><span style={{ color: '#dc3545' }}>●</span> Welds</span>
             <span><span style={{ color: '#fd7e14' }}>●</span> Bends</span>
           </div>
@@ -661,7 +713,7 @@ export default function MiniMapWidget({
 
       {/* CSS for markers */}
       <style>{`
-        .work-area-marker, .user-location {
+        .work-area-marker, .user-location, .start-end-marker {
           background: transparent !important;
           border: none !important;
         }
