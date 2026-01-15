@@ -79,6 +79,22 @@ function AssistantChiefDashboard() {
   // =============================================
   const [complianceIssues, setComplianceIssues] = useState([])
   const [complianceLoading, setComplianceLoading] = useState(false)
+  const [complianceTab, setComplianceTab] = useState('overview') // overview, hazards, recognition, wildlife, inspector-reports
+  
+  // Field Entry State
+  const [hazardEntries, setHazardEntries] = useState([])
+  const [recognitionEntries, setRecognitionEntries] = useState([])
+  const [wildlifeEntries, setWildlifeEntries] = useState([])
+  const [inspectorSafetyNotes, setInspectorSafetyNotes] = useState([])
+  const [inspectorEnvironmentNotes, setInspectorEnvironmentNotes] = useState([])
+  
+  // New Entry Forms
+  const [newHazard, setNewHazard] = useState({ description: '', location_kp: '', severity: 'low', corrective_action: '' })
+  const [newRecognition, setNewRecognition] = useState({ person_name: '', description: '', category: 'ppe' })
+  const [newWildlife, setNewWildlife] = useState({ species: '', count: '1', behavior: '', location_kp: '' })
+  const [showHazardForm, setShowHazardForm] = useState(false)
+  const [showRecognitionForm, setShowRecognitionForm] = useState(false)
+  const [showWildlifeForm, setShowWildlifeForm] = useState(false)
   
   // =============================================
   // DAILY OBSERVATION STATE
@@ -382,7 +398,7 @@ function AssistantChiefDashboard() {
   async function fetchComplianceIssues() {
     setComplianceLoading(true)
     try {
-      // Aggregate compliance issues from various sources
+      // 1. Fetch contractor deficiencies (existing)
       const { data: deficiencyData } = await supabase
         .from('contractor_deficiencies')
         .select('*')
@@ -390,10 +406,153 @@ function AssistantChiefDashboard() {
         .eq('status', 'open')
       
       setComplianceIssues(deficiencyData || [])
+      
+      // 2. Fetch hazard entries from assistant chief
+      const { data: hazards } = await supabase
+        .from('field_hazard_entries')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50)
+      
+      setHazardEntries(hazards || [])
+      
+      // 3. Fetch positive recognition entries
+      const { data: recognition } = await supabase
+        .from('field_recognition_entries')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50)
+      
+      setRecognitionEntries(recognition || [])
+      
+      // 4. Fetch wildlife sightings
+      const { data: wildlife } = await supabase
+        .from('field_wildlife_entries')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(50)
+      
+      setWildlifeEntries(wildlife || [])
+      
+      // 5. Fetch recent inspector safety notes (last 7 days)
+      const weekAgo = new Date()
+      weekAgo.setDate(weekAgo.getDate() - 7)
+      
+      const { data: safetyNotes } = await supabase
+        .from('daily_reports')
+        .select('id, report_date, safety_notes, inspector_name')
+        .gte('report_date', weekAgo.toISOString().split('T')[0])
+        .not('safety_notes', 'is', null)
+        .neq('safety_notes', '')
+        .order('report_date', { ascending: false })
+      
+      setInspectorSafetyNotes(safetyNotes || [])
+      
+      // 6. Fetch recent inspector environmental notes
+      const { data: envNotes } = await supabase
+        .from('daily_reports')
+        .select('id, report_date, land_environment, inspector_name, wildlife_sighting')
+        .gte('report_date', weekAgo.toISOString().split('T')[0])
+        .order('report_date', { ascending: false })
+      
+      setInspectorEnvironmentNotes(envNotes?.filter(n => n.land_environment || n.wildlife_sighting?.sightings?.length > 0) || [])
+      
     } catch (err) {
-      console.error('Error fetching compliance:', err)
+      console.error('Error fetching compliance data:', err)
     }
     setComplianceLoading(false)
+  }
+
+  // Save Hazard Entry
+  async function saveHazardEntry() {
+    if (!newHazard.description) {
+      alert('Please enter a hazard description')
+      return
+    }
+    try {
+      const { error } = await supabase
+        .from('field_hazard_entries')
+        .insert({
+          description: newHazard.description,
+          location_kp: newHazard.location_kp ? parseFloat(newHazard.location_kp) : null,
+          severity: newHazard.severity,
+          corrective_action: newHazard.corrective_action,
+          reported_by: userProfile?.id,
+          reported_by_name: userProfile?.full_name,
+          entry_date: new Date().toISOString().split('T')[0],
+          created_at: new Date().toISOString()
+        })
+      
+      if (error) throw error
+      alert('Hazard entry saved!')
+      setNewHazard({ description: '', location_kp: '', severity: 'low', corrective_action: '' })
+      setShowHazardForm(false)
+      fetchComplianceIssues()
+    } catch (err) {
+      console.error('Error saving hazard:', err)
+      alert('Error: ' + err.message)
+    }
+  }
+
+  // Save Recognition Entry
+  async function saveRecognitionEntry() {
+    if (!newRecognition.person_name || !newRecognition.description) {
+      alert('Please enter person name and description')
+      return
+    }
+    try {
+      const { error } = await supabase
+        .from('field_recognition_entries')
+        .insert({
+          person_name: newRecognition.person_name,
+          description: newRecognition.description,
+          category: newRecognition.category,
+          reported_by: userProfile?.id,
+          reported_by_name: userProfile?.full_name,
+          entry_date: new Date().toISOString().split('T')[0],
+          created_at: new Date().toISOString()
+        })
+      
+      if (error) throw error
+      alert('Recognition saved!')
+      setNewRecognition({ person_name: '', description: '', category: 'ppe' })
+      setShowRecognitionForm(false)
+      fetchComplianceIssues()
+    } catch (err) {
+      console.error('Error saving recognition:', err)
+      alert('Error: ' + err.message)
+    }
+  }
+
+  // Save Wildlife Entry
+  async function saveWildlifeEntry() {
+    if (!newWildlife.species) {
+      alert('Please enter species name')
+      return
+    }
+    try {
+      const { error } = await supabase
+        .from('field_wildlife_entries')
+        .insert({
+          species: newWildlife.species,
+          count: parseInt(newWildlife.count) || 1,
+          behavior: newWildlife.behavior,
+          location_kp: newWildlife.location_kp ? parseFloat(newWildlife.location_kp) : null,
+          reported_by: userProfile?.id,
+          reported_by_name: userProfile?.full_name,
+          entry_date: new Date().toISOString().split('T')[0],
+          created_at: new Date().toISOString()
+        })
+      
+      if (error) throw error
+      alert('Wildlife sighting saved!')
+      setNewWildlife({ species: '', count: '1', behavior: '', location_kp: '' })
+      setShowWildlifeForm(false)
+      fetchComplianceIssues()
+    } catch (err) {
+      console.error('Error saving wildlife:', err)
+      alert('Error: ' + err.message)
+    }
   }
 
   // =============================================
@@ -694,11 +853,18 @@ function AssistantChiefDashboard() {
           }
           processed = processed + ' '
           
-          // Update the appropriate observation field
-          setObservation(prev => ({
-            ...prev,
-            [currentField]: (prev[currentField] || '') + processed
-          }))
+          // Update the appropriate field based on fieldId
+          if (currentField === 'hazard_description') {
+            setNewHazard(prev => ({ ...prev, description: (prev.description || '') + processed }))
+          } else if (currentField === 'recognition_description') {
+            setNewRecognition(prev => ({ ...prev, description: (prev.description || '') + processed }))
+          } else {
+            // Update the observation fields
+            setObservation(prev => ({
+              ...prev,
+              [currentField]: (prev[currentField] || '') + processed
+            }))
+          }
         }
       }
 
@@ -1377,57 +1543,400 @@ function AssistantChiefDashboard() {
         )}
 
         {/* ============================================= */}
-        {/* COMPLIANCE TAB */}
+        {/* COMPLIANCE TAB - Expanded with Field Entries */}
         {/* ============================================= */}
         {activeTab === 'compliance' && (
-          <div style={cardStyle}>
-            <div style={cardHeaderStyle('#28a745')}>
-              <h2 style={{ margin: 0, fontSize: '18px' }}>✅ Contractor Compliance Monitor</h2>
-              <p style={{ margin: '5px 0 0 0', fontSize: '12px', opacity: 0.8 }}>
-                Monitor contractor compliance with contract requirements
-              </p>
+          <div>
+            {/* Sub-tab Navigation */}
+            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
+              {[
+                { id: 'overview', label: '📊 Overview', color: '#28a745' },
+                { id: 'hazards', label: '⚠️ Hazard Awareness', color: '#dc3545', count: hazardEntries.length },
+                { id: 'recognition', label: '⭐ Positive Recognition', color: '#ffc107', count: recognitionEntries.length },
+                { id: 'wildlife', label: '🦌 Wildlife Sightings', color: '#17a2b8', count: wildlifeEntries.length },
+                { id: 'inspector-reports', label: '📋 Inspector Reports', color: '#6f42c1', count: inspectorSafetyNotes.length }
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => setComplianceTab(tab.id)}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: complianceTab === tab.id ? tab.color : 'white',
+                    color: complianceTab === tab.id ? 'white' : '#333',
+                    border: `2px solid ${tab.color}`,
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: complianceTab === tab.id ? 'bold' : 'normal'
+                  }}
+                >
+                  {tab.label} {tab.count > 0 && <span style={{ marginLeft: '5px', backgroundColor: complianceTab === tab.id ? 'rgba(255,255,255,0.3)' : tab.color, color: complianceTab === tab.id ? 'white' : 'white', padding: '2px 8px', borderRadius: '10px', fontSize: '11px' }}>{tab.count}</span>}
+                </button>
+              ))}
             </div>
-            <div style={{ padding: '20px' }}>
-              {complianceLoading ? (
-                <div style={{ textAlign: 'center', padding: '40px' }}>Loading...</div>
-              ) : complianceIssues.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: '40px', color: '#28a745' }}>
-                  <p style={{ fontSize: '18px', margin: 0 }}>✅ No open compliance issues</p>
-                  <p style={{ fontSize: '14px', color: '#666', marginTop: '10px' }}>
-                    All safety, environmental, and regulatory items are in compliance
+
+            {/* OVERVIEW Sub-tab */}
+            {complianceTab === 'overview' && (
+              <div style={cardStyle}>
+                <div style={cardHeaderStyle('#28a745')}>
+                  <h2 style={{ margin: 0, fontSize: '18px' }}>📊 Safety & Environmental Overview</h2>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '12px', opacity: 0.8 }}>
+                    Aggregated view from all sources
                   </p>
                 </div>
-              ) : (
-                <div>
-                  <h4 style={{ marginTop: 0 }}>⚠️ Open Compliance Issues ({complianceIssues.length})</h4>
-                  {complianceIssues.map(issue => (
-                    <div key={issue.id} style={{ backgroundColor: '#fff3cd', padding: '15px', borderRadius: '8px', marginBottom: '10px', borderLeft: '4px solid #ffc107' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                        <div>
-                          <span style={badgeStyle(
-                            issue.category === 'safety' ? '#dc3545' :
-                            issue.category === 'environmental' ? '#28a745' : '#17a2b8'
-                          )}>
-                            {issue.category?.toUpperCase()}
-                          </span>
-                          <p style={{ margin: '10px 0 5px 0', fontWeight: 'bold' }}>{issue.description}</p>
-                          <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>
-                            {issue.location_kp ? `KP ${issue.location_kp.toFixed(3)} • ` : ''}
-                            Reported {new Date(issue.created_at).toLocaleDateString()}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => updateDeficiencyStatus(issue.id, 'in_progress')}
-                          style={{ padding: '8px 16px', backgroundColor: '#ffc107', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                        >
-                          Address Issue
-                        </button>
+                <div style={{ padding: '20px' }}>
+                  {complianceLoading ? (
+                    <div style={{ textAlign: 'center', padding: '40px' }}>Loading...</div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px' }}>
+                      <div style={{ backgroundColor: '#fff5f5', padding: '20px', borderRadius: '8px', textAlign: 'center', borderLeft: '4px solid #dc3545' }}>
+                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#dc3545' }}>{hazardEntries.filter(h => h.severity === 'high').length}</div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>High Severity Hazards</div>
+                      </div>
+                      <div style={{ backgroundColor: '#fff8e7', padding: '20px', borderRadius: '8px', textAlign: 'center', borderLeft: '4px solid #ffc107' }}>
+                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#ffc107' }}>{recognitionEntries.length}</div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>Positive Recognitions</div>
+                      </div>
+                      <div style={{ backgroundColor: '#f0fff4', padding: '20px', borderRadius: '8px', textAlign: 'center', borderLeft: '4px solid #28a745' }}>
+                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#28a745' }}>{wildlifeEntries.length}</div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>Wildlife Sightings</div>
+                      </div>
+                      <div style={{ backgroundColor: '#f0f7ff', padding: '20px', borderRadius: '8px', textAlign: 'center', borderLeft: '4px solid #17a2b8' }}>
+                        <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#17a2b8' }}>{complianceIssues.length}</div>
+                        <div style={{ fontSize: '12px', color: '#666' }}>Open Deficiencies</div>
                       </div>
                     </div>
-                  ))}
+                  )}
+                  
+                  {/* Recent Activity Feed */}
+                  <h4 style={{ marginTop: '25px', marginBottom: '15px' }}>📰 Recent Activity (Last 7 Days)</h4>
+                  <div style={{ maxHeight: '300px', overflowY: 'auto' }}>
+                    {inspectorSafetyNotes.slice(0, 5).map(note => (
+                      <div key={note.id} style={{ padding: '10px 15px', borderBottom: '1px solid #eee', fontSize: '13px' }}>
+                        <span style={badgeStyle('#dc3545')}>SAFETY</span>
+                        <span style={{ marginLeft: '10px', color: '#666' }}>{note.report_date} - {note.inspector_name}</span>
+                        <p style={{ margin: '5px 0 0 0', color: '#333' }}>{note.safety_notes?.substring(0, 150)}...</p>
+                      </div>
+                    ))}
+                    {inspectorSafetyNotes.length === 0 && (
+                      <p style={{ color: '#666', fontStyle: 'italic' }}>No recent inspector safety notes</p>
+                    )}
+                  </div>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
+
+            {/* HAZARD AWARENESS Sub-tab */}
+            {complianceTab === 'hazards' && (
+              <div style={cardStyle}>
+                <div style={cardHeaderStyle('#dc3545')}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '18px' }}>⚠️ Hazard Awareness</h2>
+                      <p style={{ margin: '5px 0 0 0', fontSize: '12px', opacity: 0.8 }}>
+                        Document field hazards observed during walkdowns
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowHazardForm(!showHazardForm)}
+                      style={{ padding: '10px 20px', backgroundColor: '#fff', color: '#dc3545', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                      {showHazardForm ? '✕ Cancel' : '+ Log Hazard'}
+                    </button>
+                  </div>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  {/* New Hazard Form */}
+                  {showHazardForm && (
+                    <div style={{ backgroundColor: '#fff5f5', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #dc3545' }}>
+                      <h4 style={{ margin: '0 0 15px 0', color: '#dc3545' }}>New Hazard Entry</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+                        <div>
+                          <label style={labelStyle}>Severity *</label>
+                          <select value={newHazard.severity} onChange={e => setNewHazard({ ...newHazard, severity: e.target.value })} style={inputStyle}>
+                            <option value="low">Low - Awareness</option>
+                            <option value="medium">Medium - Needs Attention</option>
+                            <option value="high">High - Immediate Action</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Location (KP)</label>
+                          <input type="number" step="0.001" value={newHazard.location_kp} onChange={e => setNewHazard({ ...newHazard, location_kp: e.target.value })} style={inputStyle} placeholder="0.000" />
+                        </div>
+                      </div>
+                      <div style={{ marginBottom: '15px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                          <label style={labelStyle}>Hazard Description *</label>
+                          <VoiceButton fieldId="hazard_description" />
+                        </div>
+                        <textarea 
+                          value={newHazard.description} 
+                          onChange={e => setNewHazard({ ...newHazard, description: e.target.value })} 
+                          style={{ ...inputStyle, height: '80px', border: isListening === 'hazard_description' ? '2px solid #dc3545' : '1px solid #ced4da' }} 
+                          placeholder="Describe the hazard..." 
+                        />
+                      </div>
+                      <div style={{ marginBottom: '15px' }}>
+                        <label style={labelStyle}>Corrective Action Taken</label>
+                        <textarea value={newHazard.corrective_action} onChange={e => setNewHazard({ ...newHazard, corrective_action: e.target.value })} style={{ ...inputStyle, height: '60px' }} placeholder="What was done to address this hazard?" />
+                      </div>
+                      <button onClick={saveHazardEntry} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                        Save Hazard Entry
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Hazard List */}
+                  {hazardEntries.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                      <p>No hazard entries yet</p>
+                      <button onClick={() => setShowHazardForm(true)} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                        Log First Hazard
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      {hazardEntries.map(hazard => (
+                        <div key={hazard.id} style={{ padding: '15px', borderBottom: '1px solid #eee', borderLeft: `4px solid ${hazard.severity === 'high' ? '#dc3545' : hazard.severity === 'medium' ? '#ffc107' : '#28a745'}` }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                            <div>
+                              <span style={badgeStyle(hazard.severity === 'high' ? '#dc3545' : hazard.severity === 'medium' ? '#ffc107' : '#28a745')}>
+                                {hazard.severity?.toUpperCase()}
+                              </span>
+                              <span style={{ marginLeft: '10px', fontSize: '12px', color: '#666' }}>
+                                {hazard.entry_date} • {hazard.reported_by_name}
+                                {hazard.location_kp && ` • KP ${hazard.location_kp.toFixed(3)}`}
+                              </span>
+                            </div>
+                          </div>
+                          <p style={{ margin: '10px 0 5px 0' }}>{hazard.description}</p>
+                          {hazard.corrective_action && (
+                            <p style={{ margin: 0, fontSize: '12px', color: '#28a745' }}>✓ Action: {hazard.corrective_action}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* POSITIVE RECOGNITION Sub-tab */}
+            {complianceTab === 'recognition' && (
+              <div style={cardStyle}>
+                <div style={cardHeaderStyle('#ffc107')}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '18px', color: '#000' }}>⭐ Positive Safety Recognition</h2>
+                      <p style={{ margin: '5px 0 0 0', fontSize: '12px', color: '#333' }}>
+                        Recognize workers for safe behaviors and good practices
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowRecognitionForm(!showRecognitionForm)}
+                      style={{ padding: '10px 20px', backgroundColor: '#fff', color: '#856404', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                      {showRecognitionForm ? '✕ Cancel' : '+ Add Recognition'}
+                    </button>
+                  </div>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  {/* New Recognition Form */}
+                  {showRecognitionForm && (
+                    <div style={{ backgroundColor: '#fff8e7', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #ffc107' }}>
+                      <h4 style={{ margin: '0 0 15px 0', color: '#856404' }}>New Recognition</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+                        <div>
+                          <label style={labelStyle}>Person's Name *</label>
+                          <input type="text" value={newRecognition.person_name} onChange={e => setNewRecognition({ ...newRecognition, person_name: e.target.value })} style={inputStyle} placeholder="Worker name" />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Category</label>
+                          <select value={newRecognition.category} onChange={e => setNewRecognition({ ...newRecognition, category: e.target.value })} style={inputStyle}>
+                            <option value="ppe">PPE Compliance</option>
+                            <option value="housekeeping">Housekeeping</option>
+                            <option value="hazard_id">Hazard Identification</option>
+                            <option value="leadership">Safety Leadership</option>
+                            <option value="environmental">Environmental Care</option>
+                            <option value="other">Other</option>
+                          </select>
+                        </div>
+                      </div>
+                      <div style={{ marginBottom: '15px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                          <label style={labelStyle}>Description *</label>
+                          <VoiceButton fieldId="recognition_description" />
+                        </div>
+                        <textarea 
+                          value={newRecognition.description} 
+                          onChange={e => setNewRecognition({ ...newRecognition, description: e.target.value })} 
+                          style={{ ...inputStyle, height: '80px', border: isListening === 'recognition_description' ? '2px solid #ffc107' : '1px solid #ced4da' }} 
+                          placeholder="What did they do well?" 
+                        />
+                      </div>
+                      <button onClick={saveRecognitionEntry} style={{ padding: '10px 20px', backgroundColor: '#ffc107', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                        Save Recognition
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Recognition List */}
+                  {recognitionEntries.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                      <p>No recognitions yet</p>
+                      <button onClick={() => setShowRecognitionForm(true)} style={{ padding: '10px 20px', backgroundColor: '#ffc107', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                        Add First Recognition
+                      </button>
+                    </div>
+                  ) : (
+                    <div>
+                      {recognitionEntries.map(rec => (
+                        <div key={rec.id} style={{ padding: '15px', borderBottom: '1px solid #eee', backgroundColor: '#fffef5' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                            <div>
+                              <span style={{ fontSize: '16px', marginRight: '10px' }}>⭐</span>
+                              <strong>{rec.person_name}</strong>
+                              <span style={badgeStyle('#ffc107')}>{rec.category?.toUpperCase().replace('_', ' ')}</span>
+                            </div>
+                            <span style={{ fontSize: '12px', color: '#666' }}>{rec.entry_date}</span>
+                          </div>
+                          <p style={{ margin: '10px 0 0 0', color: '#333' }}>{rec.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* WILDLIFE SIGHTINGS Sub-tab */}
+            {complianceTab === 'wildlife' && (
+              <div style={cardStyle}>
+                <div style={cardHeaderStyle('#17a2b8')}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '18px' }}>🦌 Wildlife Sightings</h2>
+                      <p style={{ margin: '5px 0 0 0', fontSize: '12px', opacity: 0.8 }}>
+                        Document wildlife observed on the ROW
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setShowWildlifeForm(!showWildlifeForm)}
+                      style={{ padding: '10px 20px', backgroundColor: '#fff', color: '#17a2b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                      {showWildlifeForm ? '✕ Cancel' : '+ Log Sighting'}
+                    </button>
+                  </div>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  {/* New Wildlife Form */}
+                  {showWildlifeForm && (
+                    <div style={{ backgroundColor: '#f0f7ff', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #17a2b8' }}>
+                      <h4 style={{ margin: '0 0 15px 0', color: '#17a2b8' }}>New Wildlife Sighting</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+                        <div>
+                          <label style={labelStyle}>Species *</label>
+                          <input type="text" value={newWildlife.species} onChange={e => setNewWildlife({ ...newWildlife, species: e.target.value })} style={inputStyle} placeholder="e.g., Black Bear, Deer" />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Count</label>
+                          <input type="number" min="1" value={newWildlife.count} onChange={e => setNewWildlife({ ...newWildlife, count: e.target.value })} style={inputStyle} />
+                        </div>
+                        <div>
+                          <label style={labelStyle}>Location (KP)</label>
+                          <input type="number" step="0.001" value={newWildlife.location_kp} onChange={e => setNewWildlife({ ...newWildlife, location_kp: e.target.value })} style={inputStyle} placeholder="0.000" />
+                        </div>
+                      </div>
+                      <div style={{ marginBottom: '15px' }}>
+                        <label style={labelStyle}>Behavior / Notes</label>
+                        <input type="text" value={newWildlife.behavior} onChange={e => setNewWildlife({ ...newWildlife, behavior: e.target.value })} style={inputStyle} placeholder="e.g., Grazing, Crossing ROW, Nesting" />
+                      </div>
+                      <button onClick={saveWildlifeEntry} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                        Save Sighting
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Wildlife List */}
+                  {wildlifeEntries.length === 0 ? (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                      <p>No wildlife sightings logged</p>
+                      <button onClick={() => setShowWildlifeForm(true)} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                        Log First Sighting
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '15px' }}>
+                      {wildlifeEntries.map(w => (
+                        <div key={w.id} style={{ padding: '15px', backgroundColor: '#f0f7ff', borderRadius: '8px', border: '1px solid #17a2b8' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
+                            <span style={{ fontSize: '20px' }}>🦌</span>
+                            <span style={{ fontSize: '11px', color: '#666' }}>{w.entry_date}</span>
+                          </div>
+                          <h4 style={{ margin: '10px 0 5px 0' }}>{w.species} {w.count > 1 && `(${w.count})`}</h4>
+                          {w.location_kp && <p style={{ margin: '0 0 5px 0', fontSize: '12px', color: '#666' }}>📍 KP {w.location_kp.toFixed(3)}</p>}
+                          {w.behavior && <p style={{ margin: 0, fontSize: '13px' }}>{w.behavior}</p>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* INSPECTOR REPORTS Sub-tab */}
+            {complianceTab === 'inspector-reports' && (
+              <div style={cardStyle}>
+                <div style={cardHeaderStyle('#6f42c1')}>
+                  <h2 style={{ margin: 0, fontSize: '18px' }}>📋 Inspector Safety & Environmental Reports</h2>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '12px', opacity: 0.8 }}>
+                    Aggregated from daily inspection reports (last 7 days)
+                  </p>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  {/* Safety Notes from Inspectors */}
+                  <h4 style={{ marginTop: 0, color: '#dc3545' }}>🦺 Safety Observations from Inspectors</h4>
+                  {inspectorSafetyNotes.length === 0 ? (
+                    <p style={{ color: '#666', fontStyle: 'italic' }}>No safety notes in the last 7 days</p>
+                  ) : (
+                    <div style={{ marginBottom: '25px' }}>
+                      {inspectorSafetyNotes.map(note => (
+                        <div key={note.id} style={{ padding: '12px 15px', borderBottom: '1px solid #eee', borderLeft: '3px solid #dc3545' }}>
+                          <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>
+                            <strong>{note.inspector_name}</strong> • {note.report_date}
+                          </div>
+                          <p style={{ margin: 0, fontSize: '14px' }}>{note.safety_notes}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Environmental Notes from Inspectors */}
+                  <h4 style={{ color: '#28a745' }}>🌿 Environmental Observations from Inspectors</h4>
+                  {inspectorEnvironmentNotes.length === 0 ? (
+                    <p style={{ color: '#666', fontStyle: 'italic' }}>No environmental notes in the last 7 days</p>
+                  ) : (
+                    <div>
+                      {inspectorEnvironmentNotes.map(note => (
+                        <div key={note.id} style={{ padding: '12px 15px', borderBottom: '1px solid #eee', borderLeft: '3px solid #28a745' }}>
+                          <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>
+                            <strong>{note.inspector_name}</strong> • {note.report_date}
+                          </div>
+                          {note.land_environment && <p style={{ margin: '0 0 5px 0', fontSize: '14px' }}>{note.land_environment}</p>}
+                          {note.wildlife_sighting?.sightings?.length > 0 && (
+                            <div style={{ backgroundColor: '#f0fff4', padding: '8px', borderRadius: '4px', marginTop: '5px' }}>
+                              <strong style={{ fontSize: '12px' }}>🦌 Wildlife:</strong>
+                              {note.wildlife_sighting.sightings.map((s, i) => (
+                                <span key={i} style={{ marginLeft: '10px', fontSize: '12px' }}>{s.species} ({s.count})</span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
