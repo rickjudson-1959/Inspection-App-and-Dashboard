@@ -5,6 +5,7 @@ import { supabase } from './supabase'
 import MiniMapWidget from './MiniMapWidget.jsx'
 import SafetyRecognition from './SafetyRecognition.jsx'
 import WildlifeSighting from './WildlifeSighting.jsx'
+import jsPDF from 'jspdf'
 
 // Weather API Key
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
@@ -169,6 +170,12 @@ function AssistantChiefDashboard() {
   
   // Expanded map state
   const [showExpandedMap, setShowExpandedMap] = useState(false)
+  
+  // Report generation state
+  const [generatingReport, setGeneratingReport] = useState(false)
+  const [showReportPreview, setShowReportPreview] = useState(false)
+  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0])
+  const [dailyReportData, setDailyReportData] = useState(null)
   
   // Voice input state
   const [speechSupported, setSpeechSupported] = useState(false)
@@ -796,6 +803,480 @@ function AssistantChiefDashboard() {
   }
 
   // =============================================
+  // DAILY REPORT GENERATION
+  // =============================================
+  
+  // Gather all data for the daily report
+  async function gatherDailyReportData() {
+    const data = {
+      date: reportDate,
+      generatedAt: new Date().toISOString(),
+      generatedBy: userProfile?.full_name,
+      weather: weatherData,
+      observation: null,
+      complianceIssues: [],
+      hazardEntries: [],
+      safetyCards: [],
+      wildlifeSightings: [],
+      inspectorReports: []
+    }
+    
+    try {
+      // 1. Get observation for the date
+      const { data: obs } = await supabase
+        .from('assistant_chief_observations')
+        .select('*')
+        .eq('observation_date', reportDate)
+        .eq('observer_id', userProfile?.id)
+        .single()
+      
+      data.observation = obs
+      
+      // 2. Get compliance issues logged today
+      const { data: issues } = await supabase
+        .from('compliance_issues')
+        .select('*')
+        .eq('entry_date', reportDate)
+        .eq('reported_by', userProfile?.id)
+      
+      data.complianceIssues = issues || []
+      
+      // 3. Get hazard entries for today
+      const { data: hazards } = await supabase
+        .from('field_hazard_entries')
+        .select('*')
+        .eq('entry_date', reportDate)
+        .eq('reported_by', userProfile?.id)
+      
+      data.hazardEntries = hazards || []
+      
+      // 4. Get safety cards for today
+      const { data: cards } = await supabase
+        .from('assistant_chief_safety_cards')
+        .select('*')
+        .eq('observer_date', reportDate)
+        .eq('reported_by', userProfile?.id)
+      
+      data.safetyCards = cards || []
+      
+      // 5. Get wildlife sightings for today
+      const { data: wildlife } = await supabase
+        .from('assistant_chief_wildlife')
+        .select('*')
+        .eq('sighting_date', reportDate)
+        .eq('reported_by', userProfile?.id)
+      
+      data.wildlifeSightings = wildlife || []
+      
+      // 6. Get inspector reports for today (summary)
+      const { data: inspReports } = await supabase
+        .from('daily_reports')
+        .select('id, inspector_name, report_date, safety_notes, land_environment')
+        .eq('report_date', reportDate)
+      
+      data.inspectorReports = inspReports || []
+      
+    } catch (err) {
+      console.error('Error gathering report data:', err)
+    }
+    
+    return data
+  }
+
+  // Generate PDF Report
+  async function generateDailyReport() {
+    setGeneratingReport(true)
+    
+    try {
+      const data = await gatherDailyReportData()
+      setDailyReportData(data)
+      
+      const doc = new jsPDF()
+      let y = 20
+      const leftMargin = 20
+      const pageWidth = 170
+      const lineHeight = 6
+      
+      // Helper function to add text with word wrap
+      const addWrappedText = (text, x, startY, maxWidth, fontSize = 10) => {
+        doc.setFontSize(fontSize)
+        const lines = doc.splitTextToSize(text || '', maxWidth)
+        lines.forEach(line => {
+          if (y > 270) {
+            doc.addPage()
+            y = 20
+          }
+          doc.text(line, x, y)
+          y += lineHeight
+        })
+        return y
+      }
+      
+      // Helper for section headers
+      const addSectionHeader = (title, color = [0, 123, 255]) => {
+        if (y > 250) {
+          doc.addPage()
+          y = 20
+        }
+        y += 5
+        doc.setFillColor(...color)
+        doc.rect(leftMargin - 5, y - 5, pageWidth + 10, 10, 'F')
+        doc.setTextColor(255, 255, 255)
+        doc.setFontSize(12)
+        doc.setFont('helvetica', 'bold')
+        doc.text(title, leftMargin, y + 2)
+        doc.setTextColor(0, 0, 0)
+        doc.setFont('helvetica', 'normal')
+        y += 15
+      }
+      
+      // ==========================================
+      // HEADER
+      // ==========================================
+      doc.setFillColor(44, 82, 130)
+      doc.rect(0, 0, 220, 40, 'F')
+      
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(18)
+      doc.setFont('helvetica', 'bold')
+      doc.text('Assistant Chief Inspector', leftMargin, 18)
+      doc.text('Daily Field Report', leftMargin, 28)
+      
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`Date: ${data.date}`, 150, 18)
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 150, 25)
+      doc.text(`By: ${data.generatedBy}`, 150, 32)
+      
+      doc.setTextColor(0, 0, 0)
+      y = 50
+      
+      // ==========================================
+      // WEATHER CONDITIONS
+      // ==========================================
+      if (data.weather?.conditions || data.observation?.weather_conditions) {
+        addSectionHeader('Weather Conditions', [23, 162, 184])
+        const weatherText = data.observation?.weather_conditions || 
+          `${data.weather?.conditions || ''}, High: ${data.weather?.tempHigh || '-'}°C, Low: ${data.weather?.tempLow || '-'}°C, Wind: ${data.weather?.windSpeed || '-'} km/h`
+        addWrappedText(weatherText, leftMargin, y, pageWidth)
+        if (data.observation?.time_on_row) {
+          addWrappedText(`Time on ROW: ${data.observation.time_on_row}`, leftMargin, y, pageWidth)
+        }
+        y += 5
+      }
+      
+      // ==========================================
+      // DAILY OBSERVATIONS
+      // ==========================================
+      if (data.observation) {
+        const obs = data.observation
+        
+        // Safety Observations
+        if (obs.safety_observations) {
+          addSectionHeader('🦺 Safety Observations', [220, 53, 69])
+          if (obs.safety_flagged) {
+            doc.setTextColor(220, 53, 69)
+            doc.setFont('helvetica', 'bold')
+            doc.text('⚠️ FLAGGED FOR CHIEF REVIEW', leftMargin, y)
+            doc.setTextColor(0, 0, 0)
+            doc.setFont('helvetica', 'normal')
+            y += lineHeight + 2
+          }
+          addWrappedText(obs.safety_observations, leftMargin, y, pageWidth)
+          y += 5
+        }
+        
+        // Environmental Compliance
+        if (obs.environmental_compliance) {
+          addSectionHeader('🌿 Environmental Compliance', [40, 167, 69])
+          if (obs.environmental_flagged) {
+            doc.setTextColor(40, 167, 69)
+            doc.setFont('helvetica', 'bold')
+            doc.text('⚠️ FLAGGED FOR CHIEF REVIEW', leftMargin, y)
+            doc.setTextColor(0, 0, 0)
+            doc.setFont('helvetica', 'normal')
+            y += lineHeight + 2
+          }
+          addWrappedText(obs.environmental_compliance, leftMargin, y, pageWidth)
+          y += 5
+        }
+        
+        // Technical/Quality
+        if (obs.technical_quality) {
+          addSectionHeader('🔧 Technical / Quality', [23, 162, 184])
+          if (obs.technical_flagged) {
+            doc.setTextColor(23, 162, 184)
+            doc.setFont('helvetica', 'bold')
+            doc.text('⚠️ FLAGGED FOR CHIEF REVIEW', leftMargin, y)
+            doc.setTextColor(0, 0, 0)
+            doc.setFont('helvetica', 'normal')
+            y += lineHeight + 2
+          }
+          addWrappedText(obs.technical_quality, leftMargin, y, pageWidth)
+          y += 5
+        }
+        
+        // Progress/Logistics
+        if (obs.progress_logistics) {
+          addSectionHeader('📊 Progress / Logistics', [255, 193, 7])
+          if (obs.progress_flagged) {
+            doc.setTextColor(133, 100, 4)
+            doc.setFont('helvetica', 'bold')
+            doc.text('⚠️ FLAGGED FOR CHIEF REVIEW', leftMargin, y)
+            doc.setTextColor(0, 0, 0)
+            doc.setFont('helvetica', 'normal')
+            y += lineHeight + 2
+          }
+          addWrappedText(obs.progress_logistics, leftMargin, y, pageWidth)
+          y += 5
+        }
+        
+        // General Notes
+        if (obs.general_notes) {
+          addSectionHeader('📋 General Notes', [108, 117, 125])
+          addWrappedText(obs.general_notes, leftMargin, y, pageWidth)
+          y += 5
+        }
+      }
+      
+      // ==========================================
+      // COMPLIANCE ISSUES
+      // ==========================================
+      if (data.complianceIssues.length > 0) {
+        addSectionHeader(`🚨 Compliance Issues (${data.complianceIssues.length})`, [220, 53, 69])
+        
+        data.complianceIssues.forEach((issue, idx) => {
+          doc.setFont('helvetica', 'bold')
+          doc.text(`${idx + 1}. [${issue.severity?.toUpperCase()}] ${issue.category?.toUpperCase()}`, leftMargin, y)
+          doc.setFont('helvetica', 'normal')
+          y += lineHeight
+          
+          if (issue.location_kp) {
+            doc.text(`   Location: KP ${issue.location_kp.toFixed(3)}`, leftMargin, y)
+            y += lineHeight
+          }
+          
+          addWrappedText(`   ${issue.description}`, leftMargin, y, pageWidth - 10)
+          
+          // Notification status
+          const notifications = []
+          if (issue.contractor_notified) notifications.push('Contractor')
+          if (issue.safety_notified) notifications.push('Safety')
+          if (issue.environmental_notified) notifications.push('Environmental')
+          if (issue.chief_notified) notifications.push('Chief')
+          
+          if (notifications.length > 0) {
+            doc.text(`   Notified: ${notifications.join(', ')}`, leftMargin, y)
+            y += lineHeight
+          }
+          
+          if (issue.contractor_addressed) {
+            doc.setTextColor(40, 167, 69)
+            doc.text(`   ✓ Contractor Addressed: ${issue.contractor_response || 'Yes'}`, leftMargin, y)
+            doc.setTextColor(0, 0, 0)
+            y += lineHeight
+          }
+          
+          y += 5
+        })
+      }
+      
+      // ==========================================
+      // HAZARD AWARENESS
+      // ==========================================
+      if (data.hazardEntries.length > 0) {
+        addSectionHeader(`⚠️ Hazard Entries (${data.hazardEntries.length})`, [253, 126, 20])
+        
+        data.hazardEntries.forEach((hazard, idx) => {
+          const severityColor = hazard.severity === 'high' ? [220, 53, 69] : 
+                               hazard.severity === 'medium' ? [255, 193, 7] : [40, 167, 69]
+          doc.setTextColor(...severityColor)
+          doc.setFont('helvetica', 'bold')
+          doc.text(`${idx + 1}. [${hazard.severity?.toUpperCase()}]`, leftMargin, y)
+          doc.setTextColor(0, 0, 0)
+          doc.setFont('helvetica', 'normal')
+          
+          if (hazard.location_kp) {
+            doc.text(` - KP ${hazard.location_kp.toFixed(3)}`, leftMargin + 30, y)
+          }
+          y += lineHeight
+          
+          addWrappedText(`   ${hazard.description}`, leftMargin, y, pageWidth - 10)
+          
+          if (hazard.corrective_action) {
+            doc.setTextColor(40, 167, 69)
+            addWrappedText(`   ✓ Action: ${hazard.corrective_action}`, leftMargin, y, pageWidth - 10)
+            doc.setTextColor(0, 0, 0)
+          }
+          y += 3
+        })
+      }
+      
+      // ==========================================
+      // SAFETY RECOGNITION CARDS
+      // ==========================================
+      if (data.safetyCards.length > 0) {
+        addSectionHeader(`🏆 Safety Cards (${data.safetyCards.length})`, [40, 167, 69])
+        
+        data.safetyCards.forEach((card, idx) => {
+          const cardType = card.card_type === 'positive' ? 'Positive Recognition' : 'Hazard ID (SAFE)'
+          doc.setFont('helvetica', 'bold')
+          doc.text(`${idx + 1}. ${cardType}`, leftMargin, y)
+          doc.setFont('helvetica', 'normal')
+          y += lineHeight
+          
+          if (card.observee_name) {
+            doc.text(`   Person: ${card.observee_name}`, leftMargin, y)
+            y += lineHeight
+          }
+          if (card.location) {
+            doc.text(`   Location: ${card.location}`, leftMargin, y)
+            y += lineHeight
+          }
+          if (card.situation_description) {
+            addWrappedText(`   ${card.situation_description}`, leftMargin, y, pageWidth - 10)
+          }
+          y += 3
+        })
+      }
+      
+      // ==========================================
+      // WILDLIFE SIGHTINGS
+      // ==========================================
+      if (data.wildlifeSightings.length > 0) {
+        addSectionHeader(`🦌 Wildlife Sightings (${data.wildlifeSightings.length})`, [32, 201, 151])
+        
+        data.wildlifeSightings.forEach((sighting, idx) => {
+          const speciesList = Array.isArray(sighting.species) ? sighting.species.join(', ') : sighting.species
+          doc.setFont('helvetica', 'bold')
+          doc.text(`${idx + 1}. ${speciesList || 'Unknown'}`, leftMargin, y)
+          doc.setFont('helvetica', 'normal')
+          y += lineHeight
+          
+          if (sighting.number_of_animals) {
+            doc.text(`   Count: ${sighting.number_of_animals}`, leftMargin, y)
+            y += lineHeight
+          }
+          if (sighting.location) {
+            doc.text(`   Location: ${sighting.location}`, leftMargin, y)
+            y += lineHeight
+          }
+          if (sighting.activity) {
+            addWrappedText(`   Activity: ${sighting.activity}`, leftMargin, y, pageWidth - 10)
+          }
+          if (sighting.mortality === 'yes') {
+            doc.setTextColor(220, 53, 69)
+            doc.text(`   ⚠️ Mortality: ${sighting.mortality_cause || 'Unknown cause'}`, leftMargin, y)
+            doc.setTextColor(0, 0, 0)
+            y += lineHeight
+          }
+          y += 3
+        })
+      }
+      
+      // ==========================================
+      // INSPECTOR REPORTS SUMMARY
+      // ==========================================
+      if (data.inspectorReports.length > 0) {
+        addSectionHeader(`📋 Inspector Reports Summary (${data.inspectorReports.length})`, [111, 66, 193])
+        
+        data.inspectorReports.forEach(report => {
+          doc.setFont('helvetica', 'bold')
+          doc.text(`• ${report.inspector_name}`, leftMargin, y)
+          doc.setFont('helvetica', 'normal')
+          y += lineHeight
+          
+          if (report.safety_notes) {
+            addWrappedText(`  Safety: ${report.safety_notes.substring(0, 150)}...`, leftMargin, y, pageWidth - 10)
+          }
+          y += 3
+        })
+      }
+      
+      // ==========================================
+      // FOOTER - SIGNATURE BLOCK
+      // ==========================================
+      if (y > 220) {
+        doc.addPage()
+        y = 20
+      }
+      
+      y += 20
+      doc.setDrawColor(0, 0, 0)
+      doc.line(leftMargin, y, leftMargin + 80, y)
+      doc.text('Assistant Chief Inspector Signature', leftMargin, y + 8)
+      
+      doc.line(leftMargin + 100, y, leftMargin + 160, y)
+      doc.text('Date', leftMargin + 100, y + 8)
+      
+      y += 25
+      doc.line(leftMargin, y, leftMargin + 80, y)
+      doc.text('Chief Inspector Review', leftMargin, y + 8)
+      
+      doc.line(leftMargin + 100, y, leftMargin + 160, y)
+      doc.text('Date', leftMargin + 100, y + 8)
+      
+      // ==========================================
+      // SAVE PDF
+      // ==========================================
+      const fileName = `Assistant_Chief_Report_${data.date}.pdf`
+      const pdfBlob = doc.output('blob')
+      
+      // Upload to Supabase Storage
+      const filePath = `assistant-chief-reports/${fileName}`
+      const { error: uploadError } = await supabase.storage
+        .from('reports')
+        .upload(filePath, pdfBlob, { upsert: true })
+      
+      if (uploadError) {
+        console.error('Upload error:', uploadError)
+        // Still allow download even if upload fails
+      }
+      
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('reports')
+        .getPublicUrl(filePath)
+      
+      // Save report record to database for Chief review
+      const { error: dbError } = await supabase
+        .from('assistant_chief_daily_reports')
+        .upsert({
+          report_date: data.date,
+          reporter_id: userProfile?.id,
+          reporter_name: userProfile?.full_name,
+          pdf_url: urlData?.publicUrl,
+          pdf_path: filePath,
+          status: 'pending_review',
+          observation_id: data.observation?.id,
+          compliance_issues_count: data.complianceIssues.length,
+          hazard_entries_count: data.hazardEntries.length,
+          safety_cards_count: data.safetyCards.length,
+          wildlife_sightings_count: data.wildlifeSightings.length,
+          has_flagged_items: data.observation?.safety_flagged || data.observation?.environmental_flagged || 
+                            data.observation?.technical_flagged || data.observation?.progress_flagged,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'report_date,reporter_id' })
+      
+      if (dbError) {
+        console.error('DB save error:', dbError)
+      }
+      
+      // Download the PDF
+      doc.save(fileName)
+      
+      alert(`Report generated and submitted for Chief review!\n\nFile: ${fileName}`)
+      
+    } catch (err) {
+      console.error('Error generating report:', err)
+      alert('Error generating report: ' + err.message)
+    }
+    
+    setGeneratingReport(false)
+  }
+
+  // =============================================
   // DAILY OBSERVATION FUNCTIONS
   // =============================================
   async function fetchExistingObservation() {
@@ -1372,6 +1853,9 @@ function AssistantChiefDashboard() {
           </button>
           <button style={tabStyle(activeTab === 'observation')} onClick={() => setActiveTab('observation')}>
             📝 Daily Observation
+          </button>
+          <button style={tabStyle(activeTab === 'generate-report')} onClick={() => setActiveTab('generate-report')}>
+            📄 Generate Report
           </button>
         </div>
       </div>
@@ -2768,6 +3252,109 @@ function AssistantChiefDashboard() {
                     )}
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ============================================= */}
+        {/* GENERATE REPORT TAB */}
+        {/* ============================================= */}
+        {activeTab === 'generate-report' && (
+          <div style={cardStyle}>
+            <div style={cardHeaderStyle('#28a745')}>
+              <h2 style={{ margin: 0, fontSize: '18px' }}>📄 Generate Daily Report</h2>
+              <p style={{ margin: '5px 0 0 0', fontSize: '12px', opacity: 0.8 }}>
+                Compile all daily data into a PDF report for Chief review
+              </p>
+            </div>
+            <div style={{ padding: '30px' }}>
+              {/* Date Selection */}
+              <div style={{ marginBottom: '30px', textAlign: 'center' }}>
+                <label style={{ fontSize: '16px', fontWeight: 'bold', marginRight: '15px' }}>Report Date:</label>
+                <input
+                  type="date"
+                  value={reportDate}
+                  onChange={e => setReportDate(e.target.value)}
+                  style={{ padding: '12px 20px', fontSize: '16px', borderRadius: '4px', border: '2px solid #28a745' }}
+                />
+              </div>
+
+              {/* Data Summary Preview */}
+              <div style={{ backgroundColor: '#f8f9fa', padding: '25px', borderRadius: '8px', marginBottom: '30px' }}>
+                <h3 style={{ marginTop: 0, marginBottom: '20px', color: '#333' }}>📊 Report Will Include:</h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '15px' }}>
+                  <div style={{ padding: '15px', backgroundColor: '#fff', borderRadius: '8px', borderLeft: '4px solid #6f42c1' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6f42c1' }}>📝</div>
+                    <div style={{ fontWeight: 'bold', marginTop: '5px' }}>Daily Observations</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>Safety, Environmental, Technical, Progress</div>
+                  </div>
+                  <div style={{ padding: '15px', backgroundColor: '#fff', borderRadius: '8px', borderLeft: '4px solid #dc3545' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>🚨</div>
+                    <div style={{ fontWeight: 'bold', marginTop: '5px' }}>Compliance Issues</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>Logged issues with notification status</div>
+                  </div>
+                  <div style={{ padding: '15px', backgroundColor: '#fff', borderRadius: '8px', borderLeft: '4px solid #fd7e14' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#fd7e14' }}>⚠️</div>
+                    <div style={{ fontWeight: 'bold', marginTop: '5px' }}>Hazard Entries</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>Field hazards with corrective actions</div>
+                  </div>
+                  <div style={{ padding: '15px', backgroundColor: '#fff', borderRadius: '8px', borderLeft: '4px solid #28a745' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>🏆</div>
+                    <div style={{ fontWeight: 'bold', marginTop: '5px' }}>Safety Cards</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>Positive recognition & Hazard ID</div>
+                  </div>
+                  <div style={{ padding: '15px', backgroundColor: '#fff', borderRadius: '8px', borderLeft: '4px solid #20c997' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#20c997' }}>🦌</div>
+                    <div style={{ fontWeight: 'bold', marginTop: '5px' }}>Wildlife Sightings</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>Species observed on ROW</div>
+                  </div>
+                  <div style={{ padding: '15px', backgroundColor: '#fff', borderRadius: '8px', borderLeft: '4px solid #6f42c1' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6f42c1' }}>📋</div>
+                    <div style={{ fontWeight: 'bold', marginTop: '5px' }}>Inspector Summary</div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>Key notes from field inspectors</div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Flagged Items Warning */}
+              <div style={{ backgroundColor: '#fff3cd', padding: '20px', borderRadius: '8px', marginBottom: '30px', borderLeft: '4px solid #ffc107' }}>
+                <h4 style={{ margin: '0 0 10px 0', color: '#856404' }}>🚩 Items Flagged for Chief Review</h4>
+                <p style={{ margin: 0, fontSize: '14px', color: '#856404' }}>
+                  Any sections marked "Flag for Chief" in your Daily Observation will be highlighted in the report for the Chief Inspector's attention.
+                </p>
+              </div>
+
+              {/* Generate Button */}
+              <div style={{ textAlign: 'center' }}>
+                <button
+                  onClick={generateDailyReport}
+                  disabled={generatingReport}
+                  style={{
+                    padding: '20px 60px',
+                    fontSize: '18px',
+                    fontWeight: 'bold',
+                    backgroundColor: generatingReport ? '#6c757d' : '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: generatingReport ? 'not-allowed' : 'pointer',
+                    boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                  }}
+                >
+                  {generatingReport ? '⏳ Generating Report...' : '📄 Generate & Submit Report'}
+                </button>
+                <p style={{ marginTop: '15px', fontSize: '13px', color: '#666' }}>
+                  Report will be saved as PDF and submitted for Chief Inspector review
+                </p>
+              </div>
+
+              {/* Previous Reports */}
+              <div style={{ marginTop: '40px', borderTop: '1px solid #dee2e6', paddingTop: '30px' }}>
+                <h4 style={{ marginTop: 0 }}>📁 Previous Reports</h4>
+                <p style={{ color: '#666', fontSize: '13px' }}>
+                  Your submitted reports will appear here once the database table is created.
+                </p>
               </div>
             </div>
           </div>
