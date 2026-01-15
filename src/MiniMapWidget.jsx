@@ -28,8 +28,14 @@ const egpBends = EGP_ROUTE_DATA.bends
 // Actual construction footprint polygons from survey (248 polygons)
 const egpFootprint = EGP_ROUTE_DATA.footprint || []
 
-// Open ends from asbuilt survey (20 open ends)
+// Open ends from asbuilt survey (36 open ends)
 const egpOpenEnds = EGP_ROUTE_DATA.openEnds || []
+
+// Bore faces - HDD entry/exit points (2 points)
+const egpBoreFaces = EGP_ROUTE_DATA.boreFaces || []
+
+// Sag bends - vertical bends (108 bends)
+const egpSagBends = EGP_ROUTE_DATA.sagBends || []
 
 // Create route array with KP values for interpolation
 const egpFullRoute = egpKPMarkers.map(m => ({
@@ -148,6 +154,8 @@ export default function MiniMapWidget({
   const [showKPMarkers, setShowKPMarkers] = useState(true)
   const [showROW, setShowROW] = useState(true)
   const [showOpenEnds, setShowOpenEnds] = useState(true)
+  const [showBoreFaces, setShowBoreFaces] = useState(true)
+  const [showSagBends, setShowSagBends] = useState(false)
 
   // Create icons using useMemo to avoid recreation on each render
   const workAreaIcon = useMemo(() => L.divIcon({
@@ -384,6 +392,22 @@ export default function MiniMapWidget({
                 onChange={(e) => setShowOpenEnds(e.target.checked)}
               />
               <span style={{ color: '#e74c3c' }}>Open Ends ({egpOpenEnds.length})</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={showBoreFaces} 
+                onChange={(e) => setShowBoreFaces(e.target.checked)}
+              />
+              <span style={{ color: '#00bcd4' }}>HDD ({egpBoreFaces.length})</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={showSagBends} 
+                onChange={(e) => setShowSagBends(e.target.checked)}
+              />
+              <span style={{ color: '#795548' }}>Sag Bends ({egpSagBends.length})</span>
             </label>
           </div>
 
@@ -666,6 +690,110 @@ export default function MiniMapWidget({
               )
             })}
 
+            {/* Bore Faces - HDD entry/exit points */}
+            {showBoreFaces && egpBoreFaces.map((bore, idx) => {
+              // Parse station to KP
+              const stationParts = bore.station.split('+')
+              const kpValue = stationParts.length === 2 
+                ? parseFloat(stationParts[0]) + parseFloat(stationParts[1]) / 1000 
+                : 0
+              
+              // Determine if Begin or End
+              const isBegin = bore.description.includes('Begin')
+              
+              return (
+                <CircleMarker
+                  key={`bore-${idx}`}
+                  center={[bore.lat, bore.lon]}
+                  radius={10}
+                  pathOptions={{
+                    fillColor: '#00bcd4',
+                    color: '#fff',
+                    weight: 3,
+                    fillOpacity: 0.9
+                  }}
+                >
+                  <Popup>
+                    <div style={{ fontSize: '11px', minWidth: '220px' }}>
+                      <div style={{ 
+                        fontWeight: 'bold', 
+                        color: '#00bcd4', 
+                        marginBottom: '5px', 
+                        borderBottom: '1px solid #eee', 
+                        paddingBottom: '3px' 
+                      }}>
+                        🔷 HDD / BORE FACE
+                      </div>
+                      <table style={{ width: '100%', fontSize: '11px' }}>
+                        <tbody>
+                          <tr><td style={{ color: '#666' }}>Station:</td><td><strong>{bore.station}</strong></td></tr>
+                          <tr><td style={{ color: '#666' }}>KP:</td><td><strong>{kpValue.toFixed(3)}</strong></td></tr>
+                          <tr><td style={{ color: '#666' }}>Type:</td><td>{isBegin ? 'Entry Point' : 'Exit Point'}</td></tr>
+                          <tr><td style={{ color: '#666' }}>Crossing:</td><td>Railway (Track Bore)</td></tr>
+                          <tr><td style={{ color: '#666' }}>Lat:</td><td>{bore.lat.toFixed(6)}</td></tr>
+                          <tr><td style={{ color: '#666' }}>Lon:</td><td>{bore.lon.toFixed(6)}</td></tr>
+                        </tbody>
+                      </table>
+                      <div style={{ fontSize: '10px', color: '#888', marginTop: '5px', fontStyle: 'italic' }}>
+                        {bore.description}
+                      </div>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              )
+            })}
+
+            {/* Sag Bends - vertical bends */}
+            {showSagBends && egpSagBends.map((sag, idx) => {
+              // Parse station to KP
+              const stationParts = sag.station.split('+')
+              const kpValue = stationParts.length === 2 
+                ? parseFloat(stationParts[0]) + parseFloat(stationParts[1]) / 1000 
+                : 0
+              
+              // Parse angle from description (e.g., "Bend-Sag/03d00m")
+              const descParts = sag.description.split('/')
+              const angle = descParts[1] || ''
+              
+              return (
+                <CircleMarker
+                  key={`sag-${idx}`}
+                  center={[sag.lat, sag.lon]}
+                  radius={3}
+                  pathOptions={{
+                    fillColor: '#795548',
+                    color: '#fff',
+                    weight: 1,
+                    fillOpacity: 0.8
+                  }}
+                >
+                  <Popup>
+                    <div style={{ fontSize: '11px', minWidth: '180px' }}>
+                      <div style={{ 
+                        fontWeight: 'bold', 
+                        color: '#795548', 
+                        marginBottom: '5px', 
+                        borderBottom: '1px solid #eee', 
+                        paddingBottom: '3px' 
+                      }}>
+                        ↓ SAG BEND (Vertical)
+                      </div>
+                      <table style={{ width: '100%', fontSize: '11px' }}>
+                        <tbody>
+                          <tr><td style={{ color: '#666' }}>Station:</td><td><strong>{sag.station}</strong></td></tr>
+                          <tr><td style={{ color: '#666' }}>KP:</td><td><strong>{kpValue.toFixed(3)}</strong></td></tr>
+                          <tr><td style={{ color: '#666' }}>Direction:</td><td>↓ Sag (Vertical Down)</td></tr>
+                          {angle && <tr><td style={{ color: '#666' }}>Angle:</td><td><strong>{angle}</strong></td></tr>}
+                          <tr><td style={{ color: '#666' }}>Lat:</td><td>{sag.lat.toFixed(6)}</td></tr>
+                          <tr><td style={{ color: '#666' }}>Lon:</td><td>{sag.lon.toFixed(6)}</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              )
+            })}
+
             {/* Start KP Marker */}
             {startPosition && (
               <Marker position={[startPosition.lat, startPosition.lon]} icon={workAreaIcon}>
@@ -720,19 +848,21 @@ export default function MiniMapWidget({
           <div style={{ 
             padding: '8px 10px', 
             backgroundColor: '#f8f9fa', 
-            fontSize: '11px',
+            fontSize: '10px',
             display: 'flex',
-            gap: '12px',
+            gap: '10px',
             flexWrap: 'wrap',
             borderTop: '1px solid #eee'
           }}>
-            <span><span style={{ color: '#9b59b6', opacity: 0.5 }}>▓▓</span> Footprint</span>
-            <span><span style={{ color: '#ff6600' }}>━━</span> Centerline</span>
+            <span><span style={{ color: '#9b59b6', opacity: 0.5 }}>▓</span> Footprint</span>
+            <span><span style={{ color: '#ff6600' }}>━</span> CL</span>
             <span><span style={{ color: '#e74c3c' }}>◉</span> Start/End</span>
-            <span><span style={{ color: '#27ae60' }}>●</span><span style={{ color: '#e74c3c' }}>●</span> Open Ends</span>
+            <span><span style={{ color: '#27ae60' }}>●</span><span style={{ color: '#e74c3c' }}>●</span> Open</span>
+            <span><span style={{ color: '#00bcd4' }}>◆</span> HDD</span>
             <span><span style={{ color: '#007bff' }}>●</span> KP</span>
-            <span><span style={{ color: '#dc3545' }}>●</span> Welds</span>
-            <span><span style={{ color: '#fd7e14' }}>●</span> Bends</span>
+            <span><span style={{ color: '#dc3545' }}>●</span> Weld</span>
+            <span><span style={{ color: '#fd7e14' }}>●</span> Bend</span>
+            <span><span style={{ color: '#795548' }}>●</span> Sag</span>
           </div>
         </div>
       )}
