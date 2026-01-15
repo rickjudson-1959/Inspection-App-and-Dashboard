@@ -2,7 +2,7 @@
 // Shows current work area and GPS location with REAL EGP survey data
 
 import React, { useState, useEffect, useMemo } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, CircleMarker, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, CircleMarker, Polygon, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
@@ -36,6 +36,46 @@ const egpFullRoute = egpKPMarkers.map(m => ({
 // Legacy routes for backward compatibility
 const demoPipelineRoute = egpFullRoute
 const northernPipelineRoute = egpFullRoute
+
+// Calculate ROW buffer polygon (30m on each side of centerline)
+// Returns array of [lat, lon] pairs forming a polygon
+function calculateROWBuffer(routeCoords, bufferMeters = 30) {
+  if (!routeCoords || routeCoords.length < 2) return []
+  
+  const leftSide = []
+  const rightSide = []
+  
+  // Convert meters to approximate degrees (at ~49° latitude, 1° ≈ 111km for lat, ~73km for lon)
+  const latOffset = bufferMeters / 111000
+  const lonOffset = bufferMeters / 73000 // Adjusted for latitude
+  
+  for (let i = 0; i < routeCoords.length; i++) {
+    const curr = routeCoords[i]
+    
+    // Calculate perpendicular direction
+    let bearing = 0
+    if (i < routeCoords.length - 1) {
+      const next = routeCoords[i + 1]
+      bearing = Math.atan2(next.lon - curr.lon, next.lat - curr.lat)
+    } else if (i > 0) {
+      const prev = routeCoords[i - 1]
+      bearing = Math.atan2(curr.lon - prev.lon, curr.lat - prev.lat)
+    }
+    
+    // Perpendicular offset (90 degrees)
+    const perpLat = Math.cos(bearing + Math.PI / 2) * latOffset
+    const perpLon = Math.sin(bearing + Math.PI / 2) * lonOffset
+    
+    leftSide.push([curr.lat + perpLat, curr.lon + perpLon])
+    rightSide.push([curr.lat - perpLat, curr.lon - perpLon])
+  }
+  
+  // Create closed polygon: left side forward, right side backward
+  return [...leftSide, ...rightSide.reverse(), leftSide[0]]
+}
+
+// Pre-calculate ROW buffer polygon
+const rowBufferPolygon = calculateROWBuffer(egpRouteCoordinates, 30)
 
 // Parse KP string to km value
 function parseKPToKm(kpString) {
@@ -136,6 +176,7 @@ export default function MiniMapWidget({
   const [showWelds, setShowWelds] = useState(false)
   const [showBends, setShowBends] = useState(false)
   const [showKPMarkers, setShowKPMarkers] = useState(true)
+  const [showROW, setShowROW] = useState(true)
 
   // Create icons using useMemo to avoid recreation on each render
   const workAreaIcon = useMemo(() => L.divIcon({
@@ -348,6 +389,14 @@ export default function MiniMapWidget({
               />
               <span style={{ color: '#fd7e14' }}>Bends ({egpBends.length})</span>
             </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={showROW} 
+                onChange={(e) => setShowROW(e.target.checked)}
+              />
+              <span style={{ color: '#9b59b6' }}>ROW (30m)</span>
+            </label>
           </div>
 
           {/* Map */}
@@ -370,6 +419,20 @@ export default function MiniMapWidget({
 
             {/* Fit to work area */}
             {bounds && <FitBounds bounds={bounds} />}
+
+            {/* ROW Buffer (30m corridor) */}
+            {showROW && rowBufferPolygon.length > 0 && (
+              <Polygon
+                positions={rowBufferPolygon}
+                pathOptions={{
+                  color: '#9b59b6',
+                  weight: 1,
+                  fillColor: '#9b59b6',
+                  fillOpacity: 0.15,
+                  dashArray: '5, 5'
+                }}
+              />
+            )}
 
             {/* Pipeline Route */}
             <Polyline
@@ -586,7 +649,8 @@ export default function MiniMapWidget({
             flexWrap: 'wrap',
             borderTop: '1px solid #eee'
           }}>
-            <span><span style={{ color: '#ff6600' }}>━━</span> Pipeline (774 pts)</span>
+            <span><span style={{ color: '#9b59b6', opacity: 0.5 }}>▓▓</span> ROW (30m)</span>
+            <span><span style={{ color: '#ff6600' }}>━━</span> Centerline</span>
             <span><span style={{ color: '#28a745' }}>━━</span> Work Area</span>
             <span><span style={{ color: '#007bff' }}>●</span> KP Markers</span>
             <span><span style={{ color: '#dc3545' }}>●</span> Welds</span>
