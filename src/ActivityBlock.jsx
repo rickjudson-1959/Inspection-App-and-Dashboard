@@ -1,8 +1,9 @@
 // ActivityBlock.jsx - Extracted from InspectorReport.jsx
 // A single activity block component with all rendering logic
-import React, { useState, memo } from 'react'
+import React, { useState, useEffect, memo } from 'react'
 import { activityTypes, qualityFieldsByActivity, labourClassifications, equipmentTypes, timeLostReasons } from './constants.js'
 import { syncKPFromGPS } from './kpUtils.js'
+import { supabase } from './supabase'
 
 // Specialized log components
 import MainlineWeldData from './MainlineWeldData.jsx'
@@ -73,6 +74,9 @@ function ActivityBlock({
   tempHigh,
   tempLow,
   inspectorName,
+  // Audit trail props
+  reportId,
+  currentUser,
   // Chainage status
   blockChainageStatus,
   chainageReasons,
@@ -123,10 +127,111 @@ function ActivityBlock({
   const [currentEquipment, setCurrentEquipment] = useState({ type: '', hours: '', count: '' })
   const [ocrProcessing, setOcrProcessing] = useState(false)
   const [ocrError, setOcrError] = useState(null)
+  
+  // Collapsible QA sections state (for Access activity)
+  const [expandedSections, setExpandedSections] = useState({})
+  
+  const toggleSection = (sectionName) => {
+    setExpandedSections(prev => ({
+      ...prev,
+      [sectionName]: !prev[sectionName]
+    }))
+  }
 
   // GPS KP Sync state
   const [syncingKP, setSyncingKP] = useState(false)
   const [kpSyncToast, setKpSyncToast] = useState(null) // { type: 'success' | 'warning' | 'error', message: string }
+
+  // Track if we've already auto-populated GD fields - removed, using onBlur instead
+  
+  // Track if previous data has been loaded
+  const [previousDataLoaded, setPreviousDataLoaded] = useState(false)
+
+  // Load previous metres and holes from historical reports when activity type changes
+  useEffect(() => {
+    if (!block.activityType || !selectedDate || previousDataLoaded) return
+    
+    const loadPreviousData = async () => {
+      try {
+        console.log(`Loading previous data for ${block.activityType}, date < ${selectedDate}`)
+        
+        // Fetch all previous reports
+        const { data: reports, error } = await supabase
+          .from('daily_tickets')
+          .select('activity_blocks, date')
+          .lt('date', selectedDate)
+          .order('date', { ascending: false })
+        
+        if (error) {
+          console.error('Error fetching previous data:', error)
+          return
+        }
+        
+        console.log(`Found ${reports?.length || 0} previous reports`)
+        
+        // Sum up metres and holes for matching activity type
+        let totalPreviousMetres = 0
+        let totalParallelHoles = 0
+        let totalCrossingHoles = 0
+        
+        if (reports) {
+          for (const report of reports) {
+            const blocks = report.activity_blocks || []
+            for (const b of blocks) {
+              if (b.activityType === block.activityType) {
+                // Metres - try metersToday first, then calculate from KP
+                let metres = parseFloat(b.metersToday) || 0
+                if (metres === 0 && b.startKP && b.endKP) {
+                  const startM = parseKPToMetres(b.startKP)
+                  const endM = parseKPToMetres(b.endKP)
+                  if (startM !== null && endM !== null) {
+                    metres = Math.abs(endM - startM)
+                  }
+                }
+                totalPreviousMetres += metres
+                console.log(`  Report ${report.date}: ${b.startKP}-${b.endKP} = ${metres}m`)
+                
+                // Holes from qualityData
+                if (b.qualityData) {
+                  const parallel = parseFloat(b.qualityData.parallelHolesToday) || 0
+                  const crossing = parseFloat(b.qualityData.crossingHolesToday) || 0
+                  totalParallelHoles += parallel
+                  totalCrossingHoles += crossing
+                  console.log(`  Holes: ${parallel} parallel, ${crossing} crossing`)
+                }
+              }
+            }
+          }
+        }
+        
+        console.log(`TOTALS for ${block.activityType}: ${totalPreviousMetres}m, ${totalParallelHoles} parallel holes, ${totalCrossingHoles} crossing holes`)
+        
+        // Update previous fields
+        if (totalPreviousMetres > 0) {
+          console.log(`Calling updateBlock for metersPrevious: ${totalPreviousMetres}`)
+          updateBlock(block.id, 'metersPrevious', totalPreviousMetres.toString())
+        }
+        
+        // Update previous holes for Ground Disturbance
+        if (block.activityType === 'Ground Disturbance') {
+          if (totalParallelHoles > 0) {
+            console.log(`Calling updateQualityData for parallelHolesPrevious: ${totalParallelHoles}`)
+            updateQualityData(block.id, 'parallelHolesPrevious', totalParallelHoles.toString())
+          }
+          if (totalCrossingHoles > 0) {
+            console.log(`Calling updateQualityData for crossingHolesPrevious: ${totalCrossingHoles}`)
+            updateQualityData(block.id, 'crossingHolesPrevious', totalCrossingHoles.toString())
+          }
+        }
+        
+        setPreviousDataLoaded(true)
+      } catch (err) {
+        console.error('Error loading previous data:', err)
+      }
+    }
+    
+    loadPreviousData()
+  }, [block.activityType, selectedDate, previousDataLoaded])
 
   // Handle GPS KP Sync
   const handleSyncKP = async (field = 'startKP') => {
@@ -306,7 +411,9 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           contractor={block.contractor}
           foreman={block.foreman}
           blockId={block.id}
-          reportId={null}
+          reportId={reportId}
+          reportDate={selectedDate}
+          currentUser={currentUser}
           existingData={block.weldData || {}}
           onDataChange={(data) => updateWeldData(block.id, data)}
         />
@@ -319,8 +426,10 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           contractor={block.contractor}
           foreman={block.foreman}
           blockId={block.id}
-          reportId={null}
-          existingData={block.bendData || {}}
+          reportId={reportId}
+          reportDate={selectedDate}
+          currentUser={currentUser}
+          existingData={block.bendingData || {}}
           onDataChange={(data) => updateBendData(block.id, data)}
         />
       )
@@ -332,8 +441,10 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           contractor={block.contractor}
           foreman={block.foreman}
           blockId={block.id}
-          reportId={null}
-          existingData={block.stringData || {}}
+          reportId={reportId}
+          reportDate={selectedDate}
+          currentUser={currentUser}
+          existingData={block.stringingData || {}}
           onDataChange={(data) => updateStringData(block.id, data)}
         />
       )
@@ -345,7 +456,9 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           contractor={block.contractor}
           foreman={block.foreman}
           blockId={block.id}
-          reportId={null}
+          reportId={reportId}
+          reportDate={selectedDate}
+          currentUser={currentUser}
           existingData={block.coatingData || {}}
           onDataChange={(data) => updateCoatingData(block.id, data)}
         />
@@ -358,7 +471,9 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           contractor={block.contractor}
           foreman={block.foreman}
           blockId={block.id}
-          reportId={null}
+          reportId={reportId}
+          reportDate={selectedDate}
+          currentUser={currentUser}
           existingData={block.clearingData || {}}
           onDataChange={(data) => updateClearingData(block.id, data)}
         />
@@ -488,32 +603,427 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
       return <p style={{ color: '#666', fontStyle: 'italic' }}>Quality data handled by specialized component</p>
     }
 
+    // Separate core fields from collapsible sections
+    const coreFields = fields.filter(f => f.type !== 'collapsible' && f.type !== 'info')
+    const collapsibleSections = fields.filter(f => f.type === 'collapsible')
+    const infoFields = fields.filter(f => f.type === 'info')
+    
     return (
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
-        {fields.map(field => (
-          <div key={field.name}>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>{field.label}</label>
-            {field.type === 'select' ? (
-              <select
-                value={block.qualityData[field.name] || ''}
-                onChange={(e) => updateQualityData(block.id, field.name, e.target.value)}
-                style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+      <div>
+        {/* Core fields in a single row */}
+        {coreFields.length > 0 && (
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: `repeat(${Math.min(coreFields.length, 4)}, 1fr)`, 
+            gap: '15px',
+            marginBottom: '15px'
+          }}>
+            {coreFields.map(field => renderSingleField(field, block))}
+          </div>
+        )}
+        
+        {/* Collapsible sections */}
+        {collapsibleSections.map(field => {
+          const isExpanded = expandedSections[field.name]
+          const hasData = field.fields?.some(f => block.qualityData[f.name])
+          
+          return (
+            <div key={field.name} style={{ 
+              border: '1px solid #dee2e6',
+              borderRadius: '8px',
+              marginBottom: '10px',
+              overflow: 'hidden'
+            }}>
+              <div 
+                onClick={() => toggleSection(field.name)}
+                style={{
+                  padding: '12px 15px',
+                  backgroundColor: isExpanded ? '#e9ecef' : '#f8f9fa',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  borderBottom: isExpanded ? '1px solid #dee2e6' : 'none'
+                }}
               >
-                <option value="">Select...</option>
-                {field.options.map(opt => (
-                  <option key={opt} value={opt}>{opt}</option>
-                ))}
-              </select>
-            ) : (
-              <input
-                type={field.type}
-                value={block.qualityData[field.name] || ''}
-                onChange={(e) => updateQualityData(block.id, field.name, e.target.value)}
-                style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-              />
-            )}
+                <span style={{ fontWeight: 'bold', fontSize: '14px' }}>
+                  {field.label}
+                  {hasData && <span style={{ color: '#28a745', marginLeft: '8px' }}>●</span>}
+                </span>
+                <span style={{ fontSize: '12px', color: '#6c757d' }}>
+                  {isExpanded ? '▼ Collapse' : '▶ Expand'}
+                </span>
+              </div>
+              
+              {isExpanded && (
+                <div style={{ 
+                  padding: '15px',
+                  display: 'grid', 
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', 
+                  gap: '15px' 
+                }}>
+                  {field.fields?.map(subField => renderSingleField(subField, block))}
+                </div>
+              )}
+            </div>
+          )
+        })}
+        
+        {/* Info notes */}
+        {infoFields.map(field => (
+          <div key={field.name} style={{
+            padding: '10px 15px',
+            backgroundColor: '#fff3cd',
+            border: '1px solid #ffc107',
+            borderRadius: '6px',
+            marginTop: '10px',
+            fontSize: '13px',
+            color: '#856404'
+          }}>
+            {field.label}
           </div>
         ))}
+      </div>
+    )
+  }
+  
+  // Helper function to render a single field
+  const renderSingleField = (field, block) => {
+    // Skip header types (legacy)
+    if (field.type === 'header') {
+      return null
+    }
+    
+    // Special handling for crossing verifications
+    if (field.type === 'crossing-verifications') {
+      return (
+        <div key={field.name} style={{ gridColumn: '1 / -1' }}>
+          {renderCrossingVerifications(block)}
+        </div>
+      )
+    }
+    // Textarea handling
+    if (field.type === 'textarea') {
+      return (
+        <div key={field.name} style={{ gridColumn: '1 / -1' }}>
+          <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>{field.label}</label>
+          <textarea
+            value={block.qualityData[field.name] || ''}
+            onChange={(e) => updateQualityData(block.id, field.name, e.target.value)}
+            placeholder={field.placeholder || ''}
+            rows={3}
+            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', resize: 'vertical' }}
+          />
+        </div>
+      )
+    }
+    
+    return (
+      <div key={field.name}>
+        <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>{field.label}</label>
+        {field.type === 'select' ? (
+          <select
+            value={block.qualityData[field.name] || ''}
+            onChange={(e) => updateQualityData(block.id, field.name, e.target.value)}
+            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+          >
+            <option value="">Select...</option>
+            {field.options.map(opt => (
+              <option key={opt} value={opt}>{opt}</option>
+            ))}
+          </select>
+        ) : (
+          <input
+            type={field.type}
+            value={
+              // For To Date fields, calculate dynamically
+              field.name === 'parallelHolesToDate' 
+                ? (block.qualityData.parallelHolesToday 
+                    ? (parseFloat(block.qualityData.parallelHolesToday) || 0) + (parseFloat(block.qualityData.parallelHolesPrevious) || 0)
+                    : '')
+                : field.name === 'crossingHolesToDate'
+                ? (block.qualityData.crossingHolesToday
+                    ? (parseFloat(block.qualityData.crossingHolesToday) || 0) + (parseFloat(block.qualityData.crossingHolesPrevious) || 0)
+                    : '')
+                : (block.qualityData[field.name] || '')
+            }
+            readOnly={field.readOnly}
+            onChange={(e) => {
+              updateQualityData(block.id, field.name, e.target.value)
+              // Auto-calculate To Date for holes
+              if (field.name === 'parallelHolesToday') {
+                const today = parseFloat(e.target.value) || 0
+                const previous = parseFloat(block.qualityData.parallelHolesPrevious) || 0
+                updateQualityData(block.id, 'parallelHolesToDate', (today + previous).toString())
+              }
+              if (field.name === 'crossingHolesToday') {
+                const today = parseFloat(e.target.value) || 0
+                const previous = parseFloat(block.qualityData.crossingHolesPrevious) || 0
+                updateQualityData(block.id, 'crossingHolesToDate', (today + previous).toString())
+              }
+            }}
+            placeholder={field.placeholder || ''}
+            style={{ 
+              width: '100%', 
+              padding: '10px', 
+              border: field.highlight ? '2px solid #28a745' : '1px solid #ced4da', 
+              borderRadius: '4px',
+              backgroundColor: field.readOnly ? '#e9ecef' : 'white'
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
+  // Render crossing verifications for Ground Disturbance activity
+  function renderCrossingVerifications(block) {
+    const verifications = block.qualityData.crossingVerifications || []
+    
+    const addVerification = () => {
+      const newVerification = {
+        id: Date.now(),
+        kp: '',
+        crossingId: '',
+        owner: '',
+        crossingType: '',
+        expectedDepth: '',
+        actualDepth: '',
+        pOrX: 'X',
+        verifiedType: '',
+        status: 'verified',
+        boundary: '',
+        northing: '',
+        easting: '',
+        notes: ''
+      }
+      const updated = [...verifications, newVerification]
+      updateQualityData(block.id, 'crossingVerifications', updated)
+    }
+    
+    const updateVerification = (vId, field, value) => {
+      const updated = verifications.map(v => 
+        v.id === vId ? { ...v, [field]: value } : v
+      )
+      updateQualityData(block.id, 'crossingVerifications', updated)
+    }
+    
+    const removeVerification = (vId) => {
+      const updated = verifications.filter(v => v.id !== vId)
+      updateQualityData(block.id, 'crossingVerifications', updated)
+    }
+    
+    return (
+      <div style={{ 
+        backgroundColor: '#f8f9fa', 
+        padding: '15px', 
+        borderRadius: '8px',
+        border: '2px solid #fd7e14',
+        marginTop: '10px'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+          <h4 style={{ margin: 0, color: '#fd7e14' }}>📍 Crossing Verifications ({verifications.length})</h4>
+          <button
+            type="button"
+            onClick={addVerification}
+            style={{
+              padding: '8px 16px',
+              backgroundColor: '#28a745',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontWeight: 'bold'
+            }}
+          >
+            + Add Verification
+          </button>
+        </div>
+        
+        {verifications.length === 0 ? (
+          <p style={{ color: '#666', fontStyle: 'italic', textAlign: 'center', padding: '20px' }}>
+            No crossing verifications added. Click "Add Verification" to record a hydrovac dig.
+          </p>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+            {verifications.map((v, idx) => (
+              <div key={v.id} style={{ 
+                backgroundColor: 'white', 
+                padding: '15px', 
+                borderRadius: '8px',
+                border: '1px solid #ddd',
+                position: 'relative'
+              }}>
+                <div style={{ 
+                  position: 'absolute', 
+                  top: '-10px', 
+                  left: '10px', 
+                  backgroundColor: '#fd7e14', 
+                  color: 'white',
+                  padding: '2px 10px',
+                  borderRadius: '10px',
+                  fontSize: '12px',
+                  fontWeight: 'bold'
+                }}>
+                  #{idx + 1}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeVerification(v.id)}
+                  style={{
+                    position: 'absolute',
+                    top: '5px',
+                    right: '5px',
+                    backgroundColor: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '50%',
+                    width: '24px',
+                    height: '24px',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  ✕
+                </button>
+                
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', marginTop: '10px' }}>
+                  {/* KP */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>KP Location *</label>
+                    <input
+                      type="text"
+                      value={v.kp}
+                      onChange={(e) => updateVerification(v.id, 'kp', e.target.value)}
+                      placeholder="e.g., 5+200"
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace' }}
+                    />
+                  </div>
+                  
+                  {/* P or X */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Hole Type</label>
+                    <select
+                      value={v.pOrX}
+                      onChange={(e) => updateVerification(v.id, 'pOrX', e.target.value)}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                    >
+                      <option value="X">X - Crossing</option>
+                      <option value="P">P - Parallel</option>
+                    </select>
+                  </div>
+                  
+                  {/* Owner */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Owner/Operator</label>
+                    <input
+                      type="text"
+                      value={v.owner}
+                      onChange={(e) => updateVerification(v.id, 'owner', e.target.value)}
+                      placeholder="e.g., Nova, Telus"
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                    />
+                  </div>
+                  
+                  {/* Crossing Type */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Type</label>
+                    <select
+                      value={v.verifiedType}
+                      onChange={(e) => updateVerification(v.id, 'verifiedType', e.target.value)}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                    >
+                      <option value="">Select...</option>
+                      <option value="SP">SP - Steel Pipe</option>
+                      <option value="PP">PP - Plastic Pipe</option>
+                      <option value="C">C - Cable</option>
+                      <option value="OT">OT - Other</option>
+                    </select>
+                  </div>
+                  
+                  {/* Actual Depth */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Actual Depth (m) *</label>
+                    <input
+                      type="text"
+                      value={v.actualDepth}
+                      onChange={(e) => updateVerification(v.id, 'actualDepth', e.target.value)}
+                      placeholder="e.g., 1.85"
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                    />
+                  </div>
+                  
+                  {/* Status */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Status</label>
+                    <select
+                      value={v.status}
+                      onChange={(e) => updateVerification(v.id, 'status', e.target.value)}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                    >
+                      <option value="verified">Verified</option>
+                      <option value="not_found">Not Found</option>
+                      <option value="location_adjusted">Location Adjusted</option>
+                      <option value="depth_different">Depth Different than Expected</option>
+                    </select>
+                  </div>
+                  
+                  {/* Boundaries */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Boundary</label>
+                    <select
+                      value={v.boundary || ''}
+                      onChange={(e) => updateVerification(v.id, 'boundary', e.target.value)}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                    >
+                      <option value="">Select...</option>
+                      <option value="C/L">C/L - Centerline</option>
+                      <option value="North">North</option>
+                      <option value="South">South</option>
+                      <option value="E of ROW">E of ROW</option>
+                      <option value="W of ROW">W of ROW</option>
+                    </select>
+                  </div>
+                  
+                  {/* GPS */}
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Northing</label>
+                    <input
+                      type="text"
+                      value={v.northing}
+                      onChange={(e) => updateVerification(v.id, 'northing', e.target.value)}
+                      placeholder="e.g., 5943040"
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                    />
+                  </div>
+                  
+                  <div>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Easting</label>
+                    <input
+                      type="text"
+                      value={v.easting}
+                      onChange={(e) => updateVerification(v.id, 'easting', e.target.value)}
+                      placeholder="e.g., 351848"
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                    />
+                  </div>
+                  
+                  {/* Notes */}
+                  <div style={{ gridColumn: '1 / -1' }}>
+                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Notes</label>
+                    <input
+                      type="text"
+                      value={v.notes}
+                      onChange={(e) => updateVerification(v.id, 'notes', e.target.value)}
+                      placeholder="Any observations, discrepancies, etc."
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                    />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     )
   }
@@ -556,6 +1066,12 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
             type="text"
             value={block.contractor}
             onChange={(e) => updateBlock(block.id, 'contractor', e.target.value)}
+            onBlur={(e) => {
+              // Copy to GD Contractor if Ground Disturbance and not already set
+              if (block.activityType === 'Ground Disturbance' && e.target.value && !block.qualityData?.gdContractor) {
+                updateQualityData(block.id, 'gdContractor', e.target.value)
+              }
+            }}
             placeholder="Contractor name"
             style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
           />
@@ -566,6 +1082,12 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
             type="text"
             value={block.foreman}
             onChange={(e) => updateBlock(block.id, 'foreman', e.target.value)}
+            onBlur={(e) => {
+              // Copy to GD Foreman if Ground Disturbance and not already set
+              if (block.activityType === 'Ground Disturbance' && e.target.value && !block.qualityData?.gdForeman) {
+                updateQualityData(block.id, 'gdForeman', e.target.value)
+              }
+            }}
             placeholder="Foreman name"
             style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
           />
@@ -585,8 +1107,21 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           <div style={{ display: 'flex', gap: '8px' }}>
             <input
               type="text"
-              value={block.startKP}
+              value={block.startKP || ''}
               onChange={(e) => updateBlock(block.id, 'startKP', e.target.value)}
+              onBlur={(e) => {
+                // Auto-calculate meters today on blur (after user finishes typing)
+                if (e.target.value && block.endKP) {
+                  const startM = parseKPToMetres(e.target.value)
+                  const endM = parseKPToMetres(block.endKP)
+                  if (startM !== null && endM !== null) {
+                    const metersToday = Math.abs(endM - startM)
+                    updateBlock(block.id, 'metersToday', metersToday.toString())
+                    const previous = parseFloat(block.metersPrevious) || 0
+                    updateBlock(block.id, 'metersToDate', (metersToday + previous).toString())
+                  }
+                }
+              }}
               placeholder="e.g. 5+250"
               style={{ 
                 flex: 1, 
@@ -625,8 +1160,25 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           <div style={{ display: 'flex', gap: '8px' }}>
             <input
               type="text"
-              value={block.endKP}
+              value={block.endKP || ''}
               onChange={(e) => updateBlock(block.id, 'endKP', e.target.value)}
+              onBlur={(e) => {
+                // Auto-calculate meters today on blur (after user finishes typing)
+                if (block.startKP && e.target.value) {
+                  const startM = parseKPToMetres(block.startKP)
+                  const endM = parseKPToMetres(e.target.value)
+                  if (startM !== null && endM !== null) {
+                    const metersToday = Math.abs(endM - startM)
+                    const previous = parseFloat(block.metersPrevious) || 0
+                    const toDate = metersToday + previous
+                    // Update all three fields
+                    updateBlock(block.id, 'metersToday', metersToday.toString())
+                    setTimeout(() => {
+                      updateBlock(block.id, 'metersToDate', toDate.toString())
+                    }, 50)
+                  }
+                }
+              }}
               placeholder="e.g. 6+100"
               style={{ 
                 flex: 1, 
@@ -718,50 +1270,49 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
       <div style={{ 
         display: 'grid', 
         gridTemplateColumns: 'repeat(3, 1fr)', 
-        gap: '15px', 
+        gap: '20px', 
         marginBottom: '15px',
-        padding: '12px',
+        padding: '15px',
         backgroundColor: '#e8f4f8',
         borderRadius: '6px',
         border: '1px solid #bee5eb'
       }}>
-        <div>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#0c5460' }}>
+        <div style={{ minWidth: 0 }}>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '6px', color: '#0c5460' }}>
             📏 Metres Today
           </label>
           <input
             type="number"
-            value={block.metersToday || ''}
+            value={block.metersToday || calculateMetersToday(block) || ''}
             onChange={(e) => {
               updateBlock(block.id, 'metersToday', e.target.value)
-              const today = parseFloat(e.target.value) || 0
-              const previous = parseFloat(block.metersPrevious) || 0
-              updateBlock(block.id, 'metersToDate', (today + previous).toString())
             }}
             placeholder="0"
-            style={{ width: '100%', padding: '10px', border: '2px solid #17a2b8', borderRadius: '4px', fontSize: '14px', fontWeight: 'bold', textAlign: 'center' }}
+            style={{ width: '100%', padding: '10px', border: '2px solid #17a2b8', borderRadius: '4px', fontSize: '14px', fontWeight: 'bold', textAlign: 'center', boxSizing: 'border-box' }}
           />
         </div>
-        <div>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#666' }}>
+        <div style={{ minWidth: 0 }}>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '6px', color: '#666' }}>
             📊 Metres Previous
           </label>
           <input
             type="number"
             value={block.metersPrevious || ''}
             readOnly
-            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px', textAlign: 'center', backgroundColor: '#e9ecef', color: '#666' }}
+            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px', textAlign: 'center', backgroundColor: '#e9ecef', color: '#666', boxSizing: 'border-box' }}
           />
         </div>
-        <div>
-          <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#155724' }}>
+        <div style={{ minWidth: 0 }}>
+          <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '6px', color: '#155724' }}>
             ✓ Metres To Date
           </label>
           <input
             type="number"
-            value={block.metersToDate || ''}
+            value={
+              (parseFloat(block.metersToday || calculateMetersToday(block) || 0) + parseFloat(block.metersPrevious || 0)) || ''
+            }
             readOnly
-            style={{ width: '100%', padding: '10px', border: '2px solid #28a745', borderRadius: '4px', fontSize: '14px', fontWeight: 'bold', textAlign: 'center', backgroundColor: '#d4edda', color: '#155724' }}
+            style={{ width: '100%', padding: '10px', border: '2px solid #28a745', borderRadius: '4px', fontSize: '14px', fontWeight: 'bold', textAlign: 'center', backgroundColor: '#d4edda', color: '#155724', boxSizing: 'border-box' }}
           />
         </div>
       </div>
@@ -925,23 +1476,23 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           RT = Regular Time | OT = Overtime | JH = Jump Hours (bonus)
         </p>
         
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-          <div style={{ flex: 1, minWidth: '120px' }}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Employee Name</label>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 70px 70px 70px 70px auto', gap: '10px', marginBottom: '15px', alignItems: 'end' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Employee Name</label>
             <input
               type="text"
               placeholder="Name"
               value={currentLabour.employeeName}
               onChange={(e) => setCurrentLabour({ ...currentLabour, employeeName: e.target.value })}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
             />
           </div>
-          <div style={{ flex: 2, minWidth: '180px' }}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Classification</label>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Classification</label>
             <select
               value={currentLabour.classification}
               onChange={(e) => setCurrentLabour({ ...currentLabour, classification: e.target.value })}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
             >
               <option value="">Select Classification</option>
               {labourClassifications.map(c => (
@@ -949,44 +1500,44 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               ))}
             </select>
           </div>
-          <div style={{ width: '60px' }}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', color: '#155724' }}>RT</label>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#155724' }}>RT</label>
             <input
               type="number"
               placeholder="8"
               value={currentLabour.rt}
               onChange={(e) => setCurrentLabour({ ...currentLabour, rt: e.target.value })}
-              style={{ width: '100%', padding: '8px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#d4edda' }}
+              style={{ width: '100%', padding: '8px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#d4edda', boxSizing: 'border-box' }}
             />
           </div>
-          <div style={{ width: '60px' }}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', color: '#856404' }}>OT</label>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#856404' }}>OT</label>
             <input
               type="number"
               placeholder="0"
               value={currentLabour.ot}
               onChange={(e) => setCurrentLabour({ ...currentLabour, ot: e.target.value })}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ffc107', borderRadius: '4px', backgroundColor: '#fff3cd' }}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ffc107', borderRadius: '4px', backgroundColor: '#fff3cd', boxSizing: 'border-box' }}
             />
           </div>
-          <div style={{ width: '60px' }}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', color: '#004085' }}>JH</label>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#004085' }}>JH</label>
             <input
               type="number"
               placeholder="0"
               value={currentLabour.jh}
               onChange={(e) => setCurrentLabour({ ...currentLabour, jh: e.target.value })}
-              style={{ width: '100%', padding: '8px', border: '1px solid #007bff', borderRadius: '4px', backgroundColor: '#cce5ff' }}
+              style={{ width: '100%', padding: '8px', border: '1px solid #007bff', borderRadius: '4px', backgroundColor: '#cce5ff', boxSizing: 'border-box' }}
             />
           </div>
-          <div style={{ width: '55px' }}>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Count</label>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Count</label>
             <input
               type="number"
               placeholder="1"
               value={currentLabour.count}
               onChange={(e) => setCurrentLabour({ ...currentLabour, count: e.target.value })}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
             />
           </div>
           <button
@@ -994,7 +1545,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               addLabourToBlock(block.id, currentLabour.employeeName, currentLabour.classification, currentLabour.rt, currentLabour.ot, currentLabour.jh, currentLabour.count)
               setCurrentLabour({ employeeName: '', classification: '', rt: '', ot: '', jh: '', count: '1' })
             }}
-            style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+            style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', height: '38px' }}
           >
             Add
           </button>
@@ -1054,37 +1605,46 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
       <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#cce5ff', borderRadius: '8px' }}>
         <h4 style={{ margin: '0 0 15px 0', color: '#004085' }}>🚜 Equipment</h4>
         
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap' }}>
-          <select
-            value={currentEquipment.type}
-            onChange={(e) => setCurrentEquipment({ ...currentEquipment, type: e.target.value })}
-            style={{ flex: 2, minWidth: '200px', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px' }}
-          >
-            <option value="">Select Equipment</option>
-            {equipmentTypes.map(t => (
-              <option key={t} value={t}>{t}</option>
-            ))}
-          </select>
-          <input
-            type="number"
-            placeholder="Hours"
-            value={currentEquipment.hours}
-            onChange={(e) => setCurrentEquipment({ ...currentEquipment, hours: e.target.value })}
-            style={{ width: '80px', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px' }}
-          />
-          <input
-            type="number"
-            placeholder="Count"
-            value={currentEquipment.count}
-            onChange={(e) => setCurrentEquipment({ ...currentEquipment, count: e.target.value })}
-            style={{ width: '80px', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px' }}
-          />
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 100px auto', gap: '15px', marginBottom: '15px', alignItems: 'end' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Equipment Type</label>
+            <select
+              value={currentEquipment.type}
+              onChange={(e) => setCurrentEquipment({ ...currentEquipment, type: e.target.value })}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
+            >
+              <option value="">Select Equipment</option>
+              {equipmentTypes.map(t => (
+                <option key={t} value={t}>{t}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Hours</label>
+            <input
+              type="number"
+              placeholder="Hours"
+              value={currentEquipment.hours}
+              onChange={(e) => setCurrentEquipment({ ...currentEquipment, hours: e.target.value })}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Count</label>
+            <input
+              type="number"
+              placeholder="Count"
+              value={currentEquipment.count}
+              onChange={(e) => setCurrentEquipment({ ...currentEquipment, count: e.target.value })}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
+            />
+          </div>
           <button
             onClick={() => {
               addEquipmentToBlock(block.id, currentEquipment.type, currentEquipment.hours, currentEquipment.count)
               setCurrentEquipment({ type: '', hours: '', count: '' })
             }}
-            style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+            style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', height: '38px' }}
           >
             Add
           </button>
