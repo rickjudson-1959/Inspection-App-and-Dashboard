@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
 import { supabase } from './supabase'
 import MiniMapWidget from './MiniMapWidget.jsx'
+import SafetyRecognition from './SafetyRecognition.jsx'
+import WildlifeSighting from './WildlifeSighting.jsx'
 
 // Weather API Key
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
@@ -95,6 +97,10 @@ function AssistantChiefDashboard() {
   const [showHazardForm, setShowHazardForm] = useState(false)
   const [showRecognitionForm, setShowRecognitionForm] = useState(false)
   const [showWildlifeForm, setShowWildlifeForm] = useState(false)
+  
+  // SafetyRecognition and WildlifeSighting component data
+  const [safetyRecognitionData, setSafetyRecognitionData] = useState({ enabled: false, cards: [] })
+  const [wildlifeSightingData, setWildlifeSightingData] = useState({ enabled: false, sightings: [] })
   
   // Compliance Issue Entry
   const [complianceEntries, setComplianceEntries] = useState([])
@@ -696,6 +702,97 @@ function AssistantChiefDashboard() {
     })
     setSelectedComplianceIssue(issue)
     setShowComplianceForm(true)
+  }
+
+  // Save SafetyRecognition cards to database
+  async function saveSafetyRecognitionData() {
+    if (!safetyRecognitionData.cards?.length) {
+      alert('No cards to save')
+      return
+    }
+    try {
+      // Save each card as a safety recognition entry
+      for (const card of safetyRecognitionData.cards) {
+        const { error } = await supabase
+          .from('assistant_chief_safety_cards')
+          .insert({
+            card_type: card.cardType,
+            observer_name: card.observerName || userProfile?.full_name,
+            observer_date: card.observerDate || new Date().toISOString().split('T')[0],
+            observee_name: card.observeeName,
+            location: card.location,
+            company_type: card.companyType,
+            cause_type: card.causeType,
+            situation_description: card.situationDescription,
+            what_could_have_happened: card.whatCouldHaveHappened,
+            dialogue_occurred: card.dialogueOccurred,
+            dialogue_comment: card.dialogueComment,
+            questions_asked: card.questionsAsked,
+            responses: card.responses,
+            actions: card.actions,
+            acknowledged: card.acknowledged,
+            incident_number: card.incidentNumber,
+            supervisor_signoff: card.supervisorSignoff,
+            comments: card.comments,
+            reported_by: userProfile?.id,
+            created_at: new Date().toISOString()
+          })
+        
+        if (error) throw error
+      }
+      
+      alert(`Saved ${safetyRecognitionData.cards.length} safety card(s)!`)
+      setSafetyRecognitionData({ enabled: false, cards: [] })
+      fetchComplianceIssues()
+    } catch (err) {
+      console.error('Error saving safety cards:', err)
+      alert('Error: ' + err.message)
+    }
+  }
+
+  // Save WildlifeSighting data to database
+  async function saveWildlifeSightingData() {
+    if (!wildlifeSightingData.sightings?.length) {
+      alert('No sightings to save')
+      return
+    }
+    try {
+      // Save each sighting
+      for (const sighting of wildlifeSightingData.sightings) {
+        const { error } = await supabase
+          .from('assistant_chief_wildlife')
+          .insert({
+            sighting_date: sighting.date || new Date().toISOString().split('T')[0],
+            sighting_time: sighting.time,
+            inspector_name: sighting.inspector || userProfile?.full_name,
+            crew: sighting.crew,
+            species: sighting.species,
+            other_species: sighting.otherSpecies,
+            species_detail: sighting.speciesDetail,
+            location: sighting.location,
+            gps_coordinates: sighting.gpsCoordinates,
+            number_of_animals: sighting.numberOfAnimals ? parseInt(sighting.numberOfAnimals) : null,
+            gender: sighting.gender,
+            age_group: sighting.ageGroup,
+            activity: sighting.activity,
+            mortality: sighting.mortality,
+            mortality_cause: sighting.mortalityCause,
+            comments: sighting.comments,
+            photo_taken: sighting.photoTaken,
+            reported_by: userProfile?.id,
+            created_at: new Date().toISOString()
+          })
+        
+        if (error) throw error
+      }
+      
+      alert(`Saved ${wildlifeSightingData.sightings.length} wildlife sighting(s)!`)
+      setWildlifeSightingData({ enabled: false, sightings: [] })
+      fetchComplianceIssues()
+    } catch (err) {
+      console.error('Error saving wildlife sightings:', err)
+      alert('Error: ' + err.message)
+    }
   }
 
   // =============================================
@@ -2166,165 +2263,80 @@ function AssistantChiefDashboard() {
               </div>
             )}
 
-            {/* POSITIVE RECOGNITION Sub-tab */}
+            {/* POSITIVE RECOGNITION Sub-tab - Using SafetyRecognition Component */}
             {complianceTab === 'recognition' && (
               <div style={cardStyle}>
                 <div style={cardHeaderStyle('#ffc107')}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <h2 style={{ margin: 0, fontSize: '18px', color: '#000' }}>⭐ Positive Safety Recognition</h2>
+                      <h2 style={{ margin: 0, fontSize: '18px', color: '#000' }}>🏆 Safety Recognition / Hazard ID Cards</h2>
                       <p style={{ margin: '5px 0 0 0', fontSize: '12px', color: '#333' }}>
-                        Recognize workers for safe behaviors and good practices
+                        Same cards used by field inspectors - Positive Recognition &amp; Hazard ID
                       </p>
                     </div>
                     <button
-                      onClick={() => setShowRecognitionForm(!showRecognitionForm)}
-                      style={{ padding: '10px 20px', backgroundColor: '#fff', color: '#856404', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                      onClick={saveSafetyRecognitionData}
+                      disabled={!safetyRecognitionData.cards?.length}
+                      style={{ 
+                        padding: '10px 20px', 
+                        backgroundColor: safetyRecognitionData.cards?.length ? '#28a745' : '#ccc', 
+                        color: 'white', 
+                        border: 'none', 
+                        borderRadius: '4px', 
+                        cursor: safetyRecognitionData.cards?.length ? 'pointer' : 'not-allowed', 
+                        fontWeight: 'bold' 
+                      }}
                     >
-                      {showRecognitionForm ? '✕ Cancel' : '+ Add Recognition'}
+                      💾 Save Cards
                     </button>
                   </div>
                 </div>
                 <div style={{ padding: '20px' }}>
-                  {/* New Recognition Form */}
-                  {showRecognitionForm && (
-                    <div style={{ backgroundColor: '#fff8e7', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #ffc107' }}>
-                      <h4 style={{ margin: '0 0 15px 0', color: '#856404' }}>New Recognition</h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '15px' }}>
-                        <div>
-                          <label style={labelStyle}>Person's Name *</label>
-                          <input type="text" value={newRecognition.person_name} onChange={e => setNewRecognition({ ...newRecognition, person_name: e.target.value })} style={inputStyle} placeholder="Worker name" />
-                        </div>
-                        <div>
-                          <label style={labelStyle}>Category</label>
-                          <select value={newRecognition.category} onChange={e => setNewRecognition({ ...newRecognition, category: e.target.value })} style={inputStyle}>
-                            <option value="ppe">PPE Compliance</option>
-                            <option value="housekeeping">Housekeeping</option>
-                            <option value="hazard_id">Hazard Identification</option>
-                            <option value="leadership">Safety Leadership</option>
-                            <option value="environmental">Environmental Care</option>
-                            <option value="other">Other</option>
-                          </select>
-                        </div>
-                      </div>
-                      <div style={{ marginBottom: '15px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-                          <label style={labelStyle}>Description *</label>
-                          <VoiceButton fieldId="recognition_description" />
-                        </div>
-                        <textarea 
-                          value={newRecognition.description} 
-                          onChange={e => setNewRecognition({ ...newRecognition, description: e.target.value })} 
-                          style={{ ...inputStyle, height: '80px', border: isListening === 'recognition_description' ? '2px solid #ffc107' : '1px solid #ced4da' }} 
-                          placeholder="What did they do well?" 
-                        />
-                      </div>
-                      <button onClick={saveRecognitionEntry} style={{ padding: '10px 20px', backgroundColor: '#ffc107', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                        Save Recognition
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Recognition List */}
-                  {recognitionEntries.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-                      <p>No recognitions yet</p>
-                      <button onClick={() => setShowRecognitionForm(true)} style={{ padding: '10px 20px', backgroundColor: '#ffc107', color: '#000', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                        Add First Recognition
-                      </button>
-                    </div>
-                  ) : (
-                    <div>
-                      {recognitionEntries.map(rec => (
-                        <div key={rec.id} style={{ padding: '15px', borderBottom: '1px solid #eee', backgroundColor: '#fffef5' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                            <div>
-                              <span style={{ fontSize: '16px', marginRight: '10px' }}>⭐</span>
-                              <strong>{rec.person_name}</strong>
-                              <span style={badgeStyle('#ffc107')}>{rec.category?.toUpperCase().replace('_', ' ')}</span>
-                            </div>
-                            <span style={{ fontSize: '12px', color: '#666' }}>{rec.entry_date}</span>
-                          </div>
-                          <p style={{ margin: '10px 0 0 0', color: '#333' }}>{rec.description}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <SafetyRecognition
+                    data={safetyRecognitionData}
+                    onChange={setSafetyRecognitionData}
+                    inspectorName={userProfile?.full_name || ''}
+                    reportDate={new Date().toISOString().split('T')[0]}
+                  />
                 </div>
               </div>
             )}
 
-            {/* WILDLIFE SIGHTINGS Sub-tab */}
+            {/* WILDLIFE SIGHTINGS Sub-tab - Using WildlifeSighting Component */}
             {complianceTab === 'wildlife' && (
               <div style={cardStyle}>
-                <div style={cardHeaderStyle('#17a2b8')}>
+                <div style={cardHeaderStyle('#20c997')}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
-                      <h2 style={{ margin: 0, fontSize: '18px' }}>🦌 Wildlife Sightings</h2>
+                      <h2 style={{ margin: 0, fontSize: '18px' }}>🦌 Wildlife Sighting Records</h2>
                       <p style={{ margin: '5px 0 0 0', fontSize: '12px', opacity: 0.8 }}>
-                        Document wildlife observed on the ROW
+                        Same form used by field inspectors - Full wildlife documentation
                       </p>
                     </div>
                     <button
-                      onClick={() => setShowWildlifeForm(!showWildlifeForm)}
-                      style={{ padding: '10px 20px', backgroundColor: '#fff', color: '#17a2b8', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                      onClick={saveWildlifeSightingData}
+                      disabled={!wildlifeSightingData.sightings?.length}
+                      style={{ 
+                        padding: '10px 20px', 
+                        backgroundColor: wildlifeSightingData.sightings?.length ? '#28a745' : '#ccc', 
+                        color: 'white', 
+                        border: 'none', 
+                        borderRadius: '4px', 
+                        cursor: wildlifeSightingData.sightings?.length ? 'pointer' : 'not-allowed', 
+                        fontWeight: 'bold' 
+                      }}
                     >
-                      {showWildlifeForm ? '✕ Cancel' : '+ Log Sighting'}
+                      💾 Save Sightings
                     </button>
                   </div>
                 </div>
                 <div style={{ padding: '20px' }}>
-                  {/* New Wildlife Form */}
-                  {showWildlifeForm && (
-                    <div style={{ backgroundColor: '#f0f7ff', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #17a2b8' }}>
-                      <h4 style={{ margin: '0 0 15px 0', color: '#17a2b8' }}>New Wildlife Sighting</h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px', marginBottom: '15px' }}>
-                        <div>
-                          <label style={labelStyle}>Species *</label>
-                          <input type="text" value={newWildlife.species} onChange={e => setNewWildlife({ ...newWildlife, species: e.target.value })} style={inputStyle} placeholder="e.g., Black Bear, Deer" />
-                        </div>
-                        <div>
-                          <label style={labelStyle}>Count</label>
-                          <input type="number" min="1" value={newWildlife.count} onChange={e => setNewWildlife({ ...newWildlife, count: e.target.value })} style={inputStyle} />
-                        </div>
-                        <div>
-                          <label style={labelStyle}>Location (KP)</label>
-                          <input type="number" step="0.001" value={newWildlife.location_kp} onChange={e => setNewWildlife({ ...newWildlife, location_kp: e.target.value })} style={inputStyle} placeholder="0.000" />
-                        </div>
-                      </div>
-                      <div style={{ marginBottom: '15px' }}>
-                        <label style={labelStyle}>Behavior / Notes</label>
-                        <input type="text" value={newWildlife.behavior} onChange={e => setNewWildlife({ ...newWildlife, behavior: e.target.value })} style={inputStyle} placeholder="e.g., Grazing, Crossing ROW, Nesting" />
-                      </div>
-                      <button onClick={saveWildlifeEntry} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-                        Save Sighting
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Wildlife List */}
-                  {wildlifeEntries.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
-                      <p>No wildlife sightings logged</p>
-                      <button onClick={() => setShowWildlifeForm(true)} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                        Log First Sighting
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '15px' }}>
-                      {wildlifeEntries.map(w => (
-                        <div key={w.id} style={{ padding: '15px', backgroundColor: '#f0f7ff', borderRadius: '8px', border: '1px solid #17a2b8' }}>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
-                            <span style={{ fontSize: '20px' }}>🦌</span>
-                            <span style={{ fontSize: '11px', color: '#666' }}>{w.entry_date}</span>
-                          </div>
-                          <h4 style={{ margin: '10px 0 5px 0' }}>{w.species} {w.count > 1 && `(${w.count})`}</h4>
-                          {w.location_kp && <p style={{ margin: '0 0 5px 0', fontSize: '12px', color: '#666' }}>📍 KP {w.location_kp.toFixed(3)}</p>}
-                          {w.behavior && <p style={{ margin: 0, fontSize: '13px' }}>{w.behavior}</p>}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                  <WildlifeSighting
+                    data={wildlifeSightingData}
+                    onChange={setWildlifeSightingData}
+                    inspectorName={userProfile?.full_name || ''}
+                    reportDate={new Date().toISOString().split('T')[0]}
+                  />
                 </div>
               </div>
             )}
