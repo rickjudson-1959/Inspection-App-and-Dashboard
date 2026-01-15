@@ -28,6 +28,9 @@ const egpBends = EGP_ROUTE_DATA.bends
 // Actual construction footprint polygons from survey (248 polygons)
 const egpFootprint = EGP_ROUTE_DATA.footprint || []
 
+// Open ends from asbuilt survey (20 open ends)
+const egpOpenEnds = EGP_ROUTE_DATA.openEnds || []
+
 // Create route array with KP values for interpolation
 const egpFullRoute = egpKPMarkers.map(m => ({
   lat: m.lat,
@@ -144,6 +147,7 @@ export default function MiniMapWidget({
   const [showBends, setShowBends] = useState(false)
   const [showKPMarkers, setShowKPMarkers] = useState(true)
   const [showROW, setShowROW] = useState(true)
+  const [showOpenEnds, setShowOpenEnds] = useState(true)
 
   // Create icons using useMemo to avoid recreation on each render
   const workAreaIcon = useMemo(() => L.divIcon({
@@ -372,6 +376,14 @@ export default function MiniMapWidget({
                 onChange={(e) => setShowROW(e.target.checked)}
               />
               <span style={{ color: '#9b59b6' }}>Footprint ({egpFootprint.length})</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={showOpenEnds} 
+                onChange={(e) => setShowOpenEnds(e.target.checked)}
+              />
+              <span style={{ color: '#e74c3c' }}>Open Ends ({egpOpenEnds.length})</span>
             </label>
           </div>
 
@@ -602,6 +614,58 @@ export default function MiniMapWidget({
               )
             })}
 
+            {/* Open Ends from asbuilt survey */}
+            {showOpenEnds && egpOpenEnds.map((openEnd, idx) => {
+              // Parse station to KP
+              const stationParts = openEnd.station.split('+')
+              const kpValue = stationParts.length === 2 
+                ? parseFloat(stationParts[0]) + parseFloat(stationParts[1]) / 1000 
+                : 0
+              
+              // Icon color based on type
+              const isBegin = openEnd.type === 'Begin'
+              
+              return (
+                <CircleMarker
+                  key={`openend-${idx}`}
+                  center={[openEnd.lat, openEnd.lon]}
+                  radius={7}
+                  pathOptions={{
+                    fillColor: isBegin ? '#27ae60' : '#e74c3c',
+                    color: '#fff',
+                    weight: 2,
+                    fillOpacity: 0.9
+                  }}
+                >
+                  <Popup>
+                    <div style={{ fontSize: '11px', minWidth: '200px' }}>
+                      <div style={{ 
+                        fontWeight: 'bold', 
+                        color: isBegin ? '#27ae60' : '#e74c3c', 
+                        marginBottom: '5px', 
+                        borderBottom: '1px solid #eee', 
+                        paddingBottom: '3px' 
+                      }}>
+                        {isBegin ? '🟢 OPEN END - BEGIN' : '🔴 OPEN END - LEAVE'}
+                      </div>
+                      <table style={{ width: '100%', fontSize: '11px' }}>
+                        <tbody>
+                          <tr><td style={{ color: '#666' }}>Station:</td><td><strong>{openEnd.station}</strong></td></tr>
+                          <tr><td style={{ color: '#666' }}>KP:</td><td><strong>{kpValue.toFixed(3)}</strong></td></tr>
+                          <tr><td style={{ color: '#666' }}>Type:</td><td>{openEnd.type}</td></tr>
+                          <tr><td style={{ color: '#666' }}>Lat:</td><td>{openEnd.lat.toFixed(6)}</td></tr>
+                          <tr><td style={{ color: '#666' }}>Lon:</td><td>{openEnd.lon.toFixed(6)}</td></tr>
+                        </tbody>
+                      </table>
+                      <div style={{ fontSize: '10px', color: '#888', marginTop: '5px', fontStyle: 'italic' }}>
+                        {openEnd.description}
+                      </div>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              )
+            })}
+
             {/* Start KP Marker */}
             {startPosition && (
               <Marker position={[startPosition.lat, startPosition.lon]} icon={workAreaIcon}>
@@ -662,10 +726,10 @@ export default function MiniMapWidget({
             flexWrap: 'wrap',
             borderTop: '1px solid #eee'
           }}>
-            <span><span style={{ color: '#9b59b6', opacity: 0.5 }}>▓▓</span> Footprint ({egpFootprint.length})</span>
+            <span><span style={{ color: '#9b59b6', opacity: 0.5 }}>▓▓</span> Footprint</span>
             <span><span style={{ color: '#ff6600' }}>━━</span> Centerline</span>
             <span><span style={{ color: '#e74c3c' }}>◉</span> Start/End</span>
-            <span><span style={{ color: '#28a745' }}>━━</span> Work Area</span>
+            <span><span style={{ color: '#27ae60' }}>●</span><span style={{ color: '#e74c3c' }}>●</span> Open Ends</span>
             <span><span style={{ color: '#007bff' }}>●</span> KP</span>
             <span><span style={{ color: '#dc3545' }}>●</span> Welds</span>
             <span><span style={{ color: '#fd7e14' }}>●</span> Bends</span>
