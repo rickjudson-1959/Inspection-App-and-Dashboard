@@ -1,82 +1,37 @@
 // MiniMapWidget.jsx - Compact Pipeline Map for Inspector Report
-// Shows current work area and GPS location
+// Shows current work area and GPS location with REAL EGP survey data
 
 import React, { useState, useEffect, useMemo } from 'react'
-import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, useMap } from 'react-leaflet'
+import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, CircleMarker, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
 
+// Import actual EGP route data extracted from FortisBC KMZ files
+import EGP_ROUTE_DATA from './egpRouteData.js'
+
 // =====================================================
-// FORTISBC EGP PIPELINE ROUTE
-// Eagle Mountain - Woodfibre Gas Pipeline
-// Coquitlam to Woodfibre LNG via Indian River
-// 47km Mainline + 9km Tunnel = 56km Total
+// EGP PIPELINE ROUTE DATA (from FortisBC Provisional Asbuilt KMZ)
+// North Line: KP 0+000 to KP 38+470
+// 774 centerline points, 367 KP markers, 451 welds, 248 bends
 // =====================================================
 
-const egpMainlineRoute = [
-  // Coquitlam Interconnect Station (KP 0)
-  { lat: 49.2838, lon: -122.7932, kp: 0, label: 'Coquitlam Station' },
-  
-  // North through Port Moody area
-  { lat: 49.3100, lon: -122.8200, kp: 3 },
-  
-  // Enter Indian Arm / Buntzen Lake area
-  { lat: 49.3450, lon: -122.8650, kp: 8 },
-  
-  // CN Rail Crossing (HDD)
-  { lat: 49.3680, lon: -122.8800, kp: 9, label: 'Rail Crossing HDD' },
-  
-  // Highway 99 area
-  { lat: 49.3950, lon: -122.9100, kp: 12, label: 'Hwy 99 Crossing' },
-  
-  // Indian River Valley entrance
-  { lat: 49.4350, lon: -122.9500, kp: 16 },
-  
-  // Indian River HDD Crossing
-  { lat: 49.4720, lon: -122.9850, kp: 19, label: 'Indian River HDD' },
-  
-  // Mid-line Block Valve (MLV-1)
-  { lat: 49.5100, lon: -123.0200, kp: 24, label: 'MLV-1' },
-  
-  // Continue through watershed
-  { lat: 49.5450, lon: -123.0550, kp: 28 },
-  
-  // Mamquam River area
-  { lat: 49.5820, lon: -123.0900, kp: 35, label: 'Mamquam River HDD' },
-  
-  // Approach to tunnel portal
-  { lat: 49.6100, lon: -123.1200, kp: 40 },
-  
-  // North Tunnel Portal
-  { lat: 49.6350, lon: -123.1500, kp: 47, label: 'Tunnel Portal (North)' }
-]
+// Convert route coordinates to format used by map
+const egpRouteCoordinates = EGP_ROUTE_DATA.route.coordinates
 
-const egpTunnelRoute = [
-  // North Tunnel Portal (KP 47)
-  { lat: 49.6350, lon: -123.1500, kp: 47, label: 'Tunnel Portal (North)' },
-  
-  // Under Howe Sound / Coast Mountains
-  { lat: 49.6500, lon: -123.1800, kp: 50 },
-  { lat: 49.6600, lon: -123.2100, kp: 53 },
-  
-  // South Tunnel Portal / Woodfibre approach
-  { lat: 49.6700, lon: -123.2400, kp: 56, label: 'Tunnel Portal (South)' }
-]
+// KP markers from survey data
+const egpKPMarkers = EGP_ROUTE_DATA.kpMarkers
 
-const egpWoodfibreRoute = [
-  // South Tunnel Portal
-  { lat: 49.6700, lon: -123.2400, kp: 56, label: 'Tunnel Exit' },
-  
-  // Woodfibre LNG Delivery Station
-  { lat: 49.6750, lon: -123.2550, kp: 57, label: 'Woodfibre LNG Station' }
-]
+// Welds and bends for display
+const egpWelds = EGP_ROUTE_DATA.welds
+const egpBends = EGP_ROUTE_DATA.bends
 
-// Combined full route for display
-const egpFullRoute = [
-  ...egpMainlineRoute,
-  ...egpTunnelRoute.slice(1), // Skip duplicate portal point
-  ...egpWoodfibreRoute.slice(1) // Skip duplicate exit point
-]
+// Create route array with KP values for interpolation
+const egpFullRoute = egpKPMarkers.map(m => ({
+  lat: m.lat,
+  lon: m.lon,
+  kp: m.kp,
+  label: m.name
+}))
 
 // Legacy routes for backward compatibility
 const demoPipelineRoute = egpFullRoute
@@ -178,6 +133,9 @@ export default function MiniMapWidget({
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState(null)
   const [gpsKP, setGpsKP] = useState(null)
+  const [showWelds, setShowWelds] = useState(false)
+  const [showBends, setShowBends] = useState(false)
+  const [showKPMarkers, setShowKPMarkers] = useState(true)
 
   // Create icons using useMemo to avoid recreation on each render
   const workAreaIcon = useMemo(() => L.divIcon({
@@ -196,9 +154,11 @@ export default function MiniMapWidget({
     popupAnchor: [0, -10]
   }), [])
 
-  // Select route based on pipeline
-  const route = pipeline === 'north' ? northernPipelineRoute : demoPipelineRoute
-  const routeCoords = route.map(p => [p.lat, p.lon])
+  // Select route based on pipeline (both use EGP data now)
+  const route = egpFullRoute
+  
+  // Use actual centerline coordinates for the polyline (774 points)
+  const routeCoords = egpRouteCoordinates.map(p => [p.lat, p.lon])
 
   // Calculate work area positions
   const startKPValue = parseKPToKm(startKP)
@@ -208,7 +168,7 @@ export default function MiniMapWidget({
   const endPosition = endKPValue !== null ? interpolatePosition(route, endKPValue) : null
 
   // Calculate center and bounds
-  let center = [49.50, -123.00] // Default: EGP project area (Squamish)
+  let center = [49.60, -123.00] // Default: EGP North Line mid-point
   let bounds = null
   
   if (startPosition && endPosition) {
@@ -353,6 +313,43 @@ export default function MiniMapWidget({
             )}
           </div>
 
+          {/* Layer Toggles */}
+          <div style={{ 
+            padding: '8px 10px', 
+            borderBottom: '1px solid #eee',
+            display: 'flex',
+            gap: '12px',
+            alignItems: 'center',
+            fontSize: '11px',
+            backgroundColor: '#f8f9fa'
+          }}>
+            <span style={{ fontWeight: 'bold', color: '#666' }}>Layers:</span>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={showKPMarkers} 
+                onChange={(e) => setShowKPMarkers(e.target.checked)}
+              />
+              <span style={{ color: '#007bff' }}>KP Markers ({egpKPMarkers.length})</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={showWelds} 
+                onChange={(e) => setShowWelds(e.target.checked)}
+              />
+              <span style={{ color: '#dc3545' }}>Welds ({egpWelds.length})</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+              <input 
+                type="checkbox" 
+                checked={showBends} 
+                onChange={(e) => setShowBends(e.target.checked)}
+              />
+              <span style={{ color: '#fd7e14' }}>Bends ({egpBends.length})</span>
+            </label>
+          </div>
+
           {/* Map */}
           <MapContainer
             center={center}
@@ -398,6 +395,136 @@ export default function MiniMapWidget({
                 }}
               />
             )}
+
+            {/* KP Markers from survey data */}
+            {showKPMarkers && egpKPMarkers
+              .filter((_, idx) => idx % 10 === 0) // Show every 10th to avoid clutter (every 1km)
+              .map((kp, idx) => (
+                <CircleMarker
+                  key={`kp-${idx}`}
+                  center={[kp.lat, kp.lon]}
+                  radius={4}
+                  pathOptions={{
+                    fillColor: '#007bff',
+                    color: '#fff',
+                    weight: 1,
+                    fillOpacity: 0.8
+                  }}
+                >
+                  <Popup>
+                    <div style={{ fontSize: '11px', minWidth: '160px' }}>
+                      <div style={{ fontWeight: 'bold', color: '#007bff', marginBottom: '5px', borderBottom: '1px solid #eee', paddingBottom: '3px' }}>
+                        🔵 KP MARKER
+                      </div>
+                      <table style={{ width: '100%', fontSize: '11px' }}>
+                        <tbody>
+                          <tr><td style={{ color: '#666' }}>KP:</td><td><strong>{kp.name}</strong></td></tr>
+                          <tr><td style={{ color: '#666' }}>Km:</td><td>{kp.kp.toFixed(1)}</td></tr>
+                          <tr><td style={{ color: '#666' }}>Lat:</td><td>{kp.lat.toFixed(6)}</td></tr>
+                          <tr><td style={{ color: '#666' }}>Lon:</td><td>{kp.lon.toFixed(6)}</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              ))
+            }
+
+            {/* Welds from asbuilt data */}
+            {showWelds && egpWelds.map((weld, idx) => {
+              // Parse station to KP (e.g., "38+374.58" -> KP 38.374)
+              const stationParts = weld.station.split('+')
+              const kpValue = stationParts.length === 2 
+                ? parseFloat(stationParts[0]) + parseFloat(stationParts[1]) / 1000 
+                : 0
+              // Parse weld type from description (e.g., "Weld-Field/CN-SC-0002")
+              const descParts = weld.description.split('/')
+              const weldType = descParts[0] || 'Unknown'
+              const weldId = descParts[1] || ''
+              
+              return (
+                <CircleMarker
+                  key={`weld-${idx}`}
+                  center={[weld.lat, weld.lon]}
+                  radius={3}
+                  pathOptions={{
+                    fillColor: '#dc3545',
+                    color: '#fff',
+                    weight: 1,
+                    fillOpacity: 0.9
+                  }}
+                >
+                  <Popup>
+                    <div style={{ fontSize: '11px', minWidth: '180px' }}>
+                      <div style={{ fontWeight: 'bold', color: '#dc3545', marginBottom: '5px', borderBottom: '1px solid #eee', paddingBottom: '3px' }}>
+                        🔴 WELD
+                      </div>
+                      <table style={{ width: '100%', fontSize: '11px' }}>
+                        <tbody>
+                          <tr><td style={{ color: '#666' }}>Station:</td><td><strong>{weld.station}</strong></td></tr>
+                          <tr><td style={{ color: '#666' }}>KP:</td><td><strong>{kpValue.toFixed(3)}</strong></td></tr>
+                          <tr><td style={{ color: '#666' }}>Type:</td><td>{weldType}</td></tr>
+                          {weldId && <tr><td style={{ color: '#666' }}>Weld ID:</td><td>{weldId}</td></tr>}
+                          <tr><td style={{ color: '#666' }}>Lat:</td><td>{weld.lat.toFixed(6)}</td></tr>
+                          <tr><td style={{ color: '#666' }}>Lon:</td><td>{weld.lon.toFixed(6)}</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              )
+            })}
+
+            {/* Bends from asbuilt data */}
+            {showBends && egpBends.map((bend, idx) => {
+              // Parse station to KP (e.g., "32+674.54" -> KP 32.674)
+              const stationParts = bend.station.split('+')
+              const kpValue = stationParts.length === 2 
+                ? parseFloat(stationParts[0]) + parseFloat(stationParts[1]) / 1000 
+                : 0
+              // Parse bend type from description (e.g., "Bend-Left/26d15m")
+              const descParts = bend.description.split('/')
+              const bendType = descParts[0] || 'Unknown'
+              const bendAngle = descParts[1] || ''
+              // Determine direction
+              const direction = bendType.includes('Left') ? '← Left' 
+                : bendType.includes('Right') ? '→ Right'
+                : bendType.includes('Over') ? '↑ Over'
+                : bendType.includes('Under') ? '↓ Under'
+                : bendType
+              
+              return (
+                <CircleMarker
+                  key={`bend-${idx}`}
+                  center={[bend.lat, bend.lon]}
+                  radius={4}
+                  pathOptions={{
+                    fillColor: '#fd7e14',
+                    color: '#fff',
+                    weight: 1,
+                    fillOpacity: 0.9
+                  }}
+                >
+                  <Popup>
+                    <div style={{ fontSize: '11px', minWidth: '180px' }}>
+                      <div style={{ fontWeight: 'bold', color: '#fd7e14', marginBottom: '5px', borderBottom: '1px solid #eee', paddingBottom: '3px' }}>
+                        🟠 BEND
+                      </div>
+                      <table style={{ width: '100%', fontSize: '11px' }}>
+                        <tbody>
+                          <tr><td style={{ color: '#666' }}>Station:</td><td><strong>{bend.station}</strong></td></tr>
+                          <tr><td style={{ color: '#666' }}>KP:</td><td><strong>{kpValue.toFixed(3)}</strong></td></tr>
+                          <tr><td style={{ color: '#666' }}>Direction:</td><td>{direction}</td></tr>
+                          {bendAngle && <tr><td style={{ color: '#666' }}>Angle:</td><td><strong>{bendAngle}</strong></td></tr>}
+                          <tr><td style={{ color: '#666' }}>Lat:</td><td>{bend.lat.toFixed(6)}</td></tr>
+                          <tr><td style={{ color: '#666' }}>Lon:</td><td>{bend.lon.toFixed(6)}</td></tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </Popup>
+                </CircleMarker>
+              )
+            })}
 
             {/* Start KP Marker */}
             {startPosition && (
@@ -455,12 +582,15 @@ export default function MiniMapWidget({
             backgroundColor: '#f8f9fa', 
             fontSize: '11px',
             display: 'flex',
-            gap: '15px',
+            gap: '12px',
+            flexWrap: 'wrap',
             borderTop: '1px solid #eee'
           }}>
-            <span><span style={{ color: '#ff6600' }}>━━</span> Pipeline Route</span>
-            <span><span style={{ color: '#28a745' }}>━━</span> Today's Work Area</span>
-            <span><span style={{ color: '#007bff' }}>●</span> Your Location</span>
+            <span><span style={{ color: '#ff6600' }}>━━</span> Pipeline (774 pts)</span>
+            <span><span style={{ color: '#28a745' }}>━━</span> Work Area</span>
+            <span><span style={{ color: '#007bff' }}>●</span> KP Markers</span>
+            <span><span style={{ color: '#dc3545' }}>●</span> Welds</span>
+            <span><span style={{ color: '#fd7e14' }}>●</span> Bends</span>
           </div>
         </div>
       )}

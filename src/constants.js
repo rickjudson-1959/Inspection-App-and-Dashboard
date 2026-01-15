@@ -5,13 +5,14 @@
 export const PROJECT_NAME = "FortisBC EGP - Eagle Mountain Woodfibre Gas Pipeline"
 export const PROJECT_SHORT = "EGP"
 
-// Pipeline locations for weather lookup - EGP Route (47km)
-// KP 0+000 at Indian Arm (north end) to KP 47+000 at Woodfibre LNG Facility (Squamish)
+// Pipeline locations for weather lookup - EGP North Line (38.47km)
+// KP 0+000 at Coquitlam to KP 38+470 at Woodfibre approach
+// Data extracted from FortisBC provisional asbuilt KML
 export const pipelineLocations = {
-  'Indian Arm 0+000 to 12+000': { lat: 49.4667, lon: -122.8833, name: 'Indian Arm (Start)' },
-  'Mid-North 12+000 to 24+000': { lat: 49.5500, lon: -123.0500, name: 'Mid-Route North' },
-  'Mid-South 24+000 to 36+000': { lat: 49.6000, lon: -123.1500, name: 'Mid-Route South' },
-  'Woodfibre 36+000 to 47+000': { lat: 49.6700, lon: -123.2500, name: 'Woodfibre LNG (End)' }
+  'KP 0+000 to 10+000': { lat: 49.525, lon: -122.84, name: 'Coquitlam Start' },
+  'KP 10+000 to 20+000': { lat: 49.56, lon: -122.94, name: 'Indian Arm' },
+  'KP 20+000 to 30+000': { lat: 49.64, lon: -123.02, name: 'Mid-Route' },
+  'KP 30+000 to 38+470': { lat: 49.71, lon: -123.12, name: 'Woodfibre Approach' }
 }
 
 // Activity types for pipeline construction
