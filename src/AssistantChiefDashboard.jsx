@@ -2,6 +2,17 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
 import { supabase } from './supabase'
+import MiniMapWidget from './MiniMapWidget.jsx'
+
+// Weather API Key
+const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
+
+// Pipeline locations for weather fetching
+const pipelineLocations = {
+  'EGP-ML-NORTH': { lat: 49.4720, lon: -122.9850, name: 'Eagle Mountain North' },
+  'EGP-ML-SOUTH': { lat: 49.3100, lon: -122.8200, name: 'Eagle Mountain South' },
+  'default': { lat: 49.4720, lon: -122.9850, name: 'Project Site' }
+}
 
 // ============================================================================
 // ASSISTANT CHIEF INSPECTOR DASHBOARD
@@ -91,6 +102,16 @@ function AssistantChiefDashboard() {
   const [savingObservation, setSavingObservation] = useState(false)
   const [existingObservation, setExistingObservation] = useState(null)
   const [observationHistory, setObservationHistory] = useState([])
+  
+  // Weather state
+  const [weatherData, setWeatherData] = useState({
+    conditions: '',
+    tempHigh: '',
+    tempLow: '',
+    windSpeed: '',
+    precipitation: ''
+  })
+  const [fetchingWeather, setFetchingWeather] = useState(false)
   
   // =============================================
   // STATS
@@ -583,6 +604,43 @@ function AssistantChiefDashboard() {
     }
   }
 
+  // Auto-fetch weather
+  async function fetchWeather() {
+    setFetchingWeather(true)
+    const loc = pipelineLocations['default']
+    
+    try {
+      const response = await fetch(
+        `https://api.openweathermap.org/data/2.5/weather?lat=${loc.lat}&lon=${loc.lon}&appid=${weatherApiKey}&units=metric`
+      )
+      const data = await response.json()
+      
+      const conditions = data.weather[0].main
+      const tempHigh = Math.round(data.main.temp_max)
+      const tempLow = Math.round(data.main.temp_min)
+      const windSpeed = Math.round(data.wind.speed * 3.6) // m/s to km/h
+      const precipitation = data.rain ? data.rain['1h'] || 0 : 0
+      
+      setWeatherData({ conditions, tempHigh, tempLow, windSpeed, precipitation })
+      
+      // Auto-populate the weather field if empty
+      if (!observation.weather_conditions) {
+        const weatherString = `${conditions}, ${tempHigh}°C (High) / ${tempLow}°C (Low), Wind: ${windSpeed} km/h`
+        setObservation(prev => ({ ...prev, weather_conditions: weatherString }))
+      }
+    } catch (error) {
+      console.error('Weather fetch error:', error)
+    }
+    setFetchingWeather(false)
+  }
+
+  // Auto-fetch weather when observation tab is opened
+  useEffect(() => {
+    if (activeTab === 'observation' && !weatherData.conditions) {
+      fetchWeather()
+    }
+  }, [activeTab])
+
   // =============================================
   // STATS
   // =============================================
@@ -743,7 +801,19 @@ function AssistantChiefDashboard() {
         </div>
       </div>
 
+      {/* Mini Map Widget - Always visible */}
       <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
+        <div style={{ marginBottom: '20px' }}>
+          <MiniMapWidget 
+            kpStart={0}
+            kpEnd={47}
+            showGPS={true}
+            height="200px"
+          />
+        </div>
+      </div>
+
+      <div style={{ padding: '0 20px 20px 20px', maxWidth: '1400px', margin: '0 auto' }}>
         
         {/* ============================================= */}
         {/* REPORT REVIEW TAB */}
@@ -1163,13 +1233,35 @@ function AssistantChiefDashboard() {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '25px' }}>
                     <div>
                       <label style={labelStyle}>Weather Conditions</label>
-                      <input
-                        type="text"
-                        value={observation.weather_conditions}
-                        onChange={e => setObservation({ ...observation, weather_conditions: e.target.value })}
-                        style={inputStyle}
-                        placeholder="e.g., Clear, 15°C, light wind"
-                      />
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <input
+                          type="text"
+                          value={observation.weather_conditions}
+                          onChange={e => setObservation({ ...observation, weather_conditions: e.target.value })}
+                          style={{ ...inputStyle, flex: 1 }}
+                          placeholder="e.g., Clear, 15°C, light wind"
+                        />
+                        <button
+                          onClick={fetchWeather}
+                          disabled={fetchingWeather}
+                          style={{
+                            padding: '10px 15px',
+                            backgroundColor: fetchingWeather ? '#ccc' : '#17a2b8',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: fetchingWeather ? 'not-allowed' : 'pointer',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {fetchingWeather ? '...' : '🔄 Fetch'}
+                        </button>
+                      </div>
+                      {weatherData.conditions && (
+                        <div style={{ marginTop: '5px', fontSize: '11px', color: '#666' }}>
+                          Current: {weatherData.conditions}, {weatherData.tempHigh}°C / {weatherData.tempLow}°C, Wind: {weatherData.windSpeed} km/h
+                        </div>
+                      )}
                     </div>
                     <div>
                       <label style={labelStyle}>Time on ROW</label>
