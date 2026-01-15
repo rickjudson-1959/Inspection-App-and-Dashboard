@@ -25,6 +25,9 @@ const egpKPMarkers = EGP_ROUTE_DATA.kpMarkers
 const egpWelds = EGP_ROUTE_DATA.welds
 const egpBends = EGP_ROUTE_DATA.bends
 
+// Actual construction footprint polygons from survey (248 polygons)
+const egpFootprint = EGP_ROUTE_DATA.footprint || []
+
 // Create route array with KP values for interpolation
 const egpFullRoute = egpKPMarkers.map(m => ({
   lat: m.lat,
@@ -36,43 +39,6 @@ const egpFullRoute = egpKPMarkers.map(m => ({
 // Legacy routes for backward compatibility
 const demoPipelineRoute = egpFullRoute
 const northernPipelineRoute = egpFullRoute
-
-// Calculate ROW buffer polygon (30m on each side of centerline)
-// Returns array of [lat, lon] pairs forming a polygon
-function calculateROWBuffer(routeCoords, bufferMeters = 30) {
-  if (!routeCoords || routeCoords.length < 2) return []
-  
-  const leftSide = []
-  const rightSide = []
-  
-  // Convert meters to approximate degrees (at ~49° latitude, 1° ≈ 111km for lat, ~73km for lon)
-  const latOffset = bufferMeters / 111000
-  const lonOffset = bufferMeters / 73000 // Adjusted for latitude
-  
-  for (let i = 0; i < routeCoords.length; i++) {
-    const curr = routeCoords[i]
-    
-    // Calculate perpendicular direction
-    let bearing = 0
-    if (i < routeCoords.length - 1) {
-      const next = routeCoords[i + 1]
-      bearing = Math.atan2(next.lon - curr.lon, next.lat - curr.lat)
-    } else if (i > 0) {
-      const prev = routeCoords[i - 1]
-      bearing = Math.atan2(curr.lon - prev.lon, curr.lat - prev.lat)
-    }
-    
-    // Perpendicular offset (90 degrees)
-    const perpLat = Math.cos(bearing + Math.PI / 2) * latOffset
-    const perpLon = Math.sin(bearing + Math.PI / 2) * lonOffset
-    
-    leftSide.push([curr.lat + perpLat, curr.lon + perpLon])
-    rightSide.push([curr.lat - perpLat, curr.lon - perpLon])
-  }
-  
-  // Create closed polygon: left side forward, right side backward
-  return [...leftSide, ...rightSide.reverse(), leftSide[0]]
-}
 
 // Get pipeline start and end points
 const pipelineStart = egpKPMarkers.length > 0 ? egpKPMarkers[0] : null
@@ -204,11 +170,6 @@ export default function MiniMapWidget({
     iconAnchor: [10, 10],
     popupAnchor: [0, -12]
   }), [])
-
-  // Calculate ROW buffer polygon
-  const rowBufferPolygon = useMemo(() => {
-    return calculateROWBuffer(egpRouteCoordinates, 30)
-  }, [])
 
   // Select route based on pipeline (both use EGP data now)
   const route = egpFullRoute
@@ -410,7 +371,7 @@ export default function MiniMapWidget({
                 checked={showROW} 
                 onChange={(e) => setShowROW(e.target.checked)}
               />
-              <span style={{ color: '#9b59b6' }}>ROW (30m)</span>
+              <span style={{ color: '#9b59b6' }}>Footprint ({egpFootprint.length})</span>
             </label>
           </div>
 
@@ -435,19 +396,20 @@ export default function MiniMapWidget({
             {/* Fit to work area */}
             {bounds && <FitBounds bounds={bounds} />}
 
-            {/* ROW Buffer (30m corridor) */}
-            {showROW && rowBufferPolygon.length > 0 && (
+            {/* Construction Footprint / ROW Boundary (actual survey data - 248 polygons) */}
+            {showROW && egpFootprint.map((polygon, idx) => (
               <Polygon
-                positions={rowBufferPolygon}
+                key={`footprint-${idx}`}
+                positions={polygon}
                 pathOptions={{
                   color: '#9b59b6',
                   weight: 1,
                   fillColor: '#9b59b6',
-                  fillOpacity: 0.15,
-                  dashArray: '5, 5'
+                  fillOpacity: 0.2,
+                  opacity: 0.6
                 }}
               />
-            )}
+            ))}
 
             {/* Pipeline Route */}
             <Polyline
@@ -700,7 +662,7 @@ export default function MiniMapWidget({
             flexWrap: 'wrap',
             borderTop: '1px solid #eee'
           }}>
-            <span><span style={{ color: '#9b59b6', opacity: 0.5 }}>▓▓</span> ROW (30m)</span>
+            <span><span style={{ color: '#9b59b6', opacity: 0.5 }}>▓▓</span> Footprint ({egpFootprint.length})</span>
             <span><span style={{ color: '#ff6600' }}>━━</span> Centerline</span>
             <span><span style={{ color: '#e74c3c' }}>◉</span> Start/End</span>
             <span><span style={{ color: '#28a745' }}>━━</span> Work Area</span>
