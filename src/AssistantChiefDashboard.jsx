@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
 import { supabase } from './supabase'
@@ -115,6 +115,12 @@ function AssistantChiefDashboard() {
   
   // Expanded map state
   const [showExpandedMap, setShowExpandedMap] = useState(false)
+  
+  // Voice input state
+  const [speechSupported, setSpeechSupported] = useState(false)
+  const [isListening, setIsListening] = useState(null)
+  const recognitionRef = useRef(null)
+  const listeningFieldRef = useRef(null)
   
   // =============================================
   // STATS
@@ -643,6 +649,164 @@ function AssistantChiefDashboard() {
       fetchWeather()
     }
   }, [activeTab])
+
+  // Initialize speech recognition
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (SpeechRecognition) {
+      setSpeechSupported(true)
+      const recognition = new SpeechRecognition()
+      recognition.continuous = true
+      recognition.interimResults = true
+      recognition.lang = 'en-US'
+      
+      recognition.onstart = () => console.log('🎤 Voice started')
+      recognition.onerror = (event) => {
+        console.error('Speech error:', event.error)
+        if (event.error === 'not-allowed') {
+          alert('Microphone access denied. Please allow microphone access in your browser settings.')
+          setIsListening(null)
+        } else if (event.error === 'network') {
+          alert('Network error. Speech recognition requires an internet connection.')
+          setIsListening(null)
+        }
+      }
+
+      recognition.onresult = (event) => {
+        const currentField = listeningFieldRef.current
+        let finalTranscript = ''
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript
+          const isFinal = event.results[i].isFinal
+          if (isFinal) {
+            finalTranscript += transcript
+          }
+        }
+        
+        if (finalTranscript && currentField) {
+          let processed = finalTranscript.trim()
+          if (processed.length > 0) {
+            processed = processed.charAt(0).toUpperCase() + processed.slice(1)
+          }
+          if (processed.length > 0 && !/[.!?,;:\-]$/.test(processed)) {
+            processed += '.'
+          }
+          processed = processed + ' '
+          
+          // Update the appropriate observation field
+          setObservation(prev => ({
+            ...prev,
+            [currentField]: (prev[currentField] || '') + processed
+          }))
+        }
+      }
+
+      recognition.onend = () => {
+        const currentField = listeningFieldRef.current
+        if (currentField && recognitionRef.current) {
+          try {
+            recognitionRef.current.start()
+          } catch (e) {
+            console.log('Restart error:', e)
+          }
+        }
+      }
+      
+      recognitionRef.current = recognition
+    }
+    
+    return () => {
+      if (recognitionRef.current) {
+        recognitionRef.current.stop()
+      }
+    }
+  }, [])
+
+  // Start/stop voice input for a specific field
+  function startVoiceInput(fieldId) {
+    if (!speechSupported) {
+      alert('Speech recognition is not supported in your browser. Try Chrome or Edge.')
+      return
+    }
+    
+    if (isListening === fieldId) {
+      // Stop listening
+      setIsListening(null)
+      recognitionRef.current.stop()
+      setTimeout(() => {
+        if (!isListening) {
+          listeningFieldRef.current = null
+        }
+      }, 1000)
+    } else {
+      // Stop any current listening first
+      if (isListening) {
+        recognitionRef.current.stop()
+      }
+      
+      listeningFieldRef.current = fieldId
+      setIsListening(fieldId)
+      
+      try {
+        recognitionRef.current.start()
+      } catch (e) {
+        if (!e.message?.includes('already started')) {
+          alert('Could not start voice recognition: ' + e.message)
+          listeningFieldRef.current = null
+          setIsListening(null)
+        }
+      }
+    }
+  }
+
+  // Voice input button component
+  const VoiceButton = ({ fieldId, style }) => {
+    if (!speechSupported) {
+      return (
+        <button
+          type="button"
+          onClick={() => alert('Voice input is not supported in this browser.\n\nPlease use Chrome, Edge, or Safari.')}
+          style={{
+            padding: '8px 12px',
+            backgroundColor: '#adb5bd',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            opacity: 0.6,
+            ...style
+          }}
+          title="Voice input not supported"
+        >
+          🎤 Voice
+        </button>
+      )
+    }
+    
+    return (
+      <button
+        type="button"
+        onClick={() => startVoiceInput(fieldId)}
+        style={{
+          padding: '8px 12px',
+          backgroundColor: isListening === fieldId ? '#dc3545' : '#6c757d',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          fontSize: '14px',
+          animation: isListening === fieldId ? 'pulse 1s infinite' : 'none',
+          transition: 'all 0.3s ease',
+          ...style
+        }}
+        title={isListening === fieldId ? 'Stop recording' : 'Start voice input'}
+      >
+        {isListening === fieldId ? '⏹️ Stop' : '🎤 Voice'}
+      </button>
+    )
+  }
 
   // =============================================
   // STATS
@@ -1351,21 +1515,24 @@ function AssistantChiefDashboard() {
                       <label style={{ ...labelStyle, margin: 0, color: '#dc3545', fontSize: '14px' }}>
                         🦺 Safety Observations
                       </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                        <input
-                          type="checkbox"
-                          checked={observation.safety_flagged}
-                          onChange={e => setObservation({ ...observation, safety_flagged: e.target.checked })}
-                        />
-                        <span style={{ color: observation.safety_flagged ? '#dc3545' : '#666', fontWeight: observation.safety_flagged ? 'bold' : 'normal' }}>
-                          🚩 Flag for Chief
-                        </span>
-                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <VoiceButton fieldId="safety_observations" />
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                          <input
+                            type="checkbox"
+                            checked={observation.safety_flagged}
+                            onChange={e => setObservation({ ...observation, safety_flagged: e.target.checked })}
+                          />
+                          <span style={{ color: observation.safety_flagged ? '#dc3545' : '#666', fontWeight: observation.safety_flagged ? 'bold' : 'normal' }}>
+                            🚩 Flag for Chief
+                          </span>
+                        </label>
+                      </div>
                     </div>
                     <textarea
                       value={observation.safety_observations}
                       onChange={e => setObservation({ ...observation, safety_observations: e.target.value })}
-                      style={{ ...inputStyle, height: '120px', resize: 'vertical' }}
+                      style={{ ...inputStyle, height: '120px', resize: 'vertical', border: isListening === 'safety_observations' ? '2px solid #dc3545' : '1px solid #ced4da' }}
                       placeholder="Document safety observations, toolbox talks attended, PPE compliance, hazard identifications, near misses, safety recognitions..."
                     />
                     {observation.safety_flagged && (
@@ -1381,21 +1548,24 @@ function AssistantChiefDashboard() {
                       <label style={{ ...labelStyle, margin: 0, color: '#28a745', fontSize: '14px' }}>
                         🌿 Environmental Compliance
                       </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                        <input
-                          type="checkbox"
-                          checked={observation.environmental_flagged}
-                          onChange={e => setObservation({ ...observation, environmental_flagged: e.target.checked })}
-                        />
-                        <span style={{ color: observation.environmental_flagged ? '#28a745' : '#666', fontWeight: observation.environmental_flagged ? 'bold' : 'normal' }}>
-                          🚩 Flag for Chief
-                        </span>
-                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <VoiceButton fieldId="environmental_compliance" />
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                          <input
+                            type="checkbox"
+                            checked={observation.environmental_flagged}
+                            onChange={e => setObservation({ ...observation, environmental_flagged: e.target.checked })}
+                          />
+                          <span style={{ color: observation.environmental_flagged ? '#28a745' : '#666', fontWeight: observation.environmental_flagged ? 'bold' : 'normal' }}>
+                            🚩 Flag for Chief
+                          </span>
+                        </label>
+                      </div>
                     </div>
                     <textarea
                       value={observation.environmental_compliance}
                       onChange={e => setObservation({ ...observation, environmental_compliance: e.target.value })}
-                      style={{ ...inputStyle, height: '120px', resize: 'vertical' }}
+                      style={{ ...inputStyle, height: '120px', resize: 'vertical', border: isListening === 'environmental_compliance' ? '2px solid #28a745' : '1px solid #ced4da' }}
                       placeholder="Document environmental compliance, topsoil segregation, erosion control, wildlife sightings, watercourse crossings, spill prevention..."
                     />
                     {observation.environmental_flagged && (
@@ -1411,21 +1581,24 @@ function AssistantChiefDashboard() {
                       <label style={{ ...labelStyle, margin: 0, color: '#17a2b8', fontSize: '14px' }}>
                         🔧 Technical / Quality Observations
                       </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                        <input
-                          type="checkbox"
-                          checked={observation.technical_flagged}
-                          onChange={e => setObservation({ ...observation, technical_flagged: e.target.checked })}
-                        />
-                        <span style={{ color: observation.technical_flagged ? '#17a2b8' : '#666', fontWeight: observation.technical_flagged ? 'bold' : 'normal' }}>
-                          🚩 Flag for Chief
-                        </span>
-                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <VoiceButton fieldId="technical_quality" />
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                          <input
+                            type="checkbox"
+                            checked={observation.technical_flagged}
+                            onChange={e => setObservation({ ...observation, technical_flagged: e.target.checked })}
+                          />
+                          <span style={{ color: observation.technical_flagged ? '#17a2b8' : '#666', fontWeight: observation.technical_flagged ? 'bold' : 'normal' }}>
+                            🚩 Flag for Chief
+                          </span>
+                        </label>
+                      </div>
                     </div>
                     <textarea
                       value={observation.technical_quality}
                       onChange={e => setObservation({ ...observation, technical_quality: e.target.value })}
-                      style={{ ...inputStyle, height: '120px', resize: 'vertical' }}
+                      style={{ ...inputStyle, height: '120px', resize: 'vertical', border: isListening === 'technical_quality' ? '2px solid #17a2b8' : '1px solid #ced4da' }}
                       placeholder="Document technical observations, welding quality, coating inspection, pipe handling, specification compliance, workmanship issues..."
                     />
                     {observation.technical_flagged && (
@@ -1441,21 +1614,24 @@ function AssistantChiefDashboard() {
                       <label style={{ ...labelStyle, margin: 0, color: '#856404', fontSize: '14px' }}>
                         📊 Progress / Logistics
                       </label>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
-                        <input
-                          type="checkbox"
-                          checked={observation.progress_flagged}
-                          onChange={e => setObservation({ ...observation, progress_flagged: e.target.checked })}
-                        />
-                        <span style={{ color: observation.progress_flagged ? '#856404' : '#666', fontWeight: observation.progress_flagged ? 'bold' : 'normal' }}>
-                          🚩 Flag for Chief
-                        </span>
-                      </label>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                        <VoiceButton fieldId="progress_logistics" />
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px' }}>
+                          <input
+                            type="checkbox"
+                            checked={observation.progress_flagged}
+                            onChange={e => setObservation({ ...observation, progress_flagged: e.target.checked })}
+                          />
+                          <span style={{ color: observation.progress_flagged ? '#856404' : '#666', fontWeight: observation.progress_flagged ? 'bold' : 'normal' }}>
+                            🚩 Flag for Chief
+                          </span>
+                        </label>
+                      </div>
                     </div>
                     <textarea
                       value={observation.progress_logistics}
                       onChange={e => setObservation({ ...observation, progress_logistics: e.target.value })}
-                      style={{ ...inputStyle, height: '120px', resize: 'vertical' }}
+                      style={{ ...inputStyle, height: '120px', resize: 'vertical', border: isListening === 'progress_logistics' ? '2px solid #ffc107' : '1px solid #ced4da' }}
                       placeholder="Document progress observations, crew counts, equipment utilization, material deliveries, schedule concerns, contractor coordination..."
                     />
                     {observation.progress_flagged && (
@@ -1467,11 +1643,14 @@ function AssistantChiefDashboard() {
 
                   {/* General Notes */}
                   <div style={{ marginBottom: '25px' }}>
-                    <label style={labelStyle}>📋 General Notes</label>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                      <label style={labelStyle}>📋 General Notes</label>
+                      <VoiceButton fieldId="general_notes" />
+                    </div>
                     <textarea
                       value={observation.general_notes}
                       onChange={e => setObservation({ ...observation, general_notes: e.target.value })}
-                      style={{ ...inputStyle, height: '100px', resize: 'vertical' }}
+                      style={{ ...inputStyle, height: '100px', resize: 'vertical', border: isListening === 'general_notes' ? '2px solid #6c757d' : '1px solid #ced4da' }}
                       placeholder="Any additional observations, contractor interface notes, meetings attended, action items..."
                     />
                   </div>
