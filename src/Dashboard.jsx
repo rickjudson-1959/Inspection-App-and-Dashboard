@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
   LineChart, Line, ComposedChart, Cell, PieChart, Pie, Area, AreaChart
@@ -6,6 +7,7 @@ import {
 import { useAuth } from './AuthContext.jsx'
 import EVMDashboard from './EVMDashboard'
 import { supabase } from './supabase'
+import MasterSwitcher from './MasterSwitcher.jsx'
 
 // ============================================================================
 // CMT DASHBOARD - Eagle Mountain - Woodfibre Gas Pipeline (EGP)
@@ -253,6 +255,7 @@ const spreadData = [
 
 function Dashboard({ onBackToReport }) {
   const { signOut, userProfile } = useAuth()
+  const navigate = useNavigate()
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState(30)
@@ -486,7 +489,8 @@ function Dashboard({ onBackToReport }) {
               {EGP_PROJECT.client} | {EGP_PROJECT.contractor} | {EGP_PROJECT.pipeSpec}
             </p>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <MasterSwitcher compact />
             <select 
               value={dateRange} 
               onChange={(e) => setDateRange(parseInt(e.target.value))}
@@ -500,14 +504,20 @@ function Dashboard({ onBackToReport }) {
               <option value={365}>All Time</option>
             </select>
             <button
-              onClick={() => setShowEVM(true)}
-              style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}
+              onClick={() => navigate('/evm-dashboard')}
+              style={{ padding: '10px 16px', backgroundColor: '#20c997', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
             >
-              📈 EVM Dashboard
+              💰 View Financials (EVM)
+            </button>
+            <button
+              onClick={() => navigate('/chief-dashboard')}
+              style={{ padding: '10px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              👔 Chief Dashboard
             </button>
             <button
               onClick={signOut}
-              style={{ padding: '10px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+              style={{ padding: '10px 16px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
             >
               Sign Out
             </button>

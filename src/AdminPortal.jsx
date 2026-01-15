@@ -5,6 +5,8 @@ import { supabase } from './supabase'
 import * as XLSX from 'xlsx'
 import ComplianceAuditTrail from './ComplianceAuditTrail.jsx'
 import RateImport from './RateImport.jsx'
+import MasterSwitcher from './MasterSwitcher.jsx'
+import InviteUser from './InviteUser.jsx'
 
 function AdminPortal() {
   const navigate = useNavigate()
@@ -38,8 +40,11 @@ function AdminPortal() {
 
   // Setup tab state
   const [selectedOrgForSetup, setSelectedOrgForSetup] = useState('')
+  
+  // Invite User modal state
+  const [showInviteModal, setShowInviteModal] = useState(false)
 
-  const isSuperAdmin = userProfile?.role === 'super_admin'
+  const isSuperAdmin = userProfile?.role === 'super_admin' || userProfile?.user_role === 'super_admin'
 
   useEffect(() => {
     fetchData()
@@ -525,13 +530,13 @@ function AdminPortal() {
           <h1 style={{ margin: 0, fontSize: '24px' }}>Pipe-Up Admin Portal</h1>
           <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>{isSuperAdmin ? 'Super Admin' : 'Admin'} - {userProfile?.organizations?.name || 'All Organizations'}</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => navigate('/dashboard')} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>CMT Dashboard</button>
-          <button onClick={() => navigate('/evm')} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>EVM Dashboard</button>
-          <button onClick={() => navigate('/reconciliation')} style={{ padding: '10px 20px', backgroundColor: '#ffc107', color: 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Reconciliation</button>
-          <button onClick={() => navigate('/changes')} style={{ padding: '10px 20px', backgroundColor: '#6f42c1', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Change Orders</button>
-          <button onClick={() => navigate('/contractor-lems')} style={{ padding: '10px 20px', backgroundColor: '#2c3e50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Contractor LEMs</button>
-          <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign Out</button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <MasterSwitcher compact />
+          <button onClick={() => setShowInviteModal(true)} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>📧 Invite User</button>
+          <button onClick={() => navigate('/cmt-dashboard')} style={{ padding: '10px 20px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>📊 CMT</button>
+          <button onClick={() => navigate('/evm-dashboard')} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>💰 EVM</button>
+          <button onClick={() => navigate('/chief-dashboard')} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>👔 Chief</button>
+          <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign Out</button>
         </div>
       </div>
 
@@ -1041,6 +1046,30 @@ function AdminPortal() {
         )}
 
       </div>
+
+      {/* Invite User Modal */}
+      {showInviteModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000
+        }}>
+          <InviteUser 
+            onSuccess={() => {
+              setShowInviteModal(false)
+              fetchData()
+            }}
+            onCancel={() => setShowInviteModal(false)}
+          />
+        </div>
+      )}
     </div>
   )
 }

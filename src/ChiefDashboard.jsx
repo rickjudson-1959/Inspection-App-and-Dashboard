@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
 import { supabase } from './supabase'
 import jsPDF from 'jspdf'
+import MasterSwitcher from './MasterSwitcher.jsx'
 
 // Import helper functions
 import {
@@ -736,9 +737,11 @@ function ChiefDashboard() {
           <h1 style={{ margin: 0, fontSize: '24px' }}>Chief Inspector Dashboard</h1>
           <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>{userProfile?.full_name || userProfile?.email} • Regulatory Summary Engine v2.0</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => { localStorage.removeItem('pipeup_inspector_draft'); navigate('/inspector') }} style={{ padding: '10px 20px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>New Report</button>
-          <button onClick={() => navigate('/dashboard')} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Dashboard</button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <MasterSwitcher compact />
+          <button onClick={() => navigate('/cmt-dashboard')} style={{ padding: '10px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>📊 View CMT Stats</button>
+          <button onClick={() => navigate('/ndt-auditor')} style={{ padding: '10px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🔬 NDT Queue</button>
+          <button onClick={() => { localStorage.removeItem('pipeup_inspector_draft'); navigate('/field-entry') }} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>+ New Report</button>
           <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign Out</button>
         </div>
       </div>
