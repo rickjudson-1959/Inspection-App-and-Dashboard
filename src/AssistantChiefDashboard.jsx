@@ -96,6 +96,38 @@ function AssistantChiefDashboard() {
   const [showRecognitionForm, setShowRecognitionForm] = useState(false)
   const [showWildlifeForm, setShowWildlifeForm] = useState(false)
   
+  // Compliance Issue Entry
+  const [complianceEntries, setComplianceEntries] = useState([])
+  const [showComplianceForm, setShowComplianceForm] = useState(false)
+  const [selectedComplianceIssue, setSelectedComplianceIssue] = useState(null)
+  const [newComplianceIssue, setNewComplianceIssue] = useState({
+    category: 'safety',
+    description: '',
+    location_kp: '',
+    severity: 'minor',
+    // Notification tracking
+    contractor_notified: false,
+    contractor_notified_date: '',
+    contractor_notified_person: '',
+    safety_notified: false,
+    safety_notified_date: '',
+    environmental_notified: false,
+    environmental_notified_date: '',
+    land_dept_notified: false,
+    land_dept_notified_date: '',
+    chief_notified: false,
+    chief_notified_date: '',
+    // Resolution tracking
+    contractor_addressed: false,
+    contractor_addressed_date: '',
+    contractor_response: '',
+    // Closure
+    loop_closed: false,
+    loop_closed_date: '',
+    loop_closed_by: '',
+    closure_notes: ''
+  })
+  
   // =============================================
   // DAILY OBSERVATION STATE
   // =============================================
@@ -434,7 +466,16 @@ function AssistantChiefDashboard() {
       
       setWildlifeEntries(wildlife || [])
       
-      // 5. Fetch recent inspector safety notes (last 7 days)
+      // 5. Fetch compliance issues logged by assistant chief
+      const { data: compIssues } = await supabase
+        .from('compliance_issues')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(100)
+      
+      setComplianceEntries(compIssues || [])
+      
+      // 6. Fetch recent inspector safety notes (last 7 days)
       const weekAgo = new Date()
       weekAgo.setDate(weekAgo.getDate() - 7)
       
@@ -553,6 +594,108 @@ function AssistantChiefDashboard() {
       console.error('Error saving wildlife:', err)
       alert('Error: ' + err.message)
     }
+  }
+
+  // Save Compliance Issue
+  async function saveComplianceIssue() {
+    if (!newComplianceIssue.description) {
+      alert('Please enter issue description')
+      return
+    }
+    try {
+      const issueData = {
+        ...newComplianceIssue,
+        location_kp: newComplianceIssue.location_kp ? parseFloat(newComplianceIssue.location_kp) : null,
+        reported_by: userProfile?.id,
+        reported_by_name: userProfile?.full_name,
+        entry_date: new Date().toISOString().split('T')[0],
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      }
+      
+      if (selectedComplianceIssue) {
+        // Update existing
+        const { error } = await supabase
+          .from('compliance_issues')
+          .update({ ...issueData, updated_at: new Date().toISOString() })
+          .eq('id', selectedComplianceIssue.id)
+        
+        if (error) throw error
+        alert('Compliance issue updated!')
+      } else {
+        // Insert new
+        const { error } = await supabase
+          .from('compliance_issues')
+          .insert(issueData)
+        
+        if (error) throw error
+        alert('Compliance issue logged!')
+      }
+      
+      resetComplianceForm()
+      fetchComplianceIssues()
+    } catch (err) {
+      console.error('Error saving compliance issue:', err)
+      alert('Error: ' + err.message)
+    }
+  }
+
+  function resetComplianceForm() {
+    setNewComplianceIssue({
+      category: 'safety',
+      description: '',
+      location_kp: '',
+      severity: 'minor',
+      contractor_notified: false,
+      contractor_notified_date: '',
+      contractor_notified_person: '',
+      safety_notified: false,
+      safety_notified_date: '',
+      environmental_notified: false,
+      environmental_notified_date: '',
+      land_dept_notified: false,
+      land_dept_notified_date: '',
+      chief_notified: false,
+      chief_notified_date: '',
+      contractor_addressed: false,
+      contractor_addressed_date: '',
+      contractor_response: '',
+      loop_closed: false,
+      loop_closed_date: '',
+      loop_closed_by: '',
+      closure_notes: ''
+    })
+    setSelectedComplianceIssue(null)
+    setShowComplianceForm(false)
+  }
+
+  function editComplianceIssue(issue) {
+    setNewComplianceIssue({
+      category: issue.category || 'safety',
+      description: issue.description || '',
+      location_kp: issue.location_kp?.toString() || '',
+      severity: issue.severity || 'minor',
+      contractor_notified: issue.contractor_notified || false,
+      contractor_notified_date: issue.contractor_notified_date || '',
+      contractor_notified_person: issue.contractor_notified_person || '',
+      safety_notified: issue.safety_notified || false,
+      safety_notified_date: issue.safety_notified_date || '',
+      environmental_notified: issue.environmental_notified || false,
+      environmental_notified_date: issue.environmental_notified_date || '',
+      land_dept_notified: issue.land_dept_notified || false,
+      land_dept_notified_date: issue.land_dept_notified_date || '',
+      chief_notified: issue.chief_notified || false,
+      chief_notified_date: issue.chief_notified_date || '',
+      contractor_addressed: issue.contractor_addressed || false,
+      contractor_addressed_date: issue.contractor_addressed_date || '',
+      contractor_response: issue.contractor_response || '',
+      loop_closed: issue.loop_closed || false,
+      loop_closed_date: issue.loop_closed_date || '',
+      loop_closed_by: issue.loop_closed_by || '',
+      closure_notes: issue.closure_notes || ''
+    })
+    setSelectedComplianceIssue(issue)
+    setShowComplianceForm(true)
   }
 
   // =============================================
@@ -858,6 +1001,8 @@ function AssistantChiefDashboard() {
             setNewHazard(prev => ({ ...prev, description: (prev.description || '') + processed }))
           } else if (currentField === 'recognition_description') {
             setNewRecognition(prev => ({ ...prev, description: (prev.description || '') + processed }))
+          } else if (currentField === 'compliance_description') {
+            setNewComplianceIssue(prev => ({ ...prev, description: (prev.description || '') + processed }))
           } else {
             // Update the observation fields
             setObservation(prev => ({
@@ -1551,7 +1696,8 @@ function AssistantChiefDashboard() {
             <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
               {[
                 { id: 'overview', label: '📊 Overview', color: '#28a745' },
-                { id: 'hazards', label: '⚠️ Hazard Awareness', color: '#dc3545', count: hazardEntries.length },
+                { id: 'issues', label: '🚨 Compliance Issues', color: '#dc3545', count: complianceEntries.filter(c => !c.loop_closed).length },
+                { id: 'hazards', label: '⚠️ Hazard Awareness', color: '#fd7e14', count: hazardEntries.length },
                 { id: 'recognition', label: '⭐ Positive Recognition', color: '#ffc107', count: recognitionEntries.length },
                 { id: 'wildlife', label: '🦌 Wildlife Sightings', color: '#17a2b8', count: wildlifeEntries.length },
                 { id: 'inspector-reports', label: '📋 Inspector Reports', color: '#6f42c1', count: inspectorSafetyNotes.length }
@@ -1625,10 +1771,310 @@ function AssistantChiefDashboard() {
               </div>
             )}
 
+            {/* COMPLIANCE ISSUES Sub-tab */}
+            {complianceTab === 'issues' && (
+              <div style={cardStyle}>
+                <div style={cardHeaderStyle('#dc3545')}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h2 style={{ margin: 0, fontSize: '18px' }}>🚨 Compliance Issue Tracker</h2>
+                      <p style={{ margin: '5px 0 0 0', fontSize: '12px', opacity: 0.8 }}>
+                        Log, track, and close compliance issues with full notification lifecycle
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => { resetComplianceForm(); setShowComplianceForm(true); }}
+                      style={{ padding: '10px 20px', backgroundColor: '#fff', color: '#dc3545', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                    >
+                      + Log New Issue
+                    </button>
+                  </div>
+                </div>
+                <div style={{ padding: '20px' }}>
+                  {/* New/Edit Compliance Issue Form */}
+                  {showComplianceForm && (
+                    <div style={{ backgroundColor: '#fff5f5', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '2px solid #dc3545' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                        <h3 style={{ margin: 0, color: '#dc3545' }}>
+                          {selectedComplianceIssue ? '✏️ Edit Compliance Issue' : '🚨 New Compliance Issue'}
+                        </h3>
+                        <button onClick={resetComplianceForm} style={{ padding: '5px 10px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                          ✕ Cancel
+                        </button>
+                      </div>
+
+                      {/* Issue Details Section */}
+                      <div style={{ backgroundColor: 'white', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
+                        <h4 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#333' }}>📋 Issue Details</h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '15px', marginBottom: '15px' }}>
+                          <div>
+                            <label style={labelStyle}>Category *</label>
+                            <select value={newComplianceIssue.category} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, category: e.target.value })} style={inputStyle}>
+                              <option value="safety">Safety</option>
+                              <option value="environmental">Environmental</option>
+                              <option value="technical">Technical / Quality</option>
+                              <option value="regulatory">Regulatory</option>
+                              <option value="land">Land / ROW</option>
+                              <option value="other">Other</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={labelStyle}>Severity *</label>
+                            <select value={newComplianceIssue.severity} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, severity: e.target.value })} style={inputStyle}>
+                              <option value="minor">Minor - Awareness</option>
+                              <option value="moderate">Moderate - Needs Action</option>
+                              <option value="major">Major - Urgent</option>
+                              <option value="critical">Critical - Stop Work</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label style={labelStyle}>Location (KP)</label>
+                            <input type="number" step="0.001" value={newComplianceIssue.location_kp} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, location_kp: e.target.value })} style={inputStyle} placeholder="0.000" />
+                          </div>
+                        </div>
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
+                            <label style={labelStyle}>Issue Description *</label>
+                            <VoiceButton fieldId="compliance_description" />
+                          </div>
+                          <textarea 
+                            value={newComplianceIssue.description} 
+                            onChange={e => setNewComplianceIssue({ ...newComplianceIssue, description: e.target.value })} 
+                            style={{ ...inputStyle, height: '100px', border: isListening === 'compliance_description' ? '2px solid #dc3545' : '1px solid #ced4da' }} 
+                            placeholder="Describe the compliance issue in detail..." 
+                          />
+                        </div>
+                      </div>
+
+                      {/* Notifications Section */}
+                      <div style={{ backgroundColor: 'white', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
+                        <h4 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#333' }}>📢 Notifications</h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                          {/* Contractor Notified */}
+                          <div style={{ padding: '10px', backgroundColor: newComplianceIssue.contractor_notified ? '#d4edda' : '#f8f9fa', borderRadius: '4px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
+                              <input type="checkbox" checked={newComplianceIssue.contractor_notified} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, contractor_notified: e.target.checked })} />
+                              <strong>Contractor Notified</strong>
+                            </label>
+                            {newComplianceIssue.contractor_notified && (
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                                <input type="date" value={newComplianceIssue.contractor_notified_date} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, contractor_notified_date: e.target.value })} style={{ ...inputStyle, fontSize: '12px' }} />
+                                <input type="text" value={newComplianceIssue.contractor_notified_person} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, contractor_notified_person: e.target.value })} style={{ ...inputStyle, fontSize: '12px' }} placeholder="Person name" />
+                              </div>
+                            )}
+                          </div>
+                          
+                          {/* Safety Notified */}
+                          <div style={{ padding: '10px', backgroundColor: newComplianceIssue.safety_notified ? '#d4edda' : '#f8f9fa', borderRadius: '4px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
+                              <input type="checkbox" checked={newComplianceIssue.safety_notified} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, safety_notified: e.target.checked })} />
+                              <strong>Safety Inspector Notified</strong>
+                            </label>
+                            {newComplianceIssue.safety_notified && (
+                              <input type="date" value={newComplianceIssue.safety_notified_date} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, safety_notified_date: e.target.value })} style={{ ...inputStyle, fontSize: '12px' }} />
+                            )}
+                          </div>
+                          
+                          {/* Environmental Notified */}
+                          <div style={{ padding: '10px', backgroundColor: newComplianceIssue.environmental_notified ? '#d4edda' : '#f8f9fa', borderRadius: '4px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
+                              <input type="checkbox" checked={newComplianceIssue.environmental_notified} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, environmental_notified: e.target.checked })} />
+                              <strong>Environmental Inspector Notified</strong>
+                            </label>
+                            {newComplianceIssue.environmental_notified && (
+                              <input type="date" value={newComplianceIssue.environmental_notified_date} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, environmental_notified_date: e.target.value })} style={{ ...inputStyle, fontSize: '12px' }} />
+                            )}
+                          </div>
+                          
+                          {/* Land Department Notified */}
+                          <div style={{ padding: '10px', backgroundColor: newComplianceIssue.land_dept_notified ? '#d4edda' : '#f8f9fa', borderRadius: '4px' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
+                              <input type="checkbox" checked={newComplianceIssue.land_dept_notified} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, land_dept_notified: e.target.checked })} />
+                              <strong>Land Department Notified</strong>
+                            </label>
+                            {newComplianceIssue.land_dept_notified && (
+                              <input type="date" value={newComplianceIssue.land_dept_notified_date} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, land_dept_notified_date: e.target.value })} style={{ ...inputStyle, fontSize: '12px' }} />
+                            )}
+                          </div>
+                          
+                          {/* Chief Inspector Notified */}
+                          <div style={{ padding: '10px', backgroundColor: newComplianceIssue.chief_notified ? '#d4edda' : '#f8f9fa', borderRadius: '4px', gridColumn: 'span 2' }}>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
+                              <input type="checkbox" checked={newComplianceIssue.chief_notified} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, chief_notified: e.target.checked })} />
+                              <strong>Chief Inspector Notified</strong>
+                            </label>
+                            {newComplianceIssue.chief_notified && (
+                              <input type="date" value={newComplianceIssue.chief_notified_date} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, chief_notified_date: e.target.value })} style={{ ...inputStyle, fontSize: '12px', maxWidth: '200px' }} />
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Contractor Response Section */}
+                      <div style={{ backgroundColor: 'white', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
+                        <h4 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#333' }}>🔧 Contractor Response</h4>
+                        <div style={{ padding: '10px', backgroundColor: newComplianceIssue.contractor_addressed ? '#d4edda' : '#fff3cd', borderRadius: '4px', marginBottom: '10px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
+                            <input type="checkbox" checked={newComplianceIssue.contractor_addressed} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, contractor_addressed: e.target.checked })} />
+                            <strong>Contractor Has Addressed Issue</strong>
+                          </label>
+                          {newComplianceIssue.contractor_addressed && (
+                            <div>
+                              <input type="date" value={newComplianceIssue.contractor_addressed_date} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, contractor_addressed_date: e.target.value })} style={{ ...inputStyle, fontSize: '12px', marginBottom: '10px', maxWidth: '200px' }} />
+                              <textarea value={newComplianceIssue.contractor_response} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, contractor_response: e.target.value })} style={{ ...inputStyle, height: '60px' }} placeholder="What action did the contractor take?" />
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Loop Closure Section */}
+                      <div style={{ backgroundColor: 'white', padding: '15px', borderRadius: '8px', marginBottom: '15px' }}>
+                        <h4 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#333' }}>✅ Loop Closure</h4>
+                        <div style={{ padding: '10px', backgroundColor: newComplianceIssue.loop_closed ? '#d4edda' : '#f8f9fa', borderRadius: '4px' }}>
+                          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', marginBottom: '8px' }}>
+                            <input type="checkbox" checked={newComplianceIssue.loop_closed} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, loop_closed: e.target.checked })} />
+                            <strong style={{ color: newComplianceIssue.loop_closed ? '#28a745' : '#333' }}>Issue Resolved & Loop Closed</strong>
+                          </label>
+                          {newComplianceIssue.loop_closed && (
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                              <div>
+                                <label style={{ fontSize: '11px', color: '#666' }}>Closed Date</label>
+                                <input type="date" value={newComplianceIssue.loop_closed_date} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, loop_closed_date: e.target.value })} style={{ ...inputStyle, fontSize: '12px' }} />
+                              </div>
+                              <div>
+                                <label style={{ fontSize: '11px', color: '#666' }}>Closed By</label>
+                                <input type="text" value={newComplianceIssue.loop_closed_by} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, loop_closed_by: e.target.value })} style={{ ...inputStyle, fontSize: '12px' }} placeholder="Name" />
+                              </div>
+                              <div style={{ gridColumn: 'span 2' }}>
+                                <label style={{ fontSize: '11px', color: '#666' }}>Closure Notes</label>
+                                <textarea value={newComplianceIssue.closure_notes} onChange={e => setNewComplianceIssue({ ...newComplianceIssue, closure_notes: e.target.value })} style={{ ...inputStyle, height: '60px' }} placeholder="How was the issue ultimately resolved?" />
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Save Button */}
+                      <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+                        <button onClick={resetComplianceForm} style={{ padding: '12px 24px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                          Cancel
+                        </button>
+                        <button onClick={saveComplianceIssue} style={{ padding: '12px 24px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
+                          {selectedComplianceIssue ? '💾 Update Issue' : '💾 Save Issue'}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Issues List */}
+                  {!showComplianceForm && (
+                    <>
+                      {/* Filter buttons */}
+                      <div style={{ display: 'flex', gap: '10px', marginBottom: '15px' }}>
+                        <span style={{ fontWeight: 'bold', lineHeight: '36px' }}>Filter:</span>
+                        <button onClick={() => {}} style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                          Open ({complianceEntries.filter(c => !c.loop_closed).length})
+                        </button>
+                        <button onClick={() => {}} style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                          Closed ({complianceEntries.filter(c => c.loop_closed).length})
+                        </button>
+                      </div>
+
+                      {complianceEntries.length === 0 ? (
+                        <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+                          <p>No compliance issues logged</p>
+                          <button onClick={() => setShowComplianceForm(true)} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                            Log First Issue
+                          </button>
+                        </div>
+                      ) : (
+                        <div>
+                          {complianceEntries.filter(c => !c.loop_closed).map(issue => (
+                            <div key={issue.id} style={{ 
+                              padding: '15px', 
+                              marginBottom: '10px', 
+                              borderRadius: '8px',
+                              backgroundColor: issue.severity === 'critical' ? '#f8d7da' : issue.severity === 'major' ? '#fff3cd' : '#f8f9fa',
+                              borderLeft: `4px solid ${issue.severity === 'critical' ? '#dc3545' : issue.severity === 'major' ? '#ffc107' : issue.severity === 'moderate' ? '#17a2b8' : '#28a745'}`
+                            }}>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '10px' }}>
+                                <div>
+                                  <span style={badgeStyle(
+                                    issue.category === 'safety' ? '#dc3545' :
+                                    issue.category === 'environmental' ? '#28a745' :
+                                    issue.category === 'land' ? '#6f42c1' : '#17a2b8'
+                                  )}>
+                                    {issue.category?.toUpperCase()}
+                                  </span>
+                                  <span style={{ ...badgeStyle(
+                                    issue.severity === 'critical' ? '#dc3545' :
+                                    issue.severity === 'major' ? '#ffc107' :
+                                    issue.severity === 'moderate' ? '#17a2b8' : '#28a745'
+                                  ), marginLeft: '5px' }}>
+                                    {issue.severity?.toUpperCase()}
+                                  </span>
+                                  <span style={{ marginLeft: '10px', fontSize: '12px', color: '#666' }}>
+                                    {issue.entry_date} {issue.location_kp && `• KP ${issue.location_kp.toFixed(3)}`}
+                                  </span>
+                                </div>
+                                <button onClick={() => editComplianceIssue(issue)} style={{ padding: '5px 10px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
+                                  ✏️ Edit
+                                </button>
+                              </div>
+                              <p style={{ margin: '0 0 10px 0', fontWeight: 'bold' }}>{issue.description}</p>
+                              
+                              {/* Status indicators */}
+                              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', fontSize: '11px' }}>
+                                <span style={{ padding: '3px 8px', borderRadius: '3px', backgroundColor: issue.contractor_notified ? '#28a745' : '#dc3545', color: 'white' }}>
+                                  {issue.contractor_notified ? '✓' : '✗'} Contractor
+                                </span>
+                                <span style={{ padding: '3px 8px', borderRadius: '3px', backgroundColor: issue.safety_notified ? '#28a745' : '#6c757d', color: 'white' }}>
+                                  {issue.safety_notified ? '✓' : '○'} Safety
+                                </span>
+                                <span style={{ padding: '3px 8px', borderRadius: '3px', backgroundColor: issue.environmental_notified ? '#28a745' : '#6c757d', color: 'white' }}>
+                                  {issue.environmental_notified ? '✓' : '○'} Environmental
+                                </span>
+                                <span style={{ padding: '3px 8px', borderRadius: '3px', backgroundColor: issue.chief_notified ? '#28a745' : '#6c757d', color: 'white' }}>
+                                  {issue.chief_notified ? '✓' : '○'} Chief
+                                </span>
+                                <span style={{ padding: '3px 8px', borderRadius: '3px', backgroundColor: issue.contractor_addressed ? '#28a745' : '#ffc107', color: issue.contractor_addressed ? 'white' : '#000' }}>
+                                  {issue.contractor_addressed ? '✓ Addressed' : '⏳ Pending'}
+                                </span>
+                              </div>
+                              
+                              {issue.contractor_response && (
+                                <div style={{ marginTop: '10px', padding: '8px', backgroundColor: 'rgba(255,255,255,0.7)', borderRadius: '4px', fontSize: '12px' }}>
+                                  <strong>Contractor Response:</strong> {issue.contractor_response}
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          
+                          {/* Closed Issues (collapsed) */}
+                          {complianceEntries.filter(c => c.loop_closed).length > 0 && (
+                            <div style={{ marginTop: '20px' }}>
+                              <h4 style={{ color: '#28a745' }}>✅ Closed Issues ({complianceEntries.filter(c => c.loop_closed).length})</h4>
+                              {complianceEntries.filter(c => c.loop_closed).slice(0, 5).map(issue => (
+                                <div key={issue.id} style={{ padding: '10px', marginBottom: '5px', backgroundColor: '#d4edda', borderRadius: '4px', fontSize: '13px' }}>
+                                  <span style={badgeStyle('#28a745')}>CLOSED</span>
+                                  <span style={{ marginLeft: '10px' }}>{issue.description?.substring(0, 100)}...</span>
+                                  <span style={{ marginLeft: '10px', color: '#666', fontSize: '11px' }}>Closed: {issue.loop_closed_date}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* HAZARD AWARENESS Sub-tab */}
             {complianceTab === 'hazards' && (
               <div style={cardStyle}>
-                <div style={cardHeaderStyle('#dc3545')}>
+                <div style={cardHeaderStyle('#fd7e14')}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <div>
                       <h2 style={{ margin: 0, fontSize: '18px' }}>⚠️ Hazard Awareness</h2>
