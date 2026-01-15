@@ -113,6 +113,9 @@ function AssistantChiefDashboard() {
   })
   const [fetchingWeather, setFetchingWeather] = useState(false)
   
+  // Expanded map state
+  const [showExpandedMap, setShowExpandedMap] = useState(false)
+  
   // =============================================
   // STATS
   // =============================================
@@ -803,15 +806,82 @@ function AssistantChiefDashboard() {
 
       {/* Mini Map Widget - Always visible */}
       <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
-        <div style={{ marginBottom: '20px' }}>
+        <div style={{ marginBottom: '20px', position: 'relative' }}>
           <MiniMapWidget 
             kpStart={0}
             kpEnd={47}
             showGPS={true}
             height="200px"
           />
+          <button
+            onClick={() => setShowExpandedMap(true)}
+            style={{
+              position: 'absolute',
+              top: '10px',
+              right: '10px',
+              padding: '8px 12px',
+              backgroundColor: 'rgba(255,255,255,0.95)',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: 'bold',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              zIndex: 1000
+            }}
+          >
+            🗺️ Expand Map
+          </button>
         </div>
       </div>
+
+      {/* Expanded Map Modal */}
+      {showExpandedMap && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          zIndex: 2000,
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{
+            padding: '15px 20px',
+            backgroundColor: '#2c5282',
+            color: 'white',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <h2 style={{ margin: 0, fontSize: '18px' }}>🗺️ Pipeline Map - Full View</h2>
+            <button
+              onClick={() => setShowExpandedMap(false)}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              ✕ Close
+            </button>
+          </div>
+          <div style={{ flex: 1, padding: '20px' }}>
+            <MiniMapWidget 
+              kpStart={0}
+              kpEnd={47}
+              showGPS={true}
+              height="calc(100vh - 120px)"
+            />
+          </div>
+        </div>
+      )}
 
       <div style={{ padding: '0 20px 20px 20px', maxWidth: '1400px', margin: '0 auto' }}>
         
