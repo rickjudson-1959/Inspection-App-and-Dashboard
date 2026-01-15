@@ -128,6 +128,7 @@ function InspectorReport() {
 
   // Pipeline Map visibility
   const [showMap, setShowMap] = useState(true)
+  const [showExpandedMap, setShowExpandedMap] = useState(false)
 
   // Collapsible sections
   const [trackableItemsExpanded, setTrackableItemsExpanded] = useState(false)
@@ -4000,7 +4001,7 @@ Important:
 
       {/* Pipeline Map Section */}
       {showMap && (
-        <div style={{ marginBottom: '20px' }}>
+        <div style={{ marginBottom: '20px', position: 'relative' }}>
           <MiniMapWidget 
             startKP={activityBlocks[0]?.startKP || ''}
             endKP={activityBlocks[0]?.endKP || ''}
@@ -4015,6 +4016,76 @@ Important:
               // ))
             }}
           />
+          <button
+            onClick={() => setShowExpandedMap(true)}
+            style={{
+              position: 'absolute',
+              top: '10px',
+              right: '10px',
+              padding: '8px 12px',
+              backgroundColor: 'rgba(255,255,255,0.95)',
+              border: '1px solid #ddd',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: 'bold',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              zIndex: 1000
+            }}
+          >
+            🗺️ Expand Map
+          </button>
+        </div>
+      )}
+
+      {/* Expanded Map Modal */}
+      {showExpandedMap && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.8)',
+          zIndex: 2000,
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{
+            padding: '15px 20px',
+            backgroundColor: '#007bff',
+            color: 'white',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <h2 style={{ margin: 0, fontSize: '18px' }}>🗺️ Pipeline Map - Full View</h2>
+            <button
+              onClick={() => setShowExpandedMap(false)}
+              style={{
+                padding: '10px 20px',
+                backgroundColor: '#dc3545',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 'bold'
+              }}
+            >
+              ✕ Close
+            </button>
+          </div>
+          <div style={{ flex: 1, padding: '20px' }}>
+            <MiniMapWidget 
+              startKP={activityBlocks[0]?.startKP || ''}
+              endKP={activityBlocks[0]?.endKP || ''}
+              pipeline={pipeline || 'south'}
+              height="calc(100vh - 120px)"
+              onKPSync={(gpsData) => {
+                console.log('GPS synced:', gpsData)
+              }}
+            />
+          </div>
         </div>
       )}
 
