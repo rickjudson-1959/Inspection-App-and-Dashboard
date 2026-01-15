@@ -12,6 +12,7 @@ import ChangeManagement from './ChangeManagement.jsx'
 import ReportsPage from './ReportsPage.jsx'
 import ContractorLEMs from './ContractorLEMs.jsx'
 import ChiefDashboard from './ChiefDashboard.jsx'
+import NDTAuditorDashboard from './NDTAuditorDashboard.jsx'
 import Login from './Login.jsx'
 import ResetPassword from './ResetPassword.jsx'
 import './index.css'
@@ -107,6 +108,12 @@ function AppRoutes() {
       <Route path="/admin" element={
         <ProtectedRoute allowedRoles={['super_admin', 'admin']}>
           <AdminPortal />
+        </ProtectedRoute>
+      } />
+
+      <Route path="/auditor-dashboard" element={
+        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'chief_inspector']}>
+          <NDTAuditorDashboard />
         </ProtectedRoute>
       } />
 
