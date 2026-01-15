@@ -1,5 +1,4 @@
 import './App.css'
-import { PROJECT_SPREADS, PROJECT_CONFIG } from './projectConfig.js'
 import { saveTieInTicket } from './saveLogic.js'
 import { useAuth } from './AuthContext.jsx'
 import React, { useState, useEffect, useRef } from 'react'
@@ -7,26 +6,34 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import { supabase } from './supabase'
+
 // Import constants from separate file
-import { createEmptyActivity, 
+import { 
   PROJECT_NAME, 
   PROJECT_SHORT, 
   pipelineLocations, 
-  activityTypes,
-  qualityFieldsByActivity,
-  defaultQualityChecks,
-  labourClassifications,
-  equipmentTypes
+  activityTypes, 
+  qualityFieldsByActivity, 
+  timeLostReasons, 
+  labourClassifications, 
+  equipmentTypes, 
+  createEmptyActivity 
 } from './constants.js'
+
+// Import ActivityBlock component (handles all specialized logs internally)
 import ActivityBlock from './ActivityBlock.jsx'
-import ClearingLog from './ClearingLog.jsx'
-import CoatingLog from './CoatingLog.jsx'
+
+// Report-level components (not part of activity blocks)
 import SafetyRecognition from './SafetyRecognition.jsx'
 import WildlifeSighting from './WildlifeSighting.jsx'
 import UnitPriceItemsLog from './UnitPriceItemsLog.jsx'
 import MatTracker from './MatTracker.jsx'
+import TrackableItemsTracker from './TrackableItemsTracker.jsx'
 import ReportWorkflow from './ReportWorkflow.jsx'
 import MiniMapWidget from './MiniMapWidget.jsx'
+
+// AI-powered review agents
+import { reviewTopsoilActivity, sendEnvironmentalAlert } from './TopsoilReviewerAgent.js'
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -48,6 +55,10 @@ function InspectorReport() {
   // User role and report tracking
   const [currentUserRole, setCurrentUserRole] = useState('inspector')
   const [currentReportId, setCurrentReportId] = useState(null)
+
+  // Previous reports for dropdown
+  const [previousReports, setPreviousReports] = useState([])
+  const [loadingPreviousReports, setLoadingPreviousReports] = useState(false)
 
   // Header fields
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
@@ -84,12 +95,12 @@ function InspectorReport() {
   const [safetyNotes, setSafetyNotes] = useState('')
   const [safetyRecognitionData, setSafetyRecognitionData] = useState({ enabled: false, cards: [] })
   const [wildlifeSightingData, setWildlifeSightingData] = useState({ enabled: false, sightings: [] })
+  
+  // Trackable items pending save (for new reports)
+  const [trackableItemsData, setTrackableItemsData] = useState([])
   const [landEnvironment, setLandEnvironment] = useState('')
   const [generalComments, setGeneralComments] = useState('')
   const [visitors, setVisitors] = useState([])
-  const [visitorName, setVisitorName] = useState('')
-  const [visitorCompany, setVisitorCompany] = useState('')
-  const [visitorPosition, setVisitorPosition] = useState('')
 
   // Inspector info
   const [inspectorMileage, setInspectorMileage] = useState('')
@@ -120,6 +131,11 @@ function InspectorReport() {
 
   // Collapsible sections
   const [trackableItemsExpanded, setTrackableItemsExpanded] = useState(false)
+
+  // Topsoil AI Review Results
+  const [topsoilReviewResults, setTopsoilReviewResults] = useState([])
+  const [showTopsoilReview, setShowTopsoilReview] = useState(false)
+  const [reviewingTopsoil, setReviewingTopsoil] = useState(false)
 
   // Convert image file to base64
   async function imageToBase64(file) {
@@ -816,30 +832,59 @@ Important:
   }
 
   // Voice input button component
-  const VoiceButton = ({ fieldId, style }) => (
-    <button
-      type="button"
-      onClick={() => startVoiceInput(fieldId)}
-      style={{
-        padding: '8px 12px',
-        backgroundColor: isListening === fieldId ? '#dc3545' : '#6c757d',
-        color: 'white',
-        border: 'none',
-        borderRadius: '4px',
-        cursor: 'pointer',
-        fontSize: '14px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '5px',
-        animation: isListening === fieldId ? 'pulse 1s infinite, recordingPulse 1.5s infinite' : 'none',
-        transition: 'all 0.3s ease',
-        ...style
-      }}
-      title={isListening === fieldId ? 'Stop recording' : 'Start voice input'}
-    >
-      {isListening === fieldId ? '⏹️ Stop' : '🎤 Voice'}
-    </button>
-  )
+  const VoiceButton = ({ fieldId, style }) => {
+    // Check if speech is supported
+    if (!speechSupported) {
+      return (
+        <button
+          type="button"
+          onClick={() => alert('Voice input is not supported in this browser.\n\nPlease use Chrome, Edge, or Safari for voice input.')}
+          style={{
+            padding: '8px 12px',
+            backgroundColor: '#adb5bd',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            fontSize: '14px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            opacity: 0.6,
+            ...style
+          }}
+          title="Voice input not supported in this browser (use Chrome, Edge, or Safari)"
+        >
+          🎤 Voice
+        </button>
+      )
+    }
+    
+    return (
+      <button
+        type="button"
+        onClick={() => startVoiceInput(fieldId)}
+        style={{
+          padding: '8px 12px',
+          backgroundColor: isListening === fieldId ? '#dc3545' : '#6c757d',
+          color: 'white',
+          border: 'none',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          fontSize: '14px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '5px',
+          animation: isListening === fieldId ? 'pulse 1s infinite, recordingPulse 1.5s infinite' : 'none',
+          transition: 'all 0.3s ease',
+          ...style
+        }}
+        title={isListening === fieldId ? 'Stop recording' : 'Start voice input'}
+      >
+        {isListening === fieldId ? '⏹️ Stop' : '🎤 Voice'}
+      </button>
+    )
+  }
 
   // Chainage overlap warnings
   const [overlapWarnings, setOverlapWarnings] = useState([])
@@ -956,10 +1001,15 @@ Important:
     existingRanges.forEach(range => {
       if (blockMin < range.end && range.start < blockMax) {
         result.hasOverlap = true
+        const overlapStart = Math.max(blockMin, range.start)
+        const overlapEnd = Math.min(blockMax, range.end)
         result.overlaps.push({
           range,
-          overlapStart: Math.max(blockMin, range.start),
-          overlapEnd: Math.min(blockMax, range.end)
+          overlapStart,
+          overlapEnd,
+          startKP: formatMetresToKP(overlapStart),
+          endKP: formatMetresToKP(overlapEnd),
+          metres: Math.abs(overlapEnd - overlapStart)
         })
       }
     })
@@ -1143,31 +1193,99 @@ Important:
     }
   }, [])
 
-  // Fetch user role
+  // Set user role from userProfile (from AuthContext)
   useEffect(() => {
-    async function fetchUserRole() {
-      if (!userProfile?.id) return
-      try {
-        const { data, error } = await supabase
-          .from('user_roles')
-          .select('role')
-          .eq('user_id', userProfile.id)
-          .single()
-        
-        if (data && data.role) {
-          setCurrentUserRole(data.role)
-        }
-      } catch (err) {
-        console.log('No role found, defaulting to inspector')
-      }
+    if (userProfile?.role) {
+      setCurrentUserRole(userProfile.role)
+      console.log('User role set from profile:', userProfile.role)
     }
-    fetchUserRole()
+  }, [userProfile])
+
+  // Fetch previous reports for this inspector
+  useEffect(() => {
+    async function fetchPreviousReports() {
+      if (!userProfile?.id) return
+      
+      setLoadingPreviousReports(true)
+      try {
+        // Get the inspector's name and email for matching
+        const userName = (userProfile.full_name || '').trim()
+        const userEmail = (userProfile.email || '').trim()
+        
+        console.log('Fetching reports for user:', { userName, userEmail, userId: userProfile.id })
+        
+        // First try: fetch ALL reports without filter to check RLS
+        const { data: allData, error: allError } = await supabase
+          .from('daily_tickets')
+          .select('id, date, spread, pipeline, inspector_name, activity_blocks')
+          .order('date', { ascending: false })
+          .limit(100)
+        
+        console.log('All reports query result:', { count: allData?.length || 0, error: allError })
+        
+        if (allError) {
+          console.error('Query error:', allError)
+          throw allError
+        }
+        
+        // Log first few reports to see what inspector_name values look like
+        if (allData && allData.length > 0) {
+          console.log('Sample reports:', allData.slice(0, 5).map(r => ({ 
+            id: r.id, 
+            date: r.date, 
+            inspector_name: r.inspector_name 
+          })))
+        }
+        
+        // Filter client-side for this user's reports
+        const myReports = (allData || []).filter(report => {
+          const reportInspector = (report.inspector_name || '').toLowerCase().trim()
+          const userNameLower = (userName || '').toLowerCase()
+          const userEmailLower = (userEmail || '').toLowerCase()
+          
+          // Check various matching conditions
+          if (userName && reportInspector === userNameLower) return true
+          if (userEmail && reportInspector === userEmailLower) return true
+          if (userName && reportInspector.includes(userNameLower)) return true
+          if (userEmail && reportInspector.includes(userEmailLower)) return true
+          
+          // Also check if the report inspector name is contained in user's name/email
+          if (reportInspector && userName && userNameLower.includes(reportInspector)) return true
+          if (reportInspector && userEmail && userEmailLower.includes(reportInspector)) return true
+          
+          return false
+        })
+        
+        console.log('Filtered to my reports:', myReports.length)
+        
+        // Limit to 50 most recent
+        const limitedReports = myReports.slice(0, 50)
+        
+        // Fetch status for each report
+        const reportsWithStatus = await Promise.all(limitedReports.map(async (report) => {
+          const { data: statusData } = await supabase
+            .from('report_status')
+            .select('status, revision_notes')
+            .eq('report_id', report.id)
+            .maybeSingle()
+          return { ...report, status: statusData?.status || 'draft', revision_notes: statusData?.revision_notes }
+        }))
+        
+        setPreviousReports(reportsWithStatus)
+      } catch (err) {
+        console.error('Error fetching previous reports:', err)
+        setPreviousReports([])
+      }
+      setLoadingPreviousReports(false)
+    }
+    fetchPreviousReports()
   }, [userProfile])
 
   // Load report for editing
   useEffect(() => {
     async function loadReportForEdit() {
       if (!editReportId) return
+      if (!userProfile) return // Wait for user profile to load
       
       setLoadingReport(true)
       try {
@@ -1180,14 +1298,30 @@ Important:
         if (error) throw error
         if (!report) {
           alert('Report not found')
-          navigate('/admin')
+          navigate('/inspector')
           return
+        }
+
+        // Check if this inspector owns this report (unless they're admin/chief)
+        const userRole = userProfile?.role
+        const isAdminOrChief = ['super_admin', 'admin', 'chief_inspector'].includes(userRole)
+        
+        if (!isAdminOrChief) {
+          const reportInspector = (report.inspector_name || '').toLowerCase()
+          const userName = (userProfile.full_name || '').toLowerCase()
+          const userEmail = (userProfile.email || '').toLowerCase()
+          
+          if (reportInspector !== userName && reportInspector !== userEmail) {
+            alert('You can only edit your own reports.')
+            navigate('/inspector')
+            return
+          }
         }
 
         // Store original for comparison
         setOriginalReportData(report)
         setIsEditMode(true)
-        setCurrentReportId(editReportId)
+        setCurrentReportId(parseInt(editReportId, 10))
 
         // Populate all fields from report
         setSelectedDate(report.date || '')
@@ -1216,32 +1350,59 @@ Important:
 
         // Load activity blocks
         if (report.activity_blocks && report.activity_blocks.length > 0) {
-          const loadedBlocks = report.activity_blocks.map((block, idx) => ({
-            id: `block-${Date.now()}-${idx}`,
-            activityType: block.activityType || '',
-            contractor: block.contractor || '',
-            foreman: block.foreman || '',
-            startKP: block.startKP || '',
-            endKP: block.endKP || '',
-            workDescription: block.workDescription || '',
-            labourEntries: block.labourEntries || [],
-            equipmentEntries: block.equipmentEntries || [],
-            qualityData: block.qualityData || {},
-            workPhotos: [],  // Photos can't be re-loaded easily
-            ticketPhoto: null,
-            timeLostReason: block.timeLostReason || 'None',
-            timeLostHours: block.timeLostHours || '',
-            timeLostDetails: block.timeLostDetails || '',
-            weldData: block.weldData || null,
-            bendingData: block.bendingData || null,
-            stringingData: block.stringingData || null,
-            coatingData: block.coatingData || null,
-            clearingData: block.clearingData || null
-          }))
+          const loadedChainageReasons = {}
+          const loadedBlocks = report.activity_blocks.map((block, idx) => {
+            const blockId = block.id || `block-${Date.now()}-${idx}`
+            
+            // Restore chainage reasons from saved data
+            if (block.chainageOverlapReason || block.chainageGapReason) {
+              loadedChainageReasons[blockId] = {
+                overlapReason: block.chainageOverlapReason || '',
+                gapReason: block.chainageGapReason || ''
+              }
+            }
+            
+            return {
+              id: blockId,
+              activityType: block.activityType || '',
+              contractor: block.contractor || '',
+              foreman: block.foreman || '',
+              startKP: block.startKP || '',
+              endKP: block.endKP || '',
+              workDescription: block.workDescription || '',
+              labourEntries: block.labourEntries || [],
+              equipmentEntries: block.equipmentEntries || [],
+              qualityData: block.qualityData || {},
+              workPhotos: [],  // Photos can't be re-loaded easily
+              ticketPhoto: null,
+              timeLostReason: block.timeLostReason || 'None',
+              timeLostHours: block.timeLostHours || '',
+              timeLostDetails: block.timeLostDetails || '',
+              weldData: block.weldData || null,
+              bendingData: block.bendingData || null,
+              stringingData: block.stringingData || null,
+              coatingData: block.coatingData || null,
+              clearingData: block.clearingData || null
+            }
+          })
           setActivityBlocks(loadedBlocks)
+          setChainageReasons(loadedChainageReasons)
         }
 
         console.log('Report loaded for editing:', report.id)
+        
+        // Check if this report needs revision and show the notes
+        const { data: statusData } = await supabase
+          .from('report_status')
+          .select('status, revision_notes')
+          .eq('report_id', report.id)
+          .maybeSingle()
+        
+        if (statusData?.status === 'revision_requested' && statusData?.revision_notes) {
+          setTimeout(() => {
+            alert(`⚠️ REVISION REQUESTED\n\nThe Chief Inspector has requested changes to this report:\n\n"${statusData.revision_notes}"\n\nPlease make the necessary corrections and save the report.`)
+          }, 500)
+        }
       } catch (err) {
         console.error('Error loading report:', err)
         alert('Error loading report: ' + err.message)
@@ -1250,17 +1411,17 @@ Important:
     }
 
     loadReportForEdit()
-  }, [editReportId])
+  }, [editReportId, userProfile])
 
   // Fetch weather
   async function fetchWeather() {
-    if (!pipeline) {
+    if (!pipeline || !pipelineLocations[pipeline]) {
       alert('Please select a pipeline first')
       return
     }
     
     setFetchingWeather(true)
-    const selectedSpread = PROJECT_SPREADS.find(s => s.id === pipeline) || { lat: 49.45, lon: -123.1 }; const loc = { lat: selectedSpread.lat, lon: selectedSpread.lon }
+    const loc = pipelineLocations[pipeline]
     
     try {
       const response = await fetch(
@@ -1320,8 +1481,8 @@ Important:
   async function fetchPreviousMeters(blockId, activityType) {
     try {
       const { data, error } = await supabase
-        .from('daily_tickets')
-        .select('activity_blocks, date')
+        .from('inspector_reports')
+        .select('activities, date')
         .eq('pipeline', pipeline)
         .order('date', { ascending: false })
         .neq('date', selectedDate) // Exclude current date
@@ -1438,7 +1599,7 @@ Important:
       if (block.id === blockId) {
         return {
           ...block,
-          bendData: bendData
+          bendingData: bendData
         }
       }
       return block
@@ -1450,7 +1611,7 @@ Important:
       if (block.id === blockId) {
         return {
           ...block,
-          stringData: stringData
+          stringingData: stringData
         }
       }
       return block
@@ -1741,22 +1902,40 @@ Important:
     }))
   }
 
-  // Visitors
-  function addVisitor() {
-    if (!visitorName) {
-      alert('Please enter visitor name')
-      return
-    }
-    setVisitors([...visitors, { name: visitorName, company: visitorCompany, position: visitorPosition }])
-    setVisitorName('')
-    setVisitorCompany('')
-    setVisitorPosition('')
-  }
-
   // Save report
   async function saveReport(alsoExport = false) {
+    console.log('=== SAVE REPORT CALLED ===')
+    console.log('isEditMode:', isEditMode)
+    console.log('currentReportId:', currentReportId, 'type:', typeof currentReportId)
+    
     if (!selectedDate || !inspectorName) {
       alert('Please fill in date and inspector name')
+      return
+    }
+
+    // Check for Blasting activities with incomplete safety requirements
+    const blastingErrors = []
+    for (const block of activityBlocks) {
+      if (block.activityType === 'Blasting') {
+        // Check misfire inspection - mandatory
+        const misfireInspection = block.qualityData?.misfireInspection
+        if (!misfireInspection || misfireInspection === 'Not Completed') {
+          blastingErrors.push(`Blasting Activity (${block.startKP || 'No KP'} - ${block.endKP || 'No KP'}): Misfire Inspection must be completed before submitting`)
+        }
+        // Check post-blast sweep - mandatory
+        const postBlastSweep = block.qualityData?.postBlastSweep
+        if (!postBlastSweep || postBlastSweep === 'Not Completed') {
+          blastingErrors.push(`Blasting Activity (${block.startKP || 'No KP'} - ${block.endKP || 'No KP'}): Post-Blast Fly-rock Sweep must be completed before submitting`)
+        }
+      }
+    }
+
+    if (blastingErrors.length > 0) {
+      alert(
+        '⛔ CANNOT SUBMIT - Blasting Safety Requirements Not Met\n\n' +
+        blastingErrors.join('\n\n') +
+        '\n\n⚠️ These are mandatory safety checks that must be completed before the report can be submitted.'
+      )
       return
     }
 
@@ -1870,6 +2049,7 @@ Important:
         }
 
         processedBlocks.push({
+          id: block.id,
           activityType: block.activityType,
           contractor: block.contractor,
           foreman: block.foreman,
@@ -1885,7 +2065,13 @@ Important:
           timeLostHours: block.timeLostHours,
           timeLostDetails: block.timeLostDetails,
           chainageOverlapReason: chainageReasons[block.id]?.overlapReason || null,
-          chainageGapReason: chainageReasons[block.id]?.gapReason || null
+          chainageGapReason: chainageReasons[block.id]?.gapReason || null,
+          // Specialized data for different activity types
+          weldData: block.weldData || null,
+          bendingData: block.bendingData || null,
+          stringingData: block.stringingData || null,
+          coatingData: block.coatingData || null,
+          clearingData: block.clearingData || null
         })
       }
 
@@ -1914,7 +2100,8 @@ Important:
         inspector_mileage: parseFloat(inspectorMileage) || null,
         inspector_equipment: inspectorEquipment,
         unit_price_items_enabled: unitPriceItemsEnabled,
-        unit_price_data: unitPriceData
+        unit_price_data: unitPriceData,
+        created_by: userProfile?.id || null
       }
 
       // ==================== EDIT MODE ====================
@@ -1956,12 +2143,22 @@ Important:
         }
 
         // Update the report
-        const { error: updateError } = await supabase
+        console.log('Updating report ID:', currentReportId, 'Type:', typeof currentReportId)
+        console.log('Report data to save:', reportData)
+        
+        const { data: updateData, error: updateError, count } = await supabase
           .from('daily_tickets')
           .update(reportData)
           .eq('id', currentReportId)
+          .select()
 
+        console.log('Update result:', { updateData, updateError, count })
+        
         if (updateError) throw updateError
+        
+        if (!updateData || updateData.length === 0) {
+          throw new Error('Update failed - no rows affected. Report ID may not exist.')
+        }
 
         // Log each change to audit trail
         for (const change of changes) {
@@ -1993,10 +2190,25 @@ Important:
           })
         }
 
-        alert(`Report updated successfully! ${changes.length} field(s) changed.`)
+        // Update status back to submitted (resubmit for review)
+        await supabase.from('report_status').update({
+          status: 'submitted',
+          submitted_at: new Date().toISOString(),
+          review_decision: null,
+          revision_notes: null,
+          updated_at: new Date().toISOString()
+        }).eq('report_id', currentReportId)
+
+        alert(`Report updated successfully! ${changes.length} field(s) changed.\n\nThe report has been resubmitted for review.`)
         
-        // Return to admin portal
-        navigate('/admin')
+        // Return to appropriate page based on role
+        if (currentUserRole === 'inspector') {
+          window.location.href = '/inspector'
+        } else if (currentUserRole === 'chief_inspector') {
+          navigate('/chief')
+        } else {
+          navigate('/admin')
+        }
 
       } else {
         // ==================== CREATE MODE ====================
@@ -2017,13 +2229,52 @@ Important:
           change_type: 'create'
         })
 
-        // Initialize report status as draft
+        // Initialize report status as submitted (ready for Chief review)
         await supabase.from('report_status').insert({
           report_id: ticketId,
-          status: 'draft',
+          status: 'submitted',
+          submitted_at: new Date().toISOString(),
           submitted_by: userProfile?.id,
           submitted_by_name: inspectorName || userProfile?.email
         })
+
+        // Save trackable items with the new report ID
+        if (trackableItemsData && trackableItemsData.length > 0) {
+          console.log('Saving trackable items for report:', ticketId)
+          for (const item of trackableItemsData) {
+            // Only save items that have data
+            if (item.item_type && (item.quantity || item.action)) {
+              const record = {
+                project_id: pipeline || 'default',
+                report_id: ticketId,
+                report_date: selectedDate,
+                inspector: inspectorName,
+                item_type: item.item_type,
+                action: item.action,
+                quantity: item.quantity,
+                from_kp: item.from_kp,
+                to_kp: item.to_kp,
+                kp_location: item.kp_location,
+                mat_type: item.mat_type,
+                mat_size: item.mat_size,
+                fence_type: item.fence_type,
+                fence_purpose: item.fence_purpose,
+                side: item.side,
+                ramp_type: item.ramp_type,
+                gates_qty: item.gates_qty,
+                landowner: item.landowner,
+                notes: item.notes
+              }
+              
+              try {
+                await supabase.from('trackable_items').insert(record)
+                console.log('Saved trackable item:', item.item_type)
+              } catch (itemErr) {
+                console.error('Error saving trackable item:', itemErr)
+              }
+            }
+          }
+        }
 
         // Save tie-in data if present
         for (const block of activityBlocks) {
@@ -2032,36 +2283,59 @@ Important:
           }
         }
 
-        // Send email copy to inspector
-        try {
-          const emailResponse = await fetch('/api/send-report-email', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              to: userProfile?.email,
-              inspectorName: inspectorName,
-              reportDate: selectedDate,
-              spread: spread,
-              afe: afe,
-              pipeline: pipeline,
-              activities: processedBlocks,
-              weather: `${weather || ''} - High: ${tempHigh || '?'}°C, Low: ${tempLow || '?'}°C`,
-              safetyNotes: safetyNotes,
-              reportId: ticketId
-            })
-          })
-          const emailResult = await emailResponse.json()
-          if (emailResult.success) {
-            console.log('Email sent successfully')
-          } else {
-            console.error('Email failed:', emailResult.error)
+        // Run AI-powered Topsoil review for any Topsoil activities
+        const topsoilBlocks = processedBlocks.filter(b => b.activityType === 'Topsoil')
+        if (topsoilBlocks.length > 0) {
+          setReviewingTopsoil(true)
+          const reviews = []
+          
+          for (const block of topsoilBlocks) {
+            try {
+              const weatherData = {
+                weather: weather,
+                precipitation: parseFloat(precipitation) || 0,
+                tempHigh: parseFloat(tempHigh) || null,
+                tempLow: parseFloat(tempLow) || null
+              }
+              
+              const reviewResult = await reviewTopsoilActivity(block, weatherData, {
+                environmentalLeadEmail: 'environmental@project.com' // TODO: Make configurable
+              })
+              
+              reviewResult.blockId = block.id
+              reviews.push(reviewResult)
+              
+              // Send email alerts for HIGH/CRITICAL severity
+              if (reviewResult.notificationRequired) {
+                try {
+                  await sendEnvironmentalAlert(reviewResult)
+                  reviewResult.notificationSent = true
+                } catch (emailErr) {
+                  console.error('Failed to send environmental alert:', emailErr)
+                  reviewResult.notificationSent = false
+                  reviewResult.notificationError = emailErr.message
+                }
+              }
+            } catch (reviewErr) {
+              console.error('Topsoil review error:', reviewErr)
+              reviews.push({
+                blockId: block.id,
+                error: reviewErr.message,
+                overallStatus: 'ERROR'
+              })
+            }
           }
-        } catch (emailErr) {
-          console.error('Email error:', emailErr)
-          // Don't block save if email fails
+          
+          setTopsoilReviewResults(reviews)
+          setReviewingTopsoil(false)
+          
+          // Show review results if there are any alerts or warnings
+          if (reviews.some(r => r.alertCount > 0 || r.warningCount > 0)) {
+            setShowTopsoilReview(true)
+          }
         }
 
-        alert('Report saved successfully! A copy has been emailed to you.')
+        alert('Report submitted successfully!')
 
         // Clear the auto-saved draft after successful save
         clearDraftAfterSave()
@@ -2246,8 +2520,15 @@ Important:
       XLSX.utils.book_append_sheet(wb, photoWs, 'Photo Log')
     }
 
-    // Generate file
-    const filename = `${PROJECT_SHORT}_Daily_Report_${selectedDate}_Spread_${spread || 'All'}.xlsx`
+    // Generate file with ID, date, and activity type
+    const reportId = currentReportId ? `_ID${currentReportId}` : ''
+    const activityTypes = activityBlocks
+      .filter(b => b.activityType)
+      .map(b => b.activityType.replace(/[^a-zA-Z0-9]/g, '_'))
+      .slice(0, 3) // Limit to first 3 activity types
+      .join('_')
+    const activityPart = activityTypes ? `_${activityTypes}` : ''
+    const filename = `${PROJECT_SHORT}_Report${reportId}_${selectedDate}${activityPart}.xlsx`
     XLSX.writeFile(wb, filename)
   }
 
@@ -2286,7 +2567,7 @@ Important:
     }
 
     const checkPageBreak = (neededSpace = 30) => {
-      if (y > pageHeight - neededSpace - 15) {  // Extra 15 for footer clearance
+      if (y > pageHeight - neededSpace - 25) {  // Extra 25 for footer clearance
         doc.addPage()
         addHeader()
         y = 45
@@ -2565,6 +2846,419 @@ Important:
         y += 3
       }
 
+      // Stringing Log - Pipe Joints
+      if (block.activityType === 'Stringing' && block.stringingData?.jointEntries?.length > 0) {
+        checkPageBreak(40)
+        addSubHeader('Stringing Log - Pipe Joints', BRAND.blueLight)
+        
+        // Summary row
+        setColor(BRAND.blueLight, 'fill')
+        doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
+        setColor(BRAND.navy, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.text(`Joints Today: ${block.stringingData.jointsToday || 0}`, margin + 4, y + 5)
+        doc.text(`Total Length: ${(block.stringingData.totalLengthM || 0).toFixed(1)} m`, margin + 55, y + 5)
+        doc.text(`Joints Previous: ${block.stringingData.jointsPrevious || 0}`, margin + 110, y + 5)
+        y += 11
+        
+        // Filter to strung joints only
+        const strungJoints = block.stringingData.jointEntries.filter(j => j.status === 'Strung')
+        
+        if (strungJoints.length > 0) {
+          // Table header
+          setColor(BRAND.blue, 'fill')
+          doc.rect(margin, y, contentWidth, 5, 'F')
+          setColor(BRAND.white, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(6)
+          doc.text('JOINT #', margin + 2, y + 3.5)
+          doc.text('HEAT #', margin + 25, y + 3.5)
+          doc.text('STATION', margin + 48, y + 3.5)
+          doc.text('SIDE', margin + 68, y + 3.5)
+          doc.text('SIZE', margin + 82, y + 3.5)
+          doc.text('LENGTH', margin + 97, y + 3.5)
+          doc.text('W.T.', margin + 118, y + 3.5)
+          doc.text('COAT', margin + 133, y + 3.5)
+          doc.text('VIS', margin + 150, y + 3.5)
+          doc.text('SRC', margin + 163, y + 3.5)
+          y += 6
+          
+          // Table rows
+          strungJoints.forEach((joint, i) => {
+            checkPageBreak(6)
+            if (i % 2 === 0) {
+              setColor(BRAND.grayLight, 'fill')
+              doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+            }
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(String(joint.jointNumber || '-').substring(0, 12), margin + 2, y + 2.5)
+            doc.text(String(joint.heatNumber || '-').substring(0, 12), margin + 25, y + 2.5)
+            doc.text(String(joint.stationKP || '-').substring(0, 8), margin + 48, y + 2.5)
+            doc.text(String(joint.sideOfRow || '-').substring(0, 4), margin + 68, y + 2.5)
+            doc.text(String(joint.pipeSize || '-').substring(0, 5), margin + 82, y + 2.5)
+            doc.text(String(joint.lengthM || '-').substring(0, 6), margin + 97, y + 2.5)
+            doc.text(String(joint.wallThickness || '-').substring(0, 5), margin + 118, y + 2.5)
+            doc.text(String(joint.coatingType || '-').substring(0, 5), margin + 133, y + 2.5)
+            doc.text(joint.visualCheck ? 'Y' : 'N', margin + 151, y + 2.5)
+            doc.text(joint.source === 'tally_sheet' ? 'OCR' : 'MAN', margin + 163, y + 2.5)
+            y += 4.5
+          })
+          y += 3
+          
+          // Visual confirmation summary
+          const confirmedCount = strungJoints.filter(j => j.visualCheck).length
+          const unconfirmedCount = strungJoints.length - confirmedCount
+          
+          if (unconfirmedCount > 0) {
+            setColor(BRAND.orangeLight, 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor(BRAND.orange, 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text(`! ${unconfirmedCount} joint(s) awaiting visual confirmation`, margin + 4, y + 4)
+            y += 8
+          } else {
+            setColor(BRAND.greenLight, 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor(BRAND.green, 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text(`All ${confirmedCount} joints visually confirmed`, margin + 4, y + 4)
+            y += 8
+          }
+        }
+        y += 3
+      }
+
+      // Bending Log - Bend Data
+      if (block.activityType === 'Bending' && block.bendingData?.bendEntries?.length > 0) {
+        checkPageBreak(40)
+        addSubHeader('Bending Log', BRAND.orangeLight)
+        
+        // Summary row
+        setColor(BRAND.orangeLight, 'fill')
+        doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
+        setColor(BRAND.navy, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.text(`Bends Today: ${block.bendingData.bendsToday || 0}`, margin + 4, y + 5)
+        doc.text(`Bends Previous: ${block.bendingData.bendsPrevious || 0}`, margin + 50, y + 5)
+        doc.text(`Total Bends: ${block.bendingData.totalBends || 0}`, margin + 110, y + 5)
+        y += 11
+        
+        // Table header
+        setColor(BRAND.orange, 'fill')
+        doc.rect(margin, y, contentWidth, 5, 'F')
+        setColor(BRAND.white, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(6)
+        doc.text('STATION', margin + 2, y + 3.5)
+        doc.text('PIPE', margin + 32, y + 3.5)
+        doc.text('WALL', margin + 52, y + 3.5)
+        doc.text('COAT', margin + 65, y + 3.5)
+        doc.text('ANGLE', margin + 82, y + 3.5)
+        doc.text('TYPE', margin + 100, y + 3.5)
+        doc.text('DMAX', margin + 125, y + 3.5)
+        doc.text('DMIN', margin + 142, y + 3.5)
+        doc.text('OVAL', margin + 158, y + 3.5)
+        doc.text('STATUS', margin + 172, y + 3.5)
+        y += 6
+        
+        // Table rows
+        block.bendingData.bendEntries.forEach((bend, i) => {
+          checkPageBreak(6)
+          if (i % 2 === 0) {
+            setColor(BRAND.grayLight, 'fill')
+            doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+          }
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(String(bend.stationKP || '-').substring(0, 10), margin + 2, y + 2.5)
+          doc.text(String(bend.pipeSize || '-').substring(0, 8), margin + 32, y + 2.5)
+          doc.text(String(bend.wallThickness || '-').substring(0, 6), margin + 52, y + 2.5)
+          doc.text(String(bend.coatingType || '-').substring(0, 6), margin + 65, y + 2.5)
+          doc.text(String(bend.bendAngle || '-').substring(0, 6), margin + 82, y + 2.5)
+          doc.text(String(bend.bendType || '-').substring(0, 10), margin + 100, y + 2.5)
+          doc.text(String(bend.dmax || '-').substring(0, 6), margin + 125, y + 2.5)
+          doc.text(String(bend.dmin || '-').substring(0, 6), margin + 142, y + 2.5)
+          doc.text(bend.ovalityPercent !== null && bend.ovalityPercent !== undefined ? `${parseFloat(bend.ovalityPercent).toFixed(2)}%` : '-', margin + 158, y + 2.5)
+          // Status indicator
+          if (bend.engineerApproval === true) {
+            setColor(BRAND.green, 'text')
+            doc.text('✓', margin + 174, y + 2.5)
+          } else if (bend.ovalityPass === false) {
+            setColor(BRAND.red, 'text')
+            doc.text('✗', margin + 174, y + 2.5)
+          } else {
+            setColor(BRAND.gray, 'text')
+            doc.text('-', margin + 174, y + 2.5)
+          }
+          setColor(BRAND.black, 'text')
+          y += 4.5
+        })
+        y += 3
+      }
+
+      // Welding Log - Mainline Weld Data
+      if ((block.activityType?.includes('Welding') || block.activityType?.includes('Weld')) && block.weldData) {
+        checkPageBreak(50)
+        addSubHeader('Mainline Weld Data', BRAND.blueLight)
+        
+        // Summary row
+        setColor(BRAND.blueLight, 'fill')
+        doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
+        setColor(BRAND.navy, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.text(`Crew: ${block.weldData.crewType || 'N/A'}`, margin + 4, y + 5)
+        doc.text(`Method: ${block.weldData.weldMethod || 'Manual'}`, margin + 50, y + 5)
+        doc.text(`Welds Today: ${block.weldData.weldsToday || 0}`, margin + 95, y + 5)
+        doc.text(`Total: ${block.weldData.totalWelds || 0}`, margin + 140, y + 5)
+        y += 11
+        
+        // Weld entries table
+        if (block.weldData.weldEntries && block.weldData.weldEntries.length > 0) {
+          // Table header
+          setColor(BRAND.blue, 'fill')
+          doc.rect(margin, y, contentWidth, 5, 'F')
+          setColor(BRAND.white, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(6)
+          doc.text('WELD #', margin + 2, y + 3.5)
+          doc.text('PREHEAT', margin + 28, y + 3.5)
+          doc.text('PASS', margin + 50, y + 3.5)
+          doc.text('VOLTS', margin + 70, y + 3.5)
+          doc.text('AMPS', margin + 88, y + 3.5)
+          doc.text('TRAVEL', margin + 106, y + 3.5)
+          doc.text('HEAT IN', margin + 126, y + 3.5)
+          doc.text('WPS', margin + 148, y + 3.5)
+          doc.text('OK', margin + 168, y + 3.5)
+          y += 6
+          
+          // Table rows
+          block.weldData.weldEntries.forEach((weld, i) => {
+            checkPageBreak(6)
+            if (i % 2 === 0) {
+              setColor(BRAND.grayLight, 'fill')
+              doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+            }
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(String(weld.weldNumber || '-').substring(0, 12), margin + 2, y + 2.5)
+            doc.text(String(weld.preheat || '-'), margin + 28, y + 2.5)
+            doc.text(String(weld.pass || '-').substring(0, 8), margin + 50, y + 2.5)
+            doc.text(String(weld.voltage || '-'), margin + 70, y + 2.5)
+            doc.text(String(weld.amperage || '-'), margin + 88, y + 2.5)
+            doc.text(String(weld.travelSpeed || '-'), margin + 106, y + 2.5)
+            doc.text(String(weld.heatInput || '-'), margin + 126, y + 2.5)
+            doc.text(String(weld.wpsId || '-').substring(0, 10), margin + 148, y + 2.5)
+            // WPS compliance indicator
+            if (weld.meetsWPS === true) {
+              setColor(BRAND.green, 'text')
+              doc.text('✓', margin + 170, y + 2.5)
+            } else if (weld.meetsWPS === false) {
+              setColor(BRAND.red, 'text')
+              doc.text('✗', margin + 170, y + 2.5)
+            } else {
+              setColor(BRAND.gray, 'text')
+              doc.text('-', margin + 170, y + 2.5)
+            }
+            setColor(BRAND.black, 'text')
+            y += 4.5
+          })
+          y += 3
+        }
+        
+        // Visuals completed
+        if (block.weldData.visualsFrom || block.weldData.visualsTo) {
+          checkPageBreak(8)
+          setColor(BRAND.grayLight, 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor(BRAND.navy, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(7)
+          doc.text(`Visuals Completed: ${block.weldData.visualsFrom || '-'} to ${block.weldData.visualsTo || '-'}`, margin + 4, y + 4)
+          y += 8
+        }
+        
+        // Repairs
+        if (block.weldData.repairs && block.weldData.repairs.length > 0) {
+          checkPageBreak(20)
+          setColor(BRAND.orangeLight, 'fill')
+          doc.roundedRect(margin, y, contentWidth, 5, 1, 1, 'F')
+          setColor(BRAND.orange, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text(`Visual Repairs Identified (${block.weldData.repairs.length})`, margin + 4, y + 3.5)
+          y += 7
+          
+          block.weldData.repairs.forEach((repair, i) => {
+            checkPageBreak(5)
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(`${repair.weldNumber || '-'} | ${repair.defectCode || '-'} - ${repair.defectName || '-'} | ${repair.clockPosition ? repair.clockPosition + " o'clock" : '-'}`, margin + 4, y + 2.5)
+            y += 4
+          })
+          y += 2
+        }
+        
+        // Time tracking
+        if (block.weldData.startTime || block.weldData.endTime || block.weldData.totalWeldTime) {
+          checkPageBreak(8)
+          setColor(BRAND.grayLight, 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor(BRAND.navy, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(7)
+          const timeInfo = []
+          if (block.weldData.startTime) timeInfo.push(`Start: ${block.weldData.startTime}`)
+          if (block.weldData.endTime) timeInfo.push(`End: ${block.weldData.endTime}`)
+          if (block.weldData.totalWeldTime) timeInfo.push(`Weld Time: ${block.weldData.totalWeldTime} hrs`)
+          if (block.weldData.downTimeHours > 0) timeInfo.push(`Down: ${block.weldData.downTimeHours} hrs (${block.weldData.downTimeReason || 'N/A'})`)
+          doc.text(timeInfo.join('  |  '), margin + 4, y + 4)
+          y += 8
+        }
+        
+        y += 3
+      }
+
+      // Coating Log - Weld Data
+      if (block.activityType === 'Coating' && block.coatingData?.welds?.length > 0) {
+        checkPageBreak(40)
+        addSubHeader('Coating Log - Welds', BRAND.blueLight)
+        
+        // Summary row
+        setColor(BRAND.blueLight, 'fill')
+        doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
+        setColor(BRAND.navy, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.text(`Welds Coated: ${block.coatingData.welds.length}`, margin + 4, y + 5)
+        y += 11
+        
+        // Table header
+        setColor(BRAND.blue, 'fill')
+        doc.rect(margin, y, contentWidth, 5, 'F')
+        setColor(BRAND.white, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(6)
+        doc.text('WELD #', margin + 2, y + 3.5)
+        doc.text('KP', margin + 35, y + 3.5)
+        doc.text('DIAM', margin + 55, y + 3.5)
+        doc.text('WALL', margin + 75, y + 3.5)
+        doc.text('GRADE', margin + 95, y + 3.5)
+        doc.text('COMPANY', margin + 125, y + 3.5)
+        y += 6
+        
+        // Table rows
+        block.coatingData.welds.forEach((weld, i) => {
+          checkPageBreak(6)
+          if (i % 2 === 0) {
+            setColor(BRAND.grayLight, 'fill')
+            doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+          }
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(String(weld.weldNumber || '-').substring(0, 12), margin + 2, y + 2.5)
+          doc.text(String(weld.kp || '-').substring(0, 10), margin + 35, y + 2.5)
+          doc.text(String(weld.diameter || '-').substring(0, 6), margin + 55, y + 2.5)
+          doc.text(String(weld.wallThickness || '-').substring(0, 6), margin + 75, y + 2.5)
+          doc.text(String(weld.grade || '-').substring(0, 8), margin + 95, y + 2.5)
+          doc.text(String(weld.coatingCompany || '-').substring(0, 20), margin + 125, y + 2.5)
+          y += 4.5
+        })
+        y += 3
+      }
+
+      // Clearing Log - Timber Decks
+      if (block.activityType === 'Clearing' && block.clearingData?.timberDecks?.length > 0) {
+        checkPageBreak(40)
+        addSubHeader('Clearing Log - Timber Decks', BRAND.greenLight)
+        
+        // Summary row
+        setColor(BRAND.greenLight, 'fill')
+        doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
+        setColor(BRAND.navy, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.text(`Timber Decks: ${block.clearingData.timberDecks.length}`, margin + 4, y + 5)
+        y += 11
+        
+        // Table header
+        setColor(BRAND.green, 'fill')
+        doc.rect(margin, y, contentWidth, 5, 'F')
+        setColor(BRAND.white, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(6)
+        doc.text('DECK ID', margin + 2, y + 3.5)
+        doc.text('START KP', margin + 35, y + 3.5)
+        doc.text('END KP', margin + 65, y + 3.5)
+        doc.text('SPECIES', margin + 95, y + 3.5)
+        doc.text('CONDITION', margin + 130, y + 3.5)
+        doc.text('VOL (m³)', margin + 165, y + 3.5)
+        y += 6
+        
+        // Table rows
+        block.clearingData.timberDecks.forEach((deck, i) => {
+          checkPageBreak(6)
+          if (i % 2 === 0) {
+            setColor(BRAND.grayLight, 'fill')
+            doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+          }
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(String(deck.deckId || '-').substring(0, 12), margin + 2, y + 2.5)
+          doc.text(String(deck.startKp || '-').substring(0, 10), margin + 35, y + 2.5)
+          doc.text(String(deck.endKp || '-').substring(0, 10), margin + 65, y + 2.5)
+          doc.text(String(deck.speciesSort || '-').substring(0, 12), margin + 95, y + 2.5)
+          doc.text(String(deck.condition || '-').substring(0, 12), margin + 130, y + 2.5)
+          doc.text(String(deck.volumeEstimate || '-').substring(0, 8), margin + 165, y + 2.5)
+          y += 4.5
+        })
+        y += 3
+      }
+
+      // Quality Checks
+      if (block.qualityData && Object.keys(block.qualityData).length > 0) {
+        const qualityEntries = Object.entries(block.qualityData).filter(([key, val]) => val && val !== '' && val !== 'N/A')
+        if (qualityEntries.length > 0) {
+          checkPageBreak(25)
+          addSubHeader('Quality Checks', BRAND.orangeLight)
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(7)
+          
+          // Display quality checks in two columns
+          let col = 0
+          let rowY = y
+          qualityEntries.forEach(([key, val], idx) => {
+            checkPageBreak(5)
+            const displayKey = key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase()).trim()
+            const xPos = col === 0 ? margin + 2 : margin + contentWidth / 2
+            doc.setFont('helvetica', 'bold')
+            doc.text(`${displayKey}:`, xPos, rowY)
+            doc.setFont('helvetica', 'normal')
+            doc.text(String(val).substring(0, 25), xPos + 35, rowY)
+            
+            if (col === 1) {
+              rowY += 4
+              col = 0
+            } else {
+              col = 1
+            }
+          })
+          y = rowY + 4
+        }
+      }
+
       // Time Lost
       if (block.timeLostReason && block.timeLostHours) {
         checkPageBreak(18)
@@ -2644,6 +3338,137 @@ Important:
     }
 
     // ═══════════════════════════════════════════════════════════
+    // SAFETY RECOGNITION
+    // ═══════════════════════════════════════════════════════════
+    if (safetyRecognitionData?.cards && safetyRecognitionData.cards.length > 0) {
+      checkPageBreak(25)
+      addSectionHeader('SAFETY RECOGNITION', BRAND.green)
+      setColor(BRAND.black, 'text')
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      safetyRecognitionData.cards.forEach((card, idx) => {
+        checkPageBreak(35)
+        doc.setFont('helvetica', 'bold')
+        const cardTitle = card.cardType === 'safe' ? 'HAZARD ID CARD' : 'POSITIVE RECOGNITION'
+        doc.text(`${idx + 1}. ${cardTitle}`, margin + 2, y)
+        y += 4
+        doc.setFont('helvetica', 'normal')
+        
+        // Observer and observee info
+        doc.text(`Observer: ${card.observerName || 'Unknown'} | Date: ${card.observerDate || 'N/A'}`, margin + 5, y)
+        y += 4
+        doc.text(`Person Observed: ${card.observeeName || 'N/A'} | Company: ${card.companyType || 'N/A'}`, margin + 5, y)
+        y += 4
+        doc.text(`Location: ${card.location || 'N/A'}`, margin + 5, y)
+        y += 4
+        
+        // Situation description
+        if (card.situationDescription) {
+          const lines = doc.splitTextToSize(`Situation: ${card.situationDescription}`, contentWidth - 10)
+          doc.text(lines.slice(0, 3), margin + 5, y)
+          y += Math.min(lines.length, 3) * 4
+        }
+        
+        // What could have happened (for hazard cards)
+        if (card.cardType === 'safe' && card.whatCouldHaveHappened) {
+          const lines = doc.splitTextToSize(`Potential Outcome: ${card.whatCouldHaveHappened}`, contentWidth - 10)
+          doc.text(lines.slice(0, 2), margin + 5, y)
+          y += Math.min(lines.length, 2) * 4
+        }
+        
+        // Actions
+        if (card.actions?.length > 0) {
+          doc.text(`Actions (${card.actions.length}):`, margin + 5, y)
+          y += 4
+          card.actions.forEach((action, aIdx) => {
+            if (action.action) {
+              doc.text(`  • ${action.action} (By: ${action.byWhom || 'TBD'}, Due: ${action.dueDate || 'TBD'})`, margin + 8, y)
+              y += 4
+            }
+          })
+        }
+        
+        // Comments
+        if (card.comments) {
+          const lines = doc.splitTextToSize(`Comments: ${card.comments}`, contentWidth - 10)
+          doc.text(lines.slice(0, 2), margin + 5, y)
+          y += Math.min(lines.length, 2) * 4
+        }
+        
+        y += 4
+      })
+      y += 2
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // WILDLIFE SIGHTINGS
+    // ═══════════════════════════════════════════════════════════
+    if (wildlifeSightingData?.sightings && wildlifeSightingData.sightings.length > 0) {
+      checkPageBreak(25)
+      addSectionHeader('WILDLIFE SIGHTINGS', BRAND.orange)
+      setColor(BRAND.black, 'text')
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(8)
+      wildlifeSightingData.sightings.forEach((sighting, idx) => {
+        checkPageBreak(25)
+        doc.setFont('helvetica', 'bold')
+        const speciesText = Array.isArray(sighting.species) && sighting.species.length > 0 
+          ? sighting.species.join(', ') 
+          : sighting.otherSpecies || 'Unknown Species'
+        doc.text(`${idx + 1}. ${speciesText} (Count: ${sighting.numberOfAnimals || 1})`, margin + 2, y)
+        y += 4
+        doc.setFont('helvetica', 'normal')
+        
+        // Location and time
+        doc.text(`Location: ${sighting.location || 'N/A'} | Time: ${sighting.time || 'N/A'}`, margin + 5, y)
+        y += 4
+        
+        // GPS if provided
+        if (sighting.gpsCoordinates) {
+          doc.text(`GPS: ${sighting.gpsCoordinates}`, margin + 5, y)
+          y += 4
+        }
+        
+        // Gender and age
+        if (sighting.gender || sighting.ageGroup) {
+          doc.text(`Gender: ${sighting.gender || 'N/A'} | Age: ${sighting.ageGroup || 'N/A'}`, margin + 5, y)
+          y += 4
+        }
+        
+        // Activity
+        if (sighting.activity) {
+          const lines = doc.splitTextToSize(`Activity: ${sighting.activity}`, contentWidth - 10)
+          doc.text(lines.slice(0, 2), margin + 5, y)
+          y += Math.min(lines.length, 2) * 4
+        }
+        
+        // Mortality
+        if (sighting.mortality === 'yes') {
+          doc.setTextColor(220, 53, 69) // Red
+          doc.text(`⚠️ MORTALITY: ${sighting.mortalityCause || 'Cause unknown'}`, margin + 5, y)
+          doc.setTextColor(0, 0, 0)
+          y += 4
+        }
+        
+        // Comments
+        if (sighting.comments) {
+          const lines = doc.splitTextToSize(`Notes: ${sighting.comments}`, contentWidth - 10)
+          doc.text(lines.slice(0, 2), margin + 5, y)
+          y += Math.min(lines.length, 2) * 4
+        }
+        
+        // Photo count
+        if (sighting.photos?.length > 0) {
+          doc.text(`📷 ${sighting.photos.length} photo(s) attached`, margin + 5, y)
+          y += 4
+        }
+        
+        y += 2
+      })
+      y += 2
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // INSPECTOR INFO
     // ═══════════════════════════════════════════════════════════
     checkPageBreak(35)  // Ensure enough space for section + footer
@@ -2665,8 +3490,15 @@ Important:
       addFooter(i, pageCount)
     }
 
-    // SAVE
-    const filename = `${PROJECT_SHORT}_Daily_Report_${selectedDate}_${spread || 'Report'}.pdf`
+    // SAVE - filename with ID, date, and activity type
+    const reportId = currentReportId ? `_ID${currentReportId}` : ''
+    const activityTypes = activityBlocks
+      .filter(b => b.activityType)
+      .map(b => b.activityType.replace(/[^a-zA-Z0-9]/g, '_'))
+      .slice(0, 3) // Limit to first 3 activity types
+      .join('_')
+    const activityPart = activityTypes ? `_${activityTypes}` : ''
+    const filename = `${PROJECT_SHORT}_Report${reportId}_${selectedDate}${activityPart}.pdf`
     doc.save(filename)
   }
 
@@ -3039,44 +3871,127 @@ Important:
       )}
 
       {/* Header */}
-      <div style={{ backgroundColor: isEditMode ? '#856404' : '#003366', color: 'white', padding: '20px', borderRadius: '8px', marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        {isEditMode && (
-          <button
-            onClick={() => navigate('/admin')}
-            style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}
-          >
-            ← Back to Admin
-          </button>
-        )}
-        <div style={{ textAlign: 'center', flex: 1 }}>
-          <h1 style={{ margin: 0, fontSize: '18px' }}>{PROJECT_NAME}</h1>
-          <h2 style={{ margin: '5px 0 0 0', fontSize: '24px' }}>
+      <div style={{ 
+        backgroundColor: isEditMode ? '#856404' : '#003366', 
+        color: 'white', 
+        padding: '15px', 
+        borderRadius: '8px', 
+        marginBottom: '20px'
+      }}>
+        {/* Top row - Title */}
+        <div style={{ textAlign: 'center', marginBottom: '10px' }}>
+          <h1 style={{ margin: 0, fontSize: '16px' }}>{PROJECT_NAME}</h1>
+          <h2 style={{ margin: '5px 0 0 0', fontSize: '20px' }}>
             {isEditMode ? '✏️ EDITING REPORT' : 'Daily Inspector Report'}
           </h2>
           {isEditMode && (
-            <p style={{ margin: '5px 0 0 0', fontSize: '12px', opacity: 0.9 }}>
+            <p style={{ margin: '5px 0 0 0', fontSize: '11px', opacity: 0.9 }}>
               Changes will be logged to audit trail
             </p>
           )}
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        
+        {/* Bottom row - Buttons (wraps on mobile) */}
+        <div style={{ 
+          display: 'flex', 
+          gap: '8px', 
+          alignItems: 'center', 
+          justifyContent: 'center',
+          flexWrap: 'wrap'
+        }}>
+          {isEditMode && (
+            <button
+              onClick={() => {
+                const confirmLeave = window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')
+                if (!confirmLeave) return
+                
+                if (currentUserRole === 'inspector') {
+                  window.location.href = '/inspector'
+                } else if (currentUserRole === 'chief_inspector') {
+                  navigate('/chief')
+                } else {
+                  navigate('/admin')
+                }
+              }}
+              style={{ padding: '8px 12px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+            >
+              {currentUserRole === 'inspector' ? '← Back' : currentUserRole === 'chief_inspector' ? '← Chief' : '← Admin'}
+            </button>
+          )}
+          
+          {/* Previous Reports Dropdown - Always show for inspectors when not editing */}
+          {!isEditMode && (
+            <select
+              onChange={(e) => {
+                if (e.target.value) {
+                  navigate(`/inspector?edit=${e.target.value}`)
+                }
+              }}
+              style={{
+                padding: '8px 10px',
+                borderRadius: '4px',
+                border: 'none',
+                backgroundColor: previousReports.some(r => r.status === 'revision_requested') ? '#dc3545' : 
+                                loadingPreviousReports ? '#6c757d' : 
+                                previousReports.length === 0 ? '#6c757d' : '#ffc107',
+                color: previousReports.some(r => r.status === 'revision_requested') ? 'white' : 
+                      loadingPreviousReports || previousReports.length === 0 ? 'white' : '#000',
+                fontWeight: 'bold',
+                cursor: previousReports.length === 0 ? 'default' : 'pointer',
+                fontSize: '12px',
+                maxWidth: '200px'
+              }}
+              defaultValue=""
+              disabled={loadingPreviousReports || previousReports.length === 0}
+            >
+              <option value="">
+                {loadingPreviousReports ? '⏳ Loading...' :
+                 previousReports.length === 0 ? '📋 No Saved Reports' :
+                 previousReports.some(r => r.status === 'revision_requested') ? '⚠️ REVISION REQUESTED' : 
+                 `📋 My Reports (${previousReports.length})`}
+              </option>
+              {previousReports.map(report => {
+                const statusEmoji = report.status === 'revision_requested' ? '🔴 NEEDS FIX: ' 
+                  : report.status === 'approved' ? '✅ ' 
+                  : report.status === 'submitted' ? '📤 ' 
+                  : '📝 '
+                
+                // Extract activity types from activity_blocks
+                const activityTypes = (report.activity_blocks || [])
+                  .filter(block => block.activityType)
+                  .map(block => block.activityType)
+                  .slice(0, 2) // Limit to first 2 activity types
+                  .join(', ')
+                
+                const activityText = activityTypes ? ` - ${activityTypes}` : ''
+                
+                return (
+                  <option key={report.id} value={report.id} style={{ color: report.status === 'revision_requested' ? 'red' : 'inherit' }}>
+                    {statusEmoji}ID {report.id} - {report.date}{activityText}
+                  </option>
+                )
+              })}
+            </select>
+          )}
+          
           <button
             onClick={() => setShowMap(!showMap)}
             style={{ 
-              padding: '10px 20px', 
+              padding: '8px 12px', 
               backgroundColor: showMap ? '#28a745' : '#17a2b8', 
               color: 'white', 
               border: 'none', 
               borderRadius: '4px', 
               cursor: 'pointer', 
-              fontSize: '14px' 
+              fontSize: '12px' 
             }}
           >
-            🗺️ {showMap ? 'Hide Map' : 'Show Map'}
+            🗺️ {showMap ? 'Hide Map' : 'Map'}
           </button>
+          
           <button
             onClick={signOut}
-            style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}
+            style={{ padding: '8px 12px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
           >
             Sign Out
           </button>
@@ -3116,75 +4031,75 @@ Important:
           <h2 style={{ margin: 0, color: '#333' }}>REPORT INFORMATION</h2>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Date *</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Date *</label>
             <input
               type="date"
               value={selectedDate}
               onChange={(e) => setSelectedDate(e.target.value)}
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Inspector Name *</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Inspector Name *</label>
             <input
               type="text"
               value={inspectorName}
               onChange={(e) => setInspectorName(e.target.value)}
               placeholder="Your name"
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Spread</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Spread</label>
             <input
               type="text"
               value={spread}
               onChange={(e) => setSpread(e.target.value)}
               placeholder="Spread number"
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>AFE #</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>AFE #</label>
             <input
               type="text"
               value={afe}
               onChange={(e) => setAfe(e.target.value)}
               placeholder="AFE number"
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Pipeline</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Pipeline</label>
             <select
               value={pipeline}
               onChange={(e) => setPipeline(e.target.value)}
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
             >
               <option value="">Select Pipeline</option>
-              {PROJECT_SPREADS.map(spread => (
-                <option key={spread.id} value={spread.id}>{spread.name} ({spread.startKP} - {spread.endKP})</option>
+              {Object.keys(pipelineLocations).map(p => (
+                <option key={p} value={p}>{p}</option>
               ))}
             </select>
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Start Time</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Start Time</label>
             <input
               type="time"
               value={startTime}
               onChange={(e) => setStartTime(e.target.value)}
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Stop Time</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Stop Time</label>
             <input
               type="time"
               value={stopTime}
               onChange={(e) => setStopTime(e.target.value)}
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
             />
           </div>
         </div>
@@ -3197,65 +4112,65 @@ Important:
           <button
             onClick={fetchWeather}
             disabled={fetchingWeather}
-            style={{ padding: '8px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+            style={{ padding: '6px 12px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', height: '32px' }}
           >
             {fetchingWeather ? 'Fetching...' : '🌤️ Auto-Fetch Weather'}
           </button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Conditions</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Conditions</label>
             <input
               type="text"
               value={weather}
               onChange={(e) => setWeather(e.target.value)}
               placeholder="Clear, Cloudy, Rain..."
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Precipitation (mm)</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Precipitation (mm)</label>
             <input
               type="number"
               value={precipitation}
               onChange={(e) => setPrecipitation(e.target.value)}
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>High Temp (°C)</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>High Temp (°C)</label>
             <input
               type="number"
               value={tempHigh}
               onChange={(e) => setTempHigh(e.target.value)}
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Low Temp (°C)</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Low Temp (°C)</label>
             <input
               type="number"
               value={tempLow}
               onChange={(e) => setTempLow(e.target.value)}
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Wind (km/h)</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Wind (km/h)</label>
             <input
               type="number"
               value={windSpeed}
               onChange={(e) => setWindSpeed(e.target.value)}
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>ROW Condition</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>ROW Condition</label>
             <select
               value={rowCondition}
               onChange={(e) => setRowCondition(e.target.value)}
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
             >
               <option value="">Select...</option>
               <option value="Dry">Dry</option>
@@ -3330,6 +4245,14 @@ Important:
           tempHigh={tempHigh}
           tempLow={tempLow}
           inspectorName={inspectorName}
+          // Audit trail props
+          reportId={currentReportId}
+          currentUser={{
+            id: userProfile?.id,
+            name: inspectorName || userProfile?.email,
+            email: userProfile?.email,
+            role: currentUserRole
+          }}
           // Chainage status
           blockChainageStatus={blockChainageStatus[block.id]}
           chainageReasons={chainageReasons}
@@ -3403,59 +4326,16 @@ Important:
         
         {trackableItemsExpanded && (
           <div style={{ padding: '20px' }}>
-            {/* Mat Tracker */}
-            <MatTracker
+            <TrackableItemsTracker
               projectId={pipeline || 'default'}
               reportDate={selectedDate}
-              reportId={null}
+              reportId={currentReportId}
               inspector={inspectorName}
-              onDataChange={(data) => console.log('Mat data:', data)}
+              onDataChange={(data) => {
+                console.log('Trackable items updated:', data)
+                setTrackableItemsData(data)
+              }}
             />
-            
-            {/* Unit Price Items Toggle */}
-            <div style={{ 
-              backgroundColor: '#fff3cd', 
-              border: '1px solid #ffc107', 
-              borderRadius: '8px', 
-              padding: '15px',
-              marginTop: '15px'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: unitPriceItemsEnabled ? '15px' : '0' }}>
-                <label style={{ fontWeight: 'bold', fontSize: '14px' }}>📦 Unit Price Items Installed Today?</label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="unitPriceItems"
-                    value="Yes"
-                    checked={unitPriceItemsEnabled}
-                    onChange={() => setUnitPriceItemsEnabled(true)}
-                  />
-                  Yes
-                </label>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                  <input
-                    type="radio"
-                    name="unitPriceItems"
-                    value="No"
-                    checked={!unitPriceItemsEnabled}
-                    onChange={() => setUnitPriceItemsEnabled(false)}
-                  />
-                  No
-                </label>
-              </div>
-              
-              {unitPriceItemsEnabled && (
-                <UnitPriceItemsLog
-                  data={unitPriceData}
-                  onChange={setUnitPriceData}
-                  reportDate={selectedDate}
-                  spread={spread}
-                  afe={afe}
-                />
-              )}
-            </div>
-            
-            {/* Future trackable items: Crossings, Visitors, Sand Padding, etc. */}
           </div>
         )}
       </div>
@@ -3558,83 +4438,27 @@ Important:
         </div>
       </div>
 
-      {/* VISITORS */}
-      <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #dee2e6' }}>
-        <div style={{ borderBottom: '2px solid #6c757d', paddingBottom: '10px', marginBottom: '15px' }}>
-          <h2 style={{ margin: 0, color: '#333' }}>VISITORS</h2>
-        </div>
-        <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
-          <input
-            type="text"
-            value={visitorName}
-            onChange={(e) => setVisitorName(e.target.value)}
-            placeholder="Name"
-            style={{ flex: 1, minWidth: '150px', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-          />
-          <input
-            type="text"
-            value={visitorCompany}
-            onChange={(e) => setVisitorCompany(e.target.value)}
-            placeholder="Company"
-            style={{ flex: 1, minWidth: '150px', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-          />
-          <input
-            type="text"
-            value={visitorPosition}
-            onChange={(e) => setVisitorPosition(e.target.value)}
-            placeholder="Position"
-            style={{ flex: 1, minWidth: '150px', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
-          />
-          <button
-            onClick={addVisitor}
-            style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-          >
-            Add Visitor
-          </button>
-        </div>
-        {visitors.length > 0 && (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#dee2e6' }}>
-                <th style={{ padding: '8px', textAlign: 'left' }}>Name</th>
-                <th style={{ padding: '8px', textAlign: 'left' }}>Company</th>
-                <th style={{ padding: '8px', textAlign: 'left' }}>Position</th>
-              </tr>
-            </thead>
-            <tbody>
-              {visitors.map((v, idx) => (
-                <tr key={idx} style={{ backgroundColor: '#fff' }}>
-                  <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6' }}>{v.name}</td>
-                  <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6' }}>{v.company}</td>
-                  <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6' }}>{v.position}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
-
       {/* INSPECTOR INFO */}
       <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #dee2e6' }}>
         <div style={{ borderBottom: '2px solid #17a2b8', paddingBottom: '10px', marginBottom: '15px' }}>
           <h2 style={{ margin: 0, color: '#333' }}>INSPECTOR INFORMATION</h2>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '10px', alignItems: 'start' }}>
           <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Mileage</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Mileage (km)</label>
             <input
               type="number"
               value={inspectorMileage}
               onChange={(e) => setInspectorMileage(e.target.value)}
               placeholder="km driven"
-              style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
             />
           </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Equipment Used</label>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+          <div style={{ gridColumn: 'span 4' }}>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Equipment Used</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', alignItems: 'center', height: '32px' }}>
               {['ATV', 'UTV', 'Radio', 'Gas Fob'].map(eq => (
-                <label key={eq} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '13px' }}>
+                <label key={eq} style={{ display: 'flex', alignItems: 'center', gap: '5px', fontSize: '11px' }}>
                   <input
                     type="checkbox"
                     checked={inspectorEquipment.includes(eq)}
@@ -3698,6 +4522,162 @@ Important:
         </div>
       )}
 
+      {/* TOPSOIL AI REVIEW RESULTS */}
+      {(showTopsoilReview || reviewingTopsoil) && (
+        <div style={{ 
+          backgroundColor: topsoilReviewResults.some(r => r.alertCount > 0) ? '#f8d7da' : 
+                          topsoilReviewResults.some(r => r.warningCount > 0) ? '#fff3cd' : '#d4edda',
+          border: `2px solid ${topsoilReviewResults.some(r => r.alertCount > 0) ? '#dc3545' : 
+                              topsoilReviewResults.some(r => r.warningCount > 0) ? '#ffc107' : '#28a745'}`,
+          padding: '20px', 
+          borderRadius: '8px', 
+          marginBottom: '20px' 
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+              🌍 Topsoil Environmental Review
+              {reviewingTopsoil && <span style={{ fontSize: '14px', color: '#666' }}>Analyzing...</span>}
+            </h3>
+            {!reviewingTopsoil && (
+              <button
+                onClick={() => setShowTopsoilReview(false)}
+                style={{ padding: '6px 12px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+              >
+                Dismiss
+              </button>
+            )}
+          </div>
+          
+          {reviewingTopsoil ? (
+            <div style={{ textAlign: 'center', padding: '20px' }}>
+              <div style={{ fontSize: '24px', marginBottom: '10px' }}>⏳</div>
+              <p style={{ color: '#666' }}>Running AI-powered environmental compliance review...</p>
+            </div>
+          ) : (
+            topsoilReviewResults.map((review, idx) => (
+              <div key={idx} style={{ 
+                backgroundColor: 'white', 
+                padding: '15px', 
+                borderRadius: '6px', 
+                marginBottom: idx < topsoilReviewResults.length - 1 ? '15px' : 0,
+                border: '1px solid #dee2e6'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <strong>KP {review.activityKP}</strong>
+                  <span style={{ 
+                    padding: '4px 12px', 
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    backgroundColor: review.overallStatus === 'ALERT' ? '#dc3545' : 
+                                    review.overallStatus === 'WARNING' ? '#ffc107' : 
+                                    review.overallStatus === 'PASS' ? '#28a745' : '#6c757d',
+                    color: review.overallStatus === 'WARNING' ? '#000' : 'white'
+                  }}>
+                    {review.overallStatus}
+                  </span>
+                </div>
+                
+                {/* Alerts */}
+                {review.alerts?.length > 0 && (
+                  <div style={{ marginBottom: '10px' }}>
+                    <strong style={{ color: '#dc3545', fontSize: '13px' }}>🚨 ALERTS ({review.alertCount})</strong>
+                    {review.alerts.map((alert, aIdx) => (
+                      <div key={aIdx} style={{ 
+                        backgroundColor: '#f8d7da', 
+                        padding: '10px', 
+                        borderRadius: '4px', 
+                        marginTop: '8px',
+                        borderLeft: '4px solid #dc3545'
+                      }}>
+                        <div style={{ fontWeight: 'bold', color: '#721c24', marginBottom: '5px' }}>
+                          {alert.type} <span style={{ fontWeight: 'normal', fontSize: '12px' }}>({alert.severity})</span>
+                        </div>
+                        <div style={{ color: '#721c24', fontSize: '13px', marginBottom: '8px' }}>{alert.message}</div>
+                        <div style={{ 
+                          backgroundColor: '#fff', 
+                          padding: '8px', 
+                          borderRadius: '4px',
+                          fontSize: '12px',
+                          color: '#155724'
+                        }}>
+                          <strong>Recommended Action:</strong> {alert.recommendedAction}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Warnings */}
+                {review.warnings?.length > 0 && (
+                  <div style={{ marginBottom: '10px' }}>
+                    <strong style={{ color: '#856404', fontSize: '13px' }}>⚠️ WARNINGS ({review.warningCount})</strong>
+                    {review.warnings.map((warning, wIdx) => (
+                      <div key={wIdx} style={{ 
+                        backgroundColor: '#fff3cd', 
+                        padding: '10px', 
+                        borderRadius: '4px', 
+                        marginTop: '8px',
+                        borderLeft: '4px solid #ffc107'
+                      }}>
+                        <div style={{ fontWeight: 'bold', color: '#856404', marginBottom: '5px' }}>{warning.type}</div>
+                        <div style={{ color: '#856404', fontSize: '13px' }}>{warning.message}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                
+                {/* Passed Checks */}
+                {review.passedChecks?.length > 0 && (
+                  <div>
+                    <strong style={{ color: '#155724', fontSize: '13px' }}>✅ PASSED ({review.passedCount})</strong>
+                    <div style={{ 
+                      display: 'flex', 
+                      flexWrap: 'wrap', 
+                      gap: '8px', 
+                      marginTop: '8px' 
+                    }}>
+                      {review.passedChecks.map((check, cIdx) => (
+                        <span key={cIdx} style={{ 
+                          backgroundColor: '#d4edda', 
+                          color: '#155724', 
+                          padding: '4px 10px', 
+                          borderRadius: '4px',
+                          fontSize: '12px'
+                        }}>
+                          ✓ {check}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                
+                {/* Notification Status */}
+                {review.notificationRequired && (
+                  <div style={{ 
+                    marginTop: '15px', 
+                    padding: '10px', 
+                    backgroundColor: review.notificationSent ? '#d4edda' : '#f8d7da',
+                    borderRadius: '4px',
+                    fontSize: '12px'
+                  }}>
+                    {review.notificationSent ? (
+                      <span style={{ color: '#155724' }}>
+                        📧 Environmental Lead has been notified ({review.notificationRecipient})
+                      </span>
+                    ) : (
+                      <span style={{ color: '#721c24' }}>
+                        ⚠️ Failed to send notification: {review.notificationError || 'Unknown error'}
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
       {/* SAVE BUTTONS */}
       <div style={{ backgroundColor: '#e9ecef', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
         {/* Draft Status Indicator */}
@@ -3731,21 +4711,35 @@ Important:
           <button
             onClick={() => saveReport(false)}
             disabled={saving}
-            style={{ padding: '18px 50px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' }}
+            style={{ 
+              padding: '20px 60px', 
+              backgroundColor: '#28a745', 
+              color: 'white', 
+              border: 'none', 
+              borderRadius: '8px', 
+              cursor: saving ? 'not-allowed' : 'pointer', 
+              fontSize: '20px', 
+              fontWeight: 'bold',
+              boxShadow: '0 4px 6px rgba(0,0,0,0.2)'
+            }}
           >
-            {saving ? 'Saving...' : '💾 Save Report'}
-          </button>
-          <button
-            onClick={() => exportToPDF()}
-            style={{ padding: '18px 50px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontSize: '18px', fontWeight: 'bold' }}
-          >
-            📄 Download PDF
+            {saving ? '⏳ Submitting...' : '✅ Submit Report'}
           </button>
         </div>
         
         <p style={{ textAlign: 'center', margin: '15px 0 0 0', fontSize: '13px', color: '#666' }}>
-          Save Report will store to database and email you a copy
+          Submitting will save your report and send it to the Chief Inspector for review
         </p>
+
+        {/* Secondary options */}
+        <div style={{ display: 'flex', gap: '15px', justifyContent: 'center', marginTop: '20px' }}>
+          <button
+            onClick={() => exportToPDF()}
+            style={{ padding: '10px 25px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px' }}
+          >
+            📄 Download PDF Copy
+          </button>
+        </div>
         
         {/* Clear Draft Button */}
         {draftSaved && !isEditMode && (

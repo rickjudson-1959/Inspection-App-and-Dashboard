@@ -1,0 +1,512 @@
+// TrackableItemsTracker.jsx
+// Unified tracking for mats, fencing, ramps, goal posts, access roads, hydrovac, erosion control, signage
+// Each category is collapsible with add/remove/save functionality
+
+import React, { useState, useEffect } from 'react'
+import { supabase } from './supabase'
+
+// Define all trackable item types with their fields
+const ITEM_TYPES = [
+  { 
+    id: 'mats', 
+    label: '🛤️ Mats', 
+    color: '#007bff',
+    fields: [
+      { name: 'mat_type', label: 'Mat Type', type: 'select', options: ['Rig Mat', 'Swamp Mat', 'Access Mat', 'Crane Mat', 'Other'] },
+      { name: 'mat_size', label: 'Size', type: 'select', options: ['8x14', '8x16', '4x8', '8x40', 'Other'] },
+      { name: 'action', label: 'Action', type: 'select', options: ['Deploy', 'Retrieve', 'Relocate', 'Inspect'] },
+      { name: 'quantity', label: 'Quantity', type: 'number' },
+      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
+      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'crossing_reason', label: 'Crossing/Reason', type: 'text', placeholder: 'e.g., FL-001, wet area' },
+      { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
+    ]
+  },
+  { 
+    id: 'fencing', 
+    label: '🚧 Temporary Fencing', 
+    color: '#28a745',
+    fields: [
+      { name: 'fence_type', label: 'Fence Type', type: 'select', options: ['Construction Fence', 'Wildlife Fence', 'Cross Fencing', 'Silt Fence', 'Snow Fence', 'Other'] },
+      { name: 'action', label: 'Action', type: 'select', options: ['Install', 'Remove', 'Relocate', 'Repair'] },
+      { name: 'length', label: 'Length (m)', type: 'number' },
+      { name: 'gates_qty', label: 'Gates', type: 'number', placeholder: '0' },
+      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
+      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'landowner', label: 'Landowner', type: 'text', placeholder: 'If applicable' },
+      { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
+    ]
+  },
+  { 
+    id: 'ramps', 
+    label: '🛤️ Ramps', 
+    color: '#fd7e14',
+    fields: [
+      { name: 'ramp_type', label: 'Ramp Type', type: 'select', options: ['Foreign Line Ramp', 'Road Crossing Ramp', 'Access Ramp', 'Equipment Ramp', 'Other'] },
+      { name: 'ramp_material', label: 'Material', type: 'select', options: ['Timber', 'Steel Plate', 'Matted', 'Earth', 'Combination'] },
+      { name: 'action', label: 'Action', type: 'select', options: ['Install', 'Remove', 'Relocate'] },
+      { name: 'quantity', label: 'Quantity', type: 'number' },
+      { name: 'kp_location', label: 'KP Location', type: 'text', placeholder: '0+500' },
+      { name: 'foreign_owner', label: 'Foreign Line Owner', type: 'text', placeholder: 'e.g., ATCO, CNRL' },
+      { name: 'crossing_id', label: 'Crossing ID', type: 'text', placeholder: 'e.g., FL-001' },
+      { name: 'mats_used', label: 'Mats Used?', type: 'select', options: ['Yes - Log in Mats section', 'No'] },
+      { name: 'mat_count', label: 'Mat Count (if used)', type: 'number', placeholder: '0' },
+      { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
+    ]
+  },
+  { 
+    id: 'goalposts', 
+    label: '⚡ Goal Posts (Power Lines)', 
+    color: '#dc3545',
+    fields: [
+      { name: 'action', label: 'Action', type: 'select', options: ['Install', 'Remove', 'Inspect', 'Relocate'] },
+      { name: 'quantity', label: 'Quantity (sets)', type: 'number' },
+      { name: 'kp_location', label: 'KP Location', type: 'text', placeholder: '2+450' },
+      { name: 'utility_owner', label: 'Utility Owner', type: 'text', placeholder: 'e.g., BC Hydro, FortisBC' },
+      { name: 'post_material', label: 'Post Material', type: 'select', options: ['GRP/Fiberglass (Non-Conductive)', 'Wood (Non-Conductive)', 'Steel/Metal (CONDUCTIVE - FLAG)'] },
+      { name: 'material_compliant', label: '⚡ Non-Conductive?', type: 'select', options: ['Pass', 'Fail - CONDUCTIVE'] },
+      { name: 'authorized_clearance', label: 'Utility Auth. Clearance (m)', type: 'number', placeholder: 'e.g., 7.5' },
+      { name: 'posted_height', label: 'Posted Height (m)', type: 'number', placeholder: 'e.g., 8.0' },
+      { name: 'danger_sign', label: 'Danger Sign Posted?', type: 'select', options: ['Yes', 'No'] },
+      { name: 'reflective_signage', label: 'Reflective Signage?', type: 'select', options: ['Yes', 'No'] },
+      { name: 'grounding_required', label: 'Grounding Required?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+      { name: 'grounding_installed', label: 'Grounding Installed?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+      { name: 'offset_distance', label: 'Offset from CL (m)', type: 'number', placeholder: '≥6m required' },
+      { name: 'offset_compliant', label: '≥6m Offset?', type: 'select', options: ['Pass', 'Fail - TOO CLOSE'] },
+      { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
+    ]
+  },
+  { 
+    id: 'access', 
+    label: '🚜 Access Roads', 
+    color: '#6f42c1',
+    fields: [
+      { name: 'access_type', label: 'Access Type', type: 'select', options: ['Temporary Access', 'Permanent Access', 'Existing Access', 'Field Access'] },
+      { name: 'action', label: 'Action', type: 'select', options: ['Build', 'Improve', 'Maintain', 'Reclaim'] },
+      { name: 'length', label: 'Length (m)', type: 'number' },
+      { name: 'width', label: 'Width (m)', type: 'number' },
+      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
+      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'surface', label: 'Surface', type: 'select', options: ['Gravel', 'Earth', 'Matted', 'Paved'] },
+      { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
+    ]
+  },
+  { 
+    id: 'hydrovac', 
+    label: '🚿 Hydrovac Holes', 
+    color: '#17a2b8',
+    fields: [
+      { name: 'hole_type', label: 'Hole Type', type: 'select', options: ['Pothole', 'Slot Trench', 'Utility Locate', 'Tie-in Excavation', 'Other'] },
+      { name: 'action', label: 'Action', type: 'select', options: ['Dig', 'Backfill', 'Inspect'] },
+      { name: 'quantity', label: 'Quantity', type: 'number' },
+      { name: 'kp_location', label: 'KP Location', type: 'text', placeholder: '0+500' },
+      { name: 'depth', label: 'Depth (m)', type: 'number', placeholder: 'e.g., 2.5' },
+      { name: 'foreign_owner', label: 'Foreign Line Owner', type: 'text', placeholder: 'If exposing foreign line' },
+      { name: 'contractor', label: 'Hydrovac Contractor', type: 'text', placeholder: 'e.g., Badger' },
+      { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
+    ]
+  },
+  { 
+    id: 'erosion', 
+    label: '🌊 Erosion Control', 
+    color: '#20c997',
+    fields: [
+      { name: 'control_type', label: 'Control Type', type: 'select', options: ['Silt Fence', 'Straw Bales', 'Sediment Pond', 'Check Dam', 'Erosion Blanket', 'Rip Rap', 'Other'] },
+      { name: 'action', label: 'Action', type: 'select', options: ['Install', 'Remove', 'Maintain', 'Inspect'] },
+      { name: 'quantity', label: 'Quantity/Length', type: 'number' },
+      { name: 'unit', label: 'Unit', type: 'select', options: ['metres', 'each', 'sq metres'] },
+      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
+      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'watercourse', label: 'Watercourse Name', type: 'text', placeholder: 'If applicable' },
+      { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
+    ]
+  },
+  { 
+    id: 'signage', 
+    label: '🚧 Signage & Flagging', 
+    color: '#e83e8c',
+    fields: [
+      { name: 'sign_type', label: 'Type', type: 'select', options: ['Pipeline Marker', 'Warning Sign', 'Speed Limit', 'Boundary Flag', 'Hazard Flag', 'Environmental Flag', 'Other'] },
+      { name: 'action', label: 'Action', type: 'select', options: ['Install', 'Remove', 'Replace'] },
+      { name: 'quantity', label: 'Quantity', type: 'number' },
+      { name: 'kp_location', label: 'KP Location', type: 'text', placeholder: '0+500' },
+      { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
+    ]
+  },
+  { 
+    id: 'equipment_cleaning', 
+    label: '🧹 Equipment Cleaning', 
+    color: '#6c757d',
+    fields: [
+      { name: 'equipment_type', label: 'Equipment Type', type: 'text', placeholder: 'e.g., Excavator, Sideboom' },
+      { name: 'action', label: 'Action', type: 'select', options: ['Clean - Enter ROW', 'Clean - Exit ROW', 'Inspect'] },
+      { name: 'quantity', label: 'Quantity', type: 'number' },
+      { name: 'kp_location', label: 'KP Location', type: 'text', placeholder: '0+500' },
+      { name: 'cleaning_method', label: 'Cleaning Method', type: 'select', options: ['Pressure Wash', 'Steam Clean', 'Manual Scrape', 'Air Blow'] },
+      { name: 'inspection_pass', label: 'Inspection Result', type: 'select', options: ['Pass', 'Fail - Re-clean Required'] },
+      { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
+    ]
+  }
+]
+
+function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onDataChange }) {
+  const [items, setItems] = useState([])
+  const [expandedTypes, setExpandedTypes] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [summary, setSummary] = useState({})
+
+  // Load existing items for this report
+  useEffect(() => {
+    loadItems()
+  }, [reportId, reportDate])
+
+  const loadItems = async () => {
+    setLoading(true)
+    try {
+      if (reportId) {
+        const { data } = await supabase
+          .from('trackable_items')
+          .select('*')
+          .eq('report_id', reportId)
+          .order('created_at', { ascending: true })
+        
+        if (data) setItems(data)
+      }
+
+      // Calculate summary totals for each type
+      const { data: allItems } = await supabase
+        .from('trackable_items')
+        .select('item_type, action, quantity')
+        .eq('project_id', projectId || 'default')
+
+      if (allItems) {
+        const calc = {}
+        ITEM_TYPES.forEach(type => {
+          calc[type.id] = { deployed: 0, retrieved: 0, net: 0 }
+        })
+        allItems.forEach(item => {
+          if (calc[item.item_type]) {
+            const qty = parseFloat(item.quantity) || 0
+            if (['Deploy', 'Install', 'Build', 'Dig'].includes(item.action)) {
+              calc[item.item_type].deployed += qty
+            } else if (['Retrieve', 'Remove', 'Backfill', 'Reclaim'].includes(item.action)) {
+              calc[item.item_type].retrieved += qty
+            }
+            calc[item.item_type].net = calc[item.item_type].deployed - calc[item.item_type].retrieved
+          }
+        })
+        setSummary(calc)
+      }
+    } catch (err) {
+      console.error('Error loading trackable items:', err)
+    }
+    setLoading(false)
+  }
+
+  const toggleType = (typeId) => {
+    setExpandedTypes(prev => ({ ...prev, [typeId]: !prev[typeId] }))
+  }
+
+  const addItem = (typeId) => {
+    const type = ITEM_TYPES.find(t => t.id === typeId)
+    const newItem = {
+      id: `temp-${Date.now()}`,
+      item_type: typeId,
+      isNew: true
+    }
+    // Initialize fields with empty values
+    type.fields.forEach(f => {
+      newItem[f.name] = ''
+    })
+    setItems([...items, newItem])
+    // Auto-expand when adding
+    setExpandedTypes(prev => ({ ...prev, [typeId]: true }))
+  }
+
+  const updateItem = (itemId, field, value) => {
+    const updated = items.map(item => 
+      item.id === itemId ? { ...item, [field]: value } : item
+    )
+    setItems(updated)
+    if (onDataChange) onDataChange(updated)
+  }
+
+  const removeItem = async (itemId) => {
+    const item = items.find(i => i.id === itemId)
+    if (item && !item.id.toString().startsWith('temp-')) {
+      try {
+        await supabase.from('trackable_items').delete().eq('id', itemId)
+      } catch (err) {
+        console.error('Error deleting item:', err)
+      }
+    }
+    setItems(items.filter(i => i.id !== itemId))
+  }
+
+  const saveItem = async (itemId) => {
+    const item = items.find(i => i.id === itemId)
+    if (!item) return
+
+    const record = {
+      project_id: projectId || 'default',
+      report_id: reportId,
+      report_date: reportDate,
+      inspector: inspector,
+      item_type: item.item_type,
+      action: item.action,
+      quantity: item.quantity,
+      from_kp: item.from_kp,
+      to_kp: item.to_kp,
+      kp_location: item.kp_location,
+      mat_type: item.mat_type,
+      mat_size: item.mat_size,
+      fence_type: item.fence_type,
+      ramp_type: item.ramp_type,
+      gates_qty: item.gates_qty,
+      landowner: item.landowner,
+      notes: item.notes
+    }
+
+    try {
+      if (item.id.toString().startsWith('temp-')) {
+        const { data } = await supabase.from('trackable_items').insert(record).select()
+        if (data && data[0]) {
+          const updated = items.map(i => 
+            i.id === itemId ? { ...data[0], isNew: false } : i
+          )
+          setItems(updated)
+        }
+      } else {
+        await supabase.from('trackable_items').update(record).eq('id', item.id)
+      }
+      loadItems() // Refresh summary
+    } catch (err) {
+      console.error('Error saving item:', err)
+      alert('Error saving item')
+    }
+  }
+
+  const inputStyle = { 
+    width: '100%', 
+    padding: '8px', 
+    border: '1px solid #ced4da', 
+    borderRadius: '4px', 
+    fontSize: '13px',
+    boxSizing: 'border-box'
+  }
+  
+  const labelStyle = { 
+    display: 'block', 
+    fontSize: '11px', 
+    fontWeight: 'bold', 
+    marginBottom: '3px', 
+    color: '#555' 
+  }
+
+  // Get items for a specific type
+  const getItemsForType = (typeId) => items.filter(i => i.item_type === typeId)
+
+  // Count today's items for a type
+  const getTodayCount = (typeId) => {
+    return items.filter(i => i.item_type === typeId).length
+  }
+
+  return (
+    <div>
+      {loading && <p style={{ textAlign: 'center', color: '#666' }}>Loading trackable items...</p>}
+      
+      {ITEM_TYPES.map(type => {
+        const typeItems = getItemsForType(type.id)
+        const isExpanded = expandedTypes[type.id]
+        const typeSummary = summary[type.id] || { net: 0, deployed: 0, retrieved: 0 }
+        const todayCount = getTodayCount(type.id)
+
+        return (
+          <div 
+            key={type.id}
+            style={{ 
+              marginBottom: '10px', 
+              border: `2px solid ${type.color}`, 
+              borderRadius: '8px', 
+              overflow: 'hidden' 
+            }}
+          >
+            {/* Type Header - Collapsible */}
+            <div
+              onClick={() => toggleType(type.id)}
+              style={{
+                padding: '12px 15px',
+                backgroundColor: isExpanded ? type.color : '#f8f9fa',
+                color: isExpanded ? 'white' : type.color,
+                cursor: 'pointer',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                fontWeight: 'bold'
+              }}
+            >
+              <span>
+                {type.label}
+                {todayCount > 0 && (
+                  <span style={{ 
+                    marginLeft: '10px', 
+                    backgroundColor: isExpanded ? 'rgba(255,255,255,0.3)' : type.color,
+                    color: isExpanded ? 'white' : 'white',
+                    padding: '2px 8px', 
+                    borderRadius: '12px',
+                    fontSize: '12px'
+                  }}>
+                    {todayCount} today
+                  </span>
+                )}
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                <span style={{ fontSize: '12px', opacity: 0.9 }}>
+                  Net: {typeSummary.net || 0}
+                </span>
+                <span>{isExpanded ? '▼' : '▶'}</span>
+              </span>
+            </div>
+
+            {/* Expanded Content */}
+            {isExpanded && (
+              <div style={{ padding: '15px', backgroundColor: '#fafafa' }}>
+                {/* Add Button */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); addItem(type.id); }}
+                  style={{
+                    padding: '8px 15px',
+                    backgroundColor: type.color,
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    marginBottom: '15px',
+                    fontSize: '13px'
+                  }}
+                >
+                  + Add {type.label.replace(/[^\w\s]/g, '').trim()}
+                </button>
+
+                {/* Items List */}
+                {typeItems.length === 0 ? (
+                  <p style={{ color: '#999', fontStyle: 'italic', margin: '10px 0' }}>
+                    No {type.label.replace(/[^\w\s]/g, '').trim().toLowerCase()} logged today
+                  </p>
+                ) : (
+                  typeItems.map((item, idx) => (
+                    <div 
+                      key={item.id}
+                      style={{
+                        backgroundColor: 'white',
+                        border: '1px solid #dee2e6',
+                        borderRadius: '6px',
+                        padding: '15px',
+                        marginBottom: '10px'
+                      }}
+                    >
+                      <div style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        marginBottom: '10px',
+                        borderBottom: '1px solid #eee',
+                        paddingBottom: '8px'
+                      }}>
+                        <span style={{ fontWeight: 'bold', color: type.color }}>
+                          Entry #{idx + 1}
+                        </span>
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <button
+                            onClick={() => saveItem(item.id)}
+                            style={{
+                              padding: '4px 12px',
+                              backgroundColor: '#28a745',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '12px'
+                            }}
+                          >
+                            💾 Save
+                          </button>
+                          <button
+                            onClick={() => removeItem(item.id)}
+                            style={{
+                              padding: '4px 12px',
+                              backgroundColor: '#dc3545',
+                              color: 'white',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              fontSize: '12px'
+                            }}
+                          >
+                            🗑️ Remove
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Fields Grid */}
+                      <div style={{ 
+                        display: 'grid', 
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', 
+                        gap: '12px' 
+                      }}>
+                        {type.fields.map(field => (
+                          <div key={field.name}>
+                            <label style={labelStyle}>{field.label}</label>
+                            {field.type === 'select' ? (
+                              <select
+                                value={item[field.name] || ''}
+                                onChange={(e) => updateItem(item.id, field.name, e.target.value)}
+                                style={inputStyle}
+                              >
+                                <option value="">Select...</option>
+                                {field.options.map(opt => (
+                                  <option key={opt} value={opt}>{opt}</option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type={field.type}
+                                value={item[field.name] || ''}
+                                onChange={(e) => updateItem(item.id, field.name, e.target.value)}
+                                placeholder={field.placeholder || ''}
+                                style={inputStyle}
+                              />
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))
+                )}
+
+                {/* Summary Footer */}
+                {typeSummary && (typeSummary.deployed > 0 || typeSummary.retrieved > 0) && (
+                  <div style={{
+                    marginTop: '10px',
+                    padding: '10px',
+                    backgroundColor: '#e9ecef',
+                    borderRadius: '4px',
+                    fontSize: '12px',
+                    display: 'flex',
+                    justifyContent: 'space-around'
+                  }}>
+                    <span>📤 Deployed: <strong>{typeSummary.deployed}</strong></span>
+                    <span>📥 Retrieved: <strong>{typeSummary.retrieved}</strong></span>
+                    <span>📊 Net: <strong style={{ color: typeSummary.net > 0 ? '#28a745' : '#dc3545' }}>{typeSummary.net}</strong></span>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+export default TrackableItemsTracker

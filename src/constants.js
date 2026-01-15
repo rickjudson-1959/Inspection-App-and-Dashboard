@@ -1,15 +1,17 @@
 // constants.js - Pipeline Inspector Report Constants
 // Extracted from InspectorReport.jsx for cleaner code organization
 
-// Project configuration
-export const PROJECT_NAME = "Clearwater Pipeline - Demo Project"
-export const PROJECT_SHORT = "CWP"
+// Project configuration - FortisBC Eagle Mountain - Woodfibre Gas Pipeline
+export const PROJECT_NAME = "FortisBC EGP - Eagle Mountain Woodfibre Gas Pipeline"
+export const PROJECT_SHORT = "EGP"
 
-// Pipeline locations for weather lookup
+// Pipeline locations for weather lookup - EGP Route (47km)
+// KP 0+000 at Indian Arm (north end) to KP 47+000 at Woodfibre LNG Facility (Squamish)
 export const pipelineLocations = {
-  'Pipeline A': { lat: 53.5461, lon: -113.4938, name: 'Edmonton, AB' },
-  'Pipeline B': { lat: 51.0447, lon: -114.0719, name: 'Calgary, AB' },
-  'Pipeline C': { lat: 56.7267, lon: -111.3790, name: 'Fort McMurray, AB' }
+  'Indian Arm 0+000 to 12+000': { lat: 49.4667, lon: -122.8833, name: 'Indian Arm (Start)' },
+  'Mid-North 12+000 to 24+000': { lat: 49.5500, lon: -123.0500, name: 'Mid-Route North' },
+  'Mid-South 24+000 to 36+000': { lat: 49.6000, lon: -123.1500, name: 'Mid-Route South' },
+  'Woodfibre 36+000 to 47+000': { lat: 49.6700, lon: -123.2500, name: 'Woodfibre LNG (End)' }
 }
 
 // Activity types for pipeline construction
