@@ -69,13 +69,21 @@ serve(async (req) => {
         const existingUser = existingAuthUser?.users?.find(u => u.email === email.toLowerCase())
         
         if (existingUser) {
+          // Map invitation role values to database role values
+          const roleMapping: Record<string, string> = {
+            'chief': 'chief_inspector',
+            'exec': 'executive',
+            'asst_chief': 'assistant_chief_inspector',
+          }
+          const dbRole = roleMapping[user_role] || user_role
+          
           // User exists, just update profile
           await supabaseAdmin.from('user_profiles').upsert({
             id: existingUser.id,
             email: email.toLowerCase(),
             full_name,
-            user_role,
-            role: user_role,
+            user_role: dbRole,
+            role: dbRole,
             status: 'invited',
             updated_at: new Date().toISOString()
           }, { onConflict: 'id' })
@@ -105,13 +113,23 @@ serve(async (req) => {
       )
     }
 
+    // Map invitation role values to database role values
+    // Frontend uses short names (chief, exec, asst_chief) but database expects full names
+    const roleMapping: Record<string, string> = {
+      'chief': 'chief_inspector',
+      'exec': 'executive',
+      'asst_chief': 'assistant_chief_inspector',
+      // All other roles stay the same
+    }
+    const dbRole = roleMapping[user_role] || user_role
+    
     // Create user profile
     await supabaseAdmin.from('user_profiles').upsert({
       id: userData.user.id,
       email: email.toLowerCase(),
       full_name,
-      user_role,
-      role: user_role,
+      user_role: dbRole, // Store the mapped role in both fields
+      role: dbRole,
       status: 'invited',
       created_at: new Date().toISOString()
     }, { onConflict: 'id' })
