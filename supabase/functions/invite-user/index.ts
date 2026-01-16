@@ -23,21 +23,17 @@ serve(async (req) => {
       )
     }
 
-    // IMPORTANT: Use actual Supabase project URL (not custom domain) for auth operations
-    // Custom domains (api.pipe-up.ca) may not handle /auth/v1/ routes correctly
-    // The SUPABASE_URL env var might be the custom domain, so we use the project ref to construct the real URL
-    let supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
-    
-    // If SUPABASE_URL is a custom domain, extract project ref and use the real Supabase URL
+    // CRITICAL: Always use actual Supabase project URL (not custom domain) for auth operations
+    // Custom domains (api.pipe-up.ca) do NOT handle /auth/v1/ routes correctly
     // Project ref: aatvckalnvojlykfgnmz
-    if (supabaseUrl.includes('api.pipe-up.ca') || !supabaseUrl.includes('.supabase.co')) {
-      // Use the actual Supabase project URL for auth operations
-      supabaseUrl = 'https://aatvckalnvojlykfgnmz.supabase.co'
-      console.log('Using actual Supabase URL for auth operations:', supabaseUrl)
-    }
+    // We must use the real Supabase URL, not the custom domain, for generateLink to work
+    const actualSupabaseUrl = 'https://aatvckalnvojlykfgnmz.supabase.co'
+    
+    console.log('Using Supabase URL for auth:', actualSupabaseUrl)
+    console.log('SUPABASE_URL env var was:', Deno.env.get('SUPABASE_URL'))
     
     const supabaseAdmin = createClient(
-      supabaseUrl,
+      actualSupabaseUrl,  // Always use actual Supabase URL, never custom domain
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
