@@ -45,6 +45,11 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
     return children
   }
 
+  // Admin "god mode" - super_admin and admin can access any route
+  if (userProfile && (userProfile.role === 'super_admin' || userProfile.role === 'admin')) {
+    return children
+  }
+
   if (userProfile && allowedRoles.includes(userProfile.role)) {
     return children
   }
@@ -57,6 +62,11 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
   }
   if (userProfile?.role === 'chief_inspector') {
     return <Navigate to="/chief" replace />
+  }
+
+  // Default redirect for admins to admin portal
+  if (userProfile?.role === 'super_admin' || userProfile?.role === 'admin') {
+    return <Navigate to="/admin" replace />
   }
 
   return <Navigate to="/" replace />

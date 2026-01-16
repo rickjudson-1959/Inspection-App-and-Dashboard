@@ -533,9 +533,9 @@ function AdminPortal() {
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <MasterSwitcher compact />
           <button onClick={() => setShowInviteModal(true)} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>📧 Invite User</button>
-          <button onClick={() => navigate('/cmt-dashboard')} style={{ padding: '10px 20px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>📊 CMT</button>
-          <button onClick={() => navigate('/evm-dashboard')} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>💰 EVM</button>
-          <button onClick={() => navigate('/chief-dashboard')} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>👔 Chief</button>
+          <button onClick={() => navigate('/dashboard')} style={{ padding: '10px 20px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>📊 CMT</button>
+          <button onClick={() => navigate('/evm')} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>💰 EVM</button>
+          <button onClick={() => navigate('/chief')} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>👔 Chief</button>
           <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign Out</button>
         </div>
       </div>
