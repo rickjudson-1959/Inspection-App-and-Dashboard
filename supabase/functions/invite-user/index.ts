@@ -107,8 +107,21 @@ serve(async (req) => {
       created_at: new Date().toISOString()
     }, { onConflict: 'id' })
 
-    // Generate password reset token (this acts as the invitation link)
-    const redirectUrl = redirect_to || 'https://app.pipe-up.ca/inspector'
+    // Generate invitation link
+    // IMPORTANT: The redirect URL must:
+    // 1. Be the full URL (https://app.pipe-up.ca/reset-password)
+    // 2. Be added to Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
+    // 3. Match your production site_url in Supabase Dashboard → Settings → API → Site URL
+    const baseUrl = 'https://app.pipe-up.ca'
+    // If redirect_to is already a full URL, use it; otherwise prepend baseUrl
+    let redirectUrl
+    if (redirect_to && redirect_to.startsWith('http')) {
+      redirectUrl = redirect_to
+    } else {
+      const redirectPath = redirect_to ? redirect_to : '/reset-password'
+      redirectUrl = `${baseUrl}${redirectPath}`
+    }
+    
     const { data: tokenData, error: tokenError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'invite',
       email: email.toLowerCase(),
