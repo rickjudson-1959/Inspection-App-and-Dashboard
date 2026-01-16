@@ -28,12 +28,8 @@ import SafetyRecognition from './SafetyRecognition.jsx'
 import WildlifeSighting from './WildlifeSighting.jsx'
 import UnitPriceItemsLog from './UnitPriceItemsLog.jsx'
 import MatTracker from './MatTracker.jsx'
-import TrackableItemsTracker from './TrackableItemsTracker.jsx'
 import ReportWorkflow from './ReportWorkflow.jsx'
 import MiniMapWidget from './MiniMapWidget.jsx'
-
-// AI-powered review agents
-import { reviewTopsoilActivity, sendEnvironmentalAlert } from './TopsoilReviewerAgent.js'
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -101,6 +97,9 @@ function InspectorReport() {
   const [landEnvironment, setLandEnvironment] = useState('')
   const [generalComments, setGeneralComments] = useState('')
   const [visitors, setVisitors] = useState([])
+  const [visitorName, setVisitorName] = useState('')
+  const [visitorCompany, setVisitorCompany] = useState('')
+  const [visitorPosition, setVisitorPosition] = useState('')
 
   // Inspector info
   const [inspectorMileage, setInspectorMileage] = useState('')
@@ -133,10 +132,22 @@ function InspectorReport() {
   // Collapsible sections
   const [trackableItemsExpanded, setTrackableItemsExpanded] = useState(false)
 
-  // Topsoil AI Review Results
-  const [topsoilReviewResults, setTopsoilReviewResults] = useState([])
-  const [showTopsoilReview, setShowTopsoilReview] = useState(false)
-  const [reviewingTopsoil, setReviewingTopsoil] = useState(false)
+
+  // Add visitor
+  function addVisitor() {
+    if (!visitorName.trim()) {
+      alert('Please enter a visitor name')
+      return
+    }
+    setVisitors([...visitors, {
+      name: visitorName.trim(),
+      company: visitorCompany.trim(),
+      position: visitorPosition.trim()
+    }])
+    setVisitorName('')
+    setVisitorCompany('')
+    setVisitorPosition('')
+  }
 
   // Convert image file to base64
   async function imageToBase64(file) {
@@ -1383,7 +1394,8 @@ Important:
               bendingData: block.bendingData || null,
               stringingData: block.stringingData || null,
               coatingData: block.coatingData || null,
-              clearingData: block.clearingData || null
+              clearingData: block.clearingData || null,
+              counterboreData: block.counterboreData || null
             }
           })
           setActivityBlocks(loadedBlocks)
@@ -2072,7 +2084,8 @@ Important:
           bendingData: block.bendingData || null,
           stringingData: block.stringingData || null,
           coatingData: block.coatingData || null,
-          clearingData: block.clearingData || null
+          clearingData: block.clearingData || null,
+          counterboreData: block.counterboreData || null
         })
       }
 
@@ -2281,58 +2294,6 @@ Important:
         for (const block of activityBlocks) {
           if (block.activityType === 'Welding - Tie-in' && block.weldData?.tieIns?.length > 0) {
             await saveTieInTicket({ tieIns: block.weldData.tieIns })
-          }
-        }
-
-        // Run AI-powered Topsoil review for any Topsoil activities
-        const topsoilBlocks = processedBlocks.filter(b => b.activityType === 'Topsoil')
-        if (topsoilBlocks.length > 0) {
-          setReviewingTopsoil(true)
-          const reviews = []
-          
-          for (const block of topsoilBlocks) {
-            try {
-              const weatherData = {
-                weather: weather,
-                precipitation: parseFloat(precipitation) || 0,
-                tempHigh: parseFloat(tempHigh) || null,
-                tempLow: parseFloat(tempLow) || null
-              }
-              
-              const reviewResult = await reviewTopsoilActivity(block, weatherData, {
-                environmentalLeadEmail: 'environmental@project.com' // TODO: Make configurable
-              })
-              
-              reviewResult.blockId = block.id
-              reviews.push(reviewResult)
-              
-              // Send email alerts for HIGH/CRITICAL severity
-              if (reviewResult.notificationRequired) {
-                try {
-                  await sendEnvironmentalAlert(reviewResult)
-                  reviewResult.notificationSent = true
-                } catch (emailErr) {
-                  console.error('Failed to send environmental alert:', emailErr)
-                  reviewResult.notificationSent = false
-                  reviewResult.notificationError = emailErr.message
-                }
-              }
-            } catch (reviewErr) {
-              console.error('Topsoil review error:', reviewErr)
-              reviews.push({
-                blockId: block.id,
-                error: reviewErr.message,
-                overallStatus: 'ERROR'
-              })
-            }
-          }
-          
-          setTopsoilReviewResults(reviews)
-          setReviewingTopsoil(false)
-          
-          // Show review results if there are any alerts or warnings
-          if (reviews.some(r => r.alertCount > 0 || r.warningCount > 0)) {
-            setShowTopsoilReview(true)
           }
         }
 
@@ -4397,16 +4358,9 @@ Important:
         
         {trackableItemsExpanded && (
           <div style={{ padding: '20px' }}>
-            <TrackableItemsTracker
-              projectId={pipeline || 'default'}
-              reportDate={selectedDate}
-              reportId={currentReportId}
-              inspector={inspectorName}
-              onDataChange={(data) => {
-                console.log('Trackable items updated:', data)
-                setTrackableItemsData(data)
-              }}
-            />
+            <p style={{ color: '#666', fontStyle: 'italic' }}>
+              Trackable items tracking is currently being updated. Please use the Mat Tracker section for material tracking.
+            </p>
           </div>
         )}
       </div>
@@ -4593,161 +4547,80 @@ Important:
         </div>
       )}
 
-      {/* TOPSOIL AI REVIEW RESULTS */}
-      {(showTopsoilReview || reviewingTopsoil) && (
-        <div style={{ 
-          backgroundColor: topsoilReviewResults.some(r => r.alertCount > 0) ? '#f8d7da' : 
-                          topsoilReviewResults.some(r => r.warningCount > 0) ? '#fff3cd' : '#d4edda',
-          border: `2px solid ${topsoilReviewResults.some(r => r.alertCount > 0) ? '#dc3545' : 
-                              topsoilReviewResults.some(r => r.warningCount > 0) ? '#ffc107' : '#28a745'}`,
-          padding: '20px', 
-          borderRadius: '8px', 
-          marginBottom: '20px' 
-        }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-              🌍 Topsoil Environmental Review
-              {reviewingTopsoil && <span style={{ fontSize: '14px', color: '#666' }}>Analyzing...</span>}
-            </h3>
-            {!reviewingTopsoil && (
-              <button
-                onClick={() => setShowTopsoilReview(false)}
-                style={{ padding: '6px 12px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
-              >
-                Dismiss
-              </button>
-            )}
-          </div>
-          
-          {reviewingTopsoil ? (
-            <div style={{ textAlign: 'center', padding: '20px' }}>
-              <div style={{ fontSize: '24px', marginBottom: '10px' }}>⏳</div>
-              <p style={{ color: '#666' }}>Running AI-powered environmental compliance review...</p>
-            </div>
-          ) : (
-            topsoilReviewResults.map((review, idx) => (
-              <div key={idx} style={{ 
-                backgroundColor: 'white', 
-                padding: '15px', 
-                borderRadius: '6px', 
-                marginBottom: idx < topsoilReviewResults.length - 1 ? '15px' : 0,
-                border: '1px solid #dee2e6'
-              }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                  <strong>KP {review.activityKP}</strong>
-                  <span style={{ 
-                    padding: '4px 12px', 
-                    borderRadius: '20px',
-                    fontSize: '12px',
-                    fontWeight: 'bold',
-                    backgroundColor: review.overallStatus === 'ALERT' ? '#dc3545' : 
-                                    review.overallStatus === 'WARNING' ? '#ffc107' : 
-                                    review.overallStatus === 'PASS' ? '#28a745' : '#6c757d',
-                    color: review.overallStatus === 'WARNING' ? '#000' : 'white'
-                  }}>
-                    {review.overallStatus}
-                  </span>
-                </div>
-                
-                {/* Alerts */}
-                {review.alerts?.length > 0 && (
-                  <div style={{ marginBottom: '10px' }}>
-                    <strong style={{ color: '#dc3545', fontSize: '13px' }}>🚨 ALERTS ({review.alertCount})</strong>
-                    {review.alerts.map((alert, aIdx) => (
-                      <div key={aIdx} style={{ 
-                        backgroundColor: '#f8d7da', 
-                        padding: '10px', 
-                        borderRadius: '4px', 
-                        marginTop: '8px',
-                        borderLeft: '4px solid #dc3545'
-                      }}>
-                        <div style={{ fontWeight: 'bold', color: '#721c24', marginBottom: '5px' }}>
-                          {alert.type} <span style={{ fontWeight: 'normal', fontSize: '12px' }}>({alert.severity})</span>
-                        </div>
-                        <div style={{ color: '#721c24', fontSize: '13px', marginBottom: '8px' }}>{alert.message}</div>
-                        <div style={{ 
-                          backgroundColor: '#fff', 
-                          padding: '8px', 
-                          borderRadius: '4px',
-                          fontSize: '12px',
-                          color: '#155724'
-                        }}>
-                          <strong>Recommended Action:</strong> {alert.recommendedAction}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {/* Warnings */}
-                {review.warnings?.length > 0 && (
-                  <div style={{ marginBottom: '10px' }}>
-                    <strong style={{ color: '#856404', fontSize: '13px' }}>⚠️ WARNINGS ({review.warningCount})</strong>
-                    {review.warnings.map((warning, wIdx) => (
-                      <div key={wIdx} style={{ 
-                        backgroundColor: '#fff3cd', 
-                        padding: '10px', 
-                        borderRadius: '4px', 
-                        marginTop: '8px',
-                        borderLeft: '4px solid #ffc107'
-                      }}>
-                        <div style={{ fontWeight: 'bold', color: '#856404', marginBottom: '5px' }}>{warning.type}</div>
-                        <div style={{ color: '#856404', fontSize: '13px' }}>{warning.message}</div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                
-                {/* Passed Checks */}
-                {review.passedChecks?.length > 0 && (
-                  <div>
-                    <strong style={{ color: '#155724', fontSize: '13px' }}>✅ PASSED ({review.passedCount})</strong>
-                    <div style={{ 
-                      display: 'flex', 
-                      flexWrap: 'wrap', 
-                      gap: '8px', 
-                      marginTop: '8px' 
-                    }}>
-                      {review.passedChecks.map((check, cIdx) => (
-                        <span key={cIdx} style={{ 
-                          backgroundColor: '#d4edda', 
-                          color: '#155724', 
-                          padding: '4px 10px', 
-                          borderRadius: '4px',
-                          fontSize: '12px'
-                        }}>
-                          ✓ {check}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Notification Status */}
-                {review.notificationRequired && (
-                  <div style={{ 
-                    marginTop: '15px', 
-                    padding: '10px', 
-                    backgroundColor: review.notificationSent ? '#d4edda' : '#f8d7da',
-                    borderRadius: '4px',
-                    fontSize: '12px'
-                  }}>
-                    {review.notificationSent ? (
-                      <span style={{ color: '#155724' }}>
-                        📧 Environmental Lead has been notified ({review.notificationRecipient})
-                      </span>
-                    ) : (
-                      <span style={{ color: '#721c24' }}>
-                        ⚠️ Failed to send notification: {review.notificationError || 'Unknown error'}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))
-          )}
+      {/* VISITORS */}
+      <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #dee2e6' }}>
+        <div style={{ borderBottom: '2px solid #6c757d', paddingBottom: '10px', marginBottom: '15px' }}>
+          <h2 style={{ margin: 0, color: '#333' }}>VISITORS</h2>
         </div>
-      )}
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', flexWrap: 'wrap' }}>
+          <input
+            type="text"
+            value={visitorName}
+            onChange={(e) => setVisitorName(e.target.value)}
+            placeholder="Name"
+            style={{ flex: 1, minWidth: '150px', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+          />
+          <input
+            type="text"
+            value={visitorCompany}
+            onChange={(e) => setVisitorCompany(e.target.value)}
+            placeholder="Company"
+            style={{ flex: 1, minWidth: '150px', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+          />
+          <input
+            type="text"
+            value={visitorPosition}
+            onChange={(e) => setVisitorPosition(e.target.value)}
+            placeholder="Position"
+            style={{ flex: 1, minWidth: '150px', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+          />
+          <button
+            onClick={addVisitor}
+            style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            Add Visitor
+          </button>
+        </div>
+        {visitors.length > 0 && (
+          <div style={{ marginTop: '15px' }}>
+            <h3 style={{ fontSize: '14px', marginBottom: '10px', color: '#333' }}>Visitor List:</h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {visitors.map((visitor, idx) => (
+                <div key={idx} style={{ 
+                  padding: '10px', 
+                  backgroundColor: 'white', 
+                  border: '1px solid #dee2e6', 
+                  borderRadius: '4px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span>
+                    <strong>{visitor.name}</strong>
+                    {visitor.company && ` - ${visitor.company}`}
+                    {visitor.position && ` (${visitor.position})`}
+                  </span>
+                  <button
+                    onClick={() => setVisitors(visitors.filter((_, i) => i !== idx))}
+                    style={{ 
+                      padding: '5px 10px', 
+                      backgroundColor: '#dc3545', 
+                      color: 'white', 
+                      border: 'none', 
+                      borderRadius: '4px', 
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
 
       {/* SAVE BUTTONS */}
       <div style={{ backgroundColor: '#e9ecef', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>

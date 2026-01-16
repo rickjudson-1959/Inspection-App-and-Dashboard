@@ -444,16 +444,27 @@ export async function aggregateWeldingProgress(reportDate, reports = null) {
     }
 
     // Extract welding data from activity_blocks in reports
-    reports.forEach(report => {
+    console.log('Aggregating welding data from', reports.length, 'reports')
+    reports.forEach((report, reportIdx) => {
       const blocks = report.activity_blocks || []
-      blocks.forEach(block => {
+      console.log(`Report ${reportIdx + 1} (ID: ${report.id}): ${blocks.length} activity blocks`)
+      
+      blocks.forEach((block, blockIdx) => {
         // Check for welding activity types
         if (block.activityType === 'Welding - Mainline' || block.activityType === 'Welding - Section Crew' || 
             block.activityType === 'Welding - Poor Boy') {
           // Extract weld data from the block
           const weldData = block.weldData || {}
+          console.log(`  Block ${blockIdx + 1}: ${block.activityType}`, {
+            hasWeldData: !!block.weldData,
+            weldEntries: weldData.weldEntries?.length || 0,
+            weldsToday: weldData.weldsToday,
+            repairs: weldData.repairs?.length || 0
+          })
+          
           const weldEntries = weldData.weldEntries || []
-          const weldsToday = weldData.weldEntries?.length || weldData.weldsToday || weldEntries.length || 0
+          // Use weldsToday if available, otherwise count entries
+          const weldsToday = weldData.weldsToday || weldEntries.length || 0
           const repairs = weldData.repairs || []
           
           // Determine weld type based on activity type
@@ -470,6 +481,7 @@ export async function aggregateWeldingProgress(reportDate, reports = null) {
           weldTypes[key].today_welds += weldsToday
           
           // Calculate metres (assume 12.2m per joint if not specified)
+          // Try to get metres from block metadata or use default
           const metres = parseFloat(block.metresToday) || (weldsToday * 12.2)
           weldTypes[key].today_lm += metres
           
@@ -478,13 +490,22 @@ export async function aggregateWeldingProgress(reportDate, reports = null) {
             w.repairRequired === 'Yes' || w.repairRequired === true || w.repair === true
           ).length
           weldTypes[key].repairs_today += repairCount
+          
+          console.log(`    → Added to ${key}: ${weldsToday} welds, ${metres.toFixed(1)}m, ${repairCount} repairs`)
         } else if (block.activityType === 'Welding - Tie-in') {
-          // Tie-in data is in counterboreData
+          // Tie-in data might be in counterboreData or weldData
           const counterboreData = block.counterboreData || {}
+          const weldData = block.weldData || {}
           const transitions = counterboreData.transitions || []
           
+          console.log(`  Block ${blockIdx + 1}: Welding - Tie-in`, {
+            hasCounterboreData: !!block.counterboreData,
+            hasWeldData: !!block.weldData,
+            transitions: transitions.length
+          })
+          
           // Count transitions as welds (each transition is typically one weld)
-          const tieInWeldCount = transitions.length || (counterboreData.weldNumber ? 1 : 0)
+          const tieInWeldCount = transitions.length || (counterboreData.weldNumber ? 1 : 0) || (weldData.tieIns?.length || 0)
           weldTypes['GMAW/FCAW Tie-Ins'].today_welds += tieInWeldCount
           
           // Calculate metres (assume 12.2m per joint if not specified)
@@ -495,9 +516,13 @@ export async function aggregateWeldingProgress(reportDate, reports = null) {
           if (counterboreData.repairRequired === 'Yes' || counterboreData.repairRequired === true) {
             weldTypes['GMAW/FCAW Tie-Ins'].repairs_today += tieInWeldCount
           }
+          
+          console.log(`    → Added to Tie-Ins: ${tieInWeldCount} welds, ${metres.toFixed(1)}m`)
         }
       })
     })
+    
+    console.log('Final welding totals:', weldTypes)
 
     // Try to get previous totals from welding_progress table (optional - don't fail if table doesn't exist)
     let previousProgress = []
