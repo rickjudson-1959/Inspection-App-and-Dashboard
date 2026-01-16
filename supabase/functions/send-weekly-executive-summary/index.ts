@@ -141,7 +141,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Pipe-Up Reports <onboarding@resend.dev>', // Update with your verified domain
+        from: 'Pipe-Up Reports <noreply@pipe-up.ca>', // Verified domain in Resend
         to: executiveEmails,
         subject: `📈 Weekly Project Health Report - ${dateRangeStr}`,
         html: htmlContent,

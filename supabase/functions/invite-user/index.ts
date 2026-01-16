@@ -179,10 +179,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            // IMPORTANT: Replace with your verified domain email after verifying domain in Resend
-            // For now, using test domain which only allows sending to rjudson@protonmail.com
-            // To verify domain: https://resend.com/domains
-            from: 'Pipe-Up <onboarding@resend.dev>', 
+            from: 'Pipe-Up <noreply@pipe-up.ca>', // Verified domain in Resend 
             to: email.toLowerCase(),
             subject: `You've been invited to Pipe-Up Pipeline Inspector`,
             html: emailHtml,

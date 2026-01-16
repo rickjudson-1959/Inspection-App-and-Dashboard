@@ -41,7 +41,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Pipe-Up Reports <onboarding@resend.dev>', // Use your verified domain later
+        from: 'Pipe-Up Reports <noreply@pipe-up.ca>', // Verified domain in Resend
         to: Array.isArray(to) ? to : [to],
         subject: subject || '📈 Weekly Project Health Report',
         html: htmlContent,
