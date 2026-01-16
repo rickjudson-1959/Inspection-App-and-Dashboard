@@ -1,8 +1,3 @@
-// supabase/functions/invite-user/index.ts
-// Invite user via email with role assignment
-// Deploy with: supabase functions deploy invite-user
-// This function uses the Supabase Admin API to invite users
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -12,22 +7,11 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // Get authorization header
-    const authHeader = req.headers.get('Authorization')
-    if (!authHeader) {
-      return new Response(
-        JSON.stringify({ error: 'Authorization header required' }),
-        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Parse request body
     const { email, full_name, user_role, redirect_to } = await req.json()
 
     if (!email || !full_name || !user_role) {
@@ -37,93 +21,69 @@ serve(async (req) => {
       )
     }
 
-    // Initialize Supabase Admin client
-    const supabaseUrl = Deno.env.get('SUPABASE_URL') || ''
-    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') || ''
-
-    if (!supabaseUrl || !supabaseServiceKey) {
+    // Supabase automatically provides these environment variables to edge functions
+    const supabaseUrl = Deno.env.get('SUPABASE_URL')
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
+    
+    if (!supabaseUrl || !serviceRoleKey) {
       return new Response(
-        JSON.stringify({ error: 'Supabase configuration missing' }),
+        JSON.stringify({ error: 'Supabase configuration missing. This should be automatically provided.' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
+    const supabaseAdmin = createClient(
+      supabaseUrl,
+      serviceRoleKey,
+      { auth: { autoRefreshToken: false, persistSession: false } }
+    )
 
-    // Build redirect URL
-    const baseUrl = Deno.env.get('SITE_URL') || 'https://app.pipe-up.ca'
-    const redirectUrl = redirect_to ? `${baseUrl}${redirect_to}` : `${baseUrl}/inspector`
+    const { data: existingUser } = await supabaseAdmin
+      .from('user_profiles')
+      .select('id, email')
+      .eq('email', email.toLowerCase())
+      .single()
 
-    // Invite user via Admin API
+    if (existingUser) {
+      return new Response(
+        JSON.stringify({ error: 'A user with this email already exists' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
     const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      email,
+      email.toLowerCase(),
       {
-        data: {
-          full_name: full_name,
-          user_role: user_role,
-          invited_at: new Date().toISOString()
-        },
-        redirectTo: redirectUrl
+        data: { full_name, user_role, invited_at: new Date().toISOString() },
+        redirectTo: redirect_to || 'https://app.pipe-up.ca'
       }
     )
 
     if (inviteError) {
-      console.error('Invite error:', inviteError)
       return new Response(
-        JSON.stringify({ error: inviteError.message || 'Failed to invite user' }),
-        { status: inviteError.status || 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ error: inviteError.message }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    if (!inviteData?.user) {
-      return new Response(
-        JSON.stringify({ error: 'User invitation failed - no user data returned' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      )
-    }
-
-    // Create/update user profile
-    const { error: profileError } = await supabaseAdmin
-      .from('user_profiles')
-      .upsert({
+    if (inviteData?.user) {
+      await supabaseAdmin.from('user_profiles').upsert({
         id: inviteData.user.id,
-        email: email,
-        full_name: full_name,
-        user_role: user_role,
-        role: user_role, // Support both fields
+        email: email.toLowerCase(),
+        full_name,
+        user_role,
+        role: user_role,
         status: 'invited',
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
-      }, {
-        onConflict: 'id'
-      })
-
-    if (profileError) {
-      console.error('Profile creation error:', profileError)
-      // Don't fail the request if profile creation fails - user was still invited
-      console.warn('User invited but profile creation failed:', profileError.message)
+        created_at: new Date().toISOString()
+      }, { onConflict: 'id' })
     }
 
     return new Response(
-      JSON.stringify({
-        success: true,
-        user: {
-          id: inviteData.user.id,
-          email: inviteData.user.email,
-          role: user_role
-        },
-        message: `Invitation sent to ${email}`
-      }),
+      JSON.stringify({ success: true, message: `Invitation sent to ${email}`, user_id: inviteData?.user?.id }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Edge function error:', error)
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
