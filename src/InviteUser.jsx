@@ -68,6 +68,22 @@ function InviteUser({ onSuccess, onCancel }) {
         if (fnData?.error) {
           throw new Error(fnData.error)
         }
+        
+        // Log email send status for debugging
+        if (fnData) {
+          console.log('Invite response:', {
+            email_sent: fnData.email_sent,
+            email_message_id: fnData.email_message_id,
+            email_error: fnData.email_error,
+            invitation_link: fnData.invitation_link
+          })
+          
+          // If email didn't send, show warning
+          if (!fnData.email_sent && fnData.email_error) {
+            console.warn('Email not sent:', fnData.email_error)
+            // Still show success since user was created, but log the email issue
+          }
+        }
       } else if (data?.user) {
         // Create profile record
         await supabase.from('user_profiles').upsert({

@@ -123,7 +123,17 @@ serve(async (req) => {
     }
 
     // Send custom invitation email via Resend
-    if (RESEND_API_KEY && tokenData?.properties?.action_link) {
+    let emailSent = false
+    let emailError = null
+    let emailMessageId = null
+
+    if (!RESEND_API_KEY) {
+      emailError = 'RESEND_API_KEY not configured in edge function secrets'
+      console.error(emailError)
+    } else if (!tokenData?.properties?.action_link) {
+      emailError = 'Failed to generate invitation link'
+      console.error('Token generation failed:', tokenError)
+    } else {
       const inviteLink = tokenData.properties.action_link
       const emailHtml = `
 <!DOCTYPE html>
@@ -179,22 +189,33 @@ serve(async (req) => {
         const emailResult = await emailResponse.json()
 
         if (!emailResponse.ok) {
-          console.error('Resend email error:', emailResult)
-          // Don't fail the request - user is created, they can use password reset
+          emailError = `Resend API error: ${JSON.stringify(emailResult)}`
+          console.error('Resend email error:', emailResponse.status, emailResult)
+        } else if (emailResult?.id) {
+          emailSent = true
+          emailMessageId = emailResult.id
+          console.log('Email sent successfully via Resend. Message ID:', emailResult.id)
+        } else {
+          emailError = 'Resend API returned success but no message ID'
+          console.error('Unexpected Resend response:', emailResult)
         }
       } catch (emailErr) {
+        emailError = `Email send error: ${emailErr.message || 'Unknown error'}`
         console.error('Error sending invitation email:', emailErr)
-        // Don't fail the request - user is created
       }
-    } else {
-      console.warn('RESEND_API_KEY not configured or invite link not generated - invitation email not sent')
     }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: `User account created and invitation sent to ${email}`, 
-        user_id: userData.user.id 
+        message: emailSent 
+          ? `User account created and invitation email sent to ${email}` 
+          : `User account created. Email ${emailError ? `failed: ${emailError}` : 'not sent'}`,
+        user_id: userData.user.id,
+        email_sent: emailSent,
+        email_message_id: emailMessageId,
+        email_error: emailError,
+        invitation_link: tokenData?.properties?.action_link || null
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
