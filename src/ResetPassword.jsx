@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from './supabase'
 
 function ResetPassword() {
@@ -9,6 +10,9 @@ function ResetPassword() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(false)
   const [sessionReady, setSessionReady] = useState(false)
+  const [userProfile, setUserProfile] = useState(null)
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   useEffect(() => {
     // Check if we have a valid session from the reset link
@@ -16,6 +20,15 @@ function ResetPassword() {
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         setSessionReady(true)
+        // Fetch user profile to determine redirect after password set
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role, user_role')
+          .eq('id', session.user.id)
+          .maybeSingle()
+        if (profile) {
+          setUserProfile(profile)
+        }
       } else {
         setError('Invalid or expired reset link. Please request a new password reset.')
       }
@@ -24,6 +37,48 @@ function ResetPassword() {
     // Give Supabase a moment to process the token from the URL
     setTimeout(checkSession, 500)
   }, [])
+
+  function getRedirectPath() {
+    // First, check for redirect_to parameter in URL (from invitation link)
+    const redirectTo = searchParams.get('redirect_to')
+    if (redirectTo) {
+      // Extract path from full URL if needed
+      try {
+        const url = new URL(redirectTo)
+        return url.pathname + url.search
+      } catch {
+        // If not a full URL, assume it's a path
+        return redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`
+      }
+    }
+    
+    // Otherwise, redirect based on user role
+    if (userProfile) {
+      const role = userProfile.role || userProfile.user_role
+      switch (role) {
+        case 'super_admin':
+        case 'admin':
+          return '/admin'
+        case 'executive':
+          return '/evm'
+        case 'chief_inspector':
+          return '/chief'
+        case 'assistant_chief_inspector':
+          return '/assistant-chief'
+        case 'pm':
+        case 'cm':
+          return '/dashboard'
+        case 'inspector':
+          return '/inspector'
+        case 'ndt_auditor':
+          return '/auditor-dashboard'
+        default:
+          return '/login'
+      }
+    }
+    
+    return '/login'
+  }
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -50,14 +105,17 @@ function ResetPassword() {
 
       setSuccess(true)
       
-      // Sign out after password change
-      await supabase.auth.signOut()
+      // Redirect after a brief delay to show success message
+      const redirectPath = getRedirectPath()
+      setTimeout(() => {
+        // Don't sign out - user should be logged in after setting password
+        navigate(redirectPath, { replace: true })
+      }, 1500)
       
     } catch (err) {
       setError(err.message)
+      setLoading(false)
     }
-    
-    setLoading(false)
   }
 
   return (
@@ -113,8 +171,11 @@ function ResetPassword() {
             }}>
               ✅ Password updated successfully!
             </div>
-            <a 
-              href="/"
+            <button
+              onClick={() => {
+                const redirectPath = getRedirectPath()
+                navigate(redirectPath, { replace: true })
+              }}
               style={{
                 display: 'block',
                 width: '100%',
@@ -127,11 +188,12 @@ function ResetPassword() {
                 fontWeight: 'bold',
                 textAlign: 'center',
                 textDecoration: 'none',
-                boxShadow: '0 4px 12px rgba(211, 95, 40, 0.3)'
+                boxShadow: '0 4px 12px rgba(211, 95, 40, 0.3)',
+                cursor: 'pointer'
               }}
             >
-              Go to Login
-            </a>
+              Continue to Dashboard
+            </button>
           </div>
         ) : !sessionReady && !error ? (
           <div style={{ textAlign: 'center', padding: '20px' }}>

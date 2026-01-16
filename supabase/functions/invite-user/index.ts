@@ -117,19 +117,17 @@ serve(async (req) => {
     }, { onConflict: 'id' })
 
     // Generate invitation link
-    // IMPORTANT: The redirect URL must:
-    // 1. Be the full URL (https://app.pipe-up.ca/reset-password)
-    // 2. Be added to Supabase Dashboard → Authentication → URL Configuration → Redirect URLs
-    // 3. Match your production site_url in Supabase Dashboard → Settings → API → Site URL
+    // IMPORTANT: For invitation links, users must set their password first
+    // So we always redirect to /reset-password, then pass the final destination as a parameter
     const baseUrl = 'https://app.pipe-up.ca'
-    // If redirect_to is already a full URL, use it; otherwise prepend baseUrl
-    let redirectUrl
-    if (redirect_to && redirect_to.startsWith('http')) {
-      redirectUrl = redirect_to
-    } else {
-      const redirectPath = redirect_to ? redirect_to : '/reset-password'
-      redirectUrl = `${baseUrl}${redirectPath}`
-    }
+    
+    // Determine final destination after password is set
+    const finalDestination = redirect_to ? redirect_to : '/chief-dashboard'
+    
+    // Always redirect to reset-password first, with final destination as parameter
+    // Format: /reset-password?redirect_to=/chief-dashboard
+    const redirectPath = finalDestination.startsWith('/') ? finalDestination : `/${finalDestination}`
+    const redirectUrl = `${baseUrl}/reset-password?redirect_to=${encodeURIComponent(redirectPath)}`
     
     const { data: tokenData, error: tokenError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'invite',
