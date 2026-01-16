@@ -55,10 +55,19 @@ function InviteUser({ onSuccess, onCancel }) {
       
       if (inviteError) {
         // Option 2: Fall back to edge function
-        const { error: fnError } = await supabase.functions.invoke('invite-user', {
+        const { data: fnData, error: fnError } = await supabase.functions.invoke('invite-user', {
           body: { ...formData, redirect_to: landingPage }
         })
-        if (fnError) throw fnError
+        
+        if (fnError) {
+          console.error('Edge function error:', fnError)
+          throw fnError
+        }
+        
+        // Check if the response contains an error
+        if (fnData?.error) {
+          throw new Error(fnData.error)
+        }
       } else if (data?.user) {
         // Create profile record
         await supabase.from('user_profiles').upsert({

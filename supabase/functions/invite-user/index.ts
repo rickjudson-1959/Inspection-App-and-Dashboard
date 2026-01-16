@@ -38,13 +38,23 @@ serve(async (req) => {
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    const { data: existingUser } = await supabaseAdmin
+    // Check if user already exists (handle both user_profiles and auth.users)
+    const { data: existingProfile, error: profileCheckError } = await supabaseAdmin
       .from('user_profiles')
       .select('id, email')
       .eq('email', email.toLowerCase())
-      .single()
+      .maybeSingle()
 
-    if (existingUser) {
+    if (profileCheckError && profileCheckError.code !== 'PGRST116') {
+      // PGRST116 is "not found" which is fine, other errors are real problems
+      console.error('Error checking existing user:', profileCheckError)
+      return new Response(
+        JSON.stringify({ error: 'Error checking for existing user', details: profileCheckError.message }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      )
+    }
+
+    if (existingProfile) {
       return new Response(
         JSON.stringify({ error: 'A user with this email already exists' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -84,8 +94,12 @@ serve(async (req) => {
     )
 
   } catch (error) {
+    console.error('Edge function error:', error)
     return new Response(
-      JSON.stringify({ error: error.message || 'Internal server error' }),
+      JSON.stringify({ 
+        error: error.message || 'Internal server error',
+        details: error.stack || 'No additional details'
+      }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   }
