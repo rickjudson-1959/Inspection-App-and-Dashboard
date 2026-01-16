@@ -71,12 +71,23 @@ function InviteUser({ onSuccess, onCancel }) {
         
         // Log email send status for debugging
         if (fnData) {
-          console.log('Invite response:', {
+          console.log('📧 Invite response:', {
             email_sent: fnData.email_sent,
             email_message_id: fnData.email_message_id,
             email_error: fnData.email_error,
             invitation_link: fnData.invitation_link
           })
+          
+          // Show invitation link in console for easy copying/testing
+          if (fnData.invitation_link) {
+            console.log('🔗 Invitation Link:', fnData.invitation_link)
+            console.log('📋 Link Format Check:')
+            console.log('  - Has https://:', fnData.invitation_link.includes('https://'))
+            console.log('  - Contains supabase.co:', fnData.invitation_link.includes('supabase.co'))
+            console.log('  - Contains /auth/v1/verify:', fnData.invitation_link.includes('/auth/v1/verify'))
+            console.log('  - Contains redirect_to:', fnData.invitation_link.includes('redirect_to'))
+            console.log('  - Length:', fnData.invitation_link.length, 'characters')
+          }
           
           // If email didn't send, show warning
           if (!fnData.email_sent && fnData.email_error) {

@@ -133,6 +133,10 @@ serve(async (req) => {
     if (tokenError) {
       console.error('Error generating invite link:', tokenError)
       // Continue anyway - user is created, they can use password reset
+    } else if (tokenData?.properties?.action_link) {
+      console.log('✅ Invitation link generated successfully')
+      console.log('🔗 Link format:', tokenData.properties.action_link.substring(0, 100) + '...')
+      console.log('📍 Redirect URL:', redirectUrl)
     }
 
     // Send custom invitation email via Resend
