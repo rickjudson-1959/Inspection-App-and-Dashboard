@@ -683,22 +683,26 @@ function NDTAuditorDashboard() {
         
         {/* Navigation */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '15px', borderTop: '1px solid #333', backgroundColor: '#16213e' }}>
-          <button
-            onClick={() => {
-              // Navigate to admin for admins/super_admins, otherwise to chief
-              const userRole = userProfile?.role || userProfile?.user_role
-              if (userRole === 'admin' || userRole === 'super_admin') {
-                navigate('/admin')
-              } else {
-                navigate('/chief')
-              }
-            }}
-            style={{ width: '100%', padding: '12px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginBottom: '8px' }}
-          >
-            {userProfile?.role === 'admin' || userProfile?.role === 'super_admin' || userProfile?.user_role === 'admin' || userProfile?.user_role === 'super_admin' 
-              ? '← Admin Dashboard' 
-              : '← Chief Dashboard'}
-          </button>
+          {/* Only show back button for admins/chiefs accessing via god mode */}
+          {(userProfile?.role === 'admin' || userProfile?.role === 'super_admin' || userProfile?.role === 'chief_inspector' || 
+            userProfile?.user_role === 'admin' || userProfile?.user_role === 'super_admin' || userProfile?.user_role === 'chief_inspector') && (
+            <button
+              onClick={() => {
+                // Navigate to admin for admins/super_admins, otherwise to chief
+                const userRole = userProfile?.role || userProfile?.user_role
+                if (userRole === 'admin' || userRole === 'super_admin') {
+                  navigate('/admin')
+                } else {
+                  navigate('/chief')
+                }
+              }}
+              style={{ width: '100%', padding: '12px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginBottom: '8px' }}
+            >
+              {userProfile?.role === 'admin' || userProfile?.role === 'super_admin' || userProfile?.user_role === 'admin' || userProfile?.user_role === 'super_admin' 
+                ? '← Admin Dashboard' 
+                : '← Chief Dashboard'}
+            </button>
+          )}
           <button
             onClick={signOut}
             style={{ width: '100%', padding: '12px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
