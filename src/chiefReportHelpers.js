@@ -234,9 +234,10 @@ export async function buildProgressData(reportDate) {
  */
 export async function fetchApprovedReportsForDate(reportDate) {
   try {
-    console.log('Fetching reports for date:', reportDate)
+    console.log('🔍 Fetching reports for date:', reportDate)
     
-    // First, try to get all reports for this date (Chief should see all submitted/approved reports)
+    // Get all reports for this date - Chief should see all reports regardless of status
+    // We'll filter out only rejected reports in the UI if needed
     const { data: allReports, error: allError } = await supabase
       .from('daily_tickets')
       .select('*')
@@ -244,55 +245,63 @@ export async function fetchApprovedReportsForDate(reportDate) {
       .order('created_at', { ascending: false })
     
     if (allError) {
-      console.error('Error fetching daily_tickets:', allError)
-      throw allError
-    }
-
-    console.log('All reports for date:', allReports?.length || 0)
-    
-    // If we have reports, filter to only include submitted or approved ones
-    if (allReports && allReports.length > 0) {
-      // Get status for these reports
-      const reportIds = allReports.map(r => r.id)
-      const { data: statusData } = await supabase
-        .from('report_status')
-        .select('report_id, status')
-        .in('report_id', reportIds)
-      
-      // Create a map of report_id -> status
-      const statusMap = {}
-      if (statusData) {
-        statusData.forEach(s => {
-          statusMap[s.report_id] = s.status
-        })
-      }
-      
-      // Filter to only include submitted or approved reports (exclude rejected/draft)
-      const filteredReports = allReports.filter(report => {
-        const status = statusMap[report.id]
-        // Include if status is submitted, approved, or if no status exists (legacy reports)
-        return !status || status === 'submitted' || status === 'approved'
-      })
-      
-      console.log('Filtered reports (submitted/approved):', filteredReports.length)
-      return filteredReports
-    }
-
-    return []
-  } catch (err) {
-    console.error('Error fetching reports:', err)
-    // Fallback: try to get reports without status check
-    try {
-      const { data: fallbackReports } = await supabase
+      console.error('❌ Error fetching daily_tickets:', allError)
+      // Try a different query format in case date column type is different
+      const { data: altReports, error: altError } = await supabase
         .from('daily_tickets')
         .select('*')
-        .eq('date', reportDate)
-      console.log('Fallback: All reports for date:', fallbackReports?.length || 0)
-      return fallbackReports || []
-    } catch (fallbackErr) {
-      console.error('Fallback also failed:', fallbackErr)
-      return []
+        .like('date', `${reportDate}%`)
+        .order('created_at', { ascending: false })
+      
+      if (altError) {
+        console.error('❌ Alt query also failed:', altError)
+        throw allError
+      }
+      
+      console.log('✅ Alt query found reports:', altReports?.length || 0)
+      if (altReports) {
+        // Log sample dates to debug format
+        if (altReports.length > 0) {
+          console.log('📅 Sample date values:', altReports.slice(0, 3).map(r => ({ id: r.id, date: r.date, dateType: typeof r.date })))
+        }
+      }
+      return altReports || []
     }
+
+    console.log(`✅ Found ${allReports?.length || 0} reports for date ${reportDate}`)
+    
+    // Log sample data for debugging
+    if (allReports && allReports.length > 0) {
+      console.log('📋 Sample reports:', allReports.slice(0, 3).map(r => ({ 
+        id: r.id, 
+        date: r.date, 
+        inspector: r.inspector_name,
+        spread: r.spread,
+        dateType: typeof r.date
+      })))
+    } else {
+      console.log('⚠️ No reports found for date. Checking if any reports exist...')
+      // Debug: Check if there are ANY reports in the table
+      const { data: anyReports, error: anyError } = await supabase
+        .from('daily_tickets')
+        .select('id, date, inspector_name')
+        .order('date', { ascending: false })
+        .limit(5)
+      console.log('📊 Recent reports in database:', anyReports?.map(r => ({ id: r.id, date: r.date })))
+    }
+    
+    // Return all reports - Chief should see everything
+    // Filtering by status can be done in the UI if needed
+    return allReports || []
+  } catch (err) {
+    console.error('❌ Error fetching reports:', err)
+    console.error('Error details:', {
+      message: err.message,
+      code: err.code,
+      details: err.details,
+      hint: err.hint
+    })
+    return []
   }
 }
 
