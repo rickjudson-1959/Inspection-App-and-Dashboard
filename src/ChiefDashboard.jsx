@@ -896,9 +896,142 @@ function ChiefDashboard() {
           {summaryLoading ? (
             <div style={{ textAlign: 'center', padding: '50px' }}><p style={{ fontSize: '18px', color: '#666' }}>⏳ Loading summary data...</p></div>
           ) : (
-            <div style={{ color: '#666', textAlign: 'center', padding: '40px' }}>
-              <p>Daily Summary content preserved from original implementation.</p>
-              <p>Includes: Key Focus narrative, Safety status, Personnel, Weather, Welding Progress, Section Progress, and Photos.</p>
+            <div style={{ padding: '20px' }}>
+              {/* Welding Progress */}
+              {weldingProgress && weldingProgress.length > 0 && (
+                <div style={{ marginBottom: '30px', backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                  <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#333' }}>🔬 Welding Progress</h3>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#1e3a5f', color: 'white' }}>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Weld Type</th>
+                          <th style={{ padding: '10px', textAlign: 'right' }}>Today (LM)</th>
+                          <th style={{ padding: '10px', textAlign: 'right' }}>Previous (LM)</th>
+                          <th style={{ padding: '10px', textAlign: 'right' }}>Today (Welds)</th>
+                          <th style={{ padding: '10px', textAlign: 'right' }}>Previous (Welds)</th>
+                          <th style={{ padding: '10px', textAlign: 'right' }}>Repairs Today</th>
+                          <th style={{ padding: '10px', textAlign: 'right' }}>Repairs Previous</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {weldingProgress.map((weld, idx) => (
+                          <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#f8f9fa' : 'white', borderBottom: '1px solid #dee2e6' }}>
+                            <td style={{ padding: '10px', fontWeight: 'bold' }}>{weld.weld_type}</td>
+                            <td style={{ padding: '10px', textAlign: 'right' }}>{weld.today_lm?.toFixed(1) || '0.0'}</td>
+                            <td style={{ padding: '10px', textAlign: 'right', color: '#666' }}>{weld.previous_lm?.toFixed(1) || '0.0'}</td>
+                            <td style={{ padding: '10px', textAlign: 'right', fontWeight: 'bold' }}>{weld.today_welds || 0}</td>
+                            <td style={{ padding: '10px', textAlign: 'right', color: '#666' }}>{weld.previous_welds || 0}</td>
+                            <td style={{ padding: '10px', textAlign: 'right', color: weld.repairs_today > 0 ? '#dc3545' : '#666', fontWeight: weld.repairs_today > 0 ? 'bold' : 'normal' }}>
+                              {weld.repairs_today || 0}
+                            </td>
+                            <td style={{ padding: '10px', textAlign: 'right', color: '#666' }}>{weld.repairs_previous || 0}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Section Progress */}
+              {sectionProgress && sectionProgress.length > 0 && (
+                <div style={{ marginBottom: '30px', backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                  <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#333' }}>📊 Section Progress</h3>
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#1e3a5f', color: 'white' }}>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Section</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Category</th>
+                          <th style={{ padding: '10px', textAlign: 'left' }}>Activity</th>
+                          <th style={{ padding: '10px', textAlign: 'right' }}>Metres (LM)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {sectionProgress.map((section, idx) => (
+                          Object.entries(section).map(([category, data]) => (
+                            (data.activities || []).map((activity, actIdx) => (
+                              <tr key={`${idx}-${category}-${actIdx}`} style={{ backgroundColor: actIdx % 2 === 0 ? '#f8f9fa' : 'white', borderBottom: '1px solid #dee2e6' }}>
+                                {actIdx === 0 && (
+                                  <td rowSpan={(data.activities || []).length} style={{ padding: '10px', fontWeight: 'bold', verticalAlign: 'top' }}>
+                                    {section.section || 'Unknown'}
+                                  </td>
+                                )}
+                                {actIdx === 0 && (
+                                  <td rowSpan={(data.activities || []).length} style={{ padding: '10px', verticalAlign: 'top' }}>
+                                    {category}
+                                  </td>
+                                )}
+                                <td style={{ padding: '10px' }}>{activity.type}</td>
+                                <td style={{ padding: '10px', textAlign: 'right' }}>{activity.metres?.toFixed(1) || '0.0'}</td>
+                              </tr>
+                            ))
+                          ))
+                        )).flat(2)}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )}
+
+              {/* Personnel Summary */}
+              {personnelData && Object.keys(personnelData).length > 0 && (
+                <div style={{ marginBottom: '30px', backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                  <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#333' }}>👷 Personnel Summary</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+                    {Object.entries(personnelData).filter(([key, value]) => key !== 'total_site_exposure' && typeof value === 'number').map(([key, value]) => (
+                      <div key={key} style={{ padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                        <div style={{ fontSize: '12px', color: '#666', textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}</div>
+                        <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#333' }}>{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {personnelData.total_site_exposure && (
+                    <div style={{ marginTop: '15px', padding: '15px', backgroundColor: '#e7f3ff', borderRadius: '4px' }}>
+                      <strong>Total Site Exposure:</strong> {personnelData.total_site_exposure}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Weather Data */}
+              {weatherData && (weatherData.description || weatherData.temp_high_f) && (
+                <div style={{ marginBottom: '30px', backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                  <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#333' }}>🌤️ Weather</h3>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '15px' }}>
+                    {weatherData.description && <div><strong>Conditions:</strong> {weatherData.description}</div>}
+                    {weatherData.temp_high_f && <div><strong>High:</strong> {weatherData.temp_high_f}°F</div>}
+                    {weatherData.temp_low_f && <div><strong>Low:</strong> {weatherData.temp_low_f}°F</div>}
+                    {weatherData.precipitation_mm && <div><strong>Precipitation:</strong> {weatherData.precipitation_mm}mm</div>}
+                    {weatherData.wind_speed_kmh && <div><strong>Wind:</strong> {weatherData.wind_speed_kmh} km/h</div>}
+                  </div>
+                </div>
+              )}
+
+              {/* Source Reports Info */}
+              {sourceReports.length > 0 && (
+                <div style={{ marginBottom: '30px', backgroundColor: '#e7f3ff', padding: '15px', borderRadius: '8px' }}>
+                  <strong>📋 Source Reports ({sourceReports.length}):</strong>
+                  <ul style={{ margin: '10px 0 0 0', paddingLeft: '20px' }}>
+                    {sourceReports.map((report, idx) => (
+                      <li key={report.id} style={{ marginBottom: '5px' }}>
+                        Report ID {report.id} - {report.inspector_name} - {report.spread || 'Unknown Spread'}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Debug Info (can be removed later) */}
+              {process.env.NODE_ENV === 'development' && (
+                <div style={{ marginTop: '30px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '8px', fontSize: '12px' }}>
+                  <strong>Debug Info:</strong>
+                  <pre style={{ marginTop: '10px', fontSize: '11px', overflow: 'auto' }}>
+                    Welding Progress: {JSON.stringify(weldingProgress, null, 2)}
+                  </pre>
+                </div>
+              )}
             </div>
           )}
         </div>
