@@ -300,7 +300,7 @@ function ChiefDashboard() {
   async function aggregateFromReports(reports) {
     const personnel = aggregatePersonnel(reports)
     const sections = aggregateProgressBySection(reports)
-    const welding = await aggregateWeldingProgress(summaryDate)
+    const welding = await aggregateWeldingProgress(summaryDate, reports)
     const overall = aggregateOverallProgress(reports)
     const weather = aggregateWeather(reports)
     const photos = aggregatePhotos(reports)

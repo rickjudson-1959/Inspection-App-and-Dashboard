@@ -427,9 +427,9 @@ export function aggregateProgressBySection(reports) {
 }
 
 /**
- * Aggregate welding data by type
+ * Aggregate welding data by type from activity_blocks in reports
  */
-export async function aggregateWeldingProgress(reportDate) {
+export async function aggregateWeldingProgress(reportDate, reports = null) {
   const weldTypes = {
     'GMAW/FCAW Tie-Ins': { today_lm: 0, today_welds: 0, repairs_today: 0 },
     'GMAW/FCAW Stove Piping': { today_lm: 0, today_welds: 0, repairs_today: 0 },
@@ -438,55 +438,80 @@ export async function aggregateWeldingProgress(reportDate) {
   }
 
   try {
-    // Fetch mainline welds for the date
-    const { data: mainlineWelds } = await supabase
-      .from('mainline_welds')
-      .select('*')
-      .eq('weld_date', reportDate)
+    // If reports not provided, fetch them
+    if (!reports) {
+      reports = await fetchApprovedReportsForDate(reportDate)
+    }
 
-    // Fetch tie-in welds for the date
-    const { data: tieinWelds } = await supabase
-      .from('tiein_welds')
-      .select('*')
-      .eq('weld_date', reportDate)
-
-    // Process mainline welds
-    ;(mainlineWelds || []).forEach(weld => {
-      const weldProcess = weld.weld_process || 'GMAW/FCAW'
-      const weldType = weld.weld_type || 'Poorboy'
-      const key = `${weldProcess} ${weldType}`
-      
-      if (weldTypes[key]) {
-        weldTypes[key].today_welds += 1
-        weldTypes[key].today_lm += parseFloat(weld.pipe_length) || 12.2 // Default joint length
-      } else {
-        weldTypes['GMAW/FCAW Poorboy'].today_welds += 1
-        weldTypes['GMAW/FCAW Poorboy'].today_lm += parseFloat(weld.pipe_length) || 12.2
-      }
-      
-      // Count repairs
-      if (weld.repair_required || weld.is_repair) {
-        weldTypes[key]?.repairs_today ? weldTypes[key].repairs_today += 1 : null
-      }
+    // Extract welding data from activity_blocks in reports
+    reports.forEach(report => {
+      const blocks = report.activity_blocks || []
+      blocks.forEach(block => {
+        // Check for welding activity types
+        if (block.activityType === 'Welding - Mainline' || block.activityType === 'Welding - Section Crew' || 
+            block.activityType === 'Welding - Poor Boy') {
+          // Extract weld data from the block
+          const weldData = block.weldData || {}
+          const weldEntries = weldData.weldEntries || []
+          const weldsToday = weldData.weldEntries?.length || weldData.weldsToday || weldEntries.length || 0
+          const repairs = weldData.repairs || []
+          
+          // Determine weld type based on activity type
+          let key = 'GMAW/FCAW Poorboy'
+          if (block.activityType === 'Welding - Section Crew') {
+            key = 'GMAW/FCAW Stove Piping'
+          } else if (block.activityType === 'Welding - Poor Boy') {
+            key = 'GMAW/FCAW Poorboy'
+          } else {
+            key = 'GMAW/FCAW Stove Piping' // Mainline default
+          }
+          
+          // Count welds (prefer weldsToday if available, otherwise count entries)
+          weldTypes[key].today_welds += weldsToday
+          
+          // Calculate metres (assume 12.2m per joint if not specified)
+          const metres = parseFloat(block.metresToday) || (weldsToday * 12.2)
+          weldTypes[key].today_lm += metres
+          
+          // Count repairs from repairs array or weldEntries
+          const repairCount = repairs.length || weldEntries.filter(w => 
+            w.repairRequired === 'Yes' || w.repairRequired === true || w.repair === true
+          ).length
+          weldTypes[key].repairs_today += repairCount
+        } else if (block.activityType === 'Welding - Tie-in') {
+          // Tie-in data is in counterboreData
+          const counterboreData = block.counterboreData || {}
+          const transitions = counterboreData.transitions || []
+          
+          // Count transitions as welds (each transition is typically one weld)
+          const tieInWeldCount = transitions.length || (counterboreData.weldNumber ? 1 : 0)
+          weldTypes['GMAW/FCAW Tie-Ins'].today_welds += tieInWeldCount
+          
+          // Calculate metres (assume 12.2m per joint if not specified)
+          const metres = parseFloat(block.metresToday) || (tieInWeldCount * 12.2)
+          weldTypes['GMAW/FCAW Tie-Ins'].today_lm += metres
+          
+          // Count repairs
+          if (counterboreData.repairRequired === 'Yes' || counterboreData.repairRequired === true) {
+            weldTypes['GMAW/FCAW Tie-Ins'].repairs_today += tieInWeldCount
+          }
+        }
+      })
     })
 
-    // Process tie-in welds
-    ;(tieinWelds || []).forEach(weld => {
-      weldTypes['GMAW/FCAW Tie-Ins'].today_welds += 1
-      weldTypes['GMAW/FCAW Tie-Ins'].today_lm += parseFloat(weld.pipe_length) || 0
-      
-      if (weld.repair_required || weld.is_repair) {
-        weldTypes['GMAW/FCAW Tie-Ins'].repairs_today += 1
-      }
-    })
-
-    // Get previous totals from welding_progress table
-    const { data: previousProgress } = await supabase
-      .from('welding_progress')
-      .select('*')
-      .lt('report_date', reportDate)
-      .order('report_date', { ascending: false })
-      .limit(1)
+    // Try to get previous totals from welding_progress table (optional - don't fail if table doesn't exist)
+    let previousProgress = []
+    try {
+      const { data } = await supabase
+        .from('welding_progress')
+        .select('*')
+        .lt('progress_date', reportDate)
+        .order('progress_date', { ascending: false })
+        .limit(1)
+      previousProgress = data || []
+    } catch (err) {
+      console.log('Note: welding_progress table not available, using zero for previous values')
+    }
 
     // Calculate totals
     const result = Object.entries(weldTypes).map(([type, data]) => {
@@ -505,11 +530,14 @@ export async function aggregateWeldingProgress(reportDate) {
     return result
   } catch (err) {
     console.error('Error aggregating welding progress:', err)
+    // Return empty structure on error
     return Object.entries(weldTypes).map(([type, data]) => ({
       weld_type: type,
-      ...data,
+      today_lm: data.today_lm,
       previous_lm: 0,
+      today_welds: data.today_welds,
       previous_welds: 0,
+      repairs_today: data.repairs_today,
       repairs_previous: 0
     }))
   }
