@@ -11,10 +11,30 @@ function ResetPassword() {
   const [success, setSuccess] = useState(false)
   const [sessionReady, setSessionReady] = useState(false)
   const [userProfile, setUserProfile] = useState(null)
+  const [storedRedirectTo, setStoredRedirectTo] = useState(null)
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
 
   useEffect(() => {
+    // Store redirect_to parameter immediately before Supabase might modify the URL
+    const redirectTo = searchParams.get('redirect_to')
+    if (redirectTo) {
+      // Decode the redirect_to parameter (it might be URL-encoded)
+      let decodedRedirectTo = decodeURIComponent(redirectTo)
+      // Extract path from full URL if needed
+      try {
+        const url = new URL(decodedRedirectTo)
+        decodedRedirectTo = url.pathname + url.search
+      } catch {
+        // If not a full URL, ensure it starts with /
+        if (!decodedRedirectTo.startsWith('/')) {
+          decodedRedirectTo = `/${decodedRedirectTo}`
+        }
+      }
+      setStoredRedirectTo(decodedRedirectTo)
+      console.log('📍 Stored redirect_to from URL:', decodedRedirectTo)
+    }
+    
     // Check if we have a valid session from the reset link
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -28,6 +48,9 @@ function ResetPassword() {
           .maybeSingle()
         if (profile) {
           setUserProfile(profile)
+          console.log('👤 User profile:', { role: profile.role, user_role: profile.user_role })
+        } else {
+          console.warn('⚠️ No user profile found for user:', session.user.id)
         }
       } else {
         setError('Invalid or expired reset link. Please request a new password reset.')
@@ -36,25 +59,34 @@ function ResetPassword() {
     
     // Give Supabase a moment to process the token from the URL
     setTimeout(checkSession, 500)
-  }, [])
+  }, [searchParams])
 
   function getRedirectPath() {
-    // First, check for redirect_to parameter in URL (from invitation link)
+    // First priority: Use stored redirect_to from URL (from invitation link)
+    if (storedRedirectTo) {
+      console.log('📍 Using stored redirect_to:', storedRedirectTo)
+      return storedRedirectTo
+    }
+    
+    // Second priority: Check URL parameter (in case it wasn't stored)
     const redirectTo = searchParams.get('redirect_to')
     if (redirectTo) {
-      // Extract path from full URL if needed
       try {
         const url = new URL(redirectTo)
-        return url.pathname + url.search
+        const path = url.pathname + url.search
+        console.log('📍 Using redirect_to from URL:', path)
+        return path
       } catch {
-        // If not a full URL, assume it's a path
-        return redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`
+        const path = redirectTo.startsWith('/') ? redirectTo : `/${redirectTo}`
+        console.log('📍 Using redirect_to from URL (parsed):', path)
+        return path
       }
     }
     
-    // Otherwise, redirect based on user role
+    // Third priority: Redirect based on user role
     if (userProfile) {
       const role = userProfile.role || userProfile.user_role
+      console.log('📍 No redirect_to found, using role-based redirect for role:', role)
       switch (role) {
         case 'super_admin':
         case 'admin':
@@ -73,10 +105,12 @@ function ResetPassword() {
         case 'ndt_auditor':
           return '/auditor-dashboard'
         default:
+          console.warn('⚠️ Unknown role, defaulting to /login')
           return '/login'
       }
     }
     
+    console.log('📍 No redirect info, defaulting to /login')
     return '/login'
   }
 
@@ -105,8 +139,27 @@ function ResetPassword() {
 
       setSuccess(true)
       
+      // Refresh user profile before redirect (in case role was updated)
+      const { data: { session: newSession } } = await supabase.auth.getSession()
+      if (newSession) {
+        const { data: profile } = await supabase
+          .from('user_profiles')
+          .select('role, user_role')
+          .eq('id', newSession.user.id)
+          .maybeSingle()
+        if (profile) {
+          setUserProfile(profile)
+        }
+      }
+      
       // Redirect after a brief delay to show success message
       const redirectPath = getRedirectPath()
+      console.log('🚀 Redirecting to:', redirectPath)
+      console.log('📋 Redirect details:', {
+        storedRedirectTo,
+        searchParamsRedirectTo: searchParams.get('redirect_to'),
+        userRole: userProfile?.role || userProfile?.user_role
+      })
       setTimeout(() => {
         // Don't sign out - user should be logged in after setting password
         navigate(redirectPath, { replace: true })
