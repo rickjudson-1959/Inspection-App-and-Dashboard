@@ -738,10 +738,13 @@ function ChiefDashboard() {
           <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>{userProfile?.full_name || userProfile?.email} • Regulatory Summary Engine v2.0</p>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <MasterSwitcher compact />
-          <button onClick={() => navigate('/cmt-dashboard')} style={{ padding: '10px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>📊 View CMT Stats</button>
-          <button onClick={() => navigate('/ndt-auditor')} style={{ padding: '10px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🔬 NDT Queue</button>
-          <button onClick={() => { localStorage.removeItem('pipeup_inspector_draft'); navigate('/field-entry') }} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>+ New Report</button>
+          {/* Only show GOD MODE for admins/super_admins, not for regular chiefs */}
+          {(userProfile?.role === 'admin' || userProfile?.role === 'super_admin' || userProfile?.user_role === 'admin' || userProfile?.user_role === 'super_admin') && (
+            <MasterSwitcher compact />
+          )}
+          <button onClick={() => navigate('/dashboard')} style={{ padding: '10px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>📊 View CMT Stats</button>
+          <button onClick={() => navigate('/auditor-dashboard')} style={{ padding: '10px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🔬 NDT Queue</button>
+          <button onClick={() => { localStorage.removeItem('pipeup_inspector_draft'); navigate('/inspector') }} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>+ New Report</button>
           <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign Out</button>
         </div>
       </div>
