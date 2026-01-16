@@ -140,12 +140,27 @@ serve(async (req) => {
     })
 
     if (tokenError) {
-      console.error('Error generating invite link:', tokenError)
+      console.error('❌ Error generating invite link:', tokenError)
+      console.error('Error details:', JSON.stringify(tokenError, null, 2))
       // Continue anyway - user is created, they can use password reset
     } else if (tokenData?.properties?.action_link) {
+      const generatedLink = tokenData.properties.action_link
       console.log('✅ Invitation link generated successfully')
-      console.log('🔗 Link format:', tokenData.properties.action_link.substring(0, 100) + '...')
+      console.log('🔗 Full invitation link:', generatedLink)
+      console.log('🔍 Link starts with:', generatedLink.substring(0, 50))
       console.log('📍 Redirect URL:', redirectUrl)
+      console.log('🌐 Supabase URL used:', actualSupabaseUrl)
+      
+      // Verify the link uses the correct domain
+      if (generatedLink.includes('api.pipe-up.ca')) {
+        console.error('⚠️ WARNING: Link still uses custom domain! This will cause 404 errors.')
+      } else if (generatedLink.includes('aatvckalnvojlykfgnmz.supabase.co')) {
+        console.log('✅ Link correctly uses Supabase project URL')
+      } else {
+        console.warn('⚠️ Link uses unexpected domain:', generatedLink.split('/')[2])
+      }
+    } else {
+      console.error('❌ No action_link in tokenData:', JSON.stringify(tokenData, null, 2))
     }
 
     // Send custom invitation email via Resend
