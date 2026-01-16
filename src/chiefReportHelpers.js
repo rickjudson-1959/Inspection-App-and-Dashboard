@@ -234,62 +234,65 @@ export async function buildProgressData(reportDate) {
  */
 export async function fetchApprovedReportsForDate(reportDate) {
   try {
-    console.log('Fetching approved reports for date:', reportDate)
+    console.log('Fetching reports for date:', reportDate)
     
-    // Get all approved report IDs
-    const { data: statusData, error: statusError } = await supabase
-      .from('report_status')
-      .select('report_id')
-      .eq('status', 'approved')
-
-    if (statusError) {
-      console.error('Error fetching report_status:', statusError)
-      throw statusError
-    }
-
-    console.log('Approved report IDs:', statusData)
-    const approvedIds = (statusData || []).map(s => s.report_id)
-
-    if (approvedIds.length === 0) {
-      console.log('No approved reports found in report_status')
-      // Fallback: get all reports for that date regardless of status
-      const { data: allReports, error: allError } = await supabase
-        .from('daily_tickets')
-        .select('*')
-        .eq('date', reportDate)
-      
-      console.log('All reports for date (fallback):', allReports?.length || 0)
-      return allReports || []
-    }
-
-    // Get the actual reports for that date that are approved
-    const { data: reports, error: reportsError } = await supabase
+    // First, try to get all reports for this date (Chief should see all submitted/approved reports)
+    const { data: allReports, error: allError } = await supabase
       .from('daily_tickets')
       .select('*')
       .eq('date', reportDate)
-      .in('id', approvedIds)
-
-    if (reportsError) {
-      console.error('Error fetching daily_tickets:', reportsError)
-      throw reportsError
-    }
-
-    console.log('Approved reports for date:', reports?.length || 0)
+      .order('created_at', { ascending: false })
     
-    // If no approved reports for this date, try without the date filter to debug
-    if (!reports || reports.length === 0) {
-      console.log('No approved reports for this specific date, checking all approved...')
-      const { data: allApproved } = await supabase
-        .from('daily_tickets')
-        .select('id, date, inspector_name')
-        .in('id', approvedIds)
-      console.log('All approved reports (any date):', allApproved)
+    if (allError) {
+      console.error('Error fetching daily_tickets:', allError)
+      throw allError
     }
 
-    return reports || []
-  } catch (err) {
-    console.error('Error fetching approved reports:', err)
+    console.log('All reports for date:', allReports?.length || 0)
+    
+    // If we have reports, filter to only include submitted or approved ones
+    if (allReports && allReports.length > 0) {
+      // Get status for these reports
+      const reportIds = allReports.map(r => r.id)
+      const { data: statusData } = await supabase
+        .from('report_status')
+        .select('report_id, status')
+        .in('report_id', reportIds)
+      
+      // Create a map of report_id -> status
+      const statusMap = {}
+      if (statusData) {
+        statusData.forEach(s => {
+          statusMap[s.report_id] = s.status
+        })
+      }
+      
+      // Filter to only include submitted or approved reports (exclude rejected/draft)
+      const filteredReports = allReports.filter(report => {
+        const status = statusMap[report.id]
+        // Include if status is submitted, approved, or if no status exists (legacy reports)
+        return !status || status === 'submitted' || status === 'approved'
+      })
+      
+      console.log('Filtered reports (submitted/approved):', filteredReports.length)
+      return filteredReports
+    }
+
     return []
+  } catch (err) {
+    console.error('Error fetching reports:', err)
+    // Fallback: try to get reports without status check
+    try {
+      const { data: fallbackReports } = await supabase
+        .from('daily_tickets')
+        .select('*')
+        .eq('date', reportDate)
+      console.log('Fallback: All reports for date:', fallbackReports?.length || 0)
+      return fallbackReports || []
+    } catch (fallbackErr) {
+      console.error('Fallback also failed:', fallbackErr)
+      return []
+    }
   }
 }
 
