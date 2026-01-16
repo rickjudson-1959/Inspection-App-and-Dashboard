@@ -1,8 +1,8 @@
 # PIPE-UP PROJECT MANIFEST
 ## Pipeline Inspector SaaS Application
 
-**Last Updated:** January 15, 2026  
-**Version:** 1.6  
+**Last Updated:** January 16, 2026  
+**Version:** 1.7  
 **Stack:** React + Vite + Supabase + Vercel  
 **Live URL:** https://app.pipe-up.ca  
 **API Domain:** https://api.pipe-up.ca (custom domain verified)
@@ -30,7 +30,8 @@
 |------|-------|---------|
 | `AdminPortal.jsx` | ~60K | Admin dashboard - users, reports, mats, audit |
 | `Dashboard.jsx` | 56,566 | Main project dashboard |
-| `ChiefDashboard.jsx` | 16,976 | Chief Inspector view |
+| `ChiefDashboard.jsx` | 1,269 | **UPDATED Jan 16** - Chief Inspector view with Daily Summary data aggregation and display |
+| `chiefReportHelpers.js` | 1,225 | **NEW Jan 16** - Helper functions for Chief Dashboard: report aggregation, welding progress, section progress |
 | `EVMDashboard.jsx` | ~45K | **Earned Value Management** - Demo data with 4 views |
 | `evmCalculations.js` | 16,576 | EVM calculation logic |
 | `ReconciliationDashboard.jsx` | 92,740 | LEM reconciliation |
@@ -41,7 +42,7 @@
 ### 📝 INSPECTOR REPORTS
 | File | Lines | Purpose |
 |------|-------|---------|
-| `InspectorReport.jsx` | ~167K | **MAIN FORM** - Daily inspection entry, PDF export |
+| `InspectorReport.jsx` | 4,712 | **UPDATED Jan 16** - Main daily inspection entry form, PDF export, added counterboreData persistence |
 | `ActivityBlock.jsx` | 75,440 | **UPDATED Jan 15** - Fixed manpower/equipment/meters layout spacing |
 | `ReportViewer.jsx` | 23,210 | Read-only report view for admin/chief |
 | `ReportWorkflow.jsx` | 16,503 | Submit/approve/revision workflow |
@@ -311,6 +312,13 @@ function SomeLog({ logId, reportId, data, onUpdate }) {
 
 | Date | Files Changed | What Changed |
 |------|---------------|--------------|
+| **Jan 16, 2026** | `ChiefDashboard.jsx` | **MAJOR FIX** - Restored Daily Summary UI to display aggregated data (welding progress, section progress, personnel, weather) |
+| **Jan 16, 2026** | `chiefReportHelpers.js` | **NEW** - Created helper functions for Chief Dashboard: `fetchApprovedReportsForDate`, `aggregateWeldingProgress`, `aggregateProgressBySection`, `aggregatePersonnel`, `aggregateWeather`, etc. |
+| **Jan 16, 2026** | `chiefReportHelpers.js` | **FIXED** - Fixed `aggregateWeldingProgress` to extract welding data from `activity_blocks` in reports instead of querying non-existent database tables |
+| **Jan 16, 2026** | `chiefReportHelpers.js` | **ENHANCED** - Added JSON parsing for `activity_blocks` in case Supabase stores them as JSON strings |
+| **Jan 16, 2026** | `chiefReportHelpers.js` | **ENHANCED** - Added comprehensive debug logging for data extraction diagnosis |
+| **Jan 16, 2026** | `InspectorReport.jsx` | **FIXED** - Added `counterboreData` to saved activity blocks for tie-in welding data persistence |
+| **Jan 16, 2026** | `InspectorReport.jsx` | **CLEANUP** - Removed orphaned Topsoil AI review code that was causing syntax errors |
 | **Jan 15, 2026** | `egpRouteData.js` | **NEW** - Extracted all EGP survey data from KMZ files |
 | **Jan 15, 2026** | `MiniMapWidget.jsx` | **MAJOR UPDATE** - Real survey data: 774 centerline pts, 367 KP markers, 451 welds, 248 bends, 108 sag bends, 248 footprint polygons, 36 open ends, 2 HDD bore faces |
 | **Jan 15, 2026** | `ActivityBlock.jsx` | **UPDATED** - Fixed manpower/equipment/meters layout with CSS grid, proper spacing, box-sizing |
@@ -360,7 +368,7 @@ function SomeLog({ logId, reportId, data, onUpdate }) {
 - [ ] Add CSV export to AuditDashboard
 
 ### Medium Priority
-- [ ] Chief's Report feature (aggregate multiple inspector reports)
+- [x] Chief's Daily Summary feature (aggregate multiple inspector reports) - **COMPLETED Jan 16, 2026**
 - [ ] Add AI reviewer agents for Blasting, Coating, Grading
 - [ ] Large App.jsx (209K) - legacy code being migrated out
 
@@ -429,12 +437,28 @@ When starting a new session with Claude, upload:
 
 ### Report Flow
 1. Inspector fills `InspectorReport.jsx`
-2. Saves to `daily_tickets` table
+2. Saves to `daily_tickets` table with `activity_blocks` (JSON) containing all activity data
 3. Audit log records all field changes with regulatory classification
 4. Admin/Chief views via `ReportViewer.jsx` or edits via `InspectorReport.jsx?edit=ID`
 5. Approval workflow via Reports tab in AdminPortal
 6. Regulatory dashboard provides compliance views
 7. AuditDashboard allows filtering by entity type
+
+### Chief Dashboard Daily Summary (NEW Jan 16, 2026)
+- Aggregates data from multiple inspector reports for a given date
+- Helper functions in `chiefReportHelpers.js`:
+  - `fetchApprovedReportsForDate()` - Fetches all submitted/approved reports for a date
+  - `aggregateWeldingProgress()` - Extracts welding data from `activity_blocks` (weldsToday, weldEntries, repairs)
+  - `aggregateProgressBySection()` - Aggregates activities by spread/category
+  - `aggregatePersonnel()` - Sums personnel counts across all reports
+  - `aggregateWeather()` - Extracts weather data from reports
+  - `aggregatePhotos()` - Collects photos from all reports
+- Data extraction:
+  - Reads `activity_blocks` from `daily_tickets` table
+  - Parses JSON if needed (handles both string and object formats)
+  - Extracts specialized data: `weldData`, `bendingData`, `stringingData`, `coatingData`, `counterboreData`
+  - Aggregates by activity type and displays in tables
+- UI displays: Welding Progress table, Section Progress table, Personnel Summary, Weather Data, Source Reports list
 
 ---
 
