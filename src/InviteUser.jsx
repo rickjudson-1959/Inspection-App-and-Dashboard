@@ -89,10 +89,21 @@ function InviteUser({ onSuccess, onCancel }) {
             console.log('  - Length:', fnData.invitation_link.length, 'characters')
           }
           
-          // If email didn't send, show warning
-          if (!fnData.email_sent && fnData.email_error) {
-            console.warn('Email not sent:', fnData.email_error)
-            // Still show success since user was created, but log the email issue
+          // Check if email was sent successfully
+          if (!fnData.email_sent) {
+            const errorMsg = fnData.email_error || 'Email sending failed. The user account was created, but the invitation email was not sent.'
+            console.error('❌ Email not sent:', fnData.email_error)
+            
+            // Show warning to user with invitation link
+            if (fnData.invitation_link) {
+              setError(`Warning: ${errorMsg} The invitation link is available in the browser console.`)
+            } else {
+              setError(`Warning: ${errorMsg}`)
+            }
+            
+            // Don't show success message if email didn't send
+            setLoading(false)
+            return
           }
         }
       } else if (data?.user) {
