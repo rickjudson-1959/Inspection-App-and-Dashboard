@@ -277,8 +277,48 @@ export async function fetchApprovedReportsForDate(reportDate) {
         date: r.date, 
         inspector: r.inspector_name,
         spread: r.spread,
-        dateType: typeof r.date
+        dateType: typeof r.date,
+        hasActivityBlocks: !!r.activity_blocks,
+        activityBlocksType: typeof r.activity_blocks,
+        activityBlocksLength: Array.isArray(r.activity_blocks) ? r.activity_blocks.length : 'N/A'
       })))
+      
+      // Parse activity_blocks if they're JSON strings
+      const parsedReports = allReports.map(report => {
+        let activityBlocks = report.activity_blocks
+        
+        // If activity_blocks is a string, try to parse it
+        if (typeof activityBlocks === 'string') {
+          try {
+            activityBlocks = JSON.parse(activityBlocks)
+            console.log(`  📦 Parsed activity_blocks from string for report ${report.id}`)
+          } catch (e) {
+            console.warn(`  ⚠️ Could not parse activity_blocks for report ${report.id}:`, e)
+            activityBlocks = []
+          }
+        }
+        
+        // Log detailed activity_blocks info for first report
+        if (report.id === allReports[0].id && activityBlocks) {
+          console.log(`  📝 First report activity_blocks detail:`, {
+            isArray: Array.isArray(activityBlocks),
+            length: Array.isArray(activityBlocks) ? activityBlocks.length : 'N/A',
+            sample: Array.isArray(activityBlocks) && activityBlocks.length > 0 ? {
+              activityType: activityBlocks[0].activityType,
+              hasWeldData: !!activityBlocks[0].weldData,
+              hasBendingData: !!activityBlocks[0].bendingData,
+              hasCounterboreData: !!activityBlocks[0].counterboreData
+            } : 'N/A'
+          })
+        }
+        
+        return {
+          ...report,
+          activity_blocks: activityBlocks || []
+        }
+      })
+      
+      return parsedReports
     } else {
       console.log('⚠️ No reports found for date. Checking if any reports exist...')
       // Debug: Check if there are ANY reports in the table
