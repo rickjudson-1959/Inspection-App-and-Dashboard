@@ -7,3 +7,4 @@ dist/
 *.PDF
 *.pdf
 .vercel
+.env*.local

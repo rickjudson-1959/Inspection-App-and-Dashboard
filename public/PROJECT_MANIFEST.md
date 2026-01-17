@@ -1,49 +1,61 @@
 # PIPE-UP PROJECT MANIFEST
 ## Pipeline Inspector SaaS Application
 
-**Last Updated:** January 16, 2026  
-**Version:** 1.7  
+**Last Updated:** January 17, 2026  
+**Version:** 1.8  
 **Stack:** React + Vite + Supabase + Vercel  
 **Live URL:** https://app.pipe-up.ca  
 **API Domain:** https://api.pipe-up.ca (custom domain verified)
 
 ---
 
-## 📁 FILE INVENTORY (80+ files in /src)
+## 📁 FILE INVENTORY (90+ files in /src)
 
 ### 📀 ROUTING & CORE
 | File | Lines | Purpose |
 |------|-------|---------|
 | `main.jsx` | 5,400 | **ROUTER** - All routes defined here. Check this first! |
-| `App.jsx` | 209,594 | Legacy main app (being phased out) |
+| `App.jsx` | ~300 | **UPDATED Jan 15** - Role-based routing with ProtectedRoute |
 | `AuthContext.jsx` | 3,501 | Authentication provider, user roles |
+| `ProtectedRoute.jsx` | ~100 | **NEW Jan 15** - Role-based access control & route guards |
+| `ResetPassword.jsx` | ~200 | **UPDATED Jan 17** - Fixed redirect_to preservation |
 | `supabase.js` | 231 | Supabase client config |
 | `constants.js` | 23,976 | **CRITICAL** - Activity types, quality fields, options |
 | `projectConfig.js` | 5,046 | Project-specific settings |
 | `auditHelpers.js` | ~300 | Audit trail utility functions (legacy) |
 | `auditLogger.js` | ~200 | **V2** - Precision-based audit logging with auto-classification |
 | `useActivityAudit.js` | ~150 | **CORE HOOK** - Reusable audit hook for ALL activity Log components |
-| `egpRouteData.js` | ~180K | **NEW Jan 15** - EGP pipeline survey data extracted from KMZ |
+| `egpRouteData.js` | ~180K | EGP pipeline survey data extracted from KMZ |
+| `chiefReportHelpers.js` | ~1100 | **UPDATED Jan 15** - Fixed aggregation functions for Daily Summary |
+
+### 🔐 ROLE-BASED NAVIGATION & USER MANAGEMENT
+| File | Lines | Purpose |
+|------|-------|---------|
+| `ProtectedRoute.jsx` | ~100 | **CORE** - Route guards, role config, access control |
+| `MasterSwitcher.jsx` | ~130 | **ADMIN GOD MODE** - Dropdown to jump between all dashboards |
+| `InviteUser.jsx` | ~200 | **UPDATED Jan 17** - Secure invitation with Edge Function |
+| `ResetPassword.jsx` | ~200 | **UPDATED Jan 17** - Preserves redirect_to parameter |
 
 ### 📊 DASHBOARDS & ADMIN
 | File | Lines | Purpose |
 |------|-------|---------|
-| `AdminPortal.jsx` | ~60K | Admin dashboard - users, reports, mats, audit |
-| `Dashboard.jsx` | 56,566 | Main project dashboard |
-| `ChiefDashboard.jsx` | 1,269 | **UPDATED Jan 16** - Chief Inspector view with Daily Summary data aggregation and display |
-| `chiefReportHelpers.js` | 1,225 | **NEW Jan 16** - Helper functions for Chief Dashboard: report aggregation, welding progress, section progress |
+| `AdminPortal.jsx` | ~1070 | **UPDATED Jan 15** - Added MasterSwitcher + InviteUser modal |
+| `Dashboard.jsx` | ~1100 | **UPDATED Jan 15** - CMT Dashboard with role navigation buttons |
+| `ChiefDashboard.jsx` | ~1250 | **UPDATED Jan 15** - Fixed Daily Summary display, added navigation |
+| `AssistantChiefDashboard.jsx` | ~4100 | Assistant Chief view |
+| `NDTAuditorDashboard.jsx` | ~1500 | NDT Auditor specialized view |
 | `EVMDashboard.jsx` | ~45K | **Earned Value Management** - Demo data with 4 views |
 | `evmCalculations.js` | 16,576 | EVM calculation logic |
 | `ReconciliationDashboard.jsx` | 92,740 | LEM reconciliation |
 | `WeeklyExecutiveSummary.jsx` | 30,497 | Executive reports |
-| `AuditDashboard.jsx` | ~1200 | **UPDATED Jan 13** - System-wide audit trail viewer with entity type filtering |
+| `AuditDashboard.jsx` | ~1200 | System-wide audit trail viewer with entity type filtering |
 | `RegulatoryDashboard.jsx` | ~1200 | CER/BCER/AER compliance portal with 6 tabs |
 
 ### 📝 INSPECTOR REPORTS
 | File | Lines | Purpose |
 |------|-------|---------|
-| `InspectorReport.jsx` | 4,712 | **UPDATED Jan 16** - Main daily inspection entry form, PDF export, added counterboreData persistence |
-| `ActivityBlock.jsx` | 75,440 | **UPDATED Jan 15** - Fixed manpower/equipment/meters layout spacing |
+| `InspectorReport.jsx` | ~167K | **MAIN FORM** - Daily inspection entry, PDF export |
+| `ActivityBlock.jsx` | 75,440 | Fixed manpower/equipment/meters layout spacing |
 | `ReportViewer.jsx` | 23,210 | Read-only report view for admin/chief |
 | `ReportWorkflow.jsx` | 16,503 | Submit/approve/revision workflow |
 | `RequestRevision.jsx` | 9,342 | Revision request handling |
@@ -59,7 +71,7 @@
 
 ### 🔧 ACTIVITY-SPECIFIC LOGS (with Audit Trail)
 
-#### ✅ AUDIT TRAIL COMPLETE (12 components)
+#### ✅ AUDIT TRAIL COMPLETE (11 components)
 | File | Lines | Activity Type | Audit Status |
 |------|-------|---------------|--------------|
 | `useActivityAudit.js` | ~150 | **CORE HOOK** | ✅ **DEPLOYED** - Foundation for all auditing |
@@ -72,8 +84,12 @@
 | `DitchLog.jsx` | ~750 | Ditching | ✅ **DEPLOYED** - Full audit trail |
 | `TieInCompletionLog.jsx` | ~950 | Tie-In Completion | ✅ **DEPLOYED** - Full audit trail |
 | `GradingLog.jsx` | ~1000 | Grading | ✅ **DEPLOYED** - Full audit trail |
-| `HydrotestLog.jsx` | ~1171 | Hydrostatic Testing | ✅ **DEPLOYED** - Full audit trail with pigging |
 | `AuditDashboard.jsx` | ~1200 | Audit Viewer | ✅ **DEPLOYED** - Entity type filtering |
+
+#### ⬜ AUDIT TRAIL PENDING (1 component)
+| File | Lines | Activity Type | Audit Status |
+|------|-------|---------------|--------------|
+| `HydrotestLog.jsx` | ~1685 | Hydrostatic Testing | ❌ **PENDING** - Most complex component |
 
 #### ✅ PREVIOUSLY AUDITED
 | File | Lines | Activity Type | Audit Status |
@@ -97,8 +113,8 @@
 |------|-------|---------|
 | `PipelineMap.jsx` | 21,619 | Full pipeline map |
 | `MapDashboard.jsx` | 9,146 | Map dashboard |
-| `MiniMapWidget.jsx` | ~850 | **UPDATED Jan 15** - Real EGP survey data with all layers |
-| `egpRouteData.js` | ~180K | **NEW Jan 15** - Extracted KMZ survey data |
+| `MiniMapWidget.jsx` | ~850 | Real EGP survey data with all layers |
+| `egpRouteData.js` | ~180K | Extracted KMZ survey data |
 | `kpUtils.js` | 9,928 | KP parsing/formatting utilities |
 
 ### 📧 NOTIFICATIONS
@@ -119,30 +135,113 @@
 
 ---
 
-## 🗺️ EGP ROUTE DATA (NEW Jan 15)
+## 🔐 ROLE-BASED ACCESS SYSTEM
 
-### Data Extracted from FortisBC KMZ Files
-| Data Type | Count | Source |
-|-----------|-------|--------|
-| Centerline coordinates | 774 | North Line asbuilt survey |
-| KP markers | 367 | Every 100m from KP 0+000 to 38+470 |
-| Welds | 451 | Field weld locations with IDs |
-| Bends (horizontal) | 248 | Left/Right/Over bends with angles |
-| Sag bends (vertical) | 108 | Vertical sag bends |
-| Footprint polygons | 248 | Construction corridor boundaries |
-| Open ends | 36 | Begin/Leave pipe string markers |
-| Bore faces (HDD) | 2 | Railway crossing entry/exit |
+### User Roles & Landing Pages
+| Role | Landing Page | Display Name |
+|------|--------------|--------------|
+| `super_admin` | `/admin` | Super Administrator |
+| `admin` | `/admin` | Administrator |
+| `executive` | `/evm-dashboard` | Executive |
+| `cm` | `/cmt-dashboard` | Construction Manager |
+| `pm` | `/cmt-dashboard` | Project Manager |
+| `chief_inspector` | `/chief-dashboard` | Chief Inspector |
+| `assistant_chief_inspector` | `/assistant-chief` | Assistant Chief Inspector |
+| `ndt_auditor` | `/ndt-auditor` | NDT Auditor |
+| `inspector` | `/field-entry` | Field Inspector |
 
-### MiniMapWidget Layer Toggles
-- ✅ Footprint (248 polygons) - Purple shaded
-- ✅ Centerline (774 points) - Orange line
-- ✅ KP Markers (367) - Blue dots
-- ✅ Welds (451) - Red dots
-- ✅ Bends (248) - Orange dots
-- ✅ Sag Bends (108) - Brown dots (off by default)
-- ✅ Open Ends (36) - Green/Red dots
-- ✅ HDD/Bore Faces (2) - Cyan dots
-- ✅ Pipeline Start/End markers
+### Role Access Matrix
+| Role | Field Entry | NDT | Asst Chief | Chief | CMT | EVM | Admin |
+|------|-------------|-----|------------|-------|-----|-----|-------|
+| `super_admin` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `admin` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| `executive` | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| `cm` | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ |
+| `pm` | ❌ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ |
+| `chief_inspector` | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| `assistant_chief_inspector` | ✅ | ❌ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| `ndt_auditor` | ❌ | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| `inspector` | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+### Navigation Buttons by Dashboard
+| Dashboard | Buttons Available |
+|-----------|-------------------|
+| **Chief Dashboard** | 📊 View CMT Stats, 🔬 NDT Queue, + New Report |
+| **CMT Dashboard** | 💰 View Financials (EVM), 👔 Chief Dashboard |
+| **EVM Dashboard** | 📊 View Construction (CMT) |
+| **Admin Portal** | 📧 Invite User, 📊 CMT, 💰 EVM, 👔 Chief |
+
+### MasterSwitcher (Admin God Mode)
+- Only visible to `admin` and `super_admin` roles
+- Gold "🔑 GOD MODE" dropdown button in header
+- Instant navigation to any dashboard
+
+---
+
+## 📧 INVITATION SYSTEM (UPDATED Jan 17)
+
+### How It Works
+1. Admin clicks "📧 Invite User" in Admin Portal
+2. Fills in email, name, and role
+3. Edge Function creates user in auth.users
+4. Edge Function creates user_profiles record with role
+5. Edge Function sends invitation email via Resend
+6. User clicks link → goes to `/reset-password` to set password
+7. After password set → redirects to role-specific dashboard
+
+### Edge Function: `invite-user`
+**Location:** `supabase/functions/invite-user/index.ts`
+
+**Key Features:**
+- Uses actual Supabase URL (not custom domain) for auth links
+- Extracts token and reconstructs link with correct domain
+- Maps form roles to database roles:
+  - `chief` → `chief_inspector`
+  - `exec` → `executive`
+  - `asst_chief` → `assistant_chief_inspector`
+- Creates user_profiles record with role
+- Sends email via Resend SMTP
+
+### Email Configuration
+- **Provider:** Resend
+- **SMTP Host:** smtp.resend.com
+- **Sender:** auth@pipe-up.ca
+- **Domain:** pipe-up.ca (verified)
+
+### Troubleshooting Invites
+1. Check Edge Function logs: **Edge Functions** → **invite-user** → **Logs**
+2. Check Resend dashboard for email delivery status
+3. User should check spam/updates folder
+4. Verify SMTP settings in Supabase → Project Settings → Authentication
+
+---
+
+## 👤 USER MANAGEMENT
+
+### Deleting Users
+Users can be deleted from **Authentication** → **Users** in Supabase. Reports created by deleted users are preserved (created_by set to NULL).
+
+**Database constraint fix applied (Jan 17):**
+```sql
+ALTER TABLE daily_tickets DROP CONSTRAINT daily_tickets_created_by_fkey;
+ALTER TABLE daily_tickets 
+ADD CONSTRAINT daily_tickets_created_by_fkey 
+FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
+```
+
+### Manual User Deletion (if UI fails)
+```sql
+-- Delete from user_profiles first
+DELETE FROM user_profiles WHERE email = 'user@example.com';
+
+-- Clear auth sessions
+DELETE FROM auth.sessions WHERE user_id = 'USER_UUID';
+DELETE FROM auth.refresh_tokens WHERE user_id = 'USER_UUID';
+DELETE FROM auth.identities WHERE user_id = 'USER_UUID';
+
+-- Delete from auth.users
+DELETE FROM auth.users WHERE id = 'USER_UUID';
+```
 
 ---
 
@@ -154,7 +253,7 @@
 | `daily_tickets` | Main inspection reports |
 | `daily_reports` | Alternative report storage |
 | `activity_blocks` | Activity data per report |
-| `user_profiles` | User accounts & roles |
+| `user_profiles` | User accounts & roles (includes `user_role` column) |
 | `projects` | Project definitions |
 | `organizations` | Organization/company data |
 
@@ -162,14 +261,10 @@
 | Table | Purpose |
 |-------|---------|
 | `stringing_log` | Pipe stringing records |
-| `stringing_daily_summary` | Daily stringing totals |
 | `mainline_welds` | Mainline weld data |
 | `tiein_welds` | Tie-in weld data |
-| `weld_daily_summary` | Daily weld totals |
-| `bend_daily_summary` | Daily bend totals |
 | `bending_log` | Bending records |
 | `clearing_inspections` | Clearing inspection data |
-| `coating_types` | Coating type definitions |
 
 ### Tracking Tables
 | Table | Purpose |
@@ -177,134 +272,30 @@
 | `trackable_items` | Mats, fencing, ramps, goal posts |
 | `mat_transactions` | Mat movement history |
 | `crossings` | Pipeline crossings |
-| `crossing_status_log` | Crossing status changes |
 
 ### Workflow & Audit Tables
 | Table | Purpose |
 |-------|---------|
 | `report_status` | Approval workflow status |
 | `report_audit_log` | **AUDIT TRAIL V2** - Enhanced with regulatory classification |
-| `contract_config` | Project-specific audit settings |
 | `pending_approvals` | Pending approval queue |
 
-### Regulatory Compliance Tables
-| Table | Purpose |
-|-------|---------|
-| `depth_of_cover` | CER/BCER burial depth measurements |
-| `mtr_records` | Mill Test Report tracking |
-| `environmental_commitments` | CER/BCER commitment tracking |
-| `indigenous_participation` | CER indigenous employment |
-| `soil_handling` | BCER topsoil/subsoil requirements |
-
-### Configuration Tables
-| Table | Purpose |
-|-------|---------|
-| `pipe_specifications` | Pipe spec definitions |
-| `wall_thickness_options` | Wall thickness by pipe size |
-| `project_design_spec` | Design specs by station |
-| `pup_config` | Pup length configurations |
-| `wps_configurations` | Welding procedure specs |
-| `labour_rates` | Labour rate schedules |
-| `equipment_rates` | Equipment rate schedules |
-
 ---
 
-## 🔐 AUDIT TRAIL SYSTEM V2
-
-### Database Schema (Enhanced)
-```sql
-report_audit_log (
-  id UUID PRIMARY KEY,
-  report_id UUID,
-  report_date DATE,
-  entity_type TEXT,           -- 'EquipmentCleaningLog', 'HydrovacLog', 'PilingLog', etc.
-  entity_id TEXT,
-  section TEXT,
-  field_name TEXT,
-  old_value TEXT,
-  new_value TEXT,
-  change_type TEXT,           -- 'create', 'edit', 'delete'
-  changed_by UUID,
-  changed_by_name TEXT,
-  changed_by_role TEXT,
-  change_reason TEXT,
-  kp_start TEXT,
-  kp_end TEXT,
-  changed_at TIMESTAMPTZ,
-  -- V2 Columns
-  action_type TEXT,           -- 'field_change', 'entry_add', 'entry_delete', 'status_change'
-  is_critical BOOLEAN,        -- Auto-flagged for regulatory fields
-  regulatory_category TEXT,   -- 'integrity', 'environmental', 'soil_handling', 'indigenous_social', 'archaeological', 'general'
-  joint_number TEXT,
-  weld_number TEXT,
-  metadata JSONB
-)
-```
-
-### Usage Pattern
-```jsx
-import { useActivityAudit } from './useActivityAudit.js'
-
-function SomeLog({ logId, reportId, data, onUpdate }) {
-  const { createAuditProps, logEntryAdd, logEntryDelete, logEntryFieldChange } = useActivityAudit({
-    entityType: 'SomeLog',
-    logId,
-    reportId
-  })
-
-  return (
-    <input
-      {...createAuditProps('fieldName', data.fieldName, 'Section Name')}
-      value={data.fieldName || ''}
-      onChange={(e) => onUpdate('fieldName', e.target.value)}
-    />
-  )
-}
-```
-
-### Tracked Operations
-1. **Field Changes**: onFocus captures original → onBlur logs if changed
-2. **Nested Fields**: Parent.field pattern for nested objects (e.g., `backfill.method`)
-3. **Entry Additions**: Logged when adding entries to arrays
-4. **Entry Deletions**: Logged with entry identifier when removing
-5. **Entry Field Changes**: Tracked per-entry with entry label context
-
----
-
-## 🛤️ ROUTES (in main.jsx)
+## 🛣️ ROUTES
 
 | Route | Component | Access |
 |-------|-----------|--------|
-| `/` | Dashboard | All authenticated |
-| `/admin` | AdminPortal | admin+ |
-| `/chief` | ChiefDashboard | chief_inspector+ |
-| `/inspector` | InspectorReport | All authenticated |
-| `/inspector?edit=ID` | InspectorReport (edit mode) | Admin/Chief |
-| `/report?id=ID` | ReportViewer | Admin/Chief/PM/CM |
-| `/crossings` | CrossingsManager | Admin/Chief/PM/CM |
-| `/evm` | EVMDashboard | Admin/PM/CM/Chief/Exec |
-| `/reconciliation` | ReconciliationDashboard | Admin/PM/CM/Chief |
-| `/changes` | ChangeManagement | Admin/PM/CM/Chief |
-| `/reports` | ReportsPage | Admin/PM/CM/Chief |
-| `/contractor-lems` | ContractorLEMs | Admin/PM/CM/Chief |
-| `/audit` | AuditDashboard | Admin/Chief |
-| `/regulatory` | RegulatoryDashboard | Admin/Chief/Auditor |
-| `/map` | MapDashboard | All authenticated |
-
----
-
-## 👤 USER ROLES
-
-| Role | Access Level |
-|------|--------------|
-| `super_admin` | Everything |
-| `admin` | Everything except super_admin functions |
-| `chief_inspector` | Reports, approvals, dashboards |
-| `pm` | Project Manager - dashboards, reports |
-| `cm` | Construction Manager - dashboards, reports |
-| `executive` | Executive dashboards only |
-| `inspector` | Own reports only |
-| `auditor` | Read-only regulatory dashboard access |
+| `/login` | Login | Public |
+| `/reset-password` | ResetPassword | Public (with token) |
+| `/` | RootRedirect | Redirects based on role |
+| `/field-entry` | InspectorReport | Inspector, Chief, Admin |
+| `/ndt-auditor` | NDTAuditorDashboard | NDT Auditor, Chief, Admin |
+| `/assistant-chief` | AssistantChiefDashboard | Asst Chief, Chief, Admin |
+| `/chief-dashboard` | ChiefDashboard | Chief, Asst Chief, CM, PM, Admin |
+| `/cmt-dashboard` | Dashboard | CM, PM, Chief, Asst Chief, Exec, Admin |
+| `/evm-dashboard` | EVMDashboard | Exec, CM, PM, Admin |
+| `/admin` | AdminPortal | Admin, Super Admin |
 
 ---
 
@@ -312,35 +303,17 @@ function SomeLog({ logId, reportId, data, onUpdate }) {
 
 | Date | Files Changed | What Changed |
 |------|---------------|--------------|
-| **Jan 16, 2026** | `ChiefDashboard.jsx` | **MAJOR FIX** - Restored Daily Summary UI to display aggregated data (welding progress, section progress, personnel, weather) |
-| **Jan 16, 2026** | `chiefReportHelpers.js` | **NEW** - Created helper functions for Chief Dashboard: `fetchApprovedReportsForDate`, `aggregateWeldingProgress`, `aggregateProgressBySection`, `aggregatePersonnel`, `aggregateWeather`, etc. |
-| **Jan 16, 2026** | `chiefReportHelpers.js` | **FIXED** - Fixed `aggregateWeldingProgress` to extract welding data from `activity_blocks` in reports instead of querying non-existent database tables |
-| **Jan 16, 2026** | `chiefReportHelpers.js` | **ENHANCED** - Added JSON parsing for `activity_blocks` in case Supabase stores them as JSON strings |
-| **Jan 16, 2026** | `chiefReportHelpers.js` | **ENHANCED** - Added comprehensive debug logging for data extraction diagnosis |
-| **Jan 16, 2026** | `InspectorReport.jsx` | **FIXED** - Added `counterboreData` to saved activity blocks for tie-in welding data persistence |
-| **Jan 16, 2026** | `InspectorReport.jsx` | **CLEANUP** - Removed orphaned Topsoil AI review code that was causing syntax errors |
-| **Jan 15, 2026** | `egpRouteData.js` | **NEW** - Extracted all EGP survey data from KMZ files |
-| **Jan 15, 2026** | `MiniMapWidget.jsx` | **MAJOR UPDATE** - Real survey data: 774 centerline pts, 367 KP markers, 451 welds, 248 bends, 108 sag bends, 248 footprint polygons, 36 open ends, 2 HDD bore faces |
-| **Jan 15, 2026** | `ActivityBlock.jsx` | **UPDATED** - Fixed manpower/equipment/meters layout with CSS grid, proper spacing, box-sizing |
-| **Jan 13, 2026** | `HydrotestLog.jsx` | **DEPLOYED** - Full audit trail with pigging section |
-| **Jan 13, 2026** | `useActivityAudit.js` | **DEPLOYED** - Core audit hook for all Log components |
-| **Jan 13, 2026** | `EquipmentCleaningLog.jsx` | **DEPLOYED** - Full audit trail |
-| **Jan 13, 2026** | `WelderTestingLog.jsx` | **DEPLOYED** - Full audit trail |
-| **Jan 13, 2026** | `HydrovacLog.jsx` | **DEPLOYED** - Full audit trail |
-| **Jan 13, 2026** | `TimberDeckLog.jsx` | **DEPLOYED** - Full audit trail |
-| **Jan 13, 2026** | `PilingLog.jsx` | **DEPLOYED** - Full audit trail |
-| **Jan 13, 2026** | `HDDLog.jsx` | **DEPLOYED** - Full audit trail |
-| **Jan 13, 2026** | `DitchLog.jsx` | **DEPLOYED** - Full audit trail |
-| **Jan 13, 2026** | `TieInCompletionLog.jsx` | **DEPLOYED** - Full audit trail |
-| **Jan 13, 2026** | `GradingLog.jsx` | **DEPLOYED** - Full audit trail |
-| **Jan 13, 2026** | `AuditDashboard.jsx` | **DEPLOYED** - Added entity type filtering |
-| **Jan 11, 2026** | `auditLogger.js` | Precision-based audit logging with auto-classification |
-| **Jan 11, 2026** | `BendingLog.jsx` | Full audit trail integration |
-| **Jan 11, 2026** | `CoatingLog.jsx` | Full audit trail integration |
-| **Jan 11, 2026** | `ClearingLog.jsx` | Full audit trail integration (BCER compliance) |
-| **Jan 11, 2026** | `RegulatoryDashboard.jsx` | 6-tab compliance portal |
-| **Jan 9, 2026** | `auditHelpers.js` | Comprehensive audit trail utility functions |
-| **Jan 9, 2026** | Supabase | Custom domain `api.pipe-up.ca` verified and active |
+| **Jan 17, 2026** | `invite-user/index.ts` | **FIXED** - Invitation links now use correct Supabase URL, role mapping added |
+| **Jan 17, 2026** | `ResetPassword.jsx` | **FIXED** - Preserves redirect_to parameter after password set |
+| **Jan 17, 2026** | `InviteUser.jsx` | **UPDATED** - Improved error handling for email failures |
+| **Jan 17, 2026** | Database | **FIXED** - daily_tickets foreign key changed to ON DELETE SET NULL |
+| **Jan 15, 2026** | `ProtectedRoute.jsx` | **NEW** - Role-based route guards and access control |
+| **Jan 15, 2026** | `MasterSwitcher.jsx` | **NEW** - Admin God Mode dropdown navigation |
+| **Jan 15, 2026** | `App.jsx` | **REPLACED** - Role-based routing with ProtectedRoute wrappers |
+| **Jan 15, 2026** | `ChiefDashboard.jsx` | **UPDATED** - Fixed Daily Summary display, added navigation |
+| **Jan 15, 2026** | `Dashboard.jsx` | **UPDATED** - Added MasterSwitcher + navigation buttons |
+| **Jan 15, 2026** | `AdminPortal.jsx` | **UPDATED** - Added MasterSwitcher + InviteUser modal |
+| **Jan 13, 2026** | `useActivityAudit.js` | Core audit hook for all Log components |
 
 ---
 
@@ -351,30 +324,41 @@ function SomeLog({ logId, reportId, data, onUpdate }) {
 |--------|---------|--------|
 | `app.pipe-up.ca` | Main application | ✅ Active (Vercel) |
 | `api.pipe-up.ca` | Supabase API | ✅ Active |
+| `pipe-up.ca` | Resend email domain | ✅ Verified |
 
-### SMTP Configuration
-- Provider: Zoho Mail
-- Host: smtp.zoho.com
-- Port: 465
-- Sender: noreply@pipe-up.ca
-- Status: ✅ Working
+### SMTP Configuration (Resend)
+- **Host:** smtp.resend.com
+- **Port:** 465
+- **Username:** resend
+- **Password:** Resend API Key (full access)
+- **Sender:** auth@pipe-up.ca
 
 ---
 
 ## ⚠️ KNOWN ISSUES / TODO
 
 ### High Priority
-- [ ] Test audit dashboard with real data across all entity types
-- [ ] Add CSV export to AuditDashboard
+- [ ] **HydrotestLog.jsx** - Last remaining Log component needing audit trail
+- [ ] Add **Remove User** button to Admin Portal UI
 
 ### Medium Priority
-- [x] Chief's Daily Summary feature (aggregate multiple inspector reports) - **COMPLETED Jan 16, 2026**
 - [ ] Add AI reviewer agents for Blasting, Coating, Grading
-- [ ] Large App.jsx (209K) - legacy code being migrated out
+- [ ] Implement Anthropic API key for AI narrative generation
 
 ### Low Priority
 - [ ] PDF export - verify all Log data displays correctly
 - [ ] Mobile optimization for field use
+
+### ✅ COMPLETED
+- [x] Role-based navigation system (Jan 15)
+- [x] ProtectedRoute security guards (Jan 15)
+- [x] Admin God Mode (MasterSwitcher) (Jan 15)
+- [x] User invitation workflow with Edge Function (Jan 17)
+- [x] Fixed invitation link 404 errors (Jan 17)
+- [x] Fixed role mapping in invitations (Jan 17)
+- [x] Fixed redirect after password reset (Jan 17)
+- [x] User deletion preserves reports (Jan 17)
+- [x] Chief Dashboard Daily Summary display fix (Jan 15)
 
 ---
 
@@ -383,130 +367,56 @@ function SomeLog({ logId, reportId, data, onUpdate }) {
 When starting a new session with Claude, upload:
 
 1. **Always:** `PROJECT_MANIFEST.md` (this file)
-2. **Always:** `main.jsx` (routes)
+2. **Always:** `App.jsx` (routing)
 3. **If working on activities:** `constants.js`
 4. **If working on audit:** `useActivityAudit.js`
-5. **If working on maps:** `MiniMapWidget.jsx`, `egpRouteData.js`
-6. **If debugging:** The specific component + related files
-7. **If adding features:** Related components
+5. **If working on roles/auth:** `ProtectedRoute.jsx`, `AuthContext.jsx`
+6. **If working on invites:** `InviteUser.jsx`, Edge Function code
+7. **If debugging:** The specific component + related files
 
 ---
 
 ## 🏗️ ARCHITECTURE NOTES
 
-### Activity System
-- Activities defined in `constants.js` → `qualityFieldsByActivity`
-- Rendered by `ActivityBlock.jsx`
-- Most activities have dedicated Log components with full audit trail
-- Collapsible sections use `type: 'collapsible'` with nested `fields`
+### Invitation Flow
+1. Admin fills form in `InviteUser.jsx`
+2. Calls Edge Function `invite-user`
+3. Edge Function:
+   - Creates auth user via `generateLink()`
+   - Extracts token, reconstructs link with correct Supabase URL
+   - Creates `user_profiles` record with mapped role
+   - Sends email via Resend
+4. User clicks link → Supabase verifies token → redirects to `/reset-password`
+5. `ResetPassword.jsx` preserves `redirect_to` param
+6. After password set → redirects to role-specific dashboard
 
-### Audit Trail Architecture (V2)
-- `useActivityAudit.js` provides the core hook for all Log components
-- `report_audit_log` table with auto-classification trigger
-- Changes tracked with: entity_type, section, field_name, old/new values
-- Regulatory category auto-assigned based on field patterns
-- Critical flag auto-set for regulatory-sensitive fields
-- ActivityBlock passes `logId` and `reportId` to all Log components
-
-### Audit Props Pattern
-```jsx
-// In ActivityBlock.jsx, each Log component receives:
-<SomeLog
-  logId={activity.id}          // Activity block ID
-  reportId={reportId}          // From InspectorReport state
-  // ... other props
-/>
-```
-
-### EGP Route Data Architecture (NEW)
-- `egpRouteData.js` contains all extracted survey data
-- Imported by `MiniMapWidget.jsx` for map display
-- Data structure:
-  - `route.coordinates` - 774 centerline points
-  - `kpMarkers` - 367 KP markers with lat/lon
-  - `welds` - 451 welds with station, description
-  - `bends` - 248 horizontal bends
-  - `sagBends` - 108 vertical sag bends
-  - `footprint` - 248 polygon arrays for construction corridor
-  - `openEnds` - 36 begin/leave markers
-  - `boreFaces` - 2 HDD entry/exit points
-
-### Trackable Items
-- Managed by `TrackableItemsTracker.jsx`
-- Types: Mats, Fencing, Ramps, Goal Posts, Hydrovac, Erosion Control, Signage, Equipment Cleaning, Access Roads
-
-### Report Flow
-1. Inspector fills `InspectorReport.jsx`
-2. Saves to `daily_tickets` table with `activity_blocks` (JSON) containing all activity data
-3. Audit log records all field changes with regulatory classification
-4. Admin/Chief views via `ReportViewer.jsx` or edits via `InspectorReport.jsx?edit=ID`
-5. Approval workflow via Reports tab in AdminPortal
-6. Regulatory dashboard provides compliance views
-7. AuditDashboard allows filtering by entity type
-
-### Chief Dashboard Daily Summary (NEW Jan 16, 2026)
-- Aggregates data from multiple inspector reports for a given date
-- Helper functions in `chiefReportHelpers.js`:
-  - `fetchApprovedReportsForDate()` - Fetches all submitted/approved reports for a date
-  - `aggregateWeldingProgress()` - Extracts welding data from `activity_blocks` (weldsToday, weldEntries, repairs)
-  - `aggregateProgressBySection()` - Aggregates activities by spread/category
-  - `aggregatePersonnel()` - Sums personnel counts across all reports
-  - `aggregateWeather()` - Extracts weather data from reports
-  - `aggregatePhotos()` - Collects photos from all reports
-- Data extraction:
-  - Reads `activity_blocks` from `daily_tickets` table
-  - Parses JSON if needed (handles both string and object formats)
-  - Extracts specialized data: `weldData`, `bendingData`, `stringingData`, `coatingData`, `counterboreData`
-  - Aggregates by activity type and displays in tables
-- UI displays: Welding Progress table, Section Progress table, Personnel Summary, Weather Data, Source Reports list
+### Role Mapping (Form → Database)
+| Form Value | Database Value |
+|------------|----------------|
+| `chief` | `chief_inspector` |
+| `exec` | `executive` |
+| `asst_chief` | `assistant_chief_inspector` |
+| Others | Same as form value |
 
 ---
 
-## 🔐 RLS POLICIES REQUIRED
+## 🔐 REQUIRED SQL (Already Applied)
 
+### User Deletion Fix (Jan 17)
 ```sql
--- Allow authenticated users to view audit logs
-CREATE POLICY "Users can view audit logs" 
-ON report_audit_log FOR SELECT TO authenticated USING (true);
-
--- Allow authenticated users to insert audit logs
-CREATE POLICY "Users can insert audit logs" 
-ON report_audit_log FOR INSERT TO authenticated WITH CHECK (true);
+ALTER TABLE daily_tickets ALTER COLUMN created_by DROP NOT NULL;
+ALTER TABLE daily_tickets DROP CONSTRAINT daily_tickets_created_by_fkey;
+ALTER TABLE daily_tickets 
+ADD CONSTRAINT daily_tickets_created_by_fkey 
+FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
 ```
 
----
-
-## 🧪 TESTING AUDIT TRAIL
-
-After deploying audit-enabled components:
-
-1. Open an **existing saved report** (must have reportId)
-2. Edit a field in any audit-enabled Log component
-3. Tab/click out of the field
-4. Check audit log:
-
+### Role-Based Auth (Jan 15)
 ```sql
-SELECT entity_type, field_name, section, old_value, new_value, changed_at
-FROM report_audit_log 
-ORDER BY changed_at DESC 
-LIMIT 20;
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS user_role TEXT;
+CREATE INDEX IF NOT EXISTS idx_user_profiles_user_role ON user_profiles(user_role);
+ALTER TABLE user_profiles ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'active';
 ```
-
-### Expected Entity Types in AuditDashboard:
-- EquipmentCleaningLog
-- WelderTestingLog  
-- HydrovacLog
-- TimberDeckLog
-- PilingLog
-- HDDLog
-- DitchLog
-- TieInCompletionLog
-- GradingLog
-- HydrotestLog
-- BendingLog
-- CoatingLog
-- ClearingLog
-- StringingLog
 
 ---
 

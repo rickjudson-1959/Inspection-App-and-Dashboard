@@ -5,8 +5,6 @@ import { supabase } from './supabase'
 import * as XLSX from 'xlsx'
 import ComplianceAuditTrail from './ComplianceAuditTrail.jsx'
 import RateImport from './RateImport.jsx'
-import MasterSwitcher from './MasterSwitcher.jsx'
-import InviteUser from './InviteUser.jsx'
 
 function AdminPortal() {
   const navigate = useNavigate()
@@ -40,11 +38,8 @@ function AdminPortal() {
 
   // Setup tab state
   const [selectedOrgForSetup, setSelectedOrgForSetup] = useState('')
-  
-  // Invite User modal state
-  const [showInviteModal, setShowInviteModal] = useState(false)
 
-  const isSuperAdmin = userProfile?.role === 'super_admin' || userProfile?.user_role === 'super_admin'
+  const isSuperAdmin = userProfile?.role === 'super_admin'
 
   useEffect(() => {
     fetchData()
@@ -287,7 +282,7 @@ function AdminPortal() {
     try {
       const { error } = await supabase
         .from('user_profiles')
-        .update({ role: newRole })
+        .update({ role: newRole, user_role: newRole })
         .eq('id', userId)
 
       if (error) throw error
@@ -297,6 +292,47 @@ function AdminPortal() {
     } catch (err) {
       console.error('Error updating role:', err)
       alert('Error updating role: ' + err.message)
+    }
+  }
+
+  async function deleteUser(userId, userEmail) {
+    // Prevent deleting yourself
+    if (userEmail === userProfile?.email) {
+      alert('You cannot delete your own account')
+      return
+    }
+    
+    if (!confirm(`Are you sure you want to delete ${userEmail}?\n\nThis action cannot be undone. Any reports they created will be preserved.`)) {
+      return
+    }
+    
+    try {
+      // Delete from user_profiles first
+      const { error: profileError } = await supabase
+        .from('user_profiles')
+        .delete()
+        .eq('id', userId)
+      
+      if (profileError) {
+        console.error('Error deleting profile:', profileError)
+        throw profileError
+      }
+      
+      // Try to delete from auth.users via Edge Function
+      try {
+        await supabase.functions.invoke('delete-user', {
+          body: { user_id: userId }
+        })
+      } catch (fnErr) {
+        console.warn('Edge function not available - user removed from profiles but may need manual deletion from Auth:', fnErr)
+      }
+      
+      fetchData()
+      alert(`User ${userEmail} has been deleted successfully`)
+      
+    } catch (err) {
+      console.error('Error deleting user:', err)
+      alert('Error deleting user: ' + err.message)
     }
   }
 
@@ -530,13 +566,13 @@ function AdminPortal() {
           <h1 style={{ margin: 0, fontSize: '24px' }}>Pipe-Up Admin Portal</h1>
           <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>{isSuperAdmin ? 'Super Admin' : 'Admin'} - {userProfile?.organizations?.name || 'All Organizations'}</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <MasterSwitcher compact />
-          <button onClick={() => setShowInviteModal(true)} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>📧 Invite User</button>
-          <button onClick={() => navigate('/dashboard')} style={{ padding: '10px 20px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>📊 CMT</button>
-          <button onClick={() => navigate('/evm')} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>💰 EVM</button>
-          <button onClick={() => navigate('/chief')} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>👔 Chief</button>
-          <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign Out</button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={() => navigate('/dashboard')} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>CMT Dashboard</button>
+          <button onClick={() => navigate('/evm')} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>EVM Dashboard</button>
+          <button onClick={() => navigate('/reconciliation')} style={{ padding: '10px 20px', backgroundColor: '#ffc107', color: 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Reconciliation</button>
+          <button onClick={() => navigate('/changes')} style={{ padding: '10px 20px', backgroundColor: '#6f42c1', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Change Orders</button>
+          <button onClick={() => navigate('/contractor-lems')} style={{ padding: '10px 20px', backgroundColor: '#2c3e50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Contractor LEMs</button>
+          <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign Out</button>
         </div>
       </div>
 
@@ -933,7 +969,8 @@ function AdminPortal() {
         {activeTab === 'users' && (
           <div>
             <h2>Users</h2>
-            <p style={{ color: '#666', marginBottom: '20px' }}>Manage user roles. Click the role dropdown to change a user's role.</p>
+            <p style={{ color: '#666', marginBottom: '20px' }}>Manage user accounts. Click the role dropdown to change a user's role, or use the Delete button to remove a user.</p>
+            {console.log('Users tab rendered. User count:', users.length, 'Users:', users)}
             <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
@@ -942,6 +979,7 @@ function AdminPortal() {
                     <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Email</th>
                     <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Role</th>
                     <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Organization</th>
+                    <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #ddd', width: '120px' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -970,6 +1008,27 @@ function AdminPortal() {
                         </select>
                       </td>
                       <td style={{ padding: '15px', borderBottom: '1px solid #eee' }}>{user.organizations?.name || 'N/A'}</td>
+                      <td style={{ padding: '15px', borderBottom: '1px solid #eee', textAlign: 'center', width: '120px' }}>
+                        <button
+                          onClick={() => deleteUser(user.id, user.email)}
+                          disabled={user.email === userProfile?.email}
+                          style={{
+                            padding: '8px 16px',
+                            backgroundColor: user.email === userProfile?.email ? '#ccc' : '#dc3545',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: user.email === userProfile?.email ? 'not-allowed' : 'pointer',
+                            fontSize: '14px',
+                            fontWeight: '500',
+                            minWidth: '100px',
+                            display: 'inline-block'
+                          }}
+                          title={user.email === userProfile?.email ? 'Cannot delete yourself' : `Delete ${user.email}`}
+                        >
+                          🗑️ Delete User
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -1046,30 +1105,6 @@ function AdminPortal() {
         )}
 
       </div>
-
-      {/* Invite User Modal */}
-      {showInviteModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000
-        }}>
-          <InviteUser 
-            onSuccess={() => {
-              setShowInviteModal(false)
-              fetchData()
-            }}
-            onCancel={() => setShowInviteModal(false)}
-          />
-        </div>
-      )}
     </div>
   )
 }

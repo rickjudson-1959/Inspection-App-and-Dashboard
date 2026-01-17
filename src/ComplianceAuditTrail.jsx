@@ -6,6 +6,8 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
 import jsPDF from 'jspdf'
+// Import autoTable plugin - this side-effect import should register autoTable on jsPDF
+// IMPORTANT: This must be imported before any jsPDF instances are created
 import 'jspdf-autotable'
 
 // Brand colors
@@ -288,6 +290,13 @@ export default function ComplianceAuditTrail() {
       entry.field_name || '-',
       entry.change_reason ? entry.change_reason.substring(0, 30) + (entry.change_reason.length > 30 ? '...' : '') : '-'
     ])
+    
+    // Check if autoTable is available
+    if (typeof doc.autoTable !== 'function') {
+      console.error('❌ jspdf-autotable plugin not loaded. Please rebuild the app or reinstall dependencies.')
+      alert('PDF export error: autoTable plugin not available. Please refresh the page or contact support.')
+      return
+    }
     
     doc.autoTable({
       startY: yPos + 20,

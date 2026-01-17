@@ -1,6 +1,3 @@
-// supabase/functions/delete-user/index.ts
-// Securely delete users from auth.users (requires service role)
-
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -19,41 +16,48 @@ serve(async (req) => {
 
     if (!user_id) {
       return new Response(
-        JSON.stringify({ error: 'user_id is required' }),
+        JSON.stringify({ error: 'Missing required field: user_id' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
-    // Create admin client with service role
+    // CRITICAL: Always use actual Supabase project URL (not custom domain) for auth operations
+    // Custom domains (api.pipe-up.ca) do NOT handle /auth/v1/ routes correctly
+    // Project ref: aatvckalnvojlykfgnmz
+    const actualSupabaseUrl = 'https://aatvckalnvojlykfgnmz.supabase.co'
+    
     const supabaseAdmin = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
+      actualSupabaseUrl,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
-    // Delete auth sessions first
-    await supabaseAdmin.from('auth.sessions').delete().eq('user_id', user_id).catch(() => {})
-    await supabaseAdmin.from('auth.refresh_tokens').delete().eq('user_id', user_id).catch(() => {})
-    await supabaseAdmin.from('auth.identities').delete().eq('user_id', user_id).catch(() => {})
-
-    // Delete the user from auth.users
+    // Delete user from auth.users (requires service role)
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user_id)
 
     if (deleteError) {
-      console.error('Error deleting user:', deleteError)
+      console.error('Error deleting user from auth:', deleteError)
       return new Response(
-        JSON.stringify({ error: deleteError.message }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        JSON.stringify({ 
+          error: 'Failed to delete user from authentication',
+          details: deleteError.message 
+        }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       )
     }
 
+    console.log(`✅ Successfully deleted user ${user_id} from auth.users`)
+
     return new Response(
-      JSON.stringify({ success: true, message: 'User deleted successfully' }),
+      JSON.stringify({ 
+        success: true, 
+        message: `User ${user_id} has been deleted from authentication` 
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
 
   } catch (error) {
-    console.error('Function error:', error)
+    console.error('Error in delete-user function:', error)
     return new Response(
       JSON.stringify({ error: error.message || 'Internal server error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
