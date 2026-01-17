@@ -970,7 +970,6 @@ function AdminPortal() {
           <div>
             <h2>Users</h2>
             <p style={{ color: '#666', marginBottom: '20px' }}>Manage user accounts. Click the role dropdown to change a user's role, or use the Delete button to remove a user.</p>
-            {console.log('Users tab rendered. User count:', users.length, 'Users:', users)}
             <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
