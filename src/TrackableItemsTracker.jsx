@@ -23,6 +23,37 @@ const ITEM_TYPES = [
     ]
   },
   { 
+    id: 'rock_trench', 
+    label: '🪨 Rock Trench', 
+    color: '#6c757d',
+    fields: [
+      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
+      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'length', label: 'Length (m)', type: 'number', placeholder: 'Auto or manual' },
+      { name: 'rock_type', label: 'Rock Type', type: 'select', options: ['Solid Rock', 'Fractured Rock', 'Boulders', 'Bedrock', 'Shale', 'Other'] },
+      { name: 'equipment', label: 'Equipment Used', type: 'select', options: ['Rock Trencher', 'Hydraulic Breaker', 'Blasting', 'Excavator w/ Ripper', 'Other'] },
+      { name: 'depth_achieved', label: 'Depth Achieved (m)', type: 'number', placeholder: 'Actual depth' },
+      { name: 'spec_depth', label: 'Spec Depth (m)', type: 'number', placeholder: 'Required depth' },
+      { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Production rate, challenges, etc.' }
+    ]
+  },
+  { 
+    id: 'extra_depth', 
+    label: '📐 Extra Depth Ditch', 
+    color: '#856404',
+    fields: [
+      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
+      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'length', label: 'Length (m)', type: 'number', placeholder: 'Auto or manual' },
+      { name: 'extra_depth_amount', label: 'Extra Depth (m)', type: 'number', placeholder: 'Additional depth beyond spec' },
+      { name: 'total_depth', label: 'Total Depth (m)', type: 'number', placeholder: 'Total achieved depth' },
+      { name: 'reason', label: 'Reason', type: 'select', options: ['Crossing Requirements', 'Utility Clearance', 'Engineering Request', 'Soil Conditions', 'Other'] },
+      { name: 'in_drawings', label: 'In Drawings?', type: 'select', options: ['Yes - Per Drawings', 'No - Field Decision'] },
+      { name: 'approved_by', label: 'Approved By', type: 'text', placeholder: 'Name/Role if field decision' },
+      { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
+    ]
+  },
+  { 
     id: 'fencing', 
     label: '🚧 Temporary Fencing', 
     color: '#28a745',
