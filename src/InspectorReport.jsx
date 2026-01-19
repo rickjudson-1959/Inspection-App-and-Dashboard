@@ -28,6 +28,7 @@ import SafetyRecognition from './SafetyRecognition.jsx'
 import WildlifeSighting from './WildlifeSighting.jsx'
 import UnitPriceItemsLog from './UnitPriceItemsLog.jsx'
 import MatTracker from './MatTracker.jsx'
+import TrackableItemsTracker from './TrackableItemsTracker.jsx'
 import ReportWorkflow from './ReportWorkflow.jsx'
 import MiniMapWidget from './MiniMapWidget.jsx'
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
@@ -4781,9 +4782,13 @@ Important:
         
         {trackableItemsExpanded && (
           <div style={{ padding: '20px' }}>
-            <p style={{ color: '#666', fontStyle: 'italic' }}>
-              Trackable items tracking is currently being updated. Please use the Mat Tracker section for material tracking.
-            </p>
+            <TrackableItemsTracker
+              projectId={pipeline || 'default'}
+              reportDate={selectedDate}
+              reportId={currentReportId}
+              inspector={inspectorName}
+              onDataChange={(data) => setTrackableItemsData(data)}
+            />
           </div>
         )}
       </div>
