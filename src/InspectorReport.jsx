@@ -934,17 +934,9 @@ Important:
   // Fetch existing chainages for all activity types
   async function fetchExistingChainages() {
     try {
-      // Build query - exclude current report if editing
-      let query = supabase
+      const { data: reports, error } = await supabase
         .from('daily_tickets')
-        .select('id, date, activity_blocks')
-      
-      // Exclude current report when editing to prevent false overlap with itself
-      if (currentReportId) {
-        query = query.neq('id', currentReportId)
-      }
-      
-      const { data: reports, error } = await query
+        .select('date, activity_blocks')
       
       if (error || !reports) return
 
@@ -1088,10 +1080,10 @@ Important:
     setBlockChainageStatus(newStatus)
   }, [activityBlocks, existingChainages])
 
-  // Fetch existing chainages on mount and when date or current report changes
+  // Fetch existing chainages on mount and when date changes
   useEffect(() => {
     fetchExistingChainages()
-  }, [selectedDate, currentReportId])
+  }, [selectedDate])
 
   // Check for chainage overlaps within current report
   function checkChainageOverlaps(blocks) {
@@ -1404,17 +1396,7 @@ Important:
               stringingData: block.stringingData || null,
               coatingData: block.coatingData || null,
               clearingData: block.clearingData || null,
-              counterboreData: block.counterboreData || null,
-              // Additional specialized data types
-              hddData: block.hddData || null,
-              pilingData: block.pilingData || null,
-              cleaningLogData: block.cleaningLogData || null,
-              hydrovacData: block.hydrovacData || null,
-              welderTestingData: block.welderTestingData || null,
-              hydrotestData: block.hydrotestData || null,
-              tieInCompletionData: block.tieInCompletionData || null,
-              ditchData: block.ditchData || null,
-              gradingData: block.gradingData || null
+              counterboreData: block.counterboreData || null
             }
           })
           setActivityBlocks(loadedBlocks)
@@ -2104,17 +2086,7 @@ Important:
           stringingData: block.stringingData || null,
           coatingData: block.coatingData || null,
           clearingData: block.clearingData || null,
-          counterboreData: block.counterboreData || null,
-          // Additional specialized data types
-          hddData: block.hddData || null,
-          pilingData: block.pilingData || null,
-          cleaningLogData: block.cleaningLogData || null,
-          hydrovacData: block.hydrovacData || null,
-          welderTestingData: block.welderTestingData || null,
-          hydrotestData: block.hydrotestData || null,
-          tieInCompletionData: block.tieInCompletionData || null,
-          ditchData: block.ditchData || null,
-          gradingData: block.gradingData || null
+          counterboreData: block.counterboreData || null
         })
       }
 
@@ -3217,408 +3189,6 @@ Important:
         y += 3
       }
 
-      // HDD (Horizontal Directional Drilling) Log
-      if (block.activityType === 'HDD' && block.hddData) {
-        checkPageBreak(40)
-        addSubHeader('HDD Log', BRAND.blueLight)
-        
-        setColor(BRAND.blueLight, 'fill')
-        doc.roundedRect(margin, y, contentWidth, 14, 1, 1, 'F')
-        setColor(BRAND.navy, 'text')
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(8)
-        y += 5
-        doc.text(`Bore ID: ${block.hddData.boreId || 'N/A'}`, margin + 4, y)
-        doc.text(`Crossing Type: ${block.hddData.crossingType || 'N/A'}`, margin + 70, y)
-        y += 5
-        doc.text(`Entry KP: ${block.hddData.entryKP || 'N/A'}`, margin + 4, y)
-        doc.text(`Exit KP: ${block.hddData.exitKP || 'N/A'}`, margin + 70, y)
-        doc.text(`Length: ${block.hddData.boreLength || 'N/A'} m`, margin + 130, y)
-        y += 7
-        
-        if (block.hddData.pilotHole || block.hddData.reaming || block.hddData.pullback) {
-          setColor(BRAND.black, 'text')
-          doc.setFont('helvetica', 'normal')
-          doc.setFontSize(7)
-          if (block.hddData.pilotHole) doc.text(`Pilot Hole: ${block.hddData.pilotHoleProgress || '0'}% complete`, margin + 4, y)
-          if (block.hddData.reaming) doc.text(`Reaming: ${block.hddData.reamingProgress || '0'}% complete`, margin + 70, y)
-          if (block.hddData.pullback) doc.text(`Pullback: ${block.hddData.pullbackProgress || '0'}% complete`, margin + 130, y)
-          y += 5
-        }
-        
-        if (block.hddData.drillingFluid || block.hddData.mudPressure) {
-          doc.text(`Drilling Fluid: ${block.hddData.drillingFluid || 'N/A'}`, margin + 4, y)
-          doc.text(`Mud Pressure: ${block.hddData.mudPressure || 'N/A'} psi`, margin + 70, y)
-          y += 5
-        }
-        
-        if (block.hddData.notes) {
-          const lines = doc.splitTextToSize(`Notes: ${block.hddData.notes}`, contentWidth - 6)
-          doc.text(lines.slice(0, 2), margin + 4, y)
-          y += Math.min(lines.length, 2) * 4
-        }
-        y += 3
-      }
-
-      // Piling Log
-      if (block.activityType === 'Piling' && block.pilingData) {
-        checkPageBreak(40)
-        addSubHeader('Piling Log', BRAND.orangeLight)
-        
-        setColor(BRAND.orangeLight, 'fill')
-        doc.roundedRect(margin, y, contentWidth, 10, 1, 1, 'F')
-        setColor(BRAND.navy, 'text')
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(8)
-        y += 5
-        doc.text(`Piles Installed: ${block.pilingData.pilesInstalled || 0}`, margin + 4, y)
-        doc.text(`Pile Type: ${block.pilingData.pileType || 'N/A'}`, margin + 55, y)
-        doc.text(`Diameter: ${block.pilingData.pileDiameter || 'N/A'}`, margin + 110, y)
-        y += 8
-        
-        if (block.pilingData.pileEntries && block.pilingData.pileEntries.length > 0) {
-          setColor(BRAND.orange, 'fill')
-          doc.rect(margin, y, contentWidth, 5, 'F')
-          setColor(BRAND.white, 'text')
-          doc.setFont('helvetica', 'bold')
-          doc.setFontSize(6)
-          doc.text('PILE #', margin + 2, y + 3.5)
-          doc.text('STATION', margin + 25, y + 3.5)
-          doc.text('DEPTH', margin + 55, y + 3.5)
-          doc.text('REFUSAL', margin + 80, y + 3.5)
-          doc.text('HAMMER', margin + 110, y + 3.5)
-          doc.text('STATUS', margin + 145, y + 3.5)
-          y += 6
-          
-          block.pilingData.pileEntries.forEach((pile, i) => {
-            checkPageBreak(5)
-            if (i % 2 === 0) {
-              setColor(BRAND.grayLight, 'fill')
-              doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
-            }
-            setColor(BRAND.black, 'text')
-            doc.setFont('helvetica', 'normal')
-            doc.setFontSize(6)
-            doc.text(String(pile.pileNumber || '-'), margin + 2, y + 2.5)
-            doc.text(String(pile.stationKP || '-'), margin + 25, y + 2.5)
-            doc.text(String(pile.depth || '-'), margin + 55, y + 2.5)
-            doc.text(pile.refusal ? 'Yes' : 'No', margin + 80, y + 2.5)
-            doc.text(String(pile.hammerType || '-').substring(0, 15), margin + 110, y + 2.5)
-            doc.text(String(pile.status || '-'), margin + 145, y + 2.5)
-            y += 4.5
-          })
-        }
-        y += 3
-      }
-
-      // Hydrovac Log
-      if (block.activityType === 'Hydrovac' && block.hydrovacData) {
-        checkPageBreak(30)
-        addSubHeader('Hydrovac Log', BRAND.blueLight)
-        
-        setColor(BRAND.blueLight, 'fill')
-        doc.roundedRect(margin, y, contentWidth, 10, 1, 1, 'F')
-        setColor(BRAND.navy, 'text')
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(8)
-        y += 5
-        doc.text(`Excavations: ${block.hydrovacData.excavationCount || 0}`, margin + 4, y)
-        doc.text(`Total Volume: ${block.hydrovacData.totalVolume || 'N/A'} m³`, margin + 55, y)
-        doc.text(`Truck ID: ${block.hydrovacData.truckId || 'N/A'}`, margin + 115, y)
-        y += 8
-        
-        if (block.hydrovacData.excavations && block.hydrovacData.excavations.length > 0) {
-          setColor(BRAND.blue, 'fill')
-          doc.rect(margin, y, contentWidth, 5, 'F')
-          setColor(BRAND.white, 'text')
-          doc.setFont('helvetica', 'bold')
-          doc.setFontSize(6)
-          doc.text('LOCATION', margin + 2, y + 3.5)
-          doc.text('PURPOSE', margin + 45, y + 3.5)
-          doc.text('DEPTH', margin + 95, y + 3.5)
-          doc.text('WIDTH', margin + 120, y + 3.5)
-          doc.text('LENGTH', margin + 145, y + 3.5)
-          y += 6
-          
-          block.hydrovacData.excavations.forEach((exc, i) => {
-            checkPageBreak(5)
-            if (i % 2 === 0) {
-              setColor(BRAND.grayLight, 'fill')
-              doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
-            }
-            setColor(BRAND.black, 'text')
-            doc.setFont('helvetica', 'normal')
-            doc.setFontSize(6)
-            doc.text(String(exc.location || '-').substring(0, 18), margin + 2, y + 2.5)
-            doc.text(String(exc.purpose || '-').substring(0, 20), margin + 45, y + 2.5)
-            doc.text(String(exc.depth || '-'), margin + 95, y + 2.5)
-            doc.text(String(exc.width || '-'), margin + 120, y + 2.5)
-            doc.text(String(exc.length || '-'), margin + 145, y + 2.5)
-            y += 4.5
-          })
-        }
-        y += 3
-      }
-
-      // Welder Testing Log
-      if (block.activityType === 'Welder Testing' && block.welderTestingData) {
-        checkPageBreak(40)
-        addSubHeader('Welder Testing Log', BRAND.orangeLight)
-        
-        setColor(BRAND.orangeLight, 'fill')
-        doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
-        setColor(BRAND.navy, 'text')
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(8)
-        y += 5
-        doc.text(`Tests Conducted: ${block.welderTestingData.testsToday || 0}`, margin + 4, y)
-        doc.text(`Passed: ${block.welderTestingData.testsPassed || 0}`, margin + 60, y)
-        doc.text(`Failed: ${block.welderTestingData.testsFailed || 0}`, margin + 105, y)
-        y += 6
-        
-        if (block.welderTestingData.testEntries && block.welderTestingData.testEntries.length > 0) {
-          setColor(BRAND.orange, 'fill')
-          doc.rect(margin, y, contentWidth, 5, 'F')
-          setColor(BRAND.white, 'text')
-          doc.setFont('helvetica', 'bold')
-          doc.setFontSize(6)
-          doc.text('WELDER', margin + 2, y + 3.5)
-          doc.text('STAMP', margin + 40, y + 3.5)
-          doc.text('WPS', margin + 65, y + 3.5)
-          doc.text('PROCESS', margin + 95, y + 3.5)
-          doc.text('POSITION', margin + 125, y + 3.5)
-          doc.text('RESULT', margin + 155, y + 3.5)
-          y += 6
-          
-          block.welderTestingData.testEntries.forEach((test, i) => {
-            checkPageBreak(5)
-            if (i % 2 === 0) {
-              setColor(BRAND.grayLight, 'fill')
-              doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
-            }
-            setColor(BRAND.black, 'text')
-            doc.setFont('helvetica', 'normal')
-            doc.setFontSize(6)
-            doc.text(String(test.welderName || '-').substring(0, 15), margin + 2, y + 2.5)
-            doc.text(String(test.welderStamp || '-'), margin + 40, y + 2.5)
-            doc.text(String(test.wpsId || '-').substring(0, 12), margin + 65, y + 2.5)
-            doc.text(String(test.weldProcess || '-'), margin + 95, y + 2.5)
-            doc.text(String(test.position || '-'), margin + 125, y + 2.5)
-            if (test.result === 'Pass') {
-              setColor(BRAND.green, 'text')
-            } else if (test.result === 'Fail') {
-              setColor(BRAND.red, 'text')
-            }
-            doc.text(String(test.result || '-'), margin + 155, y + 2.5)
-            setColor(BRAND.black, 'text')
-            y += 4.5
-          })
-        }
-        y += 3
-      }
-
-      // Hydro Test Log
-      if (block.activityType === 'Hydro Test' && block.hydrotestData) {
-        checkPageBreak(50)
-        addSubHeader('Hydrostatic Test Log', BRAND.blueLight)
-        
-        setColor(BRAND.blueLight, 'fill')
-        doc.roundedRect(margin, y, contentWidth, 18, 1, 1, 'F')
-        setColor(BRAND.navy, 'text')
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(8)
-        y += 5
-        doc.text(`Test Section: ${block.hydrotestData.testSectionId || 'N/A'}`, margin + 4, y)
-        doc.text(`Status: ${block.hydrotestData.testStatus || 'N/A'}`, margin + 80, y)
-        y += 5
-        doc.text(`From KP: ${block.hydrotestData.fromKP || 'N/A'}`, margin + 4, y)
-        doc.text(`To KP: ${block.hydrotestData.toKP || 'N/A'}`, margin + 55, y)
-        doc.text(`Length: ${block.hydrotestData.testLength || 'N/A'} m`, margin + 105, y)
-        y += 5
-        doc.text(`Test Pressure: ${block.hydrotestData.testPressure || 'N/A'} kPa`, margin + 4, y)
-        doc.text(`Duration: ${block.hydrotestData.holdDuration || 'N/A'} hrs`, margin + 70, y)
-        doc.text(`Medium: ${block.hydrotestData.testMedium || 'Water'}`, margin + 125, y)
-        y += 6
-        
-        if (block.hydrotestData.pressureReadings && block.hydrotestData.pressureReadings.length > 0) {
-          setColor(BRAND.blue, 'fill')
-          doc.rect(margin, y, contentWidth, 5, 'F')
-          setColor(BRAND.white, 'text')
-          doc.setFont('helvetica', 'bold')
-          doc.setFontSize(6)
-          doc.text('TIME', margin + 2, y + 3.5)
-          doc.text('PRESSURE (kPa)', margin + 35, y + 3.5)
-          doc.text('TEMP (°C)', margin + 80, y + 3.5)
-          doc.text('NOTES', margin + 115, y + 3.5)
-          y += 6
-          
-          block.hydrotestData.pressureReadings.slice(0, 10).forEach((reading, i) => {
-            checkPageBreak(5)
-            if (i % 2 === 0) {
-              setColor(BRAND.grayLight, 'fill')
-              doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
-            }
-            setColor(BRAND.black, 'text')
-            doc.setFont('helvetica', 'normal')
-            doc.setFontSize(6)
-            doc.text(String(reading.time || '-'), margin + 2, y + 2.5)
-            doc.text(String(reading.pressure || '-'), margin + 35, y + 2.5)
-            doc.text(String(reading.temperature || '-'), margin + 80, y + 2.5)
-            doc.text(String(reading.notes || '-').substring(0, 30), margin + 115, y + 2.5)
-            y += 4.5
-          })
-          if (block.hydrotestData.pressureReadings.length > 10) {
-            doc.text(`... and ${block.hydrotestData.pressureReadings.length - 10} more readings`, margin + 4, y + 2)
-            y += 4
-          }
-        }
-        y += 3
-      }
-
-      // Tie-in Completion Log
-      if (block.activityType === 'Tie-in Completion' && block.tieInCompletionData) {
-        checkPageBreak(35)
-        addSubHeader('Tie-in Completion Log', BRAND.greenLight)
-        
-        setColor(BRAND.greenLight, 'fill')
-        doc.roundedRect(margin, y, contentWidth, 10, 1, 1, 'F')
-        setColor(BRAND.navy, 'text')
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(8)
-        y += 5
-        doc.text(`Tie-ins Completed: ${block.tieInCompletionData.tieInsCompleted || 0}`, margin + 4, y)
-        doc.text(`Facility: ${block.tieInCompletionData.facilityName || 'N/A'}`, margin + 70, y)
-        y += 8
-        
-        if (block.tieInCompletionData.tieInEntries && block.tieInCompletionData.tieInEntries.length > 0) {
-          setColor(BRAND.green, 'fill')
-          doc.rect(margin, y, contentWidth, 5, 'F')
-          setColor(BRAND.white, 'text')
-          doc.setFont('helvetica', 'bold')
-          doc.setFontSize(6)
-          doc.text('TIE-IN ID', margin + 2, y + 3.5)
-          doc.text('LOCATION', margin + 35, y + 3.5)
-          doc.text('TYPE', margin + 80, y + 3.5)
-          doc.text('SIZE', margin + 115, y + 3.5)
-          doc.text('STATUS', margin + 145, y + 3.5)
-          y += 6
-          
-          block.tieInCompletionData.tieInEntries.forEach((tieIn, i) => {
-            checkPageBreak(5)
-            if (i % 2 === 0) {
-              setColor(BRAND.grayLight, 'fill')
-              doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
-            }
-            setColor(BRAND.black, 'text')
-            doc.setFont('helvetica', 'normal')
-            doc.setFontSize(6)
-            doc.text(String(tieIn.tieInId || '-').substring(0, 12), margin + 2, y + 2.5)
-            doc.text(String(tieIn.location || '-').substring(0, 18), margin + 35, y + 2.5)
-            doc.text(String(tieIn.tieInType || '-').substring(0, 12), margin + 80, y + 2.5)
-            doc.text(String(tieIn.pipeSize || '-'), margin + 115, y + 2.5)
-            doc.text(String(tieIn.status || '-'), margin + 145, y + 2.5)
-            y += 4.5
-          })
-        }
-        y += 3
-      }
-
-      // Ditching Log
-      if (block.activityType === 'Ditching' && block.ditchData) {
-        checkPageBreak(30)
-        addSubHeader('Ditching Log', BRAND.orangeLight)
-        
-        setColor(BRAND.orangeLight, 'fill')
-        doc.roundedRect(margin, y, contentWidth, 12, 1, 1, 'F')
-        setColor(BRAND.navy, 'text')
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(8)
-        y += 5
-        doc.text(`Ditch Type: ${block.ditchData.ditchType || 'N/A'}`, margin + 4, y)
-        doc.text(`Depth: ${block.ditchData.ditchDepth || 'N/A'} m`, margin + 70, y)
-        doc.text(`Width: ${block.ditchData.ditchWidth || 'N/A'} m`, margin + 120, y)
-        y += 5
-        doc.text(`Soil Type: ${block.ditchData.soilType || 'N/A'}`, margin + 4, y)
-        doc.text(`Rock %: ${block.ditchData.rockPercent || '0'}%`, margin + 70, y)
-        doc.text(`Water Present: ${block.ditchData.waterPresent ? 'Yes' : 'No'}`, margin + 120, y)
-        y += 5
-        
-        if (block.ditchData.notes) {
-          setColor(BRAND.black, 'text')
-          doc.setFont('helvetica', 'normal')
-          doc.setFontSize(7)
-          const lines = doc.splitTextToSize(`Notes: ${block.ditchData.notes}`, contentWidth - 6)
-          doc.text(lines.slice(0, 2), margin + 4, y)
-          y += Math.min(lines.length, 2) * 4
-        }
-        y += 3
-      }
-
-      // Grading Log
-      if (block.activityType === 'Grading' && block.gradingData) {
-        checkPageBreak(30)
-        addSubHeader('Grading Log', BRAND.greenLight)
-        
-        setColor(BRAND.greenLight, 'fill')
-        doc.roundedRect(margin, y, contentWidth, 12, 1, 1, 'F')
-        setColor(BRAND.navy, 'text')
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(8)
-        y += 5
-        doc.text(`Grade Type: ${block.gradingData.gradeType || 'N/A'}`, margin + 4, y)
-        doc.text(`ROW Width: ${block.gradingData.rowWidth || 'N/A'} m`, margin + 70, y)
-        doc.text(`Cut/Fill: ${block.gradingData.cutFill || 'N/A'}`, margin + 125, y)
-        y += 5
-        doc.text(`Slope: ${block.gradingData.slopePercent || '0'}%`, margin + 4, y)
-        doc.text(`Drainage: ${block.gradingData.drainageInstalled ? 'Yes' : 'No'}`, margin + 70, y)
-        doc.text(`Erosion Control: ${block.gradingData.erosionControl || 'N/A'}`, margin + 125, y)
-        y += 5
-        
-        if (block.gradingData.notes) {
-          setColor(BRAND.black, 'text')
-          doc.setFont('helvetica', 'normal')
-          doc.setFontSize(7)
-          const lines = doc.splitTextToSize(`Notes: ${block.gradingData.notes}`, contentWidth - 6)
-          doc.text(lines.slice(0, 2), margin + 4, y)
-          y += Math.min(lines.length, 2) * 4
-        }
-        y += 3
-      }
-
-      // Cleaning Log
-      if ((block.activityType === 'Cleanup - Machine' || block.activityType === 'Cleanup - Final') && block.cleaningLogData) {
-        checkPageBreak(30)
-        addSubHeader('Cleaning Log', BRAND.blueLight)
-        
-        setColor(BRAND.blueLight, 'fill')
-        doc.roundedRect(margin, y, contentWidth, 12, 1, 1, 'F')
-        setColor(BRAND.navy, 'text')
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(8)
-        y += 5
-        doc.text(`Cleaning Type: ${block.cleaningLogData.cleaningType || 'N/A'}`, margin + 4, y)
-        doc.text(`Pass #: ${block.cleaningLogData.passNumber || '1'}`, margin + 80, y)
-        y += 5
-        doc.text(`Debris Removed: ${block.cleaningLogData.debrisRemoved || 'N/A'}`, margin + 4, y)
-        doc.text(`Reclamation: ${block.cleaningLogData.reclamationStatus || 'N/A'}`, margin + 80, y)
-        y += 5
-        
-        if (block.cleaningLogData.items && block.cleaningLogData.items.length > 0) {
-          setColor(BRAND.black, 'text')
-          doc.setFont('helvetica', 'normal')
-          doc.setFontSize(7)
-          doc.text(`Items: ${block.cleaningLogData.items.join(', ')}`, margin + 4, y)
-          y += 4
-        }
-        
-        if (block.cleaningLogData.notes) {
-          const lines = doc.splitTextToSize(`Notes: ${block.cleaningLogData.notes}`, contentWidth - 6)
-          doc.text(lines.slice(0, 2), margin + 4, y)
-          y += Math.min(lines.length, 2) * 4
-        }
-        y += 3
-      }
-
       // Quality Checks
       if (block.qualityData && Object.keys(block.qualityData).length > 0) {
         const qualityEntries = Object.entries(block.qualityData).filter(([key, val]) => val && val !== '' && val !== 'N/A')
@@ -4380,6 +3950,13 @@ Important:
             }}
           >
             🗺️ {showMap ? 'Hide Map' : 'Map'}
+          </button>
+          
+          <button
+            onClick={signOut}
+            style={{ padding: '8px 12px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+          >
+            Sign Out
           </button>
         </div>
       </div>
