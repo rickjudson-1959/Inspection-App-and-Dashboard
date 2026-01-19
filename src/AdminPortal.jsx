@@ -39,6 +39,13 @@ function AdminPortal() {
   // Setup tab state
   const [selectedOrgForSetup, setSelectedOrgForSetup] = useState('')
 
+  // Invite User state
+  const [showInviteModal, setShowInviteModal] = useState(false)
+  const [inviteEmail, setInviteEmail] = useState('')
+  const [inviteName, setInviteName] = useState('')
+  const [inviteRole, setInviteRole] = useState('inspector')
+  const [inviting, setInviting] = useState(false)
+
   const isSuperAdmin = userProfile?.role === 'super_admin'
 
   useEffect(() => {
@@ -336,6 +343,47 @@ function AdminPortal() {
     }
   }
 
+  async function inviteUser() {
+    if (!inviteEmail || !inviteName) {
+      alert('Please fill in email and name')
+      return
+    }
+    
+    setInviting(true)
+    try {
+      const response = await fetch('https://aatvckalnvojlykfgnmz.supabase.co/functions/v1/invite-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({
+          email: inviteEmail,
+          full_name: inviteName,
+          user_role: inviteRole
+        })
+      })
+      
+      const result = await response.json()
+      
+      if (!response.ok) {
+        throw new Error(result.error || 'Failed to invite user')
+      }
+      
+      alert(`Invitation sent to ${inviteEmail}!`)
+      setShowInviteModal(false)
+      setInviteEmail('')
+      setInviteName('')
+      setInviteRole('inspector')
+      fetchData()
+      
+    } catch (err) {
+      console.error('Error inviting user:', err)
+      alert('Error inviting user: ' + err.message)
+    }
+    setInviting(false)
+  }
+
   async function createOrganization() {
     if (!newOrg.name || !newOrg.slug) {
       alert('Please fill in organization name and slug')
@@ -567,6 +615,7 @@ function AdminPortal() {
           <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>{isSuperAdmin ? 'Super Admin' : 'Admin'} - {userProfile?.organizations?.name || 'All Organizations'}</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={() => navigate('/inspector-invoicing')} style={{ padding: '10px 20px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>💰 Inspector Invoicing</button>
           <button onClick={() => navigate('/dashboard')} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>CMT Dashboard</button>
           <button onClick={() => navigate('/evm')} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>EVM Dashboard</button>
           <button onClick={() => navigate('/reconciliation')} style={{ padding: '10px 20px', backgroundColor: '#ffc107', color: 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Reconciliation</button>
@@ -968,8 +1017,27 @@ function AdminPortal() {
 
         {activeTab === 'users' && (
           <div>
-            <h2>Users</h2>
-            <p style={{ color: '#666', marginBottom: '20px' }}>Manage user accounts. Click the role dropdown to change a user's role, or use the Delete button to remove a user.</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2 style={{ margin: 0 }}>Users</h2>
+                <p style={{ color: '#666', margin: '8px 0 0 0' }}>Manage user accounts. Click the role dropdown to change a user's role, or use the Delete button to remove a user.</p>
+              </div>
+              <button
+                onClick={() => setShowInviteModal(true)}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '15px',
+                  fontWeight: '600'
+                }}
+              >
+                📧 Invite User
+              </button>
+            </div>
             <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
               <table style={{ width: '100%', borderCollapse: 'collapse' }}>
                 <thead>
@@ -1100,6 +1168,137 @@ function AdminPortal() {
                 </table>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Invite User Modal */}
+        {showInviteModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '32px',
+              maxWidth: '450px',
+              width: '95%',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+            }}>
+              <h3 style={{ margin: '0 0 20px 0', color: '#003366' }}>📧 Invite New User</h3>
+              
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#374151' }}>
+                  Email Address *
+                </label>
+                <input
+                  type="email"
+                  value={inviteEmail}
+                  onChange={(e) => setInviteEmail(e.target.value)}
+                  placeholder="user@example.com"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '15px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+              
+              <div style={{ marginBottom: '16px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#374151' }}>
+                  Full Name *
+                </label>
+                <input
+                  type="text"
+                  value={inviteName}
+                  onChange={(e) => setInviteName(e.target.value)}
+                  placeholder="John Smith"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '15px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+              
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#374151' }}>
+                  Role
+                </label>
+                <select
+                  value={inviteRole}
+                  onChange={(e) => setInviteRole(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '15px',
+                    boxSizing: 'border-box'
+                  }}
+                >
+                  <option value="inspector">Inspector</option>
+                  <option value="chief_inspector">Chief Inspector</option>
+                  <option value="assistant_chief_inspector">Assistant Chief Inspector</option>
+                  <option value="admin">Admin</option>
+                  <option value="pm">Project Manager</option>
+                  <option value="cm">Construction Manager</option>
+                  <option value="executive">Executive</option>
+                </select>
+              </div>
+              
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => {
+                    setShowInviteModal(false)
+                    setInviteEmail('')
+                    setInviteName('')
+                    setInviteRole('inspector')
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: 'white',
+                    color: '#374151',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={inviteUser}
+                  disabled={inviting || !inviteEmail || !inviteName}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: (inviting || !inviteEmail || !inviteName) ? '#d1d5db' : '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: (inviting || !inviteEmail || !inviteName) ? 'not-allowed' : 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                >
+                  {inviting ? 'Sending...' : '📧 Send Invite'}
+                </button>
+              </div>
+            </div>
           </div>
         )}
 

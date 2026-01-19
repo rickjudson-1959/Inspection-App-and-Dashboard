@@ -16,6 +16,11 @@ import AssistantChiefDashboard from "./AssistantChiefDashboard.jsx"
 import NDTAuditorDashboard from './NDTAuditorDashboard.jsx'
 import Login from './Login.jsx'
 import ResetPassword from './ResetPassword.jsx'
+// Inspector Invoicing imports
+import InspectorInvoicingDashboard from './InspectorInvoicingDashboard.jsx'
+import HireOnPackage from './HireOnPackage.jsx'
+import TimesheetEditor from './TimesheetEditor.jsx'
+import TimesheetReview from './TimesheetReview.jsx'
 import './index.css'
 import './App.css'
 
@@ -54,9 +59,7 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
     return children
   }
 
-  if (userProfile?.role === 'inspector') {
-    return <Navigate to="/inspector" replace />
-  }
+  // If user doesn't have permission, redirect to their default page
   if (userProfile?.role === 'executive') {
     return <Navigate to="/evm" replace />
   }
@@ -68,6 +71,9 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
   if (userProfile?.role === 'super_admin' || userProfile?.role === 'admin') {
     return <Navigate to="/admin" replace />
   }
+  
+  // Default fallback for inspectors and unknown roles
+  return <Navigate to="/inspector" replace />
 
   return <Navigate to="/" replace />
 }
@@ -204,6 +210,38 @@ function AppRoutes() {
       <Route path="/report/edit/:reportId" element={
         <ProtectedRoute>
           <InspectorApp user={userProfile} onSignOut={signOut} />
+        </ProtectedRoute>
+      } />
+
+      {/* ============================================ */}
+      {/* INSPECTOR INVOICING SYSTEM ROUTES           */}
+      {/* ============================================ */}
+      
+      {/* Main Inspector Invoicing Dashboard */}
+      <Route path="/inspector-invoicing" element={
+        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'chief_inspector', 'inspector']}>
+          <InspectorInvoicingDashboard />
+        </ProtectedRoute>
+      } />
+
+      {/* Hire-On Package - for inspectors to complete their profile */}
+      <Route path="/hire-on" element={
+        <ProtectedRoute>
+          <HireOnPackage />
+        </ProtectedRoute>
+      } />
+
+      {/* Timesheet Editor - create/edit inspector timesheets */}
+      <Route path="/timesheet" element={
+        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'chief_inspector', 'inspector']}>
+          <TimesheetEditor />
+        </ProtectedRoute>
+      } />
+
+      {/* Timesheet Review - admin/chief review and approve timesheets */}
+      <Route path="/timesheet-review" element={
+        <ProtectedRoute allowedRoles={['super_admin', 'admin', 'chief_inspector']}>
+          <TimesheetReview />
         </ProtectedRoute>
       } />
 
