@@ -392,6 +392,20 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
           }}
         />
       </div>
+
+      {/* REMINDER FOR TRACKABLE ITEMS */}
+      <div style={{
+        padding: '12px 15px',
+        backgroundColor: '#fff3cd',
+        borderRadius: '6px',
+        border: '1px solid #ffc107',
+        marginTop: '10px'
+      }}>
+        <span style={{ fontSize: '13px', color: '#856404' }}>
+          <strong>📋 Reminder:</strong> If you encountered <strong>Rock Trench</strong> or required <strong>Extra Depth</strong>, 
+          please record these in the <strong>Trackable Items</strong> section below.
+        </span>
+      </div>
     </div>
   )
 }

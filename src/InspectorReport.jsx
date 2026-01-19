@@ -553,6 +553,78 @@ Important:
     isEditMode, editReportId, draftRestorePrompt
   ])
 
+  // Periodic auto-save every 30 seconds with popup notification
+  useEffect(() => {
+    // Don't run in edit mode
+    if (isEditMode || editReportId) return
+    if (draftRestorePrompt) return
+
+    const intervalId = setInterval(() => {
+      // Only save if there's meaningful data
+      const hasData = inspectorName || 
+                      spread || 
+                      activityBlocks.some(b => b.activityType || b.workDescription || b.labourEntries.length > 0) ||
+                      safetyNotes ||
+                      generalComments
+
+      if (!hasData) return
+
+      try {
+        const draftData = {
+          savedAt: Date.now(),
+          selectedDate,
+          inspectorName,
+          spread,
+          afe,
+          pipeline,
+          weather,
+          precipitation,
+          tempHigh,
+          tempLow,
+          windSpeed,
+          rowCondition,
+          startTime,
+          stopTime,
+          activityBlocks: activityBlocks.map(block => ({
+            ...block,
+            workPhotos: [],
+            ticketPhoto: null
+          })),
+          safetyNotes,
+          safetyRecognitionData,
+          wildlifeSightingData,
+          landEnvironment,
+          generalComments,
+          visitors,
+          inspectorMileage,
+          unitPriceItemsEnabled,
+          unitPriceData,
+          chainageReasons
+        }
+
+        localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData))
+        setDraftSaved(true)
+        
+        // Show the popup indicator
+        setShowDraftIndicator(true)
+        setTimeout(() => setShowDraftIndicator(false), 2000)
+        
+        console.log('📝 Auto-save (30s interval)')
+      } catch (err) {
+        console.error('Error in periodic auto-save:', err)
+      }
+    }, 30000) // 30 seconds
+
+    return () => clearInterval(intervalId)
+  }, [
+    selectedDate, inspectorName, spread, afe, pipeline,
+    weather, precipitation, tempHigh, tempLow, windSpeed, rowCondition,
+    startTime, stopTime, activityBlocks, safetyNotes, safetyRecognitionData,
+    wildlifeSightingData, landEnvironment, generalComments, visitors,
+    inspectorMileage, unitPriceItemsEnabled, unitPriceData, chainageReasons,
+    isEditMode, editReportId, draftRestorePrompt
+  ])
+
   // Restore draft data
   function restoreDraft() {
     if (!pendingDraft) return
