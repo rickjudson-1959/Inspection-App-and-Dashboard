@@ -15,6 +15,11 @@ function ReportViewer() {
   const [error, setError] = useState(null)
   const [reportStatus, setReportStatus] = useState(null)
   const [trackableItems, setTrackableItems] = useState([])
+  
+  // Chief Inspector review functionality
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [rejectionReason, setRejectionReason] = useState('')
+  const [processing, setProcessing] = useState(false)
 
   useEffect(() => {
     if (reportId) {
@@ -83,6 +88,83 @@ function ReportViewer() {
       navigate('/dashboard')
     }
   }
+
+  // Approve report (Chief Inspector only)
+  const approveReport = async () => {
+    if (!confirm('Approve this report?')) return
+    
+    setProcessing(true)
+    try {
+      const { error } = await supabase
+        .from('report_status')
+        .update({
+          status: 'approved',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: userProfile?.id,
+          reviewed_by_name: userProfile?.full_name || 'Chief Inspector',
+          revision_notes: null
+        })
+        .eq('report_id', reportId)
+
+      if (error) throw error
+      
+      alert('✅ Report approved successfully!')
+      // Reload status
+      const { data: statusData } = await supabase
+        .from('report_status')
+        .select('*')
+        .eq('report_id', reportId)
+        .single()
+      setReportStatus(statusData)
+    } catch (err) {
+      console.error('Error approving report:', err)
+      alert('Error approving report: ' + err.message)
+    }
+    setProcessing(false)
+  }
+
+  // Reject report (Chief Inspector only)
+  const rejectReport = async () => {
+    if (!rejectionReason.trim()) {
+      alert('Please provide a reason for rejection')
+      return
+    }
+    
+    setProcessing(true)
+    try {
+      const { error } = await supabase
+        .from('report_status')
+        .update({
+          status: 'revision_requested',
+          reviewed_at: new Date().toISOString(),
+          reviewed_by: userProfile?.id,
+          reviewed_by_name: userProfile?.full_name || 'Chief Inspector',
+          revision_notes: rejectionReason
+        })
+        .eq('report_id', reportId)
+
+      if (error) throw error
+      
+      setShowRejectModal(false)
+      setRejectionReason('')
+      alert('📝 Revision requested. The inspector will be notified.')
+      // Reload status
+      const { data: statusData } = await supabase
+        .from('report_status')
+        .select('*')
+        .eq('report_id', reportId)
+        .single()
+      setReportStatus(statusData)
+    } catch (err) {
+      console.error('Error rejecting report:', err)
+      alert('Error rejecting report: ' + err.message)
+    }
+    setProcessing(false)
+  }
+
+  // Check if user can review (Chief Inspector or Admin)
+  const canReview = userProfile?.role === 'chief_inspector' || userProfile?.role === 'admin' || userProfile?.role === 'super_admin'
+  const isPending = reportStatus?.status === 'submitted'
 
   const getStatusBadge = (status) => {
     const styles = {
@@ -161,6 +243,43 @@ function ReportViewer() {
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           {reportStatus && getStatusBadge(reportStatus.status)}
+          
+          {/* Chief Inspector Review Buttons */}
+          {canReview && isPending && (
+            <>
+              <button 
+                onClick={approveReport}
+                disabled={processing}
+                style={{ 
+                  padding: '10px 20px', 
+                  backgroundColor: '#28a745', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  cursor: processing ? 'not-allowed' : 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                ✅ Approve
+              </button>
+              <button 
+                onClick={() => setShowRejectModal(true)}
+                disabled={processing}
+                style={{ 
+                  padding: '10px 20px', 
+                  backgroundColor: '#dc3545', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  cursor: processing ? 'not-allowed' : 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                ↩️ Request Revision
+              </button>
+            </>
+          )}
+          
           <button onClick={goBack} style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
             ← Back
           </button>
@@ -589,6 +708,88 @@ function ReportViewer() {
           Report ID: {reportId} | Generated: {new Date().toLocaleString()}
         </div>
       </div>
+
+      {/* Reject Modal */}
+      {showRejectModal && (
+        <div style={{ 
+          position: 'fixed', 
+          top: 0, 
+          left: 0, 
+          right: 0, 
+          bottom: 0, 
+          backgroundColor: 'rgba(0,0,0,0.5)', 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: 'center', 
+          zIndex: 1000 
+        }}>
+          <div style={{ 
+            backgroundColor: 'white', 
+            borderRadius: '8px', 
+            padding: '30px', 
+            maxWidth: '500px', 
+            width: '90%',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
+          }}>
+            <h2 style={{ margin: '0 0 20px 0', color: '#dc3545' }}>↩️ Request Revision</h2>
+            <p style={{ color: '#666', marginBottom: '15px' }}>
+              Report from <strong>{report?.inspector_name}</strong> on <strong>{report?.date}</strong>
+            </p>
+            <label style={{ display: 'block', marginBottom: '10px', fontWeight: 'bold' }}>
+              Reason for revision request:
+            </label>
+            <textarea
+              value={rejectionReason}
+              onChange={(e) => setRejectionReason(e.target.value)}
+              placeholder="Explain what needs to be corrected..."
+              style={{ 
+                width: '100%', 
+                height: '120px', 
+                padding: '12px', 
+                border: '1px solid #ced4da', 
+                borderRadius: '4px', 
+                fontSize: '14px', 
+                boxSizing: 'border-box',
+                resize: 'vertical'
+              }}
+            />
+            <div style={{ display: 'flex', gap: '10px', marginTop: '20px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setShowRejectModal(false)
+                  setRejectionReason('')
+                }}
+                style={{ 
+                  padding: '12px 24px', 
+                  backgroundColor: '#6c757d', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  cursor: 'pointer' 
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={rejectReport}
+                disabled={processing || !rejectionReason.trim()}
+                style={{ 
+                  padding: '12px 24px', 
+                  backgroundColor: '#dc3545', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '4px', 
+                  cursor: processing || !rejectionReason.trim() ? 'not-allowed' : 'pointer', 
+                  fontWeight: 'bold',
+                  opacity: processing || !rejectionReason.trim() ? 0.6 : 1
+                }}
+              >
+                {processing ? 'Sending...' : 'Send Back for Revision'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
