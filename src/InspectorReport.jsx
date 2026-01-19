@@ -933,9 +933,17 @@ Important:
   // Fetch existing chainages for all activity types
   async function fetchExistingChainages() {
     try {
-      const { data: reports, error } = await supabase
+      // Build query - exclude current report if editing
+      let query = supabase
         .from('daily_tickets')
-        .select('date, activity_blocks')
+        .select('id, date, activity_blocks')
+      
+      // Exclude current report when editing to prevent false overlap with itself
+      if (currentReportId) {
+        query = query.neq('id', currentReportId)
+      }
+      
+      const { data: reports, error } = await query
       
       if (error || !reports) return
 
@@ -1079,10 +1087,10 @@ Important:
     setBlockChainageStatus(newStatus)
   }, [activityBlocks, existingChainages])
 
-  // Fetch existing chainages on mount and when date changes
+  // Fetch existing chainages on mount and when date or current report changes
   useEffect(() => {
     fetchExistingChainages()
-  }, [selectedDate])
+  }, [selectedDate, currentReportId])
 
   // Check for chainage overlaps within current report
   function checkChainageOverlaps(blocks) {
