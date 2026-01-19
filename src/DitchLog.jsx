@@ -2,8 +2,6 @@ import React, { useState, useRef } from 'react'
 import { useActivityAudit } from './useActivityAudit'
 
 function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday, logId, reportId }) {
-  const [showRockTrench, setShowRockTrench] = useState(data?.rockTrench?.enabled || false)
-
   // Audit trail hook
   const { 
     initializeOriginalValues,
@@ -20,11 +18,6 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
 
   // Default structure
   const defaultData = {
-    // Basic info
-    fromKP: '',
-    toKP: '',
-    ditchLength: '',
-    
     // Trench Specifications
     specifiedDepth: '',
     specifiedWidth: '',
@@ -38,22 +31,6 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
     depthNotMetSignoffRole: '',
     depthNotMetDate: '',
     
-    // Rock Trench
-    rockTrench: {
-      enabled: false,
-      entries: []
-    },
-    
-    // Extra Depth
-    extraDepthRequired: '',
-    extraDepthInDrawings: '',
-    extraDepthReason: '',
-    extraDepthAmount: '',
-    
-    // Equipment
-    ditchingEquipment: '',
-    equipmentOther: '',
-    
     // Soil Conditions
     soilConditions: '',
     groundwaterEncountered: '',
@@ -66,12 +43,7 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
   // Merge incoming data with defaults
   const ditchData = {
     ...defaultData,
-    ...data,
-    rockTrench: {
-      ...defaultData.rockTrench,
-      ...(data?.rockTrench || {}),
-      entries: data?.rockTrench?.entries || []
-    }
+    ...data
   }
 
   // Audit-aware field handlers
@@ -83,91 +55,8 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
     logFieldChange(originalValuesRef, fieldName, newValue, displayName)
   }
 
-  const handleEntryFieldFocus = (entryId, fieldName, currentValue) => {
-    initializeEntryValues(entryValuesRef, entryId, fieldName, currentValue)
-  }
-
-  const handleEntryFieldBlur = (entryId, fieldName, newValue, displayName, entryLabel) => {
-    logEntryFieldChange(entryValuesRef, entryId, fieldName, newValue, displayName, entryLabel)
-  }
-
   const updateField = (field, value) => {
     onChange({ ...ditchData, [field]: value })
-  }
-
-  // Rock Trench entries
-  const toggleRockTrench = () => {
-    const newEnabled = !showRockTrench
-    setShowRockTrench(newEnabled)
-    onChange({ 
-      ...ditchData, 
-      rockTrench: { ...ditchData.rockTrench, enabled: newEnabled } 
-    })
-  }
-
-  const addRockTrenchEntry = () => {
-    const newEntry = {
-      id: Date.now(),
-      startKP: '',
-      endKP: '',
-      length: '',
-      equipment: '',
-      equipmentOther: '',
-      rockType: '',
-      depthAchieved: '',
-      comments: ''
-    }
-    onChange({ 
-      ...ditchData, 
-      rockTrench: { 
-        ...ditchData.rockTrench, 
-        entries: [...ditchData.rockTrench.entries, newEntry] 
-      } 
-    })
-    logEntryAdd('Rock Trench Section', `Section #${ditchData.rockTrench.entries.length + 1}`)
-  }
-
-  const updateRockTrenchEntry = (id, field, value) => {
-    const updated = ditchData.rockTrench.entries.map(entry => {
-      if (entry.id === id) {
-        // Auto-calculate length if start and end KP are entered
-        if (field === 'startKP' || field === 'endKP') {
-          const updatedEntry = { ...entry, [field]: value }
-          const start = parseFloat(updatedEntry.startKP?.replace('+', '.')) || 0
-          const end = parseFloat(updatedEntry.endKP?.replace('+', '.')) || 0
-          if (start && end) {
-            updatedEntry.length = ((end - start) * 1000).toFixed(0) // Convert km to m
-          }
-          return updatedEntry
-        }
-        return { ...entry, [field]: value }
-      }
-      return entry
-    })
-    onChange({ 
-      ...ditchData, 
-      rockTrench: { ...ditchData.rockTrench, entries: updated } 
-    })
-  }
-
-  const removeRockTrenchEntry = (id) => {
-    const entryToRemove = ditchData.rockTrench.entries.find(e => e.id === id)
-    const entryIndex = ditchData.rockTrench.entries.findIndex(e => e.id === id)
-    const entryLabel = entryToRemove?.startKP ? `${entryToRemove.startKP} - ${entryToRemove.endKP}` : `Section #${entryIndex + 1}`
-    
-    onChange({ 
-      ...ditchData, 
-      rockTrench: { 
-        ...ditchData.rockTrench, 
-        entries: ditchData.rockTrench.entries.filter(e => e.id !== id) 
-      } 
-    })
-    logEntryDelete('Rock Trench Section', entryLabel)
-  }
-
-  // Get entry label for audit trail
-  const getEntryLabel = (entry, index) => {
-    return entry.startKP ? `${entry.startKP} - ${entry.endKP}` : `Section #${index + 1}`
   }
 
   // Styles
@@ -248,46 +137,6 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
           )}
         </div>
       )}
-
-      {/* HEADER INFO */}
-      <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>🚜 DITCH LOG INFORMATION</div>
-        <div style={gridStyle}>
-          <div>
-            <label style={labelStyle}>Ditching Equipment</label>
-            <select
-              value={ditchData.ditchingEquipment}
-              onFocus={() => handleFieldFocus('ditchingEquipment', ditchData.ditchingEquipment)}
-              onChange={(e) => {
-                updateField('ditchingEquipment', e.target.value)
-                handleFieldBlur('ditchingEquipment', e.target.value, 'Ditching Equipment')
-              }}
-              style={selectStyle}
-            >
-              <option value="">Select...</option>
-              <option value="Wheel Ditcher">Wheel Ditcher</option>
-              <option value="Chain Ditcher">Chain Ditcher</option>
-              <option value="Excavator">Excavator</option>
-              <option value="Track Hoe">Track Hoe</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          {ditchData.ditchingEquipment === 'Other' && (
-            <div>
-              <label style={labelStyle}>Other Equipment</label>
-              <input
-                type="text"
-                value={ditchData.equipmentOther}
-                onFocus={() => handleFieldFocus('equipmentOther', ditchData.equipmentOther)}
-                onChange={(e) => updateField('equipmentOther', e.target.value)}
-                onBlur={(e) => handleFieldBlur('equipmentOther', e.target.value, 'Other Equipment')}
-                placeholder="Specify equipment"
-                style={inputStyle}
-              />
-            </div>
-          )}
-        </div>
-      </div>
 
       {/* TRENCH SPECIFICATIONS */}
       <div style={sectionStyle}>
@@ -441,282 +290,6 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
                 </div>
               </div>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* ROCK TRENCH SECTION */}
-      <div style={sectionStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <div style={{ ...sectionHeaderStyle, marginBottom: 0, borderBottom: 'none' }}>🪨 ROCK TRENCH</div>
-          <button
-            onClick={toggleRockTrench}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: showRockTrench ? '#dc3545' : '#6c757d',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '13px'
-            }}
-          >
-            {showRockTrench ? '− Hide Rock Trench' : '+ Add Rock Trench'}
-          </button>
-        </div>
-
-        {showRockTrench && (
-          <div>
-            <button
-              onClick={addRockTrenchEntry}
-              style={{
-                padding: '8px 16px',
-                backgroundColor: '#6f42c1',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '13px',
-                marginBottom: '15px'
-              }}
-            >
-              + Add Rock Trench Section
-            </button>
-
-            {ditchData.rockTrench.entries.length === 0 ? (
-              <p style={{ color: '#666', fontStyle: 'italic', textAlign: 'center', padding: '10px' }}>
-                No rock trench sections recorded. Click "Add Rock Trench Section" to document rock encountered.
-              </p>
-            ) : (
-              ditchData.rockTrench.entries.map((entry, idx) => (
-                <div key={entry.id} style={{ 
-                  marginBottom: '15px', 
-                  padding: '15px', 
-                  backgroundColor: '#e2e3e5', 
-                  borderRadius: '8px',
-                  border: '2px solid #6c757d'
-                }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-                    <strong style={{ color: '#495057' }}>🪨 Rock Section #{idx + 1}</strong>
-                    <button
-                      onClick={() => removeRockTrenchEntry(entry.id)}
-                      style={{
-                        padding: '4px 8px',
-                        backgroundColor: '#dc3545',
-                        color: 'white',
-                        border: 'none',
-                        borderRadius: '4px',
-                        cursor: 'pointer',
-                        fontSize: '12px'
-                      }}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                  <div style={gridStyle}>
-                    <div>
-                      <label style={labelStyle}>Start (KP)</label>
-                      <input
-                        type="text"
-                        value={entry.startKP}
-                        onFocus={() => handleEntryFieldFocus(entry.id, 'startKP', entry.startKP)}
-                        onChange={(e) => updateRockTrenchEntry(entry.id, 'startKP', e.target.value)}
-                        onBlur={(e) => handleEntryFieldBlur(entry.id, 'startKP', e.target.value, 'Start KP', getEntryLabel(entry, idx))}
-                        placeholder="e.g. 5+200"
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>End (KP)</label>
-                      <input
-                        type="text"
-                        value={entry.endKP}
-                        onFocus={() => handleEntryFieldFocus(entry.id, 'endKP', entry.endKP)}
-                        onChange={(e) => updateRockTrenchEntry(entry.id, 'endKP', e.target.value)}
-                        onBlur={(e) => handleEntryFieldBlur(entry.id, 'endKP', e.target.value, 'End KP', getEntryLabel(entry, idx))}
-                        placeholder="e.g. 5+350"
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Length (m)</label>
-                      <input
-                        type="text"
-                        value={entry.length}
-                        onChange={(e) => updateRockTrenchEntry(entry.id, 'length', e.target.value)}
-                        placeholder="Auto-calculated"
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Rock Type</label>
-                      <select
-                        value={entry.rockType}
-                        onFocus={() => handleEntryFieldFocus(entry.id, 'rockType', entry.rockType)}
-                        onChange={(e) => {
-                          updateRockTrenchEntry(entry.id, 'rockType', e.target.value)
-                          handleEntryFieldBlur(entry.id, 'rockType', e.target.value, 'Rock Type', getEntryLabel(entry, idx))
-                        }}
-                        style={selectStyle}
-                      >
-                        <option value="">Select...</option>
-                        <option value="Shale">Shale</option>
-                        <option value="Sandstone">Sandstone</option>
-                        <option value="Limestone">Limestone</option>
-                        <option value="Granite">Granite</option>
-                        <option value="Bedrock">Bedrock</option>
-                        <option value="Cobble/Boulder">Cobble/Boulder</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Equipment Used</label>
-                      <select
-                        value={entry.equipment}
-                        onFocus={() => handleEntryFieldFocus(entry.id, 'equipment', entry.equipment)}
-                        onChange={(e) => {
-                          updateRockTrenchEntry(entry.id, 'equipment', e.target.value)
-                          handleEntryFieldBlur(entry.id, 'equipment', e.target.value, 'Equipment', getEntryLabel(entry, idx))
-                        }}
-                        style={selectStyle}
-                      >
-                        <option value="">Select...</option>
-                        <option value="Hoe with Ripper Tooth">Hoe with Ripper Tooth</option>
-                        <option value="Rock Hammer">Rock Hammer (Hydraulic Breaker)</option>
-                        <option value="Eccentric Ripper">Eccentric Ripper</option>
-                        <option value="Rock Saw">Rock Saw</option>
-                        <option value="Rock Wheel">Rock Wheel</option>
-                        <option value="Blasting">Blasting</option>
-                        <option value="Other">Other</option>
-                      </select>
-                    </div>
-                    {entry.equipment === 'Other' && (
-                      <div>
-                        <label style={labelStyle}>Other Equipment</label>
-                        <input
-                          type="text"
-                          value={entry.equipmentOther}
-                          onFocus={() => handleEntryFieldFocus(entry.id, 'equipmentOther', entry.equipmentOther)}
-                          onChange={(e) => updateRockTrenchEntry(entry.id, 'equipmentOther', e.target.value)}
-                          onBlur={(e) => handleEntryFieldBlur(entry.id, 'equipmentOther', e.target.value, 'Other Equipment', getEntryLabel(entry, idx))}
-                          placeholder="Specify equipment"
-                          style={inputStyle}
-                        />
-                      </div>
-                    )}
-                    <div>
-                      <label style={labelStyle}>Depth Achieved (m)</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={entry.depthAchieved}
-                        onFocus={() => handleEntryFieldFocus(entry.id, 'depthAchieved', entry.depthAchieved)}
-                        onChange={(e) => updateRockTrenchEntry(entry.id, 'depthAchieved', e.target.value)}
-                        onBlur={(e) => handleEntryFieldBlur(entry.id, 'depthAchieved', e.target.value, 'Depth Achieved', getEntryLabel(entry, idx))}
-                        placeholder="Actual depth"
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div style={{ gridColumn: 'span 2' }}>
-                      <label style={labelStyle}>Comments</label>
-                      <input
-                        type="text"
-                        value={entry.comments}
-                        onFocus={() => handleEntryFieldFocus(entry.id, 'comments', entry.comments)}
-                        onChange={(e) => updateRockTrenchEntry(entry.id, 'comments', e.target.value)}
-                        onBlur={(e) => handleEntryFieldBlur(entry.id, 'comments', e.target.value, 'Comments', getEntryLabel(entry, idx))}
-                        placeholder="Production rate, challenges, etc."
-                        style={inputStyle}
-                      />
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
-
-            {/* Rock Trench Summary */}
-            {ditchData.rockTrench.entries.length > 0 && (
-              <div style={{ padding: '10px', backgroundColor: '#e2e3e5', borderRadius: '4px', fontSize: '13px', marginTop: '10px' }}>
-                <strong>Rock Trench Summary:</strong>{' '}
-                {ditchData.rockTrench.entries.length} section(s) |{' '}
-                Total: {ditchData.rockTrench.entries.reduce((sum, e) => sum + (parseFloat(e.length) || 0), 0).toFixed(0)}m
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* EXTRA DEPTH SECTION */}
-      <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>📐 EXTRA DEPTH</div>
-        <div style={gridStyle}>
-          <div>
-            <label style={labelStyle}>Extra Depth Required?</label>
-            <select
-              value={ditchData.extraDepthRequired}
-              onFocus={() => handleFieldFocus('extraDepthRequired', ditchData.extraDepthRequired)}
-              onChange={(e) => {
-                updateField('extraDepthRequired', e.target.value)
-                handleFieldBlur('extraDepthRequired', e.target.value, 'Extra Depth Required')
-              }}
-              style={selectStyle}
-            >
-              <option value="">Select...</option>
-              <option value="Yes">Yes</option>
-              <option value="No">No</option>
-            </select>
-          </div>
-          {ditchData.extraDepthRequired === 'Yes' && (
-            <>
-              <div>
-                <label style={labelStyle}>Extra Depth Amount (m)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={ditchData.extraDepthAmount}
-                  onFocus={() => handleFieldFocus('extraDepthAmount', ditchData.extraDepthAmount)}
-                  onChange={(e) => updateField('extraDepthAmount', e.target.value)}
-                  onBlur={(e) => handleFieldBlur('extraDepthAmount', e.target.value, 'Extra Depth Amount')}
-                  placeholder="Additional depth"
-                  style={inputStyle}
-                />
-              </div>
-              <div>
-                <label style={labelStyle}>In Drawings?</label>
-                <select
-                  value={ditchData.extraDepthInDrawings}
-                  onFocus={() => handleFieldFocus('extraDepthInDrawings', ditchData.extraDepthInDrawings)}
-                  onChange={(e) => {
-                    updateField('extraDepthInDrawings', e.target.value)
-                    handleFieldBlur('extraDepthInDrawings', e.target.value, 'Extra Depth In Drawings')
-                  }}
-                  style={{
-                    ...selectStyle,
-                    backgroundColor: ditchData.extraDepthInDrawings === 'Yes' ? '#d4edda' : 
-                                    ditchData.extraDepthInDrawings === 'No' ? '#fff3cd' : 'white'
-                  }}
-                >
-                  <option value="">Select...</option>
-                  <option value="Yes">Yes - Per Drawings</option>
-                  <option value="No">No - Field Decision</option>
-                </select>
-              </div>
-              <div style={{ gridColumn: 'span 3' }}>
-                <label style={labelStyle}>Reason for Extra Depth *</label>
-                <textarea
-                  value={ditchData.extraDepthReason}
-                  onFocus={() => handleFieldFocus('extraDepthReason', ditchData.extraDepthReason)}
-                  onChange={(e) => updateField('extraDepthReason', e.target.value)}
-                  onBlur={(e) => handleFieldBlur('extraDepthReason', e.target.value, 'Extra Depth Reason')}
-                  placeholder="Explain why extra depth was required..."
-                  style={{
-                    ...inputStyle,
-                    minHeight: '60px',
-                    resize: 'vertical'
-                  }}
-                />
-              </div>
-            </>
           )}
         </div>
       </div>
