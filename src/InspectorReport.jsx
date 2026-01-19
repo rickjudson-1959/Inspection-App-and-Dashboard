@@ -132,6 +132,9 @@ function InspectorReport() {
 
   // Collapsible sections
   const [trackableItemsExpanded, setTrackableItemsExpanded] = useState(false)
+  
+  // Trackable Items confirmation modal
+  const [showTrackableItemsModal, setShowTrackableItemsModal] = useState(false)
 
 
   // Add visitor
@@ -4450,6 +4453,23 @@ Important:
         
         {trackableItemsExpanded && (
           <div style={{ padding: '20px' }}>
+            {/* Reminder Banner */}
+            <div style={{
+              padding: '12px 15px',
+              backgroundColor: '#fff3cd',
+              borderRadius: '6px',
+              border: '1px solid #ffc107',
+              marginBottom: '15px'
+            }}>
+              <div style={{ fontSize: '14px', color: '#856404', fontWeight: 'bold', marginBottom: '5px' }}>
+                ⚠️ REMINDER: Review All Trackable Items
+              </div>
+              <div style={{ fontSize: '13px', color: '#856404' }}>
+                Before submitting, check each category below to ensure nothing is missed:
+                <strong> Mats, Rock Trench, Extra Depth, Fencing, Ramps, Goal Posts, Access Roads, Hydrovac, Erosion Control, Signage, Equipment Cleaning</strong>
+              </div>
+            </div>
+            
             <TrackableItemsTracker
               projectId={pipeline || 'default'}
               reportDate={selectedDate}
@@ -4749,7 +4769,7 @@ Important:
         
         <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <button
-            onClick={() => saveReport(false)}
+            onClick={() => setShowTrackableItemsModal(true)}
             disabled={saving}
             style={{ 
               padding: '20px 60px', 
@@ -4801,6 +4821,108 @@ Important:
           </div>
         )}
       </div>
+
+      {/* TRACKABLE ITEMS CONFIRMATION MODAL */}
+      {showTrackableItemsModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.7)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000
+        }}>
+          <div style={{
+            backgroundColor: 'white',
+            borderRadius: '12px',
+            padding: '30px',
+            maxWidth: '500px',
+            width: '90%',
+            boxShadow: '0 10px 40px rgba(0,0,0,0.3)',
+            textAlign: 'center'
+          }}>
+            <div style={{
+              fontSize: '50px',
+              marginBottom: '15px'
+            }}>
+              ⚠️
+            </div>
+            <h2 style={{
+              margin: '0 0 15px 0',
+              color: '#856404',
+              fontSize: '24px'
+            }}>
+              STOP! Check Trackable Items
+            </h2>
+            <div style={{
+              backgroundColor: '#fff3cd',
+              border: '2px solid #ffc107',
+              borderRadius: '8px',
+              padding: '15px',
+              marginBottom: '20px',
+              textAlign: 'left'
+            }}>
+              <p style={{ margin: '0 0 10px 0', fontWeight: 'bold', color: '#856404' }}>
+                Have you checked ALL trackable items?
+              </p>
+              <ul style={{ margin: '0', paddingLeft: '20px', color: '#856404', fontSize: '14px' }}>
+                <li>🛤️ Mats</li>
+                <li>🪨 Rock Trench</li>
+                <li>📐 Extra Depth Ditch</li>
+                <li>🚧 Temporary Fencing</li>
+                <li>🛤️ Ramps</li>
+                <li>⚡ Goal Posts (Power Lines)</li>
+                <li>🚜 Access Roads</li>
+                <li>🚿 Hydrovac Holes</li>
+                <li>🌊 Erosion Control</li>
+                <li>🚧 Signage & Flagging</li>
+                <li>🧹 Equipment Cleaning</li>
+              </ul>
+            </div>
+            <p style={{ margin: '0 0 20px 0', color: '#666', fontSize: '14px' }}>
+              Missing trackable items can cause project tracking issues. Please confirm you have reviewed all categories.
+            </p>
+            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+              <button
+                onClick={() => setShowTrackableItemsModal(false)}
+                style={{
+                  padding: '12px 30px',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '16px'
+                }}
+              >
+                ← Go Back & Check
+              </button>
+              <button
+                onClick={() => {
+                  setShowTrackableItemsModal(false)
+                  saveReport(false)
+                }}
+                style={{
+                  padding: '12px 30px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: 'bold'
+                }}
+              >
+                ✅ Yes, Submit Report
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
