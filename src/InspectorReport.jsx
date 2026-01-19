@@ -934,9 +934,16 @@ Important:
   // Fetch existing chainages for all activity types
   async function fetchExistingChainages() {
     try {
-      const { data: reports, error } = await supabase
+      let query = supabase
         .from('daily_tickets')
-        .select('date, activity_blocks')
+        .select('id, date, activity_blocks')
+      
+      // Exclude current report when editing to prevent self-overlap detection
+      if (currentReportId) {
+        query = query.neq('id', currentReportId)
+      }
+      
+      const { data: reports, error } = await query
       
       if (error || !reports) return
 
@@ -1080,10 +1087,10 @@ Important:
     setBlockChainageStatus(newStatus)
   }, [activityBlocks, existingChainages])
 
-  // Fetch existing chainages on mount and when date changes
+  // Fetch existing chainages on mount, when date changes, or when entering edit mode
   useEffect(() => {
     fetchExistingChainages()
-  }, [selectedDate])
+  }, [selectedDate, currentReportId])
 
   // Check for chainage overlaps within current report
   function checkChainageOverlaps(blocks) {
@@ -1391,12 +1398,24 @@ Important:
               timeLostReason: block.timeLostReason || 'None',
               timeLostHours: block.timeLostHours || '',
               timeLostDetails: block.timeLostDetails || '',
+              metersToday: block.metersToday || '',
+              metersPrevious: block.metersPrevious || '',
+              ticketNumber: block.ticketNumber || '',
               weldData: block.weldData || null,
               bendingData: block.bendingData || null,
               stringingData: block.stringingData || null,
               coatingData: block.coatingData || null,
               clearingData: block.clearingData || null,
-              counterboreData: block.counterboreData || null
+              counterboreData: block.counterboreData || null,
+              hddData: block.hddData || null,
+              pilingData: block.pilingData || null,
+              hydrovacData: block.hydrovacData || null,
+              welderTestingData: block.welderTestingData || null,
+              hydrotestData: block.hydrotestData || null,
+              tieInCompletionData: block.tieInCompletionData || null,
+              ditchData: block.ditchData || null,
+              gradingData: block.gradingData || null,
+              cleaningLogData: block.cleaningLogData || null
             }
           })
           setActivityBlocks(loadedBlocks)
