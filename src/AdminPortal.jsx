@@ -699,8 +699,8 @@ function AdminPortal() {
                           {formatDate(report.submitted_at)}
                         </td>
                         <td style={{ padding: '15px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
-                          <button onClick={() => navigate(`/inspector?edit=${report.report_id}`)} style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '10px' }}>
-                            ✏️ Edit
+                          <button onClick={() => navigate(`/report?id=${report.report_id}`)} style={{ padding: '8px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '10px' }}>
+                            👁️ View
                           </button>
                           <button onClick={() => approveReport(report.report_id)} style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '10px' }}>
                             ✓ Approve
@@ -1155,6 +1155,12 @@ function AdminPortal() {
                           </span>
                         </td>
                         <td style={{ padding: '15px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
+                          <button 
+                            onClick={() => navigate(`/report?id=${report.id}`)} 
+                            style={{ padding: '8px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}
+                          >
+                            👁️ View
+                          </button>
                           <button 
                             onClick={() => navigate(`/inspector?edit=${report.id}`)} 
                             style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
