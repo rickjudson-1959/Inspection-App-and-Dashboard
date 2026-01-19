@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import InspectorReport from './InspectorReport'
 import MyReports from './MyReports'
 import { supabase } from './supabase'
@@ -16,6 +17,7 @@ import { supabase } from './supabase'
  * - onSignOut: Function to handle sign out
  */
 function InspectorApp({ user, onSignOut }) {
+  const navigate = useNavigate()
   const [view, setView] = useState('new') // 'new', 'myreports', 'edit'
   const [editReportId, setEditReportId] = useState(null)
   const [editReportData, setEditReportData] = useState(null)
@@ -247,17 +249,18 @@ function InspectorApp({ user, onSignOut }) {
             {view === 'edit' ? '✏️ Editing Report' : '📝 New Report'}
           </button>
           <button
-            onClick={handleViewMyReports}
+            onClick={() => navigate('/inspector-invoicing')}
             style={{
-              background: view === 'myreports' ? '#D35F28' : 'transparent',
+              background: '#8b5cf6',
               color: 'white',
-              border: '1px solid rgba(255,255,255,0.3)',
+              border: 'none',
               padding: '8px 16px',
               borderRadius: '4px',
-              cursor: 'pointer'
+              cursor: 'pointer',
+              fontWeight: 'bold'
             }}
           >
-            📋 My Reports
+            💰 My Invoices
           </button>
         </div>
         
@@ -265,20 +268,6 @@ function InspectorApp({ user, onSignOut }) {
           <span style={{ color: 'rgba(255,255,255,0.8)', fontSize: '14px' }}>
             {user?.email}
           </span>
-          <button
-            onClick={onSignOut}
-            style={{
-              background: 'transparent',
-              color: 'white',
-              border: '1px solid rgba(255,255,255,0.3)',
-              padding: '6px 12px',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '13px'
-            }}
-          >
-            Sign Out
-          </button>
         </div>
       </div>
 
