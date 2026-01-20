@@ -47,6 +47,40 @@ function formatMetresToKP(metres) {
   return `${km}+${m.toString().padStart(3, '0')}`
 }
 
+// Format KP input to X+XXX format
+// Converts "6500" to "6+500", leaves "6+500" unchanged
+export function formatKP(kp) {
+  if (!kp) return ''
+  const str = String(kp).trim()
+
+  // Already in correct format (has +)
+  if (str.includes('+')) return str
+
+  // Pure number - convert to KP format
+  const num = parseFloat(str)
+  if (!isNaN(num)) {
+    // If it's a small number like 6.5, treat as 6+500
+    if (num < 100 && str.includes('.')) {
+      const parts = str.split('.')
+      const km = parseInt(parts[0])
+      const m = parseInt((parts[1] || '0').padEnd(3, '0').substring(0, 3))
+      return `${km}+${m.toString().padStart(3, '0')}`
+    }
+    // If it's a whole number >= 1000, convert (6500 -> 6+500)
+    if (num >= 1000) {
+      const km = Math.floor(num / 1000)
+      const m = Math.round(num % 1000)
+      return `${km}+${m.toString().padStart(3, '0')}`
+    }
+    // If it's a number < 1000, assume it's metres from KP 0 (500 -> 0+500)
+    if (num > 0 && num < 1000) {
+      return `0+${Math.round(num).toString().padStart(3, '0')}`
+    }
+  }
+
+  return str
+}
+
 // Merge overlapping ranges for display
 function mergeRanges(ranges) {
   if (!ranges || ranges.length === 0) return []
@@ -1112,9 +1146,14 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               value={block.startKP || ''}
               onChange={(e) => updateBlock(block.id, 'startKP', e.target.value)}
               onBlur={(e) => {
+                // Auto-format KP value (6500 -> 6+500)
+                const formattedKP = formatKP(e.target.value)
+                if (formattedKP !== e.target.value) {
+                  updateBlock(block.id, 'startKP', formattedKP)
+                }
                 // Auto-calculate meters today on blur (after user finishes typing)
-                if (e.target.value && block.endKP) {
-                  const startM = parseKPToMetres(e.target.value)
+                if (formattedKP && block.endKP) {
+                  const startM = parseKPToMetres(formattedKP)
                   const endM = parseKPToMetres(block.endKP)
                   if (startM !== null && endM !== null) {
                     const metersToday = Math.abs(endM - startM)
@@ -1165,10 +1204,15 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               value={block.endKP || ''}
               onChange={(e) => updateBlock(block.id, 'endKP', e.target.value)}
               onBlur={(e) => {
+                // Auto-format KP value (6500 -> 6+500)
+                const formattedKP = formatKP(e.target.value)
+                if (formattedKP !== e.target.value) {
+                  updateBlock(block.id, 'endKP', formattedKP)
+                }
                 // Auto-calculate meters today on blur (after user finishes typing)
-                if (block.startKP && e.target.value) {
+                if (block.startKP && formattedKP) {
                   const startM = parseKPToMetres(block.startKP)
-                  const endM = parseKPToMetres(e.target.value)
+                  const endM = parseKPToMetres(formattedKP)
                   if (startM !== null && endM !== null) {
                     const metersToday = Math.abs(endM - startM)
                     const previous = parseFloat(block.metersPrevious) || 0
