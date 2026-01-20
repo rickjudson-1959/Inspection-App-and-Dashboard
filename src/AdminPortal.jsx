@@ -368,6 +368,19 @@ function AdminPortal() {
         details: { status_change: 'submitted → approved' }
       })
 
+      // Send email notification
+      try {
+        await supabase.functions.invoke('timesheet-notification', {
+          body: {
+            timesheet_id: timesheetId,
+            action: 'approved',
+            reviewer_name: userProfile?.full_name || userProfile?.email
+          }
+        })
+      } catch (emailErr) {
+        console.warn('Email notification failed (timesheet still approved):', emailErr)
+      }
+
       setShowTimesheetModal(false)
       setSelectedTimesheet(null)
       fetchPendingTimesheets()
@@ -419,6 +432,20 @@ function AdminPortal() {
           revision_notes: rejectNotes 
         }
       })
+
+      // Send email notification
+      try {
+        await supabase.functions.invoke('timesheet-notification', {
+          body: {
+            timesheet_id: timesheetToReject.id,
+            action: 'revision_requested',
+            revision_notes: rejectNotes,
+            reviewer_name: userProfile?.full_name || userProfile?.email
+          }
+        })
+      } catch (emailErr) {
+        console.warn('Email notification failed (revision still requested):', emailErr)
+      }
 
       setShowRejectModal(false)
       setTimesheetToReject(null)
