@@ -809,10 +809,9 @@ function AdminPortal() {
 
       <div style={{ backgroundColor: 'white', borderBottom: '1px solid #ddd', padding: '0 20px' }}>
         <div style={{ display: 'flex', gap: '0' }}>
-          {['overview', 'approvals', 'timesheets', 'mats', 'audit', 'setup', 'organizations', 'projects', 'users', 'reports'].map(tab => (
+          {['overview', 'approvals', 'mats', 'audit', 'setup', 'organizations', 'projects', 'users', 'reports'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '15px 25px', border: 'none', backgroundColor: activeTab === tab ? '#003366' : 'transparent', color: activeTab === tab ? 'white' : '#333', cursor: 'pointer', fontSize: '14px', fontWeight: activeTab === tab ? 'bold' : 'normal', textTransform: 'capitalize', position: 'relative' }}>
-              {tab === 'approvals' ? `Approvals ${pendingReports.length > 0 ? `(${pendingReports.length})` : ''}` : 
-               tab === 'timesheets' ? `Timesheets ${pendingTimesheets.length > 0 ? `(${pendingTimesheets.length})` : ''}` : tab}
+              {tab === 'approvals' ? `Approvals ${pendingReports.length > 0 ? `(${pendingReports.length})` : ''}` : tab}
             </button>
           ))}
         </div>
@@ -839,10 +838,6 @@ function AdminPortal() {
               <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', cursor: 'pointer', border: pendingReports.length > 0 ? '2px solid #ffc107' : 'none' }} onClick={() => setActiveTab('approvals')}>
                 <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px' }}>Pending Approvals</h3>
                 <p style={{ margin: 0, fontSize: '36px', fontWeight: 'bold', color: pendingReports.length > 0 ? '#ffc107' : '#28a745' }}>{pendingReports.length}</p>
-              </div>
-              <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', cursor: 'pointer', border: pendingTimesheets.length > 0 ? '2px solid #8b5cf6' : 'none' }} onClick={() => setActiveTab('timesheets')}>
-                <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px' }}>Pending Timesheets</h3>
-                <p style={{ margin: 0, fontSize: '36px', fontWeight: 'bold', color: pendingTimesheets.length > 0 ? '#8b5cf6' : '#28a745' }}>{pendingTimesheets.length}</p>
               </div>
             </div>
           </div>
@@ -894,82 +889,6 @@ function AdminPortal() {
                           </button>
                           <button onClick={() => requestRevision(report.report_id)} style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
                             ↩ Revision
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* ==================== TIMESHEET REVIEW QUEUE TAB (Phase 4) ==================== */}
-        {activeTab === 'timesheets' && (
-          <div>
-            <h2>💰 Inspector Timesheet Review</h2>
-            <p style={{ color: '#666' }}>Timesheets submitted by inspectors awaiting approval for payment</p>
-            
-            {loadingTimesheets ? (
-              <p>Loading...</p>
-            ) : pendingTimesheets.length === 0 ? (
-              <div style={{ backgroundColor: '#d4edda', padding: '20px', borderRadius: '8px', marginTop: '20px' }}>
-                <p style={{ margin: 0, color: '#155724' }}>✓ No timesheets pending review</p>
-              </div>
-            ) : (
-              <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginTop: '20px' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ backgroundColor: '#f8f9fa' }}>
-                      <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Inspector</th>
-                      <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Company</th>
-                      <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Period</th>
-                      <th style={{ padding: '15px', textAlign: 'right', borderBottom: '1px solid #ddd' }}>Hours</th>
-                      <th style={{ padding: '15px', textAlign: 'right', borderBottom: '1px solid #ddd' }}>Total</th>
-                      <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Submitted</th>
-                      <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pendingTimesheets.map(ts => (
-                      <tr key={ts.id}>
-                        <td style={{ padding: '15px', borderBottom: '1px solid #eee' }}>
-                          {ts.user_profiles?.full_name || ts.user_profiles?.email || 'Unknown'}
-                        </td>
-                        <td style={{ padding: '15px', borderBottom: '1px solid #eee' }}>
-                          {ts.inspector_profiles?.company_name || '-'}
-                        </td>
-                        <td style={{ padding: '15px', borderBottom: '1px solid #eee' }}>
-                          {ts.period_start} to {ts.period_end}
-                        </td>
-                        <td style={{ padding: '15px', borderBottom: '1px solid #eee', textAlign: 'right', fontWeight: 'bold' }}>
-                          {ts.total_hours || 0}
-                        </td>
-                        <td style={{ padding: '15px', borderBottom: '1px solid #eee', textAlign: 'right', fontWeight: 'bold', color: '#28a745' }}>
-                          {formatCurrency(ts.total_amount)}
-                        </td>
-                        <td style={{ padding: '15px', borderBottom: '1px solid #eee', fontSize: '12px', color: '#666' }}>
-                          {formatDate(ts.submitted_at)}
-                        </td>
-                        <td style={{ padding: '15px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
-                          <button 
-                            onClick={() => viewTimesheetDetails(ts)} 
-                            style={{ padding: '8px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}
-                          >
-                            👁️ Review
-                          </button>
-                          <button 
-                            onClick={() => approveTimesheet(ts.id)} 
-                            style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}
-                          >
-                            ✓ Approve
-                          </button>
-                          <button 
-                            onClick={() => openRejectModal(ts)} 
-                            style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                          >
-                            ↩ Reject
                           </button>
                         </td>
                       </tr>
