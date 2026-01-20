@@ -37,6 +37,19 @@ export const PRECISION_MAP = {
   cover: 2,
   meters: 2,
   lm: 2,
+
+  // Trench/Ditch specific - 2 decimal places
+  trench_width: 2,
+  trench_depth: 2,
+  depth_of_cover: 2,
+  rock_ditch_meters: 2,
+  extra_depth_meters: 2,
+  padding_meters: 2,
+  pumping_hours: 2,
+  groundwater_depth: 2,
+
+  // Filter bag count - 0 decimal places (whole numbers)
+  filter_bag_count: 0,
   
   // Wall thickness - 3 decimal places (critical for pipe specs)
   wall_thickness: 3,

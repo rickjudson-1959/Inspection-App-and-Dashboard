@@ -2182,7 +2182,8 @@ Important:
           stringingData: block.stringingData || null,
           coatingData: block.coatingData || null,
           clearingData: block.clearingData || null,
-          counterboreData: block.counterboreData || null
+          counterboreData: block.counterboreData || null,
+          ditchData: block.ditchData || null
         })
       }
 
@@ -2391,6 +2392,80 @@ Important:
         for (const block of activityBlocks) {
           if (block.activityType === 'Welding - Tie-in' && block.weldData?.tieIns?.length > 0) {
             await saveTieInTicket({ tieIns: block.weldData.tieIns })
+          }
+        }
+
+        // Save trench logs for Ditch activities
+        for (const block of activityBlocks) {
+          if (block.activityType === 'Ditch' && block.ditchData) {
+            const ditchData = block.ditchData
+            try {
+              const trenchLogRecord = {
+                report_id: ticketId,
+                activity_block_id: block.id,
+                date: selectedDate,
+                kp_start: block.startKP,
+                kp_end: block.endKP,
+                inspector_id: userProfile?.id,
+                inspector_name: inspectorName,
+                contractor: block.contractor,
+                foreman: block.foreman,
+                spread: spread,
+                // Standard measurements
+                trench_width: parseFloat(ditchData.trenchWidth) || null,
+                trench_depth: parseFloat(ditchData.trenchDepth) || null,
+                depth_of_cover_required: parseFloat(ditchData.depthOfCoverRequired) || null,
+                depth_of_cover_actual: parseFloat(ditchData.depthOfCoverActual) || null,
+                // Rock Ditch pay item
+                rock_ditch: ditchData.rockDitch || false,
+                rock_ditch_meters: parseFloat(ditchData.rockDitchMeters) || 0,
+                rock_ditch_verified: ditchData.rockDitchVerified || false,
+                // Extra Depth pay item
+                extra_depth: ditchData.extraDepth || false,
+                extra_depth_meters: parseFloat(ditchData.extraDepthMeters) || 0,
+                extra_depth_reason: ditchData.extraDepthReason || null,
+                extra_depth_verified: ditchData.extraDepthVerified || false,
+                // Padding/Bedding pay item
+                padding_bedding: ditchData.paddingBedding || false,
+                padding_bedding_meters: parseFloat(ditchData.paddingBeddingMeters) || 0,
+                padding_material: ditchData.paddingMaterial || null,
+                padding_bedding_verified: ditchData.paddingBeddingVerified || false,
+                // BOT Checklist
+                bot_free_of_rocks: ditchData.botChecklist?.freeOfRocks,
+                bot_free_of_debris: ditchData.botChecklist?.freeOfDebris,
+                bot_silt_fences_intact: ditchData.botChecklist?.siltFencesIntact,
+                bot_wildlife_ramps: ditchData.botChecklist?.wildlifeRamps,
+                bot_wildlife_gaps: ditchData.botChecklist?.wildlifeGaps,
+                bot_grade_acceptable: ditchData.botChecklist?.gradeAcceptable,
+                bot_issues: ditchData.botChecklist?.issues || null,
+                // Water Management
+                pumping_activity: ditchData.waterManagement?.pumpingActivity || false,
+                pumping_equipment: ditchData.waterManagement?.pumpingEquipment || null,
+                pumping_hours: parseFloat(ditchData.waterManagement?.pumpingHours) || null,
+                filter_bag_usage: ditchData.waterManagement?.filterBagUsage || false,
+                filter_bag_count: parseInt(ditchData.waterManagement?.filterBagCount) || 0,
+                discharge_location: ditchData.waterManagement?.dischargeLocation || null,
+                discharge_permit_number: ditchData.waterManagement?.dischargePermitNumber || null,
+                water_management_notes: ditchData.waterManagement?.notes || null,
+                // Soil Conditions
+                soil_conditions: ditchData.soilConditions || null,
+                groundwater_encountered: ditchData.groundwaterEncountered === 'Yes',
+                groundwater_depth: parseFloat(ditchData.groundwaterDepth) || null,
+                dewatering_required: ditchData.dewateringRequired === 'Yes',
+                // Depth Compliance
+                minimum_depth_met: ditchData.minimumDepthMet === 'Yes',
+                depth_not_met_reason: ditchData.depthNotMetReason || null,
+                depth_not_met_signoff_name: ditchData.depthNotMetSignoff || null,
+                depth_not_met_signoff_role: ditchData.depthNotMetSignoffRole || null,
+                depth_not_met_signoff_date: ditchData.depthNotMetDate || null,
+                comments: ditchData.comments || null
+              }
+
+              await supabase.from('trench_logs').insert(trenchLogRecord)
+              console.log('Saved trench log for block:', block.id)
+            } catch (trenchErr) {
+              console.error('Error saving trench log:', trenchErr)
+            }
           }
         }
 

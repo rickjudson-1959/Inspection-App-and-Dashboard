@@ -18,7 +18,7 @@ import HydrovacLog from './HydrovacLog.jsx'
 import WelderTestingLog from './WelderTestingLog.jsx'
 import HydrotestLog from './HydrotestLog.jsx'
 import TieInCompletionLog from './TieInCompletionLog.jsx'
-import DitchLog from './DitchLog.jsx'
+import DitchInspection from './DitchInspection.jsx'
 import GradingLog from './GradingLog.jsx'
 import CounterboreTransitionLog from './CounterboreTransitionLog.jsx'
 
@@ -550,7 +550,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
 
     if (block.activityType === 'Ditch') {
       return (
-        <DitchLog
+        <DitchInspection
           data={block.ditchData || {}}
           onChange={(data) => updateDitchData(block.id, data)}
           contractor={block.contractor}
@@ -559,6 +559,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           startKP={block.startKP}
           endKP={block.endKP}
           metersToday={calculateMetersToday(block)}
+          logId={block.id}
+          reportId={reportId}
         />
       )
     }
