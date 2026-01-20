@@ -1,12 +1,21 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
+import { useAuth } from './AuthContext.jsx'
 
 export default function InspectorInvoicingDashboard() {
   const navigate = useNavigate()
+  const { user, userProfile } = useAuth()
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('timesheets')
   const [dateRange, setDateRange] = useState('30')
+  
+  // Check if user is admin/chief (can see all) or inspector (sees only own)
+  const isAdmin = userProfile?.role === 'admin' || userProfile?.role === 'super_admin' || 
+                  userProfile?.role === 'chief_inspector' || userProfile?.role === 'chief'
+  
+  // Inspector's own profile (for non-admins)
+  const [myInspectorProfile, setMyInspectorProfile] = useState(null)
   
   // Data states
   const [timesheets, setTimesheets] = useState([])
@@ -23,13 +32,30 @@ export default function InspectorInvoicingDashboard() {
 
   useEffect(() => {
     loadData()
-  }, [dateRange])
+  }, [dateRange, user, isAdmin])
 
   async function loadData() {
+    if (!user) return
+    
     setLoading(true)
     try {
-      // Load timesheets
-      const { data: timesheetData } = await supabase
+      // For inspectors, first find their inspector_profile
+      let inspectorProfileId = null
+      if (!isAdmin) {
+        const { data: myProfile } = await supabase
+          .from('inspector_profiles')
+          .select('*')
+          .eq('user_id', user.id)
+          .single()
+        
+        if (myProfile) {
+          setMyInspectorProfile(myProfile)
+          inspectorProfileId = myProfile.id
+        }
+      }
+      
+      // Load timesheets - filter by inspector if not admin
+      let timesheetQuery = supabase
         .from('inspector_timesheets')
         .select(`
           *,
@@ -40,6 +66,13 @@ export default function InspectorInvoicingDashboard() {
           )
         `)
         .order('created_at', { ascending: false })
+      
+      // If inspector (not admin), only show their timesheets
+      if (!isAdmin && inspectorProfileId) {
+        timesheetQuery = timesheetQuery.eq('inspector_profile_id', inspectorProfileId)
+      }
+      
+      const { data: timesheetData } = await timesheetQuery
       
       setTimesheets(timesheetData || [])
       
@@ -68,32 +101,35 @@ export default function InspectorInvoicingDashboard() {
         }
       })
       
-      // Load inspector profiles
-      const { data: profileData } = await supabase
-        .from('inspector_profiles')
-        .select('*')
-        .order('created_at', { ascending: false })
-      
-      setInspectorProfiles(profileData || [])
-      
-      // Load expiring documents (within 30 days)
-      const thirtyDaysFromNow = new Date()
-      thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
-      
-      const { data: expiringDocs } = await supabase
-        .from('inspector_documents')
-        .select(`
-          *,
-          inspector_profiles (
-            id,
-            company_name,
-            user_id
-          )
-        `)
-        .lte('expiry_date', thirtyDaysFromNow.toISOString().split('T')[0])
-        .order('expiry_date', { ascending: true })
-      
-      setExpiringDocuments(expiringDocs || [])
+      // Only load all inspector profiles and documents for admins
+      if (isAdmin) {
+        // Load inspector profiles
+        const { data: profileData } = await supabase
+          .from('inspector_profiles')
+          .select('*')
+          .order('created_at', { ascending: false })
+        
+        setInspectorProfiles(profileData || [])
+        
+        // Load expiring documents (within 30 days)
+        const thirtyDaysFromNow = new Date()
+        thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30)
+        
+        const { data: expiringDocs } = await supabase
+          .from('inspector_documents')
+          .select(`
+            *,
+            inspector_profiles (
+              id,
+              company_name,
+              user_id
+            )
+          `)
+          .lte('expiry_date', thirtyDaysFromNow.toISOString().split('T')[0])
+          .order('expiry_date', { ascending: true })
+        
+        setExpiringDocuments(expiringDocs || [])
+      }
       
     } catch (err) {
       console.error('Error loading data:', err)
@@ -200,20 +236,31 @@ export default function InspectorInvoicingDashboard() {
           >
             ← Back to Daily Inspector Report
           </button>
-          <h1 style={{ margin: 0, fontSize: '28px', color: '#111827' }}>📋 Inspector Invoicing</h1>
-          <p style={{ margin: '4px 0 0 0', color: '#6b7280' }}>Manage inspector timesheets, invoices, and hire-on packages</p>
+          <h1 style={{ margin: 0, fontSize: '28px', color: '#111827' }}>
+            {isAdmin ? '📋 Inspector Invoicing' : '📋 My Timesheets & Invoices'}
+          </h1>
+          <p style={{ margin: '4px 0 0 0', color: '#6b7280' }}>
+            {isAdmin 
+              ? 'Manage inspector timesheets, invoices, and hire-on packages'
+              : myInspectorProfile 
+                ? `${myInspectorProfile.company_name || userProfile?.full_name || 'Inspector'}`
+                : 'View and manage your timesheets'
+            }
+          </p>
         </div>
         <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-          <select 
-            value={dateRange} 
-            onChange={(e) => setDateRange(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db' }}
-          >
-            <option value="7">Last 7 Days</option>
-            <option value="30">Last 30 Days</option>
-            <option value="90">Last 90 Days</option>
-            <option value="365">All Time</option>
-          </select>
+          {isAdmin && (
+            <select 
+              value={dateRange} 
+              onChange={(e) => setDateRange(e.target.value)}
+              style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #d1d5db' }}
+            >
+              <option value="7">Last 7 Days</option>
+              <option value="30">Last 30 Days</option>
+              <option value="90">Last 90 Days</option>
+              <option value="365">All Time</option>
+            </select>
+          )}
           <button
             onClick={() => navigate('/timesheet')}
             style={{
@@ -234,32 +281,34 @@ export default function InspectorInvoicingDashboard() {
         </div>
       </div>
 
-      {/* Stats Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px', marginBottom: '24px' }}>
+      {/* Stats Cards - Different for admin vs inspector */}
+      <div style={{ display: 'grid', gridTemplateColumns: isAdmin ? 'repeat(4, 1fr)' : 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
         <div style={{ backgroundColor: '#fef3c7', padding: '20px', borderRadius: '12px', border: '1px solid #fcd34d' }}>
-          <div style={{ fontSize: '14px', color: '#92400e', fontWeight: '500' }}>📋 Pending Review</div>
+          <div style={{ fontSize: '14px', color: '#92400e', fontWeight: '500' }}>{isAdmin ? '📋 Pending Review' : '📤 Submitted'}</div>
           <div style={{ fontSize: '32px', fontWeight: '700', color: '#92400e' }}>{stats.pendingReview.count}</div>
           <div style={{ fontSize: '14px', color: '#b45309' }}>{formatCurrency(stats.pendingReview.amount)}</div>
         </div>
-        <div style={{ backgroundColor: '#ede9fe', padding: '20px', borderRadius: '12px', border: '1px solid #c4b5fd' }}>
-          <div style={{ fontSize: '14px', color: '#5b21b6', fontWeight: '500' }}>✍️ Chief Review</div>
-          <div style={{ fontSize: '32px', fontWeight: '700', color: '#5b21b6' }}>{stats.chiefReview.count}</div>
-          <div style={{ fontSize: '14px', color: '#6d28d9' }}>{formatCurrency(stats.chiefReview.amount)}</div>
-        </div>
+        {isAdmin && (
+          <div style={{ backgroundColor: '#ede9fe', padding: '20px', borderRadius: '12px', border: '1px solid #c4b5fd' }}>
+            <div style={{ fontSize: '14px', color: '#5b21b6', fontWeight: '500' }}>✍️ Chief Review</div>
+            <div style={{ fontSize: '32px', fontWeight: '700', color: '#5b21b6' }}>{stats.chiefReview.count}</div>
+            <div style={{ fontSize: '14px', color: '#6d28d9' }}>{formatCurrency(stats.chiefReview.amount)}</div>
+          </div>
+        )}
         <div style={{ backgroundColor: '#d1fae5', padding: '20px', borderRadius: '12px', border: '1px solid #6ee7b7' }}>
-          <div style={{ fontSize: '14px', color: '#065f46', fontWeight: '500' }}>✅ Approved (Unpaid)</div>
+          <div style={{ fontSize: '14px', color: '#065f46', fontWeight: '500' }}>✅ Approved</div>
           <div style={{ fontSize: '32px', fontWeight: '700', color: '#065f46' }}>{stats.approved.count}</div>
           <div style={{ fontSize: '14px', color: '#047857' }}>{formatCurrency(stats.approved.amount)}</div>
         </div>
         <div style={{ backgroundColor: '#dbeafe', padding: '20px', borderRadius: '12px', border: '1px solid #93c5fd' }}>
-          <div style={{ fontSize: '14px', color: '#1e40af', fontWeight: '500' }}>💰 Paid This Month</div>
+          <div style={{ fontSize: '14px', color: '#1e40af', fontWeight: '500' }}>💰 Paid</div>
           <div style={{ fontSize: '32px', fontWeight: '700', color: '#1e40af' }}>{stats.paidThisMonth.count}</div>
           <div style={{ fontSize: '14px', color: '#1d4ed8' }}>{formatCurrency(stats.paidThisMonth.amount)}</div>
         </div>
       </div>
 
-      {/* Document Alerts Banner */}
-      {expiringDocuments.length > 0 && (
+      {/* Document Alerts Banner - Admin Only */}
+      {isAdmin && expiringDocuments.length > 0 && (
         <div style={{ 
           backgroundColor: '#fef2f2', 
           border: '1px solid #fecaca', 
@@ -306,7 +355,7 @@ export default function InspectorInvoicingDashboard() {
         </div>
       )}
 
-      {/* Navigation Tabs */}
+      {/* Navigation Tabs - Inspectors only see Timesheets tab */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '24px', borderBottom: '1px solid #e5e7eb', paddingBottom: '12px' }}>
         <button 
           onClick={() => setActiveTab('timesheets')}
@@ -320,50 +369,54 @@ export default function InspectorInvoicingDashboard() {
             fontWeight: '500' 
           }}
         >
-          📋 Timesheets & Invoices
+          📋 {isAdmin ? 'Timesheets & Invoices' : 'My Timesheets'}
         </button>
-        <button 
-          onClick={() => setActiveTab('inspectors')}
-          style={{ 
-            padding: '10px 20px', 
-            borderRadius: '6px', 
-            border: 'none', 
-            cursor: 'pointer', 
-            backgroundColor: activeTab === 'inspectors' ? '#2563eb' : '#f3f4f6', 
-            color: activeTab === 'inspectors' ? 'white' : '#374151', 
-            fontWeight: '500' 
-          }}
-        >
-          👷 Inspectors ({inspectorProfiles.length})
-        </button>
-        <button 
-          onClick={() => setActiveTab('documents')}
-          style={{ 
-            padding: '10px 20px', 
-            borderRadius: '6px', 
-            border: 'none', 
-            cursor: 'pointer', 
-            backgroundColor: activeTab === 'documents' ? '#dc2626' : '#f3f4f6', 
-            color: activeTab === 'documents' ? 'white' : '#374151', 
-            fontWeight: '500' 
-          }}
-        >
-          📄 Documents {expiringDocuments.length > 0 && `(${expiringDocuments.length} ⚠️)`}
-        </button>
-        <button 
-          onClick={() => setActiveTab('rates')}
-          style={{ 
-            padding: '10px 20px', 
-            borderRadius: '6px', 
-            border: 'none', 
-            cursor: 'pointer', 
-            backgroundColor: activeTab === 'rates' ? '#7c3aed' : '#f3f4f6', 
-            color: activeTab === 'rates' ? 'white' : '#374151', 
-            fontWeight: '500' 
-          }}
-        >
-          💰 Rate Cards
-        </button>
+        {isAdmin && (
+          <>
+            <button 
+              onClick={() => setActiveTab('inspectors')}
+              style={{ 
+                padding: '10px 20px', 
+                borderRadius: '6px', 
+                border: 'none', 
+                cursor: 'pointer', 
+                backgroundColor: activeTab === 'inspectors' ? '#2563eb' : '#f3f4f6', 
+                color: activeTab === 'inspectors' ? 'white' : '#374151', 
+                fontWeight: '500' 
+              }}
+            >
+              👷 Inspectors ({inspectorProfiles.length})
+            </button>
+            <button 
+              onClick={() => setActiveTab('documents')}
+              style={{ 
+                padding: '10px 20px', 
+                borderRadius: '6px', 
+                border: 'none', 
+                cursor: 'pointer', 
+                backgroundColor: activeTab === 'documents' ? '#dc2626' : '#f3f4f6', 
+                color: activeTab === 'documents' ? 'white' : '#374151', 
+                fontWeight: '500' 
+              }}
+            >
+              📄 Documents {expiringDocuments.length > 0 && `(${expiringDocuments.length} ⚠️)`}
+            </button>
+            <button 
+              onClick={() => setActiveTab('rates')}
+              style={{ 
+                padding: '10px 20px', 
+                borderRadius: '6px', 
+                border: 'none', 
+                cursor: 'pointer', 
+                backgroundColor: activeTab === 'rates' ? '#7c3aed' : '#f3f4f6', 
+                color: activeTab === 'rates' ? 'white' : '#374151', 
+                fontWeight: '500' 
+              }}
+            >
+              💰 Rate Cards
+            </button>
+          </>
+        )}
       </div>
 
       {/* Loading State */}
