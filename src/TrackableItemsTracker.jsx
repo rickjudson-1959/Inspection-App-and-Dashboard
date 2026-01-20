@@ -170,11 +170,18 @@ const ITEM_TYPES = [
     color: '#6c757d',
     fields: [
       { name: 'equipment_type', label: 'Equipment Type', type: 'text', placeholder: 'e.g., Excavator, Sideboom' },
-      { name: 'action', label: 'Action', type: 'select', options: ['Clean - Enter ROW', 'Clean - Exit ROW', 'Inspect'] },
+      { name: 'equipment_id', label: 'Equipment ID/Unit #', type: 'text', placeholder: 'e.g., EX-101' },
+      { name: 'contractor', label: 'Contractor', type: 'text', placeholder: 'e.g., Spiecapag' },
+      { name: 'action', label: 'Action', type: 'select', options: ['Arrived to ROW Cleaned', 'Clean - Enter ROW', 'Clean - Exit ROW', 'Inspect Only'] },
       { name: 'quantity', label: 'Quantity', type: 'number' },
-      { name: 'kp_location', label: 'KP Location', type: 'text', placeholder: '0+500' },
-      { name: 'cleaning_method', label: 'Cleaning Method', type: 'select', options: ['Pressure Wash', 'Steam Clean', 'Manual Scrape', 'Air Blow'] },
-      { name: 'inspection_pass', label: 'Inspection Result', type: 'select', options: ['Pass', 'Fail - Re-clean Required'] },
+      { name: 'cleaning_type', label: 'Cleaning Type', type: 'select', options: ['Full Wash (Vac Truck Dispose)', 'Air Cleaning Station', 'Mechanical Cleaning Station', 'Pressure Wash', 'Steam Clean', 'Arrived Clean - Inspection Only'] },
+      { name: 'cleaning_location', label: 'Cleaning Location', type: 'select', options: ['Laydown Yard', 'ROW Cleaning Station', 'Off-Site (Arrived Clean)', 'Mobile Unit on ROW'] },
+      { name: 'kp_location', label: 'Cleaning Station KP', type: 'text', placeholder: 'If on ROW, e.g., 5+200' },
+      { name: 'inspection_pass', label: 'Inspection Status', type: 'select', options: ['Pass - Approved for Work', 'Fail - Re-clean Required', 'Fail - Rejected from Site', 'Pending Inspection'] },
+      { name: 'inspector_name', label: 'Inspected By', type: 'text', placeholder: 'Environmental Inspector name' },
+      { name: 'biosecurity_concerns', label: 'Biosecurity Concerns', type: 'select', options: ['None', 'Soil/Mud Present', 'Vegetation/Seeds Present', 'Invasive Species Risk', 'Multiple Concerns'] },
+      { name: 'weed_wash_cert', label: 'Weed Wash Certificate', type: 'select', options: ['Yes - On File', 'Yes - Issued Today', 'No - Not Required', 'No - Required but Missing'] },
+      { name: 'photo_taken', label: 'Photo Taken', type: 'select', options: ['Yes - Before', 'Yes - After', 'Yes - Both', 'No'] },
       { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
     ]
   }

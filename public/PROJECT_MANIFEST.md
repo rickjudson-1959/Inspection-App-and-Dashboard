@@ -1,7 +1,7 @@
 # PIPE-UP PROJECT MANIFEST
 ## Pipeline Inspector SaaS Application
 
-**Last Updated:** January 17, 2026  
+**Last Updated:** January 19, 2026  
 **Version:** 1.9  
 **Stack:** React + Vite + Supabase + Vercel  
 **Live URL:** https://app.pipe-up.ca  
@@ -9,182 +9,140 @@
 
 ---
 
-## 🚧 IN PROGRESS: BILLING RECONCILIATION SYSTEM
+## 📁 FILE INVENTORY (95+ files in /src)
 
-### What's Being Built
-Adding billing workflow to ReconciliationDashboard per Corry's requirements:
-
-1. **Match View** - Side-by-side: Inspector ticket vs Contractor LEM vs Timesheet photo + **THE MONEY**
-2. **Status Workflow:**
-   - `open` → Needs review
-   - `matched` → Everything lines up
-   - `disputed` → Has discrepancies
-   - `ready_for_billing` → Approved, waiting for invoice
-   - `invoiced` → Assigned to invoice #XXX
-
-3. **Billing Batches** - Group "Ready for Billing" items into invoice batches
-4. **Full Visibility** - See ALL tickets, filter by status, totals at each stage
-
-### Database Changes Applied (Jan 17)
-```sql
--- Added to contractor_lems table:
-ALTER TABLE contractor_lems ADD COLUMN billing_status TEXT DEFAULT 'open';
-ALTER TABLE contractor_lems ADD COLUMN billing_batch_id UUID;
-ALTER TABLE contractor_lems ADD COLUMN ready_for_billing_at TIMESTAMP WITH TIME ZONE;
-ALTER TABLE contractor_lems ADD COLUMN ready_for_billing_by TEXT;
-ALTER TABLE contractor_lems ADD COLUMN invoiced_at TIMESTAMP WITH TIME ZONE;
-ALTER TABLE contractor_lems ADD COLUMN invoice_number TEXT;
-
--- New table for invoice groupings:
-CREATE TABLE billing_batches (
-  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  batch_number TEXT,
-  invoice_number TEXT,
-  contractor TEXT,
-  total_labour_cost NUMERIC(12,2) DEFAULT 0,
-  total_equipment_cost NUMERIC(12,2) DEFAULT 0,
-  total_amount NUMERIC(12,2) DEFAULT 0,
-  lem_count INTEGER DEFAULT 0,
-  status TEXT DEFAULT 'pending',
-  notes TEXT,
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-  created_by TEXT,
-  invoiced_at TIMESTAMP WITH TIME ZONE,
-  invoiced_by TEXT
-);
-```
-
-### Next Steps
-- [ ] Add "Billing" view mode to ReconciliationDashboard
-- [ ] Checkboxes to select LEMs for billing batch
-- [ ] "Mark Ready for Billing" action
-- [ ] Create billing batch / assign invoice number
-- [ ] Totals display at each status level
-- [ ] Third-party timesheets (hydrovac, blasting, survey)
-
----
-
-## 📁 FILE INVENTORY (90+ files in /src)
-
-### 📀 ROUTING & CORE
+### 🔀 ROUTING & CORE
 | File | Lines | Purpose |
 |------|-------|---------|
-| `main.jsx` | 5,400 | **ROUTER** - All routes defined here |
-| `App.jsx` | ~300 | Role-based routing with ProtectedRoute |
-| `AuthContext.jsx` | 3,501 | Authentication provider, user roles |
-| `ProtectedRoute.jsx` | ~100 | Role-based access control & route guards |
-| `ResetPassword.jsx` | ~200 | Fixed redirect_to preservation |
-| `supabase.js` | 231 | Supabase client config |
-| `constants.js` | 23,976 | **CRITICAL** - Activity types, quality fields, options |
+| `main.jsx` | 5,400+ | **ROUTER** - All routes defined here. Check this first! |
+| `supabaseClient.js` | ~50 | Supabase connection config |
+| `AuthContext.jsx` | ~200 | Auth state management with role-based access |
 
-### 🔐 ROLE-BASED NAVIGATION & USER MANAGEMENT
-| File | Purpose |
-|------|---------|
-| `ProtectedRoute.jsx` | Route guards, role config, access control |
-| `MasterSwitcher.jsx` | **ADMIN GOD MODE** - Dropdown to jump between dashboards |
-| `InviteUser.jsx` | Secure invitation with Edge Function |
-| `ResetPassword.jsx` | Preserves redirect_to parameter |
-
-### 📊 DASHBOARDS & ADMIN
+### 📝 INSPECTOR MODULE
 | File | Lines | Purpose |
 |------|-------|---------|
-| `AdminPortal.jsx` | ~1085 | **UPDATED Jan 17** - Added Delete User button |
-| `Dashboard.jsx` | ~1100 | CMT Dashboard with role navigation |
-| `ChiefDashboard.jsx` | ~1250 | Fixed Daily Summary display |
-| `EVMDashboard.jsx` | ~45K | Earned Value Management |
-| `ReconciliationDashboard.jsx` | ~1481 | **IN PROGRESS** - Adding billing workflow |
-| `ContractorLEMs.jsx` | ~38K | Contractor LEM import/view |
+| `InspectorReport.jsx` | 4,713 | **MAIN FORM** - Daily inspection ticket entry |
+| `constants.js` | 800+ | Activity types, quality fields, equipment lists, EGP pipeline data |
+| `ActivityBlock.jsx` | ~600 | Collapsible activity sections with QA fields |
+| `StringingLog.jsx` | ~400 | Joint tracking with OCR import |
+| `WeldLog.jsx` | ~350 | Weld data capture |
+| `CoatingLog.jsx` | ~300 | Coating inspection data |
+| `BendingLog.jsx` | ~250 | Bending data capture |
+| `TallySheetScanner.jsx` | ~300 | OCR camera/file upload for joint import |
+| `TrackableItemsTracker.jsx` | ~400 | Mats, fencing, ramps with linking |
 
-### 📝 INSPECTOR REPORTS
+### 👔 ADMIN MODULE
+| File | Lines | Purpose |
+|------|-------|---------|
+| `AdminPortal.jsx` | 1,200+ | **ADMIN HUB** - User management, reports, approvals, billing |
+| `ReconciliationDashboard.jsx` | ~800 | LEM verification, billing reconciliation with audit logging |
+| `auditLoggerV3.js` | ~150 | Centralized audit logging for all financial changes |
+
+### 👷 CHIEF INSPECTOR MODULE
+| File | Lines | Purpose |
+|------|-------|---------|
+| `ChiefInspectorPortal.jsx` | ~600 | Report queue, approval workflow |
+| `ReportViewer.jsx` | 1,000+ | **FULL REPORT VIEW** - All report data with approve/reject buttons |
+
+### 💰 INSPECTOR INVOICING MODULE
+| File | Lines | Purpose |
+|------|-------|---------|
+| `InspectorInvoicing.jsx` | ~800 | Timesheet dashboard for inspectors |
+| `TimesheetEditor.jsx` | ~600 | Create/edit timesheets with auto-population from daily tickets |
+| `inspector_timesheets` | DB Table | Timesheet headers (date range, status, totals) |
+| `inspector_timesheet_items` | DB Table | Line items linked to daily tickets |
+| `inspector_rate_cards` | DB Table | Rate cards for billing calculations |
+
+### 🔧 UTILITIES
 | File | Purpose |
 |------|---------|
-| `InspectorReport.jsx` | Main daily inspection entry form |
-| `ActivityBlock.jsx` | Activity data with labour/equipment |
-| `ReportViewer.jsx` | Read-only report view |
+| `pdfExport.js` | PDF generation for reports |
+| `excelExport.js` | Excel export functionality |
+| `weatherService.js` | Weather API integration |
 
 ---
 
-## 🔐 ROLE-BASED ACCESS SYSTEM
+## ✅ COMPLETED FEATURES (as of Jan 19, 2026)
 
-### User Roles & Landing Pages
-| Role | Landing Page |
-|------|--------------|
-| `super_admin` | `/admin` |
-| `admin` | `/admin` |
-| `executive` | `/evm-dashboard` |
-| `cm` | `/cmt-dashboard` |
-| `pm` | `/cmt-dashboard` |
-| `chief_inspector` | `/chief-dashboard` |
-| `assistant_chief_inspector` | `/assistant-chief` |
-| `ndt_auditor` | `/ndt-auditor` |
-| `inspector` | `/field-entry` |
+### Core Inspection System
+- ✅ Multi-activity daily inspection tickets
+- ✅ 20 construction phase types (Clearing through Hydrostatic Testing)
+- ✅ Collapsible sections for field usability
+- ✅ Quality fields per activity type
+- ✅ EGP Project pipeline breakdown (Indian Arm to Woodfibre LNG)
+- ✅ Weather auto-fill from API
+- ✅ Voice-to-text input support
+- ✅ Photo capture and upload
+- ✅ Trackable items (mats, fencing, ramps with linking)
 
----
+### OCR & Data Import
+- ✅ Tally sheet OCR scanner (Claude Vision)
+- ✅ Joint data extraction and preview
+- ✅ Import selected joints to StringingLog
+- ✅ Source tracking (`tally_sheet`) for audit
 
-## 📧 INVITATION SYSTEM
+### Workflow & Approvals
+- ✅ Submit → Review → Approve/Reject workflow
+- ✅ Revision notes with status tracking
+- ✅ Email notifications on status changes
+- ✅ Report status badges throughout UI
 
-### Edge Functions Deployed
-| Function | Purpose |
-|----------|---------|
-| `invite-user` | Secure user invitations with role assignment |
-| `delete-user` | **NEW Jan 17** - Delete users from auth.users |
+### ReportViewer (Updated Jan 19)
+- ✅ Full report display for Admin/Chief Inspector
+- ✅ All sections rendered: Report Info, Weather, Activities, Manpower, Equipment, Quality Checks, Specialized Data, Trackable Items, Safety, Wildlife, Visitors, UPI, Comments, Photos
+- ✅ **Approve/Reject buttons** directly on report view
+- ✅ Rejection modal with required revision notes
+- ✅ Status updates without leaving page
+- ✅ Role-based button visibility (Chief Inspector, Admin, Super Admin only)
 
-### How Invites Work
-1. Admin clicks "📧 Invite User" in Admin Portal
-2. Edge Function creates user + profile with role
-3. User receives email, sets password
-4. Redirects to role-specific dashboard
+### AdminPortal (Updated Jan 19)
+- ✅ **Pending Approvals tab** - View button opens ReportViewer
+- ✅ **Inspector Reports tab** - View button alongside Edit button
+- ✅ User management with delete functionality
+- ✅ Delete user Edge Function (preserves reports, removes auth)
 
-### Role Mapping (Form → Database)
-| Form Value | Database Value |
-|------------|----------------|
-| `chief` | `chief_inspector` |
-| `exec` | `executive` |
-| `asst_chief` | `assistant_chief_inspector` |
+### Billing & Reconciliation
+- ✅ LEM verification workflow
+- ✅ Side-by-side digital vs. uploaded timesheet comparison
+- ✅ Discrepancy notes (mandatory for disputes)
+- ✅ Batch invoice creation
+- ✅ Status tracking: Open → Matched → Ready for Billing → Invoiced
+- ✅ Full audit logging via auditLoggerV3.js
+- ✅ "No Talk" transparency - all adjustments visible
 
----
+### Inspector Invoicing System
+- ✅ **Phase 1:** Inspector profile with rate cards
+- ✅ **Phase 2:** Invoicing dashboard with timesheet list
+- ✅ **Phase 3:** Timesheet editor with auto-population
+  - Select date range
+  - Auto-populate from daily tickets
+  - Edit per diem, mileage, notes
+  - Preview invoice calculations
+  - Submit for review
+- ⏳ **Phase 4:** Admin Review Queue (next)
+- ⏳ **Phase 5:** Approval workflow with notifications
+- ⏳ **Phase 6:** Rate card management and reporting
 
-## 👤 USER MANAGEMENT
+### Audit Trail System
+- ✅ Report header changes
+- ✅ Weather changes
+- ✅ Time changes
+- ✅ Notes changes
+- ✅ Activity block add/delete
+- ✅ Workflow actions (submit/resubmit)
+- ✅ Financial adjustments (auditLoggerV3)
+- ⏳ Quality field changes within blocks
+- ⏳ Specialized log changes (Stringing, Weld, Coating, Bending)
+- ⏳ Trackable item changes
+- ⏳ UPI quantity changes
+- ⏳ Labour/Equipment entry changes
+- ⏳ Photo additions/deletions
 
-### Delete User (Admin Portal)
-- Users tab now has "🗑️ Delete" button
-- Your own account is disabled (can't delete yourself)
-- Reports created by deleted users are preserved
-- Uses `delete-user` Edge Function for auth.users cleanup
-
-### Database Constraint (Applied Jan 17)
-```sql
--- Reports stay when users are deleted
-ALTER TABLE daily_tickets 
-ADD CONSTRAINT daily_tickets_created_by_fkey 
-FOREIGN KEY (created_by) REFERENCES auth.users(id) ON DELETE SET NULL;
-```
-
----
-
-## 💰 RECONCILIATION & BILLING SYSTEM
-
-### Current Features (Working)
-- 3-way comparison: LEM vs Timesheet vs Inspector Report
-- Dispute flagging and tracking
-- Corrections with audit trail
-- Email notifications to contractor
-
-### Billing Status Flow (Being Added)
-```
-open → matched → ready_for_billing → invoiced
-         ↓
-      disputed → resolved → ready_for_billing
-```
-
-### Key Tables
-| Table | Purpose |
-|-------|---------|
-| `contractor_lems` | Contractor daily logs with billing_status |
-| `daily_tickets` | Inspector reports |
-| `disputes` | Flagged discrepancies |
-| `reconciliation_corrections` | Admin fixes |
-| `billing_batches` | **NEW** - Invoice groupings |
+### Infrastructure
+- ✅ Custom domain verified (app.pipe-up.ca, api.pipe-up.ca)
+- ✅ Auth emails working
+- ✅ Supabase Edge Functions deployed
+- ✅ GitHub → Vercel CI/CD pipeline
 
 ---
 
@@ -193,100 +151,109 @@ open → matched → ready_for_billing → invoiced
 ### Core Tables
 | Table | Purpose |
 |-------|---------|
-| `daily_tickets` | Main inspection reports |
-| `user_profiles` | User accounts & roles |
-| `contractor_lems` | Contractor LEMs with billing status |
-| `billing_batches` | **NEW** - Invoice batch groupings |
+| `daily_tickets` | Inspector report data (JSON blob) |
+| `report_status` | Workflow status tracking |
+| `report_audit_log` | Change history for reports |
+| `user_profiles` | User data with roles |
+| `trackable_items` | Mats, fencing, equipment inventory |
 
-### Workflow Tables
+### Inspector Invoicing Tables
 | Table | Purpose |
 |-------|---------|
-| `disputes` | Flagged discrepancies |
-| `reconciliation_corrections` | Admin corrections |
-| `report_audit_log` | Audit trail |
+| `inspector_profiles` | Inspector-specific data (company, GST#, address) |
+| `inspector_timesheets` | Timesheet headers |
+| `inspector_timesheet_items` | Line items linked to daily_tickets |
+| `inspector_rate_cards` | Billing rates per inspector |
+
+### Billing Tables
+| Table | Purpose |
+|-------|---------|
+| `lem_records` | Labour/Equipment/Materials data |
+| `billing_reconciliation` | Verification records |
+| `billing_audit_log` | Financial change tracking |
 
 ---
 
-## 🛣️ ROUTES
+## 🔐 RLS POLICIES
 
-| Route | Component | Access |
-|-------|-----------|--------|
-| `/login` | Login | Public |
-| `/admin` | AdminPortal | Admin |
-| `/chief-dashboard` | ChiefDashboard | Chief, CM, PM, Admin |
-| `/cmt-dashboard` | Dashboard | CM, PM, Chief, Exec, Admin |
-| `/evm-dashboard` | EVMDashboard | Exec, CM, PM, Admin |
-| `/reconciliation` | ReconciliationDashboard | Admin, CM |
-| `/contractor-lems` | ContractorLEMs | Admin, CM |
-| `/field-entry` | InspectorReport | Inspector, Chief, Admin |
+```sql
+-- Reports
+CREATE POLICY "Allow authenticated users to read reports" 
+ON daily_tickets FOR SELECT TO authenticated USING (true);
 
----
+CREATE POLICY "Allow authenticated users to read report status" 
+ON report_status FOR SELECT TO authenticated USING (true);
 
-## 📄 RECENT CHANGES LOG
+-- Audit Logs
+CREATE POLICY "Users can view audit logs" 
+ON report_audit_log FOR SELECT TO authenticated USING (true);
 
-| Date | What Changed |
-|------|--------------|
-| **Jan 17, 2026** | Added Delete User button to Admin Portal |
-| **Jan 17, 2026** | Deployed `delete-user` Edge Function |
-| **Jan 17, 2026** | Added billing columns to contractor_lems |
-| **Jan 17, 2026** | Created billing_batches table |
-| **Jan 17, 2026** | Fixed user deletion (reports preserved) |
-| **Jan 17, 2026** | Fixed invitation system (role mapping, redirects) |
-| **Jan 15, 2026** | Role-based navigation system |
-| **Jan 15, 2026** | ProtectedRoute security guards |
-| **Jan 15, 2026** | Admin God Mode (MasterSwitcher) |
+CREATE POLICY "Users can insert audit logs" 
+ON report_audit_log FOR INSERT TO authenticated WITH CHECK (true);
+
+-- Inspector Invoicing
+CREATE POLICY "Inspectors can view own timesheets"
+ON inspector_timesheets FOR SELECT TO authenticated 
+USING (inspector_id = auth.uid());
+
+CREATE POLICY "Admins can view all timesheets"
+ON inspector_timesheets FOR SELECT TO authenticated 
+USING (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('admin', 'super_admin')));
+```
 
 ---
 
-## ⚠️ TODO LIST
+## 🚀 DEPLOYMENT
 
-### High Priority - In Progress
-- [ ] **Billing view in ReconciliationDashboard** - Started, database ready
-
-### High Priority
-- [ ] Third-party timesheets (hydrovac, blasting, survey)
-- [ ] HydrotestLog.jsx audit trail
-
-### Medium Priority
-- [ ] AI narrative generation for Chief Dashboard
-- [ ] AI reviewer agents
-
-### Completed ✅
-- [x] Role-based navigation (Jan 15)
-- [x] User invitation workflow (Jan 17)
-- [x] User deletion from Admin Portal (Jan 17)
-- [x] Billing database schema (Jan 17)
+```bash
+# From project directory
+cd ~/Documents/"Inspection App and Dashboard"
+git add .
+git commit -m "Update"
+git push origin main
+# Vercel auto-deploys from main branch
+```
 
 ---
 
-## 📋 SESSION CHECKLIST
+## 📋 DEVELOPMENT ROADMAP
 
-When starting tomorrow's session, upload:
+### Immediate (Phase 4-6 Invoicing)
+1. Admin Review Queue for timesheets
+2. Timesheet approval workflow with notifications
+3. Rate card management UI
+4. Invoice PDF generation
+5. Reporting dashboard
 
-1. **Always:** `PROJECT_MANIFEST.md` (this file)
-2. **For billing work:** `ReconciliationDashboard.jsx`
-3. **If needed:** `ContractorLEMs.jsx`
+### Short-term
+1. Complete audit logging for all components
+2. Chief's Aggregate Report (multiple inspector reports)
+3. Audit History Viewer UI panel
+4. Dashboard analytics and charts
 
-### Where We Left Off
-- Database tables created for billing workflow
-- Next: Add "Billing" view mode to ReconciliationDashboard
-- Need to implement: checkboxes, status actions, batch creation, totals
-
----
-
-## 📧 EMAIL & DOMAIN CONFIGURATION
-
-### Custom Domains (✅ All Verified)
-| Domain | Purpose |
-|--------|---------|
-| `app.pipe-up.ca` | Main application (Vercel) |
-| `api.pipe-up.ca` | Supabase API |
-| `pipe-up.ca` | Resend email domain |
-
-### SMTP (Resend)
-- Host: smtp.resend.com
-- Sender: auth@pipe-up.ca
+### Medium-term
+1. Mobile-optimized field interface
+2. Offline capability with sync
+3. API 1169 compliance checklist integration
+4. Contractor portal (read-only access)
 
 ---
 
-*Keep this file updated when making significant changes!*
+## 📞 KEY CONTACTS
+
+- **David Pfeiffer** - FortisBC Director of Major Projects (expressed interest in testing)
+- **Pembina Pipeline** - Industry contact
+- **Michels Canada** - Industry contact
+
+---
+
+## 📝 NOTES
+
+- Daily tickets use integer IDs (not UUIDs) - handle accordingly in joins
+- Inspector timesheet items link via `daily_ticket_id` foreign key
+- All financial changes require audit logging via auditLoggerV3
+- "No Talk" transparency means no behind-the-scenes adjustments
+
+---
+
+*Keep this manifest updated when making significant changes!*

@@ -1,39 +1,36 @@
-import React, { useState, useEffect } from 'react'
-import { supabase } from './supabase'
+// ReportWorkflow.jsx - Report submission and approval workflow
+// UPDATED: Removed confusing "Not Saved Yet" status bar message
 
-// ReportWorkflow component
-// Handles report submission, approval, and audit trail
+import React, { useState, useEffect } from 'react'
+import { supabase } from './supabaseClient'
 
 function ReportWorkflow({ 
   reportId, 
   reportDate, 
-  currentUser,  // { id, name, email, role }
+  currentUser, 
   onStatusChange 
 }) {
-  const [status, setStatus] = useState(null)  // report_status record
-  const [auditLog, setAuditLog] = useState([])
+  const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [showAuditLog, setShowAuditLog] = useState(false)
-  const [revisionNotes, setRevisionNotes] = useState('')
+  const [submitting, setSubmitting] = useState(false)
   const [showRevisionModal, setShowRevisionModal] = useState(false)
+  const [revisionNotes, setRevisionNotes] = useState('')
+  const [showHistory, setShowHistory] = useState(false)
+  const [statusHistory, setStatusHistory] = useState([])
 
-  // Determine permissions based on role
-  const canApprove = ['chief', 'asst_chief', 'admin'].includes(currentUser?.role)
-  const canEdit = canApprove || (currentUser?.role === 'inspector' && status?.status === 'draft')
-  const canSubmit = reportId && (status?.status === 'draft' || status?.status === 'revision_requested')
-
+  // Load current status
   useEffect(() => {
-    if (reportId) {
-      loadStatus()
-      loadAuditLog()
-    } else {
-      // New report - no ID yet
-      setStatus({ status: 'new' })
-      setLoading(false)
-    }
+    loadStatus()
   }, [reportId])
 
   const loadStatus = async () => {
+    if (!reportId) {
+      // No report ID means new unsaved report - don't show workflow yet
+      setStatus(null)
+      setLoading(false)
+      return
+    }
+
     try {
       const { data, error } = await supabase
         .from('report_status')
@@ -41,166 +38,183 @@ function ReportWorkflow({
         .eq('report_id', reportId)
         .single()
 
-      if (error && error.code !== 'PGRST116') {  // PGRST116 = no rows
+      if (error && error.code !== 'PGRST116') {
         console.error('Error loading status:', error)
       }
-      
-      setStatus(data || { status: 'draft' })
+
+      if (data) {
+        setStatus(data)
+      } else {
+        // Report exists but no status yet - it's a draft
+        setStatus({ status: 'draft', report_id: reportId })
+      }
     } catch (err) {
       console.error('Error:', err)
     }
     setLoading(false)
   }
 
-  const loadAuditLog = async () => {
+  // Load status history
+  const loadHistory = async () => {
+    if (!reportId) return
+
     try {
-      const { data } = await supabase
-        .from('report_audit_log')
+      const { data, error } = await supabase
+        .from('report_status_history')
         .select('*')
         .eq('report_id', reportId)
         .order('changed_at', { ascending: false })
-        .limit(50)
 
-      if (data) setAuditLog(data)
+      if (error) {
+        console.error('Error loading history:', error)
+        return
+      }
+
+      setStatusHistory(data || [])
     } catch (err) {
-      console.error('Error loading audit log:', err)
+      console.error('Error:', err)
     }
   }
 
-  // Submit report for approval
+  // Submit for approval
   const handleSubmit = async () => {
-    if (!confirm('Submit this report for approval?')) return
+    if (!reportId) {
+      alert('Please save the report first before submitting.')
+      return
+    }
 
+    setSubmitting(true)
     try {
-      const now = new Date().toISOString()
-      
-      // Upsert status
-      const { error: statusError } = await supabase
+      // Check if status record exists
+      const { data: existing } = await supabase
         .from('report_status')
-        .upsert({
-          report_id: reportId,
-          status: 'submitted',
-          submitted_at: now,
-          submitted_by: currentUser?.id,
-          submitted_by_name: currentUser?.name,
-          updated_at: now
-        }, { onConflict: 'report_id' })
+        .select('id')
+        .eq('report_id', reportId)
+        .single()
 
-      if (statusError) throw statusError
-
-      // Log to audit
-      await supabase.from('report_audit_log').insert({
+      const statusUpdate = {
         report_id: reportId,
-        report_date: reportDate,
-        changed_by: currentUser?.id,
-        changed_by_name: currentUser?.name,
-        changed_by_role: currentUser?.role,
-        change_type: 'submit'
+        status: 'submitted',
+        submitted_at: new Date().toISOString(),
+        submitted_by: currentUser?.userId,
+        submitted_by_name: currentUser?.userName || 'Unknown',
+        revision_notes: null
+      }
+
+      if (existing) {
+        await supabase
+          .from('report_status')
+          .update(statusUpdate)
+          .eq('report_id', reportId)
+      } else {
+        await supabase
+          .from('report_status')
+          .insert(statusUpdate)
+      }
+
+      // Log to history
+      await supabase.from('report_status_history').insert({
+        report_id: reportId,
+        status: 'submitted',
+        changed_by: currentUser?.userId,
+        changed_by_name: currentUser?.userName || 'Unknown',
+        notes: 'Submitted for approval'
       })
 
-      loadStatus()
-      loadAuditLog()
+      setStatus({ ...status, ...statusUpdate })
       if (onStatusChange) onStatusChange('submitted')
-      alert('Report submitted for approval')
+      alert('Report submitted for approval!')
     } catch (err) {
       console.error('Error submitting:', err)
       alert('Error submitting report')
     }
+    setSubmitting(false)
   }
 
-  // Approve report
+  // Approve (Chief/Admin only)
   const handleApprove = async () => {
-    if (!confirm('Approve this report?')) return
+    if (!window.confirm('Approve this report?')) return
 
+    setSubmitting(true)
     try {
-      const now = new Date().toISOString()
+      const statusUpdate = {
+        status: 'approved',
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: currentUser?.userId,
+        reviewed_by_name: currentUser?.userName || 'Unknown',
+        revision_notes: null
+      }
 
-      const { error } = await supabase
+      await supabase
         .from('report_status')
-        .upsert({
-          report_id: reportId,
-          status: 'approved',
-          reviewed_at: now,
-          reviewed_by: currentUser?.id,
-          reviewed_by_name: currentUser?.name,
-          review_decision: 'approved',
-          updated_at: now
-        }, { onConflict: 'report_id' })
+        .update(statusUpdate)
+        .eq('report_id', reportId)
 
-      if (error) throw error
-
-      // Log to audit
-      await supabase.from('report_audit_log').insert({
+      // Log to history
+      await supabase.from('report_status_history').insert({
         report_id: reportId,
-        report_date: reportDate,
-        changed_by: currentUser?.id,
-        changed_by_name: currentUser?.name,
-        changed_by_role: currentUser?.role,
-        change_type: 'approve'
+        status: 'approved',
+        changed_by: currentUser?.userId,
+        changed_by_name: currentUser?.userName || 'Unknown',
+        notes: 'Report approved'
       })
 
-      loadStatus()
-      loadAuditLog()
+      setStatus({ ...status, ...statusUpdate })
       if (onStatusChange) onStatusChange('approved')
-      alert('Report approved')
+      alert('Report approved!')
     } catch (err) {
       console.error('Error approving:', err)
       alert('Error approving report')
     }
+    setSubmitting(false)
   }
 
   // Request revision
   const handleRequestRevision = async () => {
     if (!revisionNotes.trim()) {
-      alert('Please enter revision notes explaining what needs to be changed')
+      alert('Please enter revision notes')
       return
     }
 
+    setSubmitting(true)
     try {
-      const now = new Date().toISOString()
+      const statusUpdate = {
+        status: 'revision_requested',
+        reviewed_at: new Date().toISOString(),
+        reviewed_by: currentUser?.userId,
+        reviewed_by_name: currentUser?.userName || 'Unknown',
+        revision_notes: revisionNotes
+      }
 
-      const { error } = await supabase
+      await supabase
         .from('report_status')
-        .upsert({
-          report_id: reportId,
-          status: 'revision_requested',
-          reviewed_at: now,
-          reviewed_by: currentUser?.id,
-          reviewed_by_name: currentUser?.name,
-          review_decision: 'revision_requested',
-          revision_notes: revisionNotes,
-          updated_at: now
-        }, { onConflict: 'report_id' })
+        .update(statusUpdate)
+        .eq('report_id', reportId)
 
-      if (error) throw error
-
-      // Log to audit
-      await supabase.from('report_audit_log').insert({
+      // Log to history
+      await supabase.from('report_status_history').insert({
         report_id: reportId,
-        report_date: reportDate,
-        changed_by: currentUser?.id,
-        changed_by_name: currentUser?.name,
-        changed_by_role: currentUser?.role,
-        change_type: 'revision_request',
-        change_reason: revisionNotes
+        status: 'revision_requested',
+        changed_by: currentUser?.userId,
+        changed_by_name: currentUser?.userName || 'Unknown',
+        notes: revisionNotes
       })
 
+      setStatus({ ...status, ...statusUpdate })
       setShowRevisionModal(false)
       setRevisionNotes('')
-      loadStatus()
-      loadAuditLog()
       if (onStatusChange) onStatusChange('revision_requested')
-      alert('Revision requested')
+      alert('Revision requested. The inspector will be notified.')
     } catch (err) {
       console.error('Error requesting revision:', err)
       alert('Error requesting revision')
     }
+    setSubmitting(false)
   }
 
   // Status badge colors
   const getStatusBadge = () => {
     const badges = {
-      new: { bg: '#17a2b8', text: 'NEW - NOT SAVED YET' },
       draft: { bg: '#6c757d', text: 'DRAFT' },
       submitted: { bg: '#ffc107', text: 'SUBMITTED - AWAITING APPROVAL', textColor: '#000' },
       approved: { bg: '#28a745', text: 'APPROVED ✓' },
@@ -227,7 +241,16 @@ function ReportWorkflow({
     return new Date(dateStr).toLocaleString()
   }
 
+  // Don't show workflow for unsaved reports
+  if (!reportId) {
+    return null
+  }
+
   if (loading) return <div style={{ padding: '10px', color: '#666' }}>Loading status...</div>
+
+  // Determine permissions based on role
+  const canApprove = ['chief_inspector', 'asst_chief', 'admin', 'super_admin'].includes(currentUser?.role)
+  const canSubmit = reportId && (status?.status === 'draft' || status?.status === 'revision_requested')
 
   return (
     <div style={{ marginBottom: '20px' }}>
@@ -266,26 +289,21 @@ function ReportWorkflow({
         </div>
 
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Message for new reports */}
-          {status?.status === 'new' && (
-            <span style={{ color: '#17a2b8', fontSize: '13px', alignSelf: 'center' }}>
-              💾 Save report first to enable submission
-            </span>
-          )}
-
           {/* Submit Button - for inspectors with draft/revision reports */}
           {canSubmit && (
             <button
               onClick={handleSubmit}
+              disabled={submitting}
               style={{
                 padding: '8px 16px',
                 backgroundColor: '#007bff',
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
-                cursor: 'pointer',
+                cursor: submitting ? 'not-allowed' : 'pointer',
                 fontWeight: 'bold',
-                fontSize: '13px'
+                fontSize: '13px',
+                opacity: submitting ? 0.7 : 1
               }}
             >
               📤 Submit for Approval
@@ -297,13 +315,14 @@ function ReportWorkflow({
             <>
               <button
                 onClick={handleApprove}
+                disabled={submitting}
                 style={{
                   padding: '8px 16px',
                   backgroundColor: '#28a745',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
-                  cursor: 'pointer',
+                  cursor: submitting ? 'not-allowed' : 'pointer',
                   fontWeight: 'bold',
                   fontSize: '13px'
                 }}
@@ -312,13 +331,14 @@ function ReportWorkflow({
               </button>
               <button
                 onClick={() => setShowRevisionModal(true)}
+                disabled={submitting}
                 style={{
                   padding: '8px 16px',
                   backgroundColor: '#dc3545',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
-                  cursor: 'pointer',
+                  cursor: submitting ? 'not-allowed' : 'pointer',
                   fontWeight: 'bold',
                   fontSize: '13px'
                 }}
@@ -328,9 +348,12 @@ function ReportWorkflow({
             </>
           )}
 
-          {/* Audit Log Toggle */}
+          {/* History Button */}
           <button
-            onClick={() => setShowAuditLog(!showAuditLog)}
+            onClick={() => {
+              setShowHistory(!showHistory)
+              if (!showHistory) loadHistory()
+            }}
             style={{
               padding: '8px 16px',
               backgroundColor: '#6c757d',
@@ -341,10 +364,59 @@ function ReportWorkflow({
               fontSize: '13px'
             }}
           >
-            📋 {showAuditLog ? 'Hide' : 'Show'} History ({auditLog.length})
+            📋 {showHistory ? 'Hide' : 'Show'} History
           </button>
         </div>
       </div>
+
+      {/* Status History */}
+      {showHistory && (
+        <div style={{ 
+          marginTop: '10px', 
+          padding: '15px', 
+          backgroundColor: '#fff', 
+          borderRadius: '8px',
+          border: '1px solid #dee2e6'
+        }}>
+          <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>Status History</h4>
+          {statusHistory.length === 0 ? (
+            <p style={{ color: '#666', fontSize: '13px' }}>No history available</p>
+          ) : (
+            <div style={{ maxHeight: '200px', overflowY: 'auto' }}>
+              {statusHistory.map((entry, idx) => (
+                <div key={idx} style={{ 
+                  padding: '8px', 
+                  borderBottom: idx < statusHistory.length - 1 ? '1px solid #eee' : 'none',
+                  fontSize: '12px'
+                }}>
+                  <span style={{ 
+                    display: 'inline-block',
+                    padding: '2px 8px',
+                    backgroundColor: entry.status === 'approved' ? '#28a745' : 
+                                    entry.status === 'submitted' ? '#ffc107' :
+                                    entry.status === 'revision_requested' ? '#dc3545' : '#6c757d',
+                    color: entry.status === 'submitted' ? '#000' : '#fff',
+                    borderRadius: '3px',
+                    marginRight: '10px',
+                    fontSize: '10px',
+                    fontWeight: 'bold'
+                  }}>
+                    {entry.status?.toUpperCase().replace('_', ' ')}
+                  </span>
+                  <span style={{ color: '#666' }}>
+                    by {entry.changed_by_name} • {formatDate(entry.changed_at)}
+                  </span>
+                  {entry.notes && (
+                    <div style={{ marginTop: '4px', color: '#333', fontStyle: 'italic' }}>
+                      "{entry.notes}"
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Revision Modal */}
       {showRevisionModal && (
@@ -356,40 +428,44 @@ function ReportWorkflow({
           bottom: 0,
           backgroundColor: 'rgba(0,0,0,0.5)',
           display: 'flex',
-          justifyContent: 'center',
           alignItems: 'center',
-          zIndex: 1000
+          justifyContent: 'center',
+          zIndex: 2000
         }}>
           <div style={{
             backgroundColor: 'white',
-            padding: '20px',
+            padding: '25px',
             borderRadius: '8px',
             width: '90%',
-            maxWidth: '500px'
+            maxWidth: '500px',
+            boxShadow: '0 4px 20px rgba(0,0,0,0.3)'
           }}>
-            <h3 style={{ margin: '0 0 15px 0' }}>Request Revision</h3>
+            <h3 style={{ marginTop: 0 }}>Request Revision</h3>
             <p style={{ color: '#666', fontSize: '14px' }}>
-              Explain what changes are needed:
+              Please explain what needs to be corrected:
             </p>
             <textarea
               value={revisionNotes}
               onChange={(e) => setRevisionNotes(e.target.value)}
-              rows={4}
+              placeholder="Enter revision notes..."
               style={{
                 width: '100%',
+                minHeight: '100px',
                 padding: '10px',
-                border: '1px solid #ced4da',
                 borderRadius: '4px',
-                marginBottom: '15px',
-                boxSizing: 'border-box'
+                border: '1px solid #ddd',
+                fontSize: '14px',
+                resize: 'vertical'
               }}
-              placeholder="e.g., KP values need correction, missing contractor info..."
             />
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+            <div style={{ display: 'flex', gap: '10px', marginTop: '15px', justifyContent: 'flex-end' }}>
               <button
-                onClick={() => setShowRevisionModal(false)}
+                onClick={() => {
+                  setShowRevisionModal(false)
+                  setRevisionNotes('')
+                }}
                 style={{
-                  padding: '8px 16px',
+                  padding: '10px 20px',
                   backgroundColor: '#6c757d',
                   color: 'white',
                   border: 'none',
@@ -401,95 +477,21 @@ function ReportWorkflow({
               </button>
               <button
                 onClick={handleRequestRevision}
+                disabled={submitting || !revisionNotes.trim()}
                 style={{
-                  padding: '8px 16px',
+                  padding: '10px 20px',
                   backgroundColor: '#dc3545',
                   color: 'white',
                   border: 'none',
                   borderRadius: '4px',
-                  cursor: 'pointer'
+                  cursor: submitting ? 'not-allowed' : 'pointer',
+                  opacity: submitting || !revisionNotes.trim() ? 0.7 : 1
                 }}
               >
-                Send Revision Request
+                {submitting ? 'Sending...' : 'Send Revision Request'}
               </button>
             </div>
           </div>
-        </div>
-      )}
-
-      {/* Audit Log */}
-      {showAuditLog && (
-        <div style={{
-          marginTop: '15px',
-          padding: '15px',
-          backgroundColor: '#fff',
-          border: '1px solid #dee2e6',
-          borderRadius: '8px',
-          maxHeight: '300px',
-          overflowY: 'auto'
-        }}>
-          <h4 style={{ margin: '0 0 10px 0', color: '#333' }}>📋 Change History</h4>
-          {auditLog.length === 0 ? (
-            <p style={{ color: '#666', fontStyle: 'italic' }}>No changes logged yet.</p>
-          ) : (
-            <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f8f9fa' }}>
-                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #dee2e6' }}>When</th>
-                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #dee2e6' }}>Who</th>
-                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #dee2e6' }}>Action</th>
-                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #dee2e6' }}>Details</th>
-                </tr>
-              </thead>
-              <tbody>
-                {auditLog.map((entry, idx) => (
-                  <tr key={entry.id || idx} style={{ borderBottom: '1px solid #eee' }}>
-                    <td style={{ padding: '8px', verticalAlign: 'top' }}>
-                      {formatDate(entry.changed_at)}
-                    </td>
-                    <td style={{ padding: '8px', verticalAlign: 'top' }}>
-                      <strong>{entry.changed_by_name}</strong>
-                      <br />
-                      <span style={{ color: '#666', fontSize: '11px' }}>{entry.changed_by_role}</span>
-                    </td>
-                    <td style={{ padding: '8px', verticalAlign: 'top' }}>
-                      <span style={{
-                        display: 'inline-block',
-                        padding: '2px 6px',
-                        borderRadius: '3px',
-                        fontSize: '11px',
-                        backgroundColor: 
-                          entry.change_type === 'create' ? '#28a745' :
-                          entry.change_type === 'edit' ? '#007bff' :
-                          entry.change_type === 'submit' ? '#ffc107' :
-                          entry.change_type === 'approve' ? '#28a745' :
-                          entry.change_type === 'revision_request' ? '#dc3545' : '#6c757d',
-                        color: entry.change_type === 'submit' ? '#000' : '#fff'
-                      }}>
-                        {entry.change_type?.toUpperCase()}
-                      </span>
-                    </td>
-                    <td style={{ padding: '8px', verticalAlign: 'top' }}>
-                      {entry.field_name && (
-                        <div>
-                          <strong>{entry.section}</strong> → {entry.field_name}
-                          <br />
-                          <span style={{ color: '#dc3545' }}>{entry.old_value || '(empty)'}</span>
-                          {' → '}
-                          <span style={{ color: '#28a745' }}>{entry.new_value || '(empty)'}</span>
-                        </div>
-                      )}
-                      {entry.change_reason && (
-                        <div style={{ color: '#666', fontStyle: 'italic', marginTop: '4px' }}>
-                          "{entry.change_reason}"
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
         </div>
       )}
     </div>

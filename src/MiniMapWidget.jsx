@@ -347,21 +347,22 @@ export default function MiniMapWidget({
             padding: '8px 10px', 
             borderBottom: '1px solid #eee',
             display: 'flex',
-            gap: '12px',
+            gap: '8px',
             alignItems: 'center',
             fontSize: '11px',
-            backgroundColor: '#f8f9fa'
+            backgroundColor: '#f8f9fa',
+            flexWrap: 'wrap'
           }}>
-            <span style={{ fontWeight: 'bold', color: '#666' }}>Layers:</span>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <span style={{ fontWeight: 'bold', color: '#666', marginRight: '4px' }}>Layers:</span>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <input 
                 type="checkbox" 
                 checked={showKPMarkers} 
                 onChange={(e) => setShowKPMarkers(e.target.checked)}
               />
-              <span style={{ color: '#007bff' }}>KP Markers ({egpKPMarkers.length})</span>
+              <span style={{ color: '#007bff' }}>KP ({egpKPMarkers.length})</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <input 
                 type="checkbox" 
                 checked={showWelds} 
@@ -369,7 +370,7 @@ export default function MiniMapWidget({
               />
               <span style={{ color: '#dc3545' }}>Welds ({egpWelds.length})</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <input 
                 type="checkbox" 
                 checked={showBends} 
@@ -377,7 +378,7 @@ export default function MiniMapWidget({
               />
               <span style={{ color: '#fd7e14' }}>Bends ({egpBends.length})</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <input 
                 type="checkbox" 
                 checked={showROW} 
@@ -385,7 +386,7 @@ export default function MiniMapWidget({
               />
               <span style={{ color: '#9b59b6' }}>Footprint ({egpFootprint.length})</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <input 
                 type="checkbox" 
                 checked={showOpenEnds} 
@@ -393,7 +394,7 @@ export default function MiniMapWidget({
               />
               <span style={{ color: '#e74c3c' }}>Open Ends ({egpOpenEnds.length})</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <input 
                 type="checkbox" 
                 checked={showBoreFaces} 
@@ -401,7 +402,7 @@ export default function MiniMapWidget({
               />
               <span style={{ color: '#00bcd4' }}>HDD ({egpBoreFaces.length})</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <input 
                 type="checkbox" 
                 checked={showSagBends} 

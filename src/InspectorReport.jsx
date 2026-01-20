@@ -3526,6 +3526,98 @@ Important:
     }
 
     // ═══════════════════════════════════════════════════════════
+    // TRACKABLE ITEMS
+    // ═══════════════════════════════════════════════════════════
+    if (trackableItemsData && trackableItemsData.length > 0) {
+      checkPageBreak(30)
+      addSectionHeader('TRACKABLE ITEMS', [111, 66, 193]) // Purple
+      
+      // Group items by type
+      const groupedItems = trackableItemsData.reduce((acc, item) => {
+        const type = item.item_type || 'other'
+        if (!acc[type]) acc[type] = []
+        acc[type].push(item)
+        return acc
+      }, {})
+      
+      // Type labels
+      const typeLabels = {
+        mats: '🛤️ Mats',
+        fencing: '🚧 Temporary Fencing',
+        ramps: '🛤️ Ramps',
+        goalposts: '⚡ Goal Posts',
+        access: '🚜 Access Roads',
+        hydrovac: '🚿 Hydrovac Holes',
+        erosion: '🌊 Erosion Control',
+        signage: '🚧 Signage',
+        equipment_cleaning: '🧹 Equipment Cleaning',
+        rock_trench: '🪨 Rock Trench',
+        extra_depth: '📐 Extra Depth Ditch'
+      }
+      
+      Object.entries(groupedItems).forEach(([type, items]) => {
+        checkPageBreak(20)
+        // Sub-header for item type
+        setColor(BRAND.grayLight, 'fill')
+        doc.rect(margin, y, contentWidth, 5, 'F')
+        setColor([111, 66, 193], 'text') // Purple
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.text(`${typeLabels[type] || type.toUpperCase()} (${items.length})`, margin + 2, y + 3.5)
+        y += 7
+        
+        setColor(BRAND.black, 'text')
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(7)
+        
+        items.forEach((item, idx) => {
+          checkPageBreak(15)
+          
+          // Build item description based on type
+          let description = ''
+          
+          if (type === 'mats') {
+            description = `${item.action || ''} ${item.quantity || ''} x ${item.mat_type || ''} (${item.mat_size || ''}) at KP ${item.from_kp || ''}${item.to_kp ? ' - ' + item.to_kp : ''}`
+          } else if (type === 'fencing') {
+            description = `${item.action || ''} ${item.length || ''}m ${item.fence_type || ''} at KP ${item.from_kp || ''}${item.to_kp ? ' - ' + item.to_kp : ''}`
+          } else if (type === 'ramps') {
+            description = `${item.action || ''} ${item.quantity || ''} x ${item.ramp_type || ''} at KP ${item.kp_location || ''}`
+          } else if (type === 'goalposts') {
+            description = `${item.action || ''} ${item.quantity || ''} set(s) at KP ${item.kp_location || ''} - ${item.utility_owner || ''}`
+          } else if (type === 'equipment_cleaning') {
+            description = `${item.action || ''}: ${item.equipment_type || ''} (${item.equipment_id || ''}) - ${item.inspection_pass || ''}`
+          } else if (type === 'hydrovac') {
+            description = `${item.action || ''} ${item.quantity || ''} x ${item.hole_type || ''} at KP ${item.kp_location || ''}`
+          } else if (type === 'erosion') {
+            description = `${item.action || ''} ${item.quantity || ''} ${item.unit || ''} ${item.control_type || ''} at KP ${item.from_kp || ''}`
+          } else if (type === 'rock_trench') {
+            description = `${item.length || ''}m ${item.rock_type || ''} at KP ${item.from_kp || ''} - ${item.to_kp || ''}, Depth: ${item.depth_achieved || ''}m`
+          } else if (type === 'extra_depth') {
+            description = `${item.length || ''}m extra depth at KP ${item.from_kp || ''} - ${item.to_kp || ''}, Total: ${item.total_depth || ''}m`
+          } else {
+            description = `${item.action || ''} at KP ${item.kp_location || item.from_kp || ''}`
+          }
+          
+          // Truncate if too long
+          const lines = doc.splitTextToSize(`${idx + 1}. ${description}`, contentWidth - 4)
+          doc.text(lines.slice(0, 2), margin + 2, y)
+          y += Math.min(lines.length, 2) * 3.5
+          
+          // Notes if present
+          if (item.notes) {
+            setColor(BRAND.gray, 'text')
+            const noteLines = doc.splitTextToSize(`   Notes: ${item.notes}`, contentWidth - 8)
+            doc.text(noteLines.slice(0, 1), margin + 4, y)
+            y += 3.5
+            setColor(BRAND.black, 'text')
+          }
+        })
+        y += 3
+      })
+      y += 2
+    }
+
+    // ═══════════════════════════════════════════════════════════
     // INSPECTOR INFO
     // ═══════════════════════════════════════════════════════════
     checkPageBreak(35)  // Ensure enough space for section + footer
