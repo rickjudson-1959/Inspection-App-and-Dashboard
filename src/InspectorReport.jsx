@@ -2416,19 +2416,10 @@ Important:
                 trench_depth: parseFloat(ditchData.trenchDepth) || null,
                 depth_of_cover_required: parseFloat(ditchData.depthOfCoverRequired) || null,
                 depth_of_cover_actual: parseFloat(ditchData.depthOfCoverActual) || null,
-                // Rock Ditch pay item
-                rock_ditch: ditchData.rockDitch || false,
-                rock_ditch_from_kp: ditchData.rockDitchFromKP || null,
-                rock_ditch_to_kp: ditchData.rockDitchToKP || null,
-                rock_ditch_meters: parseFloat(ditchData.rockDitchMeters) || 0,
-                rock_ditch_verified: ditchData.rockDitchVerified || false,
-                // Extra Depth pay item
-                extra_depth: ditchData.extraDepth || false,
-                extra_depth_meters: parseFloat(ditchData.extraDepthMeters) || 0,
-                extra_depth_reason: ditchData.extraDepthReason || null,
-                extra_depth_verified: ditchData.extraDepthVerified || false,
                 // Padding/Bedding pay item
                 padding_bedding: ditchData.paddingBedding || false,
+                padding_bedding_from_kp: ditchData.paddingBeddingFromKP || null,
+                padding_bedding_to_kp: ditchData.paddingBeddingToKP || null,
                 padding_bedding_meters: parseFloat(ditchData.paddingBeddingMeters) || 0,
                 padding_material: ditchData.paddingMaterial || null,
                 padding_bedding_verified: ditchData.paddingBeddingVerified || false,
@@ -3413,39 +3404,6 @@ Important:
           doc.text('NOTES', margin + 140, y + 3.5)
           y += 6
 
-          // Rock Ditch row
-          if (block.ditchData.rockDitch) {
-            setColor(BRAND.grayLight, 'fill')
-            doc.rect(margin, y - 0.5, contentWidth, 5, 'F')
-            setColor(BRAND.black, 'text')
-            doc.setFont('helvetica', 'normal')
-            doc.setFontSize(6)
-            const rockDitchKP = (block.ditchData.rockDitchFromKP || block.ditchData.rockDitchToKP)
-              ? `Rock Ditch (${block.ditchData.rockDitchFromKP || '?'} to ${block.ditchData.rockDitchToKP || '?'})`
-              : 'Rock Ditch'
-            doc.text(rockDitchKP.substring(0, 35), margin + 2, y + 3)
-            doc.text(String(block.ditchData.rockDitchMeters || 0), margin + 70, y + 3)
-            setColor(block.ditchData.rockDitchVerified ? BRAND.green : BRAND.red, 'text')
-            doc.text(block.ditchData.rockDitchVerified ? 'YES' : 'NO', margin + 110, y + 3)
-            y += 5
-          }
-
-          // Extra Depth row
-          if (block.ditchData.extraDepth) {
-            setColor(BRAND.white, 'fill')
-            doc.rect(margin, y - 0.5, contentWidth, 5, 'F')
-            setColor(BRAND.black, 'text')
-            doc.setFont('helvetica', 'normal')
-            doc.setFontSize(6)
-            doc.text('Extra Depth', margin + 2, y + 3)
-            doc.text(String(block.ditchData.extraDepthMeters || 0), margin + 70, y + 3)
-            setColor(block.ditchData.extraDepthVerified ? BRAND.green : BRAND.red, 'text')
-            doc.text(block.ditchData.extraDepthVerified ? 'YES' : 'NO', margin + 110, y + 3)
-            setColor(BRAND.black, 'text')
-            doc.text(String(block.ditchData.extraDepthReason || '').replace(/_/g, ' ').substring(0, 25), margin + 140, y + 3)
-            y += 5
-          }
-
           // Padding/Bedding row
           if (block.ditchData.paddingBedding) {
             setColor(BRAND.grayLight, 'fill')
@@ -3453,7 +3411,10 @@ Important:
             setColor(BRAND.black, 'text')
             doc.setFont('helvetica', 'normal')
             doc.setFontSize(6)
-            doc.text('Padding/Bedding', margin + 2, y + 3)
+            const paddingKP = (block.ditchData.paddingBeddingFromKP || block.ditchData.paddingBeddingToKP)
+              ? `Padding/Bedding (${block.ditchData.paddingBeddingFromKP || '?'} to ${block.ditchData.paddingBeddingToKP || '?'})`
+              : 'Padding/Bedding'
+            doc.text(paddingKP.substring(0, 40), margin + 2, y + 3)
             doc.text(String(block.ditchData.paddingBeddingMeters || 0), margin + 70, y + 3)
             setColor(block.ditchData.paddingBeddingVerified ? BRAND.green : BRAND.red, 'text')
             doc.text(block.ditchData.paddingBeddingVerified ? 'YES' : 'NO', margin + 110, y + 3)

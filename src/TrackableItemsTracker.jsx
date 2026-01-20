@@ -37,9 +37,9 @@ const ITEM_TYPES = [
       { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Production rate, challenges, etc.' }
     ]
   },
-  { 
-    id: 'extra_depth', 
-    label: '📐 Extra Depth Ditch', 
+  {
+    id: 'extra_depth',
+    label: '📐 Extra Depth Ditch',
     color: '#856404',
     fields: [
       { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
@@ -50,6 +50,22 @@ const ITEM_TYPES = [
       { name: 'reason', label: 'Reason', type: 'select', options: ['Crossing Requirements', 'Utility Clearance', 'Engineering Request', 'Soil Conditions', 'Other'] },
       { name: 'in_drawings', label: 'In Drawings?', type: 'select', options: ['Yes - Per Drawings', 'No - Field Decision'] },
       { name: 'approved_by', label: 'Approved By', type: 'text', placeholder: 'Name/Role if field decision' },
+      { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
+    ]
+  },
+  {
+    id: 'bedding_padding',
+    label: '🛏️ Bedding & Padding',
+    color: '#8B4513',
+    fields: [
+      { name: 'protection_type', label: 'Protection Type', type: 'select', options: ['Bedding', 'Padding', 'Bedding and Padding', 'Pipe Protection', 'Rockshield', 'Lagging', 'Rockshield and Lagging'] },
+      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
+      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'length', label: 'Length (m)', type: 'number', placeholder: 'Auto or manual' },
+      { name: 'material', label: 'Material', type: 'select', options: ['Sand', 'Screened Material', 'Imported Fill', 'Native Screened', 'Foam', 'Geotextile', 'Other'] },
+      { name: 'depth', label: 'Depth/Thickness (mm)', type: 'number', placeholder: 'e.g., 150' },
+      { name: 'action', label: 'Action', type: 'select', options: ['Install', 'Inspect', 'Repair'] },
+      { name: 'equipment', label: 'Equipment Used', type: 'text', placeholder: 'e.g., Padding machine, excavator' },
       { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
     ]
   },

@@ -479,40 +479,21 @@ function ReportViewer() {
                       </div>
 
                       {/* Pay Items (UPIs) */}
-                      {(block.ditchData.rockDitch || block.ditchData.extraDepth || block.ditchData.paddingBedding) && (
+                      {block.ditchData.paddingBedding && (
                         <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#fff3cd', borderRadius: '4px', border: '1px solid #ffc107' }}>
                           <h5 style={{ fontSize: '12px', color: '#856404', margin: '0 0 8px 0' }}>Pay Items (UPIs)</h5>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', fontSize: '12px' }}>
-                            {block.ditchData.rockDitch && (
-                              <div style={{ padding: '8px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #dee2e6' }}>
-                                <strong>Rock Ditch:</strong>
-                                {(block.ditchData.rockDitchFromKP || block.ditchData.rockDitchToKP) && (
-                                  <span style={{ color: '#666' }}> {block.ditchData.rockDitchFromKP || '?'} to {block.ditchData.rockDitchToKP || '?'}</span>
-                                )}
-                                <span style={{ marginLeft: '8px' }}>{block.ditchData.rockDitchMeters || 0}m</span>
-                                <span style={{ marginLeft: '8px', color: block.ditchData.rockDitchVerified ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
-                                  {block.ditchData.rockDitchVerified ? 'VERIFIED' : 'Not Verified'}
-                                </span>
-                              </div>
-                            )}
-                            {block.ditchData.extraDepth && (
-                              <div style={{ padding: '8px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #dee2e6' }}>
-                                <strong>Extra Depth:</strong> {block.ditchData.extraDepthMeters || 0}m
-                                {block.ditchData.extraDepthReason && <span style={{ color: '#666' }}> ({block.ditchData.extraDepthReason.replace(/_/g, ' ')})</span>}
-                                <span style={{ marginLeft: '8px', color: block.ditchData.extraDepthVerified ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
-                                  {block.ditchData.extraDepthVerified ? 'VERIFIED' : 'Not Verified'}
-                                </span>
-                              </div>
-                            )}
-                            {block.ditchData.paddingBedding && (
-                              <div style={{ padding: '8px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #dee2e6' }}>
-                                <strong>Padding/Bedding:</strong> {block.ditchData.paddingBeddingMeters || 0}m
-                                {block.ditchData.paddingMaterial && <span style={{ color: '#666' }}> ({block.ditchData.paddingMaterial})</span>}
-                                <span style={{ marginLeft: '8px', color: block.ditchData.paddingBeddingVerified ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
-                                  {block.ditchData.paddingBeddingVerified ? 'VERIFIED' : 'Not Verified'}
-                                </span>
-                              </div>
-                            )}
+                            <div style={{ padding: '8px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #dee2e6' }}>
+                              <strong>Padding/Bedding:</strong>
+                              {(block.ditchData.paddingBeddingFromKP || block.ditchData.paddingBeddingToKP) && (
+                                <span style={{ color: '#666' }}> {block.ditchData.paddingBeddingFromKP || '?'} to {block.ditchData.paddingBeddingToKP || '?'}</span>
+                              )}
+                              <span style={{ marginLeft: '8px' }}>{block.ditchData.paddingBeddingMeters || 0}m</span>
+                              {block.ditchData.paddingMaterial && <span style={{ color: '#666' }}> ({block.ditchData.paddingMaterial})</span>}
+                              <span style={{ marginLeft: '8px', color: block.ditchData.paddingBeddingVerified ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
+                                {block.ditchData.paddingBeddingVerified ? 'VERIFIED' : 'Not Verified'}
+                              </span>
+                            </div>
                           </div>
                         </div>
                       )}

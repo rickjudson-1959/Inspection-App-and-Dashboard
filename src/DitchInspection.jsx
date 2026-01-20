@@ -7,7 +7,6 @@
 
 import React, { useState, useRef } from 'react'
 import { useActivityAudit } from './useActivityAudit'
-import { extractGPSFromImage, formatGPSCoordinates } from './exifUtils'
 
 // Format KP input to X+XXX format (e.g., 6500 -> 6+500)
 function formatKP(kp) {
@@ -63,8 +62,6 @@ function DitchInspection({
     depthCompliance: true
   })
 
-  // Photo processing state
-  const [processingPhoto, setProcessingPhoto] = useState(false)
 
   // Default data structure
   const defaultData = {
@@ -74,23 +71,10 @@ function DitchInspection({
     depthOfCoverRequired: '',
     depthOfCoverActual: '',
 
-    // Rock Ditch UPI
-    rockDitch: false,
-    rockDitchFromKP: '',
-    rockDitchToKP: '',
-    rockDitchMeters: '',
-    rockDitchVerified: false,
-    rockDitchPhotos: [],
-
-    // Extra Depth UPI
-    extraDepth: false,
-    extraDepthMeters: '',
-    extraDepthReason: '',
-    extraDepthVerified: false,
-    extraDepthPhotos: [],
-
     // Padding/Bedding UPI
     paddingBedding: false,
+    paddingBeddingFromKP: '',
+    paddingBeddingToKP: '',
     paddingBeddingMeters: '',
     paddingMaterial: '',
     paddingBeddingVerified: false,
@@ -171,76 +155,6 @@ function DitchInspection({
     })
   }
 
-  // Photo upload handler with EXIF extraction
-  const handlePhotoUpload = async (photoType, event) => {
-    const files = Array.from(event.target.files)
-    if (files.length === 0) return
-
-    setProcessingPhoto(true)
-
-    try {
-      const newPhotos = await Promise.all(files.map(async (file) => {
-        // Extract GPS from EXIF
-        const gpsData = await extractGPSFromImage(file)
-
-        return {
-          id: Date.now() + Math.random(),
-          file: file,
-          filename: file.name,
-          photoType: photoType,
-          kpLocation: '',
-          description: '',
-          latitude: gpsData.latitude,
-          longitude: gpsData.longitude,
-          gpsAccuracy: gpsData.accuracy,
-          gpsDirection: gpsData.direction,
-          gpsAltitude: gpsData.altitude,
-          hasGPS: gpsData.hasGPS,
-          exifExtracted: gpsData.hasGPS
-        }
-      }))
-
-      // Add to appropriate photo array
-      if (photoType === 'rock_ditch') {
-        onChange({
-          ...ditchData,
-          rockDitchPhotos: [...(ditchData.rockDitchPhotos || []), ...newPhotos]
-        })
-      } else if (photoType === 'extra_depth') {
-        onChange({
-          ...ditchData,
-          extraDepthPhotos: [...(ditchData.extraDepthPhotos || []), ...newPhotos]
-        })
-      }
-
-      logEntryAdd('Photo', `${newPhotos.length} photo(s) uploaded for ${photoType}`)
-    } catch (err) {
-      console.error('Photo upload error:', err)
-    } finally {
-      setProcessingPhoto(false)
-    }
-  }
-
-  // Remove photo
-  const removePhoto = (photoType, photoId) => {
-    if (photoType === 'rock_ditch') {
-      const photos = ditchData.rockDitchPhotos || []
-      const photo = photos.find(p => p.id === photoId)
-      onChange({
-        ...ditchData,
-        rockDitchPhotos: photos.filter(p => p.id !== photoId)
-      })
-      logEntryDelete('Photo', photo?.filename || 'Photo removed')
-    } else if (photoType === 'extra_depth') {
-      const photos = ditchData.extraDepthPhotos || []
-      const photo = photos.find(p => p.id === photoId)
-      onChange({
-        ...ditchData,
-        extraDepthPhotos: photos.filter(p => p.id !== photoId)
-      })
-      logEntryDelete('Photo', photo?.filename || 'Photo removed')
-    }
-  }
 
   // Styles
   const sectionStyle = {
@@ -355,65 +269,6 @@ function DitchInspection({
     )
   }
 
-  // Render photo gallery for pay items
-  const renderPhotoGallery = (photos, photoType) => {
-    if (!photos || photos.length === 0) return null
-
-    return (
-      <div style={{ marginTop: '10px' }}>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-          {photos.map((photo) => (
-            <div
-              key={photo.id}
-              style={{
-                position: 'relative',
-                width: '120px',
-                border: '1px solid #dee2e6',
-                borderRadius: '6px',
-                overflow: 'hidden',
-                backgroundColor: '#fff'
-              }}
-            >
-              <img
-                src={URL.createObjectURL(photo.file)}
-                alt={photo.filename}
-                style={{ width: '100%', height: '80px', objectFit: 'cover' }}
-              />
-              <div style={{ padding: '6px', fontSize: '10px' }}>
-                {photo.hasGPS ? (
-                  <span style={{ color: '#28a745' }} title={formatGPSCoordinates(photo.latitude, photo.longitude)}>
-                    GPS
-                  </span>
-                ) : (
-                  <span style={{ color: '#dc3545' }}>No GPS</span>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => removePhoto(photoType, photo.id)}
-                style={{
-                  position: 'absolute',
-                  top: '4px',
-                  right: '4px',
-                  width: '20px',
-                  height: '20px',
-                  backgroundColor: '#dc3545',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '50%',
-                  cursor: 'pointer',
-                  fontSize: '10px',
-                  lineHeight: '1'
-                }}
-              >
-                X
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-    )
-  }
 
   return (
     <div style={{ marginTop: '15px' }}>
@@ -530,235 +385,6 @@ function DitchInspection({
 
         {expandedSections.payItems && (
           <div style={{ marginTop: '10px' }}>
-            {/* ROCK DITCH */}
-            <div style={{
-              padding: '15px',
-              backgroundColor: '#fff',
-              borderRadius: '6px',
-              marginBottom: '15px',
-              border: ditchData.rockDitch ? '2px solid #28a745' : '1px solid #dee2e6'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
-                <input
-                  type="checkbox"
-                  id="rockDitch"
-                  checked={ditchData.rockDitch || false}
-                  onChange={(e) => {
-                    updateField('rockDitch', e.target.checked)
-                    handleFieldBlur('rockDitch', e.target.checked, 'Rock Ditch')
-                  }}
-                  style={{ width: '20px', height: '20px' }}
-                />
-                <label htmlFor="rockDitch" style={{ fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
-                  Rock Ditch Encountered
-                </label>
-              </div>
-
-              {ditchData.rockDitch && (
-                <div style={{ marginLeft: '35px' }}>
-                  <div style={gridStyle}>
-                    <div>
-                      <label style={labelStyle}>From KP</label>
-                      <input
-                        type="text"
-                        value={ditchData.rockDitchFromKP || ''}
-                        onFocus={() => handleFieldFocus('rockDitchFromKP', ditchData.rockDitchFromKP)}
-                        onChange={(e) => updateField('rockDitchFromKP', e.target.value)}
-                        onBlur={(e) => {
-                          const formatted = formatKP(e.target.value)
-                          if (formatted !== e.target.value) {
-                            updateField('rockDitchFromKP', formatted)
-                          }
-                          handleFieldBlur('rockDitchFromKP', formatted, 'Rock Ditch From KP')
-                        }}
-                        placeholder="e.g. 6+500"
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>To KP</label>
-                      <input
-                        type="text"
-                        value={ditchData.rockDitchToKP || ''}
-                        onFocus={() => handleFieldFocus('rockDitchToKP', ditchData.rockDitchToKP)}
-                        onChange={(e) => updateField('rockDitchToKP', e.target.value)}
-                        onBlur={(e) => {
-                          const formatted = formatKP(e.target.value)
-                          if (formatted !== e.target.value) {
-                            updateField('rockDitchToKP', formatted)
-                          }
-                          handleFieldBlur('rockDitchToKP', formatted, 'Rock Ditch To KP')
-                        }}
-                        placeholder="e.g. 7+200"
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Rock Ditch Metres</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={ditchData.rockDitchMeters}
-                        onFocus={() => handleFieldFocus('rockDitchMeters', ditchData.rockDitchMeters)}
-                        onChange={(e) => updateField('rockDitchMeters', e.target.value)}
-                        onBlur={(e) => handleFieldBlur('rockDitchMeters', e.target.value, 'Rock Ditch Metres')}
-                        placeholder="Total metres"
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '8px' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={ditchData.rockDitchVerified || false}
-                          onChange={(e) => {
-                            updateField('rockDitchVerified', e.target.checked)
-                            handleFieldBlur('rockDitchVerified', e.target.checked, 'Rock Ditch Verified')
-                          }}
-                          style={{ width: '18px', height: '18px' }}
-                        />
-                        <span style={{ fontSize: '13px', color: ditchData.rockDitchVerified ? '#28a745' : '#666' }}>
-                          {ditchData.rockDitchVerified ? 'VERIFIED' : 'Verify'}
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Photo Upload for Rock Ditch */}
-                  <div style={{ marginTop: '10px' }}>
-                    <label style={{
-                      display: 'inline-block',
-                      padding: '8px 15px',
-                      backgroundColor: '#17a2b8',
-                      color: 'white',
-                      borderRadius: '4px',
-                      cursor: processingPhoto ? 'wait' : 'pointer',
-                      fontSize: '12px'
-                    }}>
-                      {processingPhoto ? 'Processing...' : 'Upload Photo Evidence'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        capture="environment"
-                        onChange={(e) => handlePhotoUpload('rock_ditch', e)}
-                        style={{ display: 'none' }}
-                        disabled={processingPhoto}
-                      />
-                    </label>
-                    <span style={{ marginLeft: '10px', fontSize: '11px', color: '#666' }}>
-                      GPS coordinates will be extracted from photos
-                    </span>
-                    {renderPhotoGallery(ditchData.rockDitchPhotos, 'rock_ditch')}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* EXTRA DEPTH */}
-            <div style={{
-              padding: '15px',
-              backgroundColor: '#fff',
-              borderRadius: '6px',
-              marginBottom: '15px',
-              border: ditchData.extraDepth ? '2px solid #28a745' : '1px solid #dee2e6'
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '10px' }}>
-                <input
-                  type="checkbox"
-                  id="extraDepth"
-                  checked={ditchData.extraDepth || false}
-                  onChange={(e) => {
-                    updateField('extraDepth', e.target.checked)
-                    handleFieldBlur('extraDepth', e.target.checked, 'Extra Depth')
-                  }}
-                  style={{ width: '20px', height: '20px' }}
-                />
-                <label htmlFor="extraDepth" style={{ fontSize: '14px', fontWeight: 'bold', cursor: 'pointer' }}>
-                  Extra Depth Required
-                </label>
-              </div>
-
-              {ditchData.extraDepth && (
-                <div style={{ marginLeft: '35px' }}>
-                  <div style={gridStyle}>
-                    <div>
-                      <label style={labelStyle}>Extra Depth Metres</label>
-                      <input
-                        type="number"
-                        step="0.01"
-                        value={ditchData.extraDepthMeters}
-                        onFocus={() => handleFieldFocus('extraDepthMeters', ditchData.extraDepthMeters)}
-                        onChange={(e) => updateField('extraDepthMeters', e.target.value)}
-                        onBlur={(e) => handleFieldBlur('extraDepthMeters', e.target.value, 'Extra Depth Metres')}
-                        placeholder="Total metres"
-                        style={inputStyle}
-                      />
-                    </div>
-                    <div>
-                      <label style={labelStyle}>Reason for Extra Depth</label>
-                      <select
-                        value={ditchData.extraDepthReason}
-                        onFocus={() => handleFieldFocus('extraDepthReason', ditchData.extraDepthReason)}
-                        onChange={(e) => {
-                          updateField('extraDepthReason', e.target.value)
-                          handleFieldBlur('extraDepthReason', e.target.value, 'Extra Depth Reason')
-                        }}
-                        style={selectStyle}
-                      >
-                        <option value="">Select reason...</option>
-                        <option value="road_crossing">Road Crossing</option>
-                        <option value="water_crossing">Water Crossing</option>
-                        <option value="utility_crossing">Utility Crossing</option>
-                        <option value="other">Other</option>
-                      </select>
-                    </div>
-                    <div style={{ display: 'flex', alignItems: 'flex-end', paddingBottom: '8px' }}>
-                      <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                        <input
-                          type="checkbox"
-                          checked={ditchData.extraDepthVerified || false}
-                          onChange={(e) => {
-                            updateField('extraDepthVerified', e.target.checked)
-                            handleFieldBlur('extraDepthVerified', e.target.checked, 'Extra Depth Verified')
-                          }}
-                          style={{ width: '18px', height: '18px' }}
-                        />
-                        <span style={{ fontSize: '13px', color: ditchData.extraDepthVerified ? '#28a745' : '#666' }}>
-                          {ditchData.extraDepthVerified ? 'VERIFIED' : 'Verify'}
-                        </span>
-                      </label>
-                    </div>
-                  </div>
-
-                  {/* Photo Upload for Extra Depth */}
-                  <div style={{ marginTop: '10px' }}>
-                    <label style={{
-                      display: 'inline-block',
-                      padding: '8px 15px',
-                      backgroundColor: '#17a2b8',
-                      color: 'white',
-                      borderRadius: '4px',
-                      cursor: processingPhoto ? 'wait' : 'pointer',
-                      fontSize: '12px'
-                    }}>
-                      {processingPhoto ? 'Processing...' : 'Upload Photo Evidence'}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        capture="environment"
-                        onChange={(e) => handlePhotoUpload('extra_depth', e)}
-                        style={{ display: 'none' }}
-                        disabled={processingPhoto}
-                      />
-                    </label>
-                    {renderPhotoGallery(ditchData.extraDepthPhotos, 'extra_depth')}
-                  </div>
-                </div>
-              )}
-            </div>
-
             {/* PADDING/BEDDING */}
             <div style={{
               padding: '15px',
@@ -785,6 +411,42 @@ function DitchInspection({
               {ditchData.paddingBedding && (
                 <div style={{ marginLeft: '35px' }}>
                   <div style={gridStyle}>
+                    <div>
+                      <label style={labelStyle}>From KP</label>
+                      <input
+                        type="text"
+                        value={ditchData.paddingBeddingFromKP || ''}
+                        onFocus={() => handleFieldFocus('paddingBeddingFromKP', ditchData.paddingBeddingFromKP)}
+                        onChange={(e) => updateField('paddingBeddingFromKP', e.target.value)}
+                        onBlur={(e) => {
+                          const formatted = formatKP(e.target.value)
+                          if (formatted !== e.target.value) {
+                            updateField('paddingBeddingFromKP', formatted)
+                          }
+                          handleFieldBlur('paddingBeddingFromKP', formatted, 'Padding/Bedding From KP')
+                        }}
+                        placeholder="e.g. 6+500"
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>To KP</label>
+                      <input
+                        type="text"
+                        value={ditchData.paddingBeddingToKP || ''}
+                        onFocus={() => handleFieldFocus('paddingBeddingToKP', ditchData.paddingBeddingToKP)}
+                        onChange={(e) => updateField('paddingBeddingToKP', e.target.value)}
+                        onBlur={(e) => {
+                          const formatted = formatKP(e.target.value)
+                          if (formatted !== e.target.value) {
+                            updateField('paddingBeddingToKP', formatted)
+                          }
+                          handleFieldBlur('paddingBeddingToKP', formatted, 'Padding/Bedding To KP')
+                        }}
+                        placeholder="e.g. 7+200"
+                        style={inputStyle}
+                      />
+                    </div>
                     <div>
                       <label style={labelStyle}>Padding/Bedding Metres</label>
                       <input
