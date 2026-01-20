@@ -3360,6 +3360,233 @@ Important:
         y += 3
       }
 
+      // Ditch Inspection Log
+      if (block.activityType === 'Ditch' && block.ditchData) {
+        checkPageBreak(60)
+        addSubHeader('Ditch Inspection', '#e2d5f1')
+
+        // Trench Specifications row
+        setColor('#e2d5f1', 'fill')
+        doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
+        setColor(BRAND.navy, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.text('TRENCH SPECIFICATIONS', margin + 4, y + 5)
+        y += 10
+
+        // Specifications grid
+        setColor(BRAND.black, 'text')
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(7)
+        const specs = []
+        if (block.ditchData.trenchWidth) specs.push(`Width: ${block.ditchData.trenchWidth}m`)
+        if (block.ditchData.trenchDepth) specs.push(`Depth: ${block.ditchData.trenchDepth}m`)
+        if (block.ditchData.depthOfCoverRequired) specs.push(`Cover Req: ${block.ditchData.depthOfCoverRequired}m`)
+        if (block.ditchData.depthOfCoverActual) specs.push(`Cover Actual: ${block.ditchData.depthOfCoverActual}m`)
+        if (specs.length > 0) {
+          doc.text(specs.join('  |  '), margin + 4, y + 3)
+          y += 7
+        }
+
+        // Pay Items section
+        if (block.ditchData.rockDitch || block.ditchData.extraDepth || block.ditchData.paddingBedding) {
+          checkPageBreak(30)
+          setColor('#fff3cd', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#856404', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('PAY ITEMS (UPIs)', margin + 4, y + 4)
+          y += 8
+
+          // Pay items table header
+          setColor('#ffc107', 'fill')
+          doc.rect(margin, y, contentWidth, 5, 'F')
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(6)
+          doc.text('PAY ITEM', margin + 2, y + 3.5)
+          doc.text('METRES', margin + 70, y + 3.5)
+          doc.text('VERIFIED', margin + 110, y + 3.5)
+          doc.text('NOTES', margin + 140, y + 3.5)
+          y += 6
+
+          // Rock Ditch row
+          if (block.ditchData.rockDitch) {
+            setColor(BRAND.grayLight, 'fill')
+            doc.rect(margin, y - 0.5, contentWidth, 5, 'F')
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text('Rock Ditch', margin + 2, y + 3)
+            doc.text(String(block.ditchData.rockDitchMeters || 0), margin + 70, y + 3)
+            setColor(block.ditchData.rockDitchVerified ? BRAND.green : BRAND.red, 'text')
+            doc.text(block.ditchData.rockDitchVerified ? 'YES' : 'NO', margin + 110, y + 3)
+            y += 5
+          }
+
+          // Extra Depth row
+          if (block.ditchData.extraDepth) {
+            setColor(BRAND.white, 'fill')
+            doc.rect(margin, y - 0.5, contentWidth, 5, 'F')
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text('Extra Depth', margin + 2, y + 3)
+            doc.text(String(block.ditchData.extraDepthMeters || 0), margin + 70, y + 3)
+            setColor(block.ditchData.extraDepthVerified ? BRAND.green : BRAND.red, 'text')
+            doc.text(block.ditchData.extraDepthVerified ? 'YES' : 'NO', margin + 110, y + 3)
+            setColor(BRAND.black, 'text')
+            doc.text(String(block.ditchData.extraDepthReason || '').replace(/_/g, ' ').substring(0, 25), margin + 140, y + 3)
+            y += 5
+          }
+
+          // Padding/Bedding row
+          if (block.ditchData.paddingBedding) {
+            setColor(BRAND.grayLight, 'fill')
+            doc.rect(margin, y - 0.5, contentWidth, 5, 'F')
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text('Padding/Bedding', margin + 2, y + 3)
+            doc.text(String(block.ditchData.paddingBeddingMeters || 0), margin + 70, y + 3)
+            setColor(block.ditchData.paddingBeddingVerified ? BRAND.green : BRAND.red, 'text')
+            doc.text(block.ditchData.paddingBeddingVerified ? 'YES' : 'NO', margin + 110, y + 3)
+            setColor(BRAND.black, 'text')
+            doc.text(String(block.ditchData.paddingMaterial || '').substring(0, 25), margin + 140, y + 3)
+            y += 5
+          }
+          y += 3
+        }
+
+        // BOT Checklist
+        if (block.ditchData.botChecklist) {
+          checkPageBreak(25)
+          setColor('#e7f3ff', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#004085', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('BOT (BOTTOM OF TRENCH) CHECKLIST', margin + 4, y + 4)
+          y += 8
+
+          const botItems = []
+          if (block.ditchData.botChecklist.freeOfRocks !== null && block.ditchData.botChecklist.freeOfRocks !== undefined)
+            botItems.push(`Rocks: ${block.ditchData.botChecklist.freeOfRocks ? 'Clear' : 'ISSUE'}`)
+          if (block.ditchData.botChecklist.freeOfDebris !== null && block.ditchData.botChecklist.freeOfDebris !== undefined)
+            botItems.push(`Debris: ${block.ditchData.botChecklist.freeOfDebris ? 'Clear' : 'ISSUE'}`)
+          if (block.ditchData.botChecklist.siltFencesIntact !== null && block.ditchData.botChecklist.siltFencesIntact !== undefined)
+            botItems.push(`Silt Fences: ${block.ditchData.botChecklist.siltFencesIntact ? 'OK' : 'ISSUE'}`)
+          if (block.ditchData.botChecklist.wildlifeRamps !== null && block.ditchData.botChecklist.wildlifeRamps !== undefined)
+            botItems.push(`Ramps: ${block.ditchData.botChecklist.wildlifeRamps ? 'OK' : 'ISSUE'}`)
+          if (block.ditchData.botChecklist.wildlifeGaps !== null && block.ditchData.botChecklist.wildlifeGaps !== undefined)
+            botItems.push(`Gaps: ${block.ditchData.botChecklist.wildlifeGaps ? 'OK' : 'ISSUE'}`)
+          if (block.ditchData.botChecklist.gradeAcceptable !== null && block.ditchData.botChecklist.gradeAcceptable !== undefined)
+            botItems.push(`Grade: ${block.ditchData.botChecklist.gradeAcceptable ? 'OK' : 'ISSUE'}`)
+
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(botItems.join('  |  '), margin + 4, y + 3)
+          y += 6
+
+          if (block.ditchData.botChecklist.issues) {
+            setColor('#f8d7da', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
+            setColor('#721c24', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(6)
+            doc.text('Issues: ' + String(block.ditchData.botChecklist.issues).substring(0, 100), margin + 4, y + 5)
+            y += 10
+          }
+        }
+
+        // Water Management
+        if (block.ditchData.waterManagement && (block.ditchData.waterManagement.pumpingActivity || block.ditchData.waterManagement.filterBagUsage)) {
+          checkPageBreak(15)
+          setColor('#d4edda', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#155724', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('WATER MANAGEMENT', margin + 4, y + 4)
+          y += 8
+
+          const waterItems = []
+          if (block.ditchData.waterManagement.pumpingActivity) {
+            waterItems.push('Pumping: Yes')
+            if (block.ditchData.waterManagement.pumpingEquipment) waterItems.push(`Equip: ${block.ditchData.waterManagement.pumpingEquipment}`)
+            if (block.ditchData.waterManagement.pumpingHours) waterItems.push(`Hours: ${block.ditchData.waterManagement.pumpingHours}`)
+          }
+          if (block.ditchData.waterManagement.filterBagUsage) {
+            waterItems.push('Filter Bags: Yes')
+            if (block.ditchData.waterManagement.filterBagCount) waterItems.push(`Count: ${block.ditchData.waterManagement.filterBagCount}`)
+            if (block.ditchData.waterManagement.dischargeLocation) waterItems.push(`Discharge: ${block.ditchData.waterManagement.dischargeLocation}`)
+          }
+
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(waterItems.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Soil Conditions
+        const soilItems = []
+        if (block.ditchData.soilConditions) soilItems.push(`Soil: ${block.ditchData.soilConditions}`)
+        if (block.ditchData.groundwaterEncountered) soilItems.push(`Groundwater: ${block.ditchData.groundwaterEncountered}`)
+        if (block.ditchData.groundwaterDepth) soilItems.push(`GW Depth: ${block.ditchData.groundwaterDepth}m`)
+        if (block.ditchData.dewateringRequired) soilItems.push(`Dewatering: ${block.ditchData.dewateringRequired}`)
+
+        if (soilItems.length > 0) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(soilItems.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Depth Compliance
+        if (block.ditchData.minimumDepthMet) {
+          checkPageBreak(15)
+          const isCompliant = block.ditchData.minimumDepthMet === 'Yes'
+          setColor(isCompliant ? '#d4edda' : '#f8d7da', 'fill')
+          doc.roundedRect(margin, y, contentWidth, isCompliant ? 6 : 14, 1, 1, 'F')
+          setColor(isCompliant ? '#155724' : '#721c24', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text(`DEPTH COMPLIANCE: ${block.ditchData.minimumDepthMet === 'Yes' ? 'MINIMUM DEPTH MET' : 'MINIMUM DEPTH NOT MET'}`, margin + 4, y + 4)
+
+          if (!isCompliant) {
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            const signoffInfo = []
+            if (block.ditchData.depthNotMetReason) signoffInfo.push(`Reason: ${block.ditchData.depthNotMetReason.substring(0, 50)}`)
+            if (block.ditchData.depthNotMetSignoff) signoffInfo.push(`Signoff: ${block.ditchData.depthNotMetSignoff}`)
+            if (block.ditchData.depthNotMetSignoffRole) signoffInfo.push(`Role: ${block.ditchData.depthNotMetSignoffRole}`)
+            if (block.ditchData.depthNotMetDate) signoffInfo.push(`Date: ${block.ditchData.depthNotMetDate}`)
+            doc.text(signoffInfo.join('  |  '), margin + 4, y + 10)
+            y += 16
+          } else {
+            y += 8
+          }
+        }
+
+        // Comments
+        if (block.ditchData.comments) {
+          checkPageBreak(12)
+          setColor(BRAND.grayLight, 'fill')
+          doc.roundedRect(margin, y, contentWidth, 10, 1, 1, 'F')
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'italic')
+          doc.setFontSize(6)
+          doc.text('Comments: ' + String(block.ditchData.comments).substring(0, 150), margin + 4, y + 6)
+          y += 12
+        }
+
+        y += 3
+      }
+
       // Quality Checks
       if (block.qualityData && Object.keys(block.qualityData).length > 0) {
         const qualityEntries = Object.entries(block.qualityData).filter(([key, val]) => val && val !== '' && val !== 'N/A')

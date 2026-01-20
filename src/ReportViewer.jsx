@@ -457,20 +457,152 @@ function ReportViewer() {
                     </div>
                   )}
 
-                  {/* Specialized Data - Ditch */}
+                  {/* Specialized Data - Ditch Inspection */}
                   {block.ditchData && Object.keys(block.ditchData).length > 0 && (
-                    <div style={{ marginTop: '10px', backgroundColor: '#e7f3ff', padding: '10px', borderRadius: '4px' }}>
-                      <h4 style={{ fontSize: '13px', color: '#004085', margin: '0 0 8px 0' }}>🚜 Ditch Log Data</h4>
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px', fontSize: '12px' }}>
-                        {block.ditchData.specifiedDepth && <div><span style={{ color: '#666' }}>Spec Depth: </span><strong>{block.ditchData.specifiedDepth}m</strong></div>}
-                        {block.ditchData.actualDepth && <div><span style={{ color: '#666' }}>Actual Depth: </span><strong>{block.ditchData.actualDepth}m</strong></div>}
-                        {block.ditchData.specifiedWidth && <div><span style={{ color: '#666' }}>Spec Width: </span><strong>{block.ditchData.specifiedWidth}m</strong></div>}
-                        {block.ditchData.actualWidth && <div><span style={{ color: '#666' }}>Actual Width: </span><strong>{block.ditchData.actualWidth}m</strong></div>}
-                        {block.ditchData.minimumDepthMet && <div><span style={{ color: '#666' }}>Min Depth Met: </span><strong style={{ color: block.ditchData.minimumDepthMet === 'Yes' ? '#28a745' : '#dc3545' }}>{block.ditchData.minimumDepthMet}</strong></div>}
-                        {block.ditchData.soilConditions && <div><span style={{ color: '#666' }}>Soil: </span><strong>{block.ditchData.soilConditions}</strong></div>}
-                        {block.ditchData.groundwaterEncountered && <div><span style={{ color: '#666' }}>Groundwater: </span><strong>{block.ditchData.groundwaterEncountered}</strong></div>}
+                    <div style={{ marginTop: '10px', backgroundColor: '#e7f3ff', padding: '12px', borderRadius: '6px', border: '1px solid #b8daff' }}>
+                      <h4 style={{ fontSize: '14px', color: '#004085', margin: '0 0 12px 0', borderBottom: '2px solid #6f42c1', paddingBottom: '8px' }}>Ditch Inspection Data</h4>
+
+                      {/* Trench Specifications */}
+                      <div style={{ marginBottom: '12px' }}>
+                        <h5 style={{ fontSize: '12px', color: '#495057', margin: '0 0 8px 0' }}>Trench Specifications</h5>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', fontSize: '12px' }}>
+                          {block.ditchData.trenchWidth && <div><span style={{ color: '#666' }}>Trench Width: </span><strong>{block.ditchData.trenchWidth}m</strong></div>}
+                          {block.ditchData.trenchDepth && <div><span style={{ color: '#666' }}>Trench Depth: </span><strong>{block.ditchData.trenchDepth}m</strong></div>}
+                          {block.ditchData.depthOfCoverRequired && <div><span style={{ color: '#666' }}>Cover Required: </span><strong>{block.ditchData.depthOfCoverRequired}m</strong></div>}
+                          {block.ditchData.depthOfCoverActual && <div><span style={{ color: '#666' }}>Cover Actual: </span><strong>{block.ditchData.depthOfCoverActual}m</strong></div>}
+                          {/* Legacy fields for older reports */}
+                          {block.ditchData.specifiedDepth && <div><span style={{ color: '#666' }}>Spec Depth: </span><strong>{block.ditchData.specifiedDepth}m</strong></div>}
+                          {block.ditchData.actualDepth && <div><span style={{ color: '#666' }}>Actual Depth: </span><strong>{block.ditchData.actualDepth}m</strong></div>}
+                          {block.ditchData.specifiedWidth && <div><span style={{ color: '#666' }}>Spec Width: </span><strong>{block.ditchData.specifiedWidth}m</strong></div>}
+                          {block.ditchData.actualWidth && <div><span style={{ color: '#666' }}>Actual Width: </span><strong>{block.ditchData.actualWidth}m</strong></div>}
+                        </div>
                       </div>
-                      {block.ditchData.comments && <p style={{ margin: '8px 0 0 0', fontSize: '12px' }}><em>{block.ditchData.comments}</em></p>}
+
+                      {/* Pay Items (UPIs) */}
+                      {(block.ditchData.rockDitch || block.ditchData.extraDepth || block.ditchData.paddingBedding) && (
+                        <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#fff3cd', borderRadius: '4px', border: '1px solid #ffc107' }}>
+                          <h5 style={{ fontSize: '12px', color: '#856404', margin: '0 0 8px 0' }}>Pay Items (UPIs)</h5>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', fontSize: '12px' }}>
+                            {block.ditchData.rockDitch && (
+                              <div style={{ padding: '8px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #dee2e6' }}>
+                                <strong>Rock Ditch:</strong> {block.ditchData.rockDitchMeters || 0}m
+                                <span style={{ marginLeft: '8px', color: block.ditchData.rockDitchVerified ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
+                                  {block.ditchData.rockDitchVerified ? 'VERIFIED' : 'Not Verified'}
+                                </span>
+                              </div>
+                            )}
+                            {block.ditchData.extraDepth && (
+                              <div style={{ padding: '8px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #dee2e6' }}>
+                                <strong>Extra Depth:</strong> {block.ditchData.extraDepthMeters || 0}m
+                                {block.ditchData.extraDepthReason && <span style={{ color: '#666' }}> ({block.ditchData.extraDepthReason.replace(/_/g, ' ')})</span>}
+                                <span style={{ marginLeft: '8px', color: block.ditchData.extraDepthVerified ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
+                                  {block.ditchData.extraDepthVerified ? 'VERIFIED' : 'Not Verified'}
+                                </span>
+                              </div>
+                            )}
+                            {block.ditchData.paddingBedding && (
+                              <div style={{ padding: '8px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #dee2e6' }}>
+                                <strong>Padding/Bedding:</strong> {block.ditchData.paddingBeddingMeters || 0}m
+                                {block.ditchData.paddingMaterial && <span style={{ color: '#666' }}> ({block.ditchData.paddingMaterial})</span>}
+                                <span style={{ marginLeft: '8px', color: block.ditchData.paddingBeddingVerified ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
+                                  {block.ditchData.paddingBeddingVerified ? 'VERIFIED' : 'Not Verified'}
+                                </span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* BOT Checklist */}
+                      {block.ditchData.botChecklist && (
+                        <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#e7f3ff', borderRadius: '4px' }}>
+                          <h5 style={{ fontSize: '12px', color: '#004085', margin: '0 0 8px 0' }}>BOT (Bottom of Trench) Checklist</h5>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '6px', fontSize: '12px' }}>
+                            {block.ditchData.botChecklist.freeOfRocks !== null && block.ditchData.botChecklist.freeOfRocks !== undefined && (
+                              <div><span style={{ color: '#666' }}>Free of Rocks: </span><strong style={{ color: block.ditchData.botChecklist.freeOfRocks ? '#28a745' : '#dc3545' }}>{block.ditchData.botChecklist.freeOfRocks ? 'Yes' : 'No'}</strong></div>
+                            )}
+                            {block.ditchData.botChecklist.freeOfDebris !== null && block.ditchData.botChecklist.freeOfDebris !== undefined && (
+                              <div><span style={{ color: '#666' }}>Free of Debris: </span><strong style={{ color: block.ditchData.botChecklist.freeOfDebris ? '#28a745' : '#dc3545' }}>{block.ditchData.botChecklist.freeOfDebris ? 'Yes' : 'No'}</strong></div>
+                            )}
+                            {block.ditchData.botChecklist.siltFencesIntact !== null && block.ditchData.botChecklist.siltFencesIntact !== undefined && (
+                              <div><span style={{ color: '#666' }}>Silt Fences Intact: </span><strong style={{ color: block.ditchData.botChecklist.siltFencesIntact ? '#28a745' : '#dc3545' }}>{block.ditchData.botChecklist.siltFencesIntact ? 'Yes' : 'No'}</strong></div>
+                            )}
+                            {block.ditchData.botChecklist.wildlifeRamps !== null && block.ditchData.botChecklist.wildlifeRamps !== undefined && (
+                              <div><span style={{ color: '#666' }}>Wildlife Ramps: </span><strong style={{ color: block.ditchData.botChecklist.wildlifeRamps ? '#28a745' : '#dc3545' }}>{block.ditchData.botChecklist.wildlifeRamps ? 'Yes' : 'No'}</strong></div>
+                            )}
+                            {block.ditchData.botChecklist.wildlifeGaps !== null && block.ditchData.botChecklist.wildlifeGaps !== undefined && (
+                              <div><span style={{ color: '#666' }}>Wildlife Gaps: </span><strong style={{ color: block.ditchData.botChecklist.wildlifeGaps ? '#28a745' : '#dc3545' }}>{block.ditchData.botChecklist.wildlifeGaps ? 'Yes' : 'No'}</strong></div>
+                            )}
+                            {block.ditchData.botChecklist.gradeAcceptable !== null && block.ditchData.botChecklist.gradeAcceptable !== undefined && (
+                              <div><span style={{ color: '#666' }}>Grade Acceptable: </span><strong style={{ color: block.ditchData.botChecklist.gradeAcceptable ? '#28a745' : '#dc3545' }}>{block.ditchData.botChecklist.gradeAcceptable ? 'Yes' : 'No'}</strong></div>
+                            )}
+                          </div>
+                          {block.ditchData.botChecklist.issues && (
+                            <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#f8d7da', borderRadius: '4px' }}>
+                              <strong style={{ color: '#721c24' }}>BOT Issues:</strong> <span style={{ color: '#721c24' }}>{block.ditchData.botChecklist.issues}</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Water Management */}
+                      {block.ditchData.waterManagement && (block.ditchData.waterManagement.pumpingActivity || block.ditchData.waterManagement.filterBagUsage) && (
+                        <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#d4edda', borderRadius: '4px' }}>
+                          <h5 style={{ fontSize: '12px', color: '#155724', margin: '0 0 8px 0' }}>Water Management</h5>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px', fontSize: '12px' }}>
+                            {block.ditchData.waterManagement.pumpingActivity && (
+                              <>
+                                <div><span style={{ color: '#666' }}>Pumping: </span><strong>Yes</strong></div>
+                                {block.ditchData.waterManagement.pumpingEquipment && <div><span style={{ color: '#666' }}>Equipment: </span><strong>{block.ditchData.waterManagement.pumpingEquipment}</strong></div>}
+                                {block.ditchData.waterManagement.pumpingHours && <div><span style={{ color: '#666' }}>Hours: </span><strong>{block.ditchData.waterManagement.pumpingHours}</strong></div>}
+                              </>
+                            )}
+                            {block.ditchData.waterManagement.filterBagUsage && (
+                              <>
+                                <div><span style={{ color: '#666' }}>Filter Bags: </span><strong>Yes</strong></div>
+                                {block.ditchData.waterManagement.filterBagCount && <div><span style={{ color: '#666' }}>Count: </span><strong>{block.ditchData.waterManagement.filterBagCount}</strong></div>}
+                                {block.ditchData.waterManagement.dischargeLocation && <div><span style={{ color: '#666' }}>Discharge: </span><strong>{block.ditchData.waterManagement.dischargeLocation}</strong></div>}
+                                {block.ditchData.waterManagement.dischargePermitNumber && <div><span style={{ color: '#666' }}>Permit #: </span><strong>{block.ditchData.waterManagement.dischargePermitNumber}</strong></div>}
+                              </>
+                            )}
+                          </div>
+                          {block.ditchData.waterManagement.notes && <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#155724' }}><em>{block.ditchData.waterManagement.notes}</em></p>}
+                        </div>
+                      )}
+
+                      {/* Soil Conditions */}
+                      <div style={{ marginBottom: '12px' }}>
+                        <h5 style={{ fontSize: '12px', color: '#495057', margin: '0 0 8px 0' }}>Soil Conditions</h5>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px', fontSize: '12px' }}>
+                          {block.ditchData.soilConditions && <div><span style={{ color: '#666' }}>Soil: </span><strong>{block.ditchData.soilConditions}</strong></div>}
+                          {block.ditchData.groundwaterEncountered && <div><span style={{ color: '#666' }}>Groundwater: </span><strong>{block.ditchData.groundwaterEncountered}</strong></div>}
+                          {block.ditchData.groundwaterDepth && <div><span style={{ color: '#666' }}>GW Depth: </span><strong>{block.ditchData.groundwaterDepth}m</strong></div>}
+                          {block.ditchData.dewateringRequired && <div><span style={{ color: '#666' }}>Dewatering: </span><strong>{block.ditchData.dewateringRequired}</strong></div>}
+                        </div>
+                      </div>
+
+                      {/* Depth Compliance */}
+                      {block.ditchData.minimumDepthMet && (
+                        <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: block.ditchData.minimumDepthMet === 'Yes' ? '#d4edda' : '#f8d7da', borderRadius: '4px', border: `2px solid ${block.ditchData.minimumDepthMet === 'Yes' ? '#28a745' : '#dc3545'}` }}>
+                          <h5 style={{ fontSize: '12px', color: block.ditchData.minimumDepthMet === 'Yes' ? '#155724' : '#721c24', margin: '0 0 8px 0' }}>Depth Compliance</h5>
+                          <div><span style={{ color: '#666' }}>Minimum Depth Met: </span><strong style={{ color: block.ditchData.minimumDepthMet === 'Yes' ? '#28a745' : '#dc3545' }}>{block.ditchData.minimumDepthMet}</strong></div>
+                          {block.ditchData.minimumDepthMet === 'No' && (
+                            <div style={{ marginTop: '8px', fontSize: '12px' }}>
+                              {block.ditchData.depthNotMetReason && <div><span style={{ color: '#666' }}>Reason: </span><strong>{block.ditchData.depthNotMetReason}</strong></div>}
+                              {block.ditchData.depthNotMetSignoff && <div><span style={{ color: '#666' }}>Signoff: </span><strong>{block.ditchData.depthNotMetSignoff}</strong> ({block.ditchData.depthNotMetSignoffRole || 'N/A'})</div>}
+                              {block.ditchData.depthNotMetDate && <div><span style={{ color: '#666' }}>Date: </span><strong>{block.ditchData.depthNotMetDate}</strong></div>}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Comments */}
+                      {block.ditchData.comments && (
+                        <div style={{ padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+                          <h5 style={{ fontSize: '12px', color: '#495057', margin: '0 0 6px 0' }}>Comments</h5>
+                          <p style={{ margin: 0, fontSize: '12px' }}>{block.ditchData.comments}</p>
+                        </div>
+                      )}
                     </div>
                   )}
 
