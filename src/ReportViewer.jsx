@@ -485,7 +485,11 @@ function ReportViewer() {
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', fontSize: '12px' }}>
                             {block.ditchData.rockDitch && (
                               <div style={{ padding: '8px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #dee2e6' }}>
-                                <strong>Rock Ditch:</strong> {block.ditchData.rockDitchMeters || 0}m
+                                <strong>Rock Ditch:</strong>
+                                {(block.ditchData.rockDitchFromKP || block.ditchData.rockDitchToKP) && (
+                                  <span style={{ color: '#666' }}> {block.ditchData.rockDitchFromKP || '?'} to {block.ditchData.rockDitchToKP || '?'}</span>
+                                )}
+                                <span style={{ marginLeft: '8px' }}>{block.ditchData.rockDitchMeters || 0}m</span>
                                 <span style={{ marginLeft: '8px', color: block.ditchData.rockDitchVerified ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
                                   {block.ditchData.rockDitchVerified ? 'VERIFIED' : 'Not Verified'}
                                 </span>

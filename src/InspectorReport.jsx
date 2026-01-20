@@ -2418,6 +2418,8 @@ Important:
                 depth_of_cover_actual: parseFloat(ditchData.depthOfCoverActual) || null,
                 // Rock Ditch pay item
                 rock_ditch: ditchData.rockDitch || false,
+                rock_ditch_from_kp: ditchData.rockDitchFromKP || null,
+                rock_ditch_to_kp: ditchData.rockDitchToKP || null,
                 rock_ditch_meters: parseFloat(ditchData.rockDitchMeters) || 0,
                 rock_ditch_verified: ditchData.rockDitchVerified || false,
                 // Extra Depth pay item
@@ -3418,7 +3420,10 @@ Important:
             setColor(BRAND.black, 'text')
             doc.setFont('helvetica', 'normal')
             doc.setFontSize(6)
-            doc.text('Rock Ditch', margin + 2, y + 3)
+            const rockDitchKP = (block.ditchData.rockDitchFromKP || block.ditchData.rockDitchToKP)
+              ? `Rock Ditch (${block.ditchData.rockDitchFromKP || '?'} to ${block.ditchData.rockDitchToKP || '?'})`
+              : 'Rock Ditch'
+            doc.text(rockDitchKP.substring(0, 35), margin + 2, y + 3)
             doc.text(String(block.ditchData.rockDitchMeters || 0), margin + 70, y + 3)
             setColor(block.ditchData.rockDitchVerified ? BRAND.green : BRAND.red, 'text')
             doc.text(block.ditchData.rockDitchVerified ? 'YES' : 'NO', margin + 110, y + 3)

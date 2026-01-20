@@ -9,6 +9,25 @@ import React, { useState, useRef } from 'react'
 import { useActivityAudit } from './useActivityAudit'
 import { extractGPSFromImage, formatGPSCoordinates } from './exifUtils'
 
+// Format KP input to X+XXX format (e.g., 6500 -> 6+500)
+function formatKP(kp) {
+  if (!kp) return ''
+  const str = String(kp).trim()
+  if (str.includes('+')) return str
+  const num = parseFloat(str)
+  if (!isNaN(num)) {
+    if (num >= 1000) {
+      const km = Math.floor(num / 1000)
+      const m = Math.round(num % 1000)
+      return `${km}+${m.toString().padStart(3, '0')}`
+    }
+    if (num > 0 && num < 1000) {
+      return `0+${Math.round(num).toString().padStart(3, '0')}`
+    }
+  }
+  return str
+}
+
 function DitchInspection({
   data,
   onChange,
@@ -57,6 +76,8 @@ function DitchInspection({
 
     // Rock Ditch UPI
     rockDitch: false,
+    rockDitchFromKP: '',
+    rockDitchToKP: '',
     rockDitchMeters: '',
     rockDitchVerified: false,
     rockDitchPhotos: [],
@@ -536,6 +557,42 @@ function DitchInspection({
               {ditchData.rockDitch && (
                 <div style={{ marginLeft: '35px' }}>
                   <div style={gridStyle}>
+                    <div>
+                      <label style={labelStyle}>From KP</label>
+                      <input
+                        type="text"
+                        value={ditchData.rockDitchFromKP || ''}
+                        onFocus={() => handleFieldFocus('rockDitchFromKP', ditchData.rockDitchFromKP)}
+                        onChange={(e) => updateField('rockDitchFromKP', e.target.value)}
+                        onBlur={(e) => {
+                          const formatted = formatKP(e.target.value)
+                          if (formatted !== e.target.value) {
+                            updateField('rockDitchFromKP', formatted)
+                          }
+                          handleFieldBlur('rockDitchFromKP', formatted, 'Rock Ditch From KP')
+                        }}
+                        placeholder="e.g. 6+500"
+                        style={inputStyle}
+                      />
+                    </div>
+                    <div>
+                      <label style={labelStyle}>To KP</label>
+                      <input
+                        type="text"
+                        value={ditchData.rockDitchToKP || ''}
+                        onFocus={() => handleFieldFocus('rockDitchToKP', ditchData.rockDitchToKP)}
+                        onChange={(e) => updateField('rockDitchToKP', e.target.value)}
+                        onBlur={(e) => {
+                          const formatted = formatKP(e.target.value)
+                          if (formatted !== e.target.value) {
+                            updateField('rockDitchToKP', formatted)
+                          }
+                          handleFieldBlur('rockDitchToKP', formatted, 'Rock Ditch To KP')
+                        }}
+                        placeholder="e.g. 7+200"
+                        style={inputStyle}
+                      />
+                    </div>
                     <div>
                       <label style={labelStyle}>Rock Ditch Metres</label>
                       <input
