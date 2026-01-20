@@ -123,10 +123,63 @@ export const qualityFieldsByActivity = {
   ],
   'Grading': [], // Handled by GradingLog component
   'Stringing': [
-    { name: 'jointNumbers', label: 'Joint Numbers (from-to)', type: 'text' },
-    { name: 'heatNumbers', label: 'Heat Numbers', type: 'text' },
-    { name: 'coatingCondition', label: 'Coating Condition', type: 'select', options: ['Good', 'Damaged - Repaired', 'Damaged - Flagged'] },
-    { name: 'millCertVerified', label: 'Mill Cert Verified', type: 'select', options: ['Yes', 'No'] }
+    // Pipe Receiving Inspection Section
+    { name: 'pipeReceivingSection', label: '📦 PIPE RECEIVING INSPECTION', type: 'collapsible', fields: [
+      { name: 'truckNumber', label: 'Truck/Load Number', type: 'text' },
+      { name: 'tallyNumber', label: 'Tally Number', type: 'text' },
+      { name: 'jointsReceived', label: '# Joints Received', type: 'number' },
+      { name: 'pipeSize', label: 'Pipe Size (NPS)', type: 'select', options: ['4"', '6"', '8"', '10"', '12"', '16"', '20"', '24"', '30"', '36"', '42"'] },
+      { name: 'pipeGrade', label: 'Pipe Grade', type: 'select', options: ['X42', 'X52', 'X60', 'X65', 'X70', 'X80'] },
+      { name: 'wallThicknessSpec', label: 'Wall Thickness (mm)', type: 'number' },
+      { name: 'coatingType', label: 'Coating Type', type: 'select', options: ['FBE', 'ARO', '3LPE', '3LPP', 'Concrete', 'Bare'] }
+    ]},
+    
+    // Mill Certification Section
+    { name: 'millCertSection', label: '📋 MILL CERTIFICATION VERIFICATION', type: 'collapsible', fields: [
+      { name: 'heatNumbersRecorded', label: 'Heat Numbers Recorded?', type: 'select', options: ['Yes', 'No', 'Partial'] },
+      { name: 'heatNumbersMatch', label: 'Heat Numbers Match Mill Cert?', type: 'select', options: ['Yes', 'No - Flagged', 'N/A'] },
+      { name: 'wallThicknessVerified', label: 'Wall Thickness per Spec?', type: 'select', options: ['Yes', 'No - Flagged', 'N/A'] },
+      { name: 'gradeMatchesSpec', label: 'Grade Matches Specification?', type: 'select', options: ['Yes', 'No - Flagged', 'N/A'] },
+      { name: 'ndtCertPresent', label: 'NDT Certification Present?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+      { name: 'millCertPhotoTaken', label: '📷 Mill Cert Photo Taken?', type: 'select', options: ['Yes', 'No'] }
+    ]},
+    
+    // Visual Inspection Section
+    { name: 'visualInspectionSection', label: '👁️ VISUAL INSPECTION', type: 'collapsible', fields: [
+      { name: 'coatingCondition', label: 'Coating Condition', type: 'select', options: ['Accept - No Damage', 'Minor Damage (<5%)', 'Major Damage (>5%) - Flagged', 'Coating Missing'] },
+      { name: 'pipeEndCondition', label: 'Pipe End/Bevel Condition', type: 'select', options: ['Accept', 'Damaged - Minor', 'Damaged - Major', 'Needs Re-bevel'] },
+      { name: 'dentsDeformations', label: 'Dents or Deformations?', type: 'select', options: ['None', 'Minor - Accept', 'Major - Flagged'] },
+      { name: 'damageLocation', label: 'Damage Location/Description', type: 'text', placeholder: 'If damaged, describe location' },
+      { name: 'visualInspectionPhoto', label: '📷 Damage Photo Taken?', type: 'select', options: ['Yes', 'No', 'N/A - No Damage'] }
+    ]},
+    
+    // Dimensional Verification Section
+    { name: 'dimensionalSection', label: '📏 DIMENSIONAL VERIFICATION', type: 'collapsible', fields: [
+      { name: 'sampleFrequency', label: 'Sample Frequency', type: 'text', placeholder: 'e.g., 1 per 10 joints' },
+      { name: 'odMeasured', label: 'OD Measurement (mm)', type: 'number' },
+      { name: 'odWithinTolerance', label: 'OD Within Tolerance?', type: 'select', options: ['Yes', 'No - Flagged', 'N/A'] },
+      { name: 'wtMeasured', label: 'Wall Thickness Measured (mm)', type: 'number' },
+      { name: 'wtWithinTolerance', label: 'WT Within Tolerance?', type: 'select', options: ['Yes', 'No - Flagged', 'N/A'] },
+      { name: 'ovalityCheck', label: 'Ovality Within Spec?', type: 'select', options: ['Yes', 'No - Flagged', 'N/A'] }
+    ]},
+    
+    // Stringing Operations Section
+    { name: 'stringingOpsSection', label: '🔧 STRINGING OPERATIONS', type: 'collapsible', fields: [
+      { name: 'stringingMethod', label: 'Stringing Method', type: 'select', options: ['Conventional', 'Reverse Lay', 'Double Joint'] },
+      { name: 'equipmentUsed', label: 'Equipment Used', type: 'select', options: ['Sideboom', 'Picker', 'Excavator', 'Multiple'] },
+      { name: 'pipeHandling', label: 'Pipe Handling', type: 'select', options: ['Acceptable', 'Concerns Noted'] },
+      { name: 'skidsBlocksUsed', label: 'Skids/Blocks Used?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+      { name: 'groundCondition', label: 'Ground Condition', type: 'select', options: ['Dry', 'Wet', 'Muddy', 'Frozen'] }
+    ]},
+    
+    // Acceptance Section
+    { name: 'acceptanceSection', label: '✅ ACCEPTANCE & DISPOSITION', type: 'collapsible', fields: [
+      { name: 'pipeAccepted', label: 'Pipe Accepted?', type: 'select', options: ['Yes - All', 'Yes - Partial', 'No - Rejected'] },
+      { name: 'rejectedJoints', label: '# Joints Rejected', type: 'number' },
+      { name: 'rejectionReason', label: 'Rejection Reason', type: 'select', options: ['N/A', 'Coating Damage', 'Bevel Damage', 'Dents/Deformation', 'Wrong Spec', 'Mill Cert Issue', 'Other'] },
+      { name: 'disposition', label: 'Rejected Pipe Disposition', type: 'select', options: ['N/A', 'Return to Mill', 'Repair On-site', 'Downgrade', 'Scrap'] },
+      { name: 'acceptanceNotes', label: 'Notes', type: 'textarea', placeholder: 'Additional notes on acceptance/rejection...' }
+    ]}
   ],
   'Bending': [
     { name: 'bendAngle', label: 'Bend Angle (°)', type: 'number' },
