@@ -195,10 +195,10 @@ export default function InspectorInvoicingDashboard() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <button 
-            onClick={() => navigate('/admin')}
+            onClick={() => navigate('/inspector')}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}
           >
-            ← Back to Admin Dashboard
+            ← Back to Daily Inspector Report
           </button>
           <h1 style={{ margin: 0, fontSize: '28px', color: '#111827' }}>📋 Inspector Invoicing</h1>
           <p style={{ margin: '4px 0 0 0', color: '#6b7280' }}>Manage inspector timesheets, invoices, and hire-on packages</p>
