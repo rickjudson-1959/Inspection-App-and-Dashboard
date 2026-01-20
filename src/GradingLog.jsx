@@ -11,7 +11,10 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
     pileSeparation: false,
     topsoilStatus: false,
     drainage: false,
-    environmental: false
+    environmental: false,
+    softSpots: false,
+    crossings: false,
+    comments: false
   })
   
   const toggleSection = (section) => {
@@ -539,12 +542,18 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
         </div>
       </CollapsibleSection>
 
-      {/* SOFT SPOTS */}
-      <div style={sectionStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <div style={{ ...sectionHeaderStyle, marginBottom: 0, borderBottom: 'none' }}>🚧 SOFT SPOTS / PROBLEM AREAS</div>
+      {/* SOFT SPOTS - Collapsible */}
+      <CollapsibleSection 
+        id="softSpots" 
+        title="🚧 SOFT SPOTS / PROBLEM AREAS"
+        color="#856404"
+        bgColor="#fff3cd"
+        borderColor="#ffc107"
+        contentBgColor="#fffef5"
+      >
+        <div style={{ display: 'flex', justifyContent: 'flex-start', marginBottom: '15px' }}>
           <button onClick={toggleSoftSpots} style={{ padding: '8px 16px', backgroundColor: showSoftSpots ? '#dc3545' : '#ffc107', color: showSoftSpots ? 'white' : '#212529', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
-            {showSoftSpots ? '− Hide Soft Spots' : '+ Add Soft Spots'}
+            {showSoftSpots ? '− Hide Entries' : '+ Add Soft Spots'}
           </button>
         </div>
         {showSoftSpots && (
@@ -615,12 +624,18 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
             )}
           </div>
         )}
-      </div>
+      </CollapsibleSection>
 
-      {/* ACCESS & CROSSINGS */}
-      <div style={sectionStyle}>
+      {/* ACCESS & CROSSINGS - Collapsible */}
+      <CollapsibleSection 
+        id="crossings" 
+        title="🚗 ACCESS & CROSSINGS"
+        color="#0c5460"
+        bgColor="#d1ecf1"
+        borderColor="#17a2b8"
+        contentBgColor="#e8f7fc"
+      >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <div style={{ ...sectionHeaderStyle, marginBottom: 0, borderBottom: 'none' }}>🚗 ACCESS & CROSSINGS</div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <div>
               <label style={{ fontSize: '12px', marginRight: '8px' }}>Access Maintained?</label>
@@ -634,7 +649,7 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
               </select>
             </div>
             <button onClick={toggleCrossings} style={{ padding: '8px 16px', backgroundColor: showCrossings ? '#dc3545' : '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
-              {showCrossings ? '− Hide Crossings' : '+ Add Crossings'}
+              {showCrossings ? '− Hide Entries' : '+ Add Crossings'}
             </button>
           </div>
         </div>
@@ -713,18 +728,17 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
             )}
           </div>
         )}
-      </div>
+      </CollapsibleSection>
 
-      {/* COMMENTS */}
-      <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>📝 COMMENTS</div>
+      {/* COMMENTS - Collapsible */}
+      <CollapsibleSection id="comments" title="📝 COMMENTS">
         <textarea value={gradingData.comments}
           onFocus={() => handleFieldFocus('comments', gradingData.comments)}
           onChange={(e) => updateField('comments', e.target.value)}
           onBlur={(e) => handleFieldBlur('comments', e.target.value, 'Comments')}
           placeholder="Additional comments, observations, production notes..."
           style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px', minHeight: '80px', resize: 'vertical', boxSizing: 'border-box' }} />
-      </div>
+      </CollapsibleSection>
     </div>
   )
 }
