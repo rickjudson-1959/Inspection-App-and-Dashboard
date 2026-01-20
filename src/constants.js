@@ -15,6 +15,17 @@ export const pipelineLocations = {
   'KP 30+000 to 38+470': { lat: 49.71, lon: -123.12, name: 'Woodfibre Approach' }
 }
 
+// Spread definitions - maps spread to pipeline section
+export const spreadOptions = ['Spread 1', 'Spread 2', 'Spread 3', 'Spread 4']
+
+// Mapping of spread to pipeline section (auto-populates when spread is selected)
+export const spreadToPipeline = {
+  'Spread 1': 'KP 0+000 to 10+000',
+  'Spread 2': 'KP 10+000 to 20+000',
+  'Spread 3': 'KP 20+000 to 30+000',
+  'Spread 4': 'KP 30+000 to 38+470'
+}
+
 // Activity types for pipeline construction
 export const activityTypes = [
   'Clearing',
