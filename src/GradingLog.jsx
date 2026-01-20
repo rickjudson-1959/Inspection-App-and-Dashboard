@@ -4,6 +4,21 @@ import { useActivityAudit } from './useActivityAudit'
 function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday, logId, reportId }) {
   const [showSoftSpots, setShowSoftSpots] = useState(data?.softSpots?.enabled || false)
   const [showCrossings, setShowCrossings] = useState(data?.crossings?.enabled || false)
+  
+  // Collapsible section states
+  const [expandedSections, setExpandedSections] = useState({
+    rowConditions: false,
+    pileSeparation: false,
+    topsoilStatus: false,
+    drainage: false,
+    environmental: false,
+    softSpots: false,
+    crossings: false
+  })
+  
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))
+  }
 
   // Audit trail hook
   const { 
@@ -136,6 +151,21 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
   // Styles
   const sectionStyle = { marginBottom: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #dee2e6' }
   const sectionHeaderStyle = { fontSize: '14px', fontWeight: 'bold', color: '#495057', marginBottom: '15px', paddingBottom: '8px', borderBottom: '2px solid #6c757d' }
+  const collapsibleHeaderStyle = { 
+    fontSize: '14px', 
+    fontWeight: 'bold', 
+    color: '#495057', 
+    padding: '12px 15px',
+    backgroundColor: '#e9ecef',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    userSelect: 'none',
+    border: '1px solid #dee2e6',
+    marginBottom: '0'
+  }
   const gridStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }
   const labelStyle = { display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#666', marginBottom: '4px' }
   const inputStyle = { width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px', boxSizing: 'border-box' }
@@ -168,9 +198,17 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
         </div>
       )}
 
-      {/* ROW CONDITIONS */}
-      <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>🛤️ RIGHT OF WAY CONDITIONS</div>
+      {/* ROW CONDITIONS - Collapsible */}
+      <div style={{ marginBottom: '10px' }}>
+        <div 
+          style={collapsibleHeaderStyle}
+          onClick={() => toggleSection('rowConditions')}
+        >
+          <span>🛤️ RIGHT OF WAY CONDITIONS</span>
+          <span style={{ fontSize: '18px' }}>{expandedSections.rowConditions ? '−' : '+'}</span>
+        </div>
+        {expandedSections.rowConditions && (
+          <div style={{ ...sectionStyle, marginTop: '0', borderTopLeftRadius: '0', borderTopRightRadius: '0' }}>
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>ROW Width (m)</label>
@@ -226,11 +264,20 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
             </div>
           )}
         </div>
+        )}
       </div>
 
-      {/* PILE SEPARATION */}
-      <div style={{ ...sectionStyle, backgroundColor: '#fff3cd', border: '2px solid #ffc107' }}>
-        <div style={{ ...sectionHeaderStyle, borderBottom: '2px solid #856404', color: '#856404' }}>⚠️ PILE SEPARATION (Critical for Reclamation)</div>
+      {/* PILE SEPARATION - Collapsible */}
+      <div style={{ marginBottom: '10px' }}>
+        <div 
+          style={{ ...collapsibleHeaderStyle, backgroundColor: '#fff3cd', border: '2px solid #ffc107', color: '#856404' }}
+          onClick={() => toggleSection('pileSeparation')}
+        >
+          <span>⚠️ PILE SEPARATION (Critical for Reclamation)</span>
+          <span style={{ fontSize: '18px' }}>{expandedSections.pileSeparation ? '−' : '+'}</span>
+        </div>
+        {expandedSections.pileSeparation && (
+          <div style={{ ...sectionStyle, marginTop: '0', borderTopLeftRadius: '0', borderTopRightRadius: '0', backgroundColor: '#fffef5', border: '2px solid #ffc107', borderTop: 'none' }}>
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Pile Separation Maintained?</label>
@@ -287,11 +334,20 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
             </div>
           )}
         </div>
+        )}
       </div>
 
-      {/* TOPSOIL STATUS */}
-      <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>🌱 TOPSOIL STATUS</div>
+      {/* TOPSOIL STATUS - Collapsible */}
+      <div style={{ marginBottom: '10px' }}>
+        <div 
+          style={collapsibleHeaderStyle}
+          onClick={() => toggleSection('topsoilStatus')}
+        >
+          <span>🌱 TOPSOIL STATUS</span>
+          <span style={{ fontSize: '18px' }}>{expandedSections.topsoilStatus ? '−' : '+'}</span>
+        </div>
+        {expandedSections.topsoilStatus && (
+          <div style={{ ...sectionStyle, marginTop: '0', borderTopLeftRadius: '0', borderTopRightRadius: '0' }}>
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Topsoil Stripped?</label>
@@ -327,11 +383,21 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
             </select>
           </div>
         </div>
+          </div>
+        )}
       </div>
 
-      {/* DRAINAGE */}
-      <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>💧 DRAINAGE</div>
+      {/* DRAINAGE - Collapsible */}
+      <div style={{ marginBottom: '10px' }}>
+        <div 
+          style={collapsibleHeaderStyle}
+          onClick={() => toggleSection('drainage')}
+        >
+          <span>💧 DRAINAGE</span>
+          <span style={{ fontSize: '18px' }}>{expandedSections.drainage ? '−' : '+'}</span>
+        </div>
+        {expandedSections.drainage && (
+          <div style={{ ...sectionStyle, marginTop: '0', borderTopLeftRadius: '0', borderTopRightRadius: '0' }}>
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Drainage Condition</label>
@@ -401,11 +467,21 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
             </div>
           )}
         </div>
+          </div>
+        )}
       </div>
 
-      {/* ENVIRONMENTAL CONTROLS */}
-      <div style={{ ...sectionStyle, backgroundColor: '#d4edda', border: '1px solid #28a745' }}>
-        <div style={{ ...sectionHeaderStyle, borderBottom: '2px solid #28a745', color: '#155724' }}>🌿 ENVIRONMENTAL CONTROLS</div>
+      {/* ENVIRONMENTAL CONTROLS - Collapsible */}
+      <div style={{ marginBottom: '10px' }}>
+        <div 
+          style={{ ...collapsibleHeaderStyle, backgroundColor: '#d4edda', border: '1px solid #28a745', color: '#155724' }}
+          onClick={() => toggleSection('environmental')}
+        >
+          <span>🌿 ENVIRONMENTAL CONTROLS</span>
+          <span style={{ fontSize: '18px' }}>{expandedSections.environmental ? '−' : '+'}</span>
+        </div>
+        {expandedSections.environmental && (
+          <div style={{ ...sectionStyle, marginTop: '0', borderTopLeftRadius: '0', borderTopRightRadius: '0', backgroundColor: '#f0fff4', border: '1px solid #28a745', borderTop: 'none' }}>
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Silt Fence Installed?</label>
@@ -478,14 +554,24 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
               placeholder="Any environmental concerns, wildlife, watercourse issues..." style={inputStyle} />
           </div>
         </div>
+          </div>
+        )}
       </div>
 
-      {/* SOFT SPOTS */}
-      <div style={sectionStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <div style={{ ...sectionHeaderStyle, marginBottom: 0, borderBottom: 'none' }}>🚧 SOFT SPOTS / PROBLEM AREAS</div>
+      {/* SOFT SPOTS - Collapsible */}
+      <div style={{ marginBottom: '10px' }}>
+        <div 
+          style={{ ...collapsibleHeaderStyle, backgroundColor: '#fff3cd', border: '1px solid #ffc107', color: '#856404' }}
+          onClick={() => toggleSection('softSpots')}
+        >
+          <span>🚧 SOFT SPOTS / PROBLEM AREAS</span>
+          <span style={{ fontSize: '18px' }}>{expandedSections.softSpots ? '−' : '+'}</span>
+        </div>
+        {expandedSections.softSpots && (
+          <div style={{ ...sectionStyle, marginTop: '0', borderTopLeftRadius: '0', borderTopRightRadius: '0' }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '15px' }}>
           <button onClick={toggleSoftSpots} style={{ padding: '8px 16px', backgroundColor: showSoftSpots ? '#dc3545' : '#ffc107', color: showSoftSpots ? 'white' : '#212529', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
-            {showSoftSpots ? '− Hide Soft Spots' : '+ Add Soft Spots'}
+            {showSoftSpots ? '− Hide Entries' : '+ Add Soft Spots'}
           </button>
         </div>
         {showSoftSpots && (
@@ -556,12 +642,22 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
             )}
           </div>
         )}
+          </div>
+        )}
       </div>
 
-      {/* ACCESS & CROSSINGS */}
-      <div style={sectionStyle}>
+      {/* ACCESS & CROSSINGS - Collapsible */}
+      <div style={{ marginBottom: '10px' }}>
+        <div 
+          style={{ ...collapsibleHeaderStyle, backgroundColor: '#d1ecf1', border: '1px solid #17a2b8', color: '#0c5460' }}
+          onClick={() => toggleSection('crossings')}
+        >
+          <span>🚗 ACCESS & CROSSINGS</span>
+          <span style={{ fontSize: '18px' }}>{expandedSections.crossings ? '−' : '+'}</span>
+        </div>
+        {expandedSections.crossings && (
+          <div style={{ ...sectionStyle, marginTop: '0', borderTopLeftRadius: '0', borderTopRightRadius: '0' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <div style={{ ...sectionHeaderStyle, marginBottom: 0, borderBottom: 'none' }}>🚗 ACCESS & CROSSINGS</div>
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <div>
               <label style={{ fontSize: '12px', marginRight: '8px' }}>Access Maintained?</label>
@@ -575,7 +671,7 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
               </select>
             </div>
             <button onClick={toggleCrossings} style={{ padding: '8px 16px', backgroundColor: showCrossings ? '#dc3545' : '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px' }}>
-              {showCrossings ? '− Hide Crossings' : '+ Add Crossings'}
+              {showCrossings ? '− Hide Entries' : '+ Add Crossings'}
             </button>
           </div>
         </div>
@@ -652,6 +748,8 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
                 </div>
               ))
             )}
+          </div>
+        )}
           </div>
         )}
       </div>
