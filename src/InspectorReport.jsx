@@ -11,7 +11,9 @@ import { supabase } from './supabase'
 import { 
   PROJECT_NAME, 
   PROJECT_SHORT, 
-  pipelineLocations, 
+  pipelineLocations,
+  spreadOptions,
+  spreadToPipeline,
   activityTypes, 
   qualityFieldsByActivity, 
   timeLostReasons, 
@@ -4272,23 +4274,22 @@ Important:
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Spread</label>
-            <input
-              type="text"
+            <select
               value={spread}
-              onChange={(e) => setSpread(e.target.value)}
-              placeholder="Spread number"
+              onChange={(e) => {
+                const selectedSpread = e.target.value
+                setSpread(selectedSpread)
+                if (spreadToPipeline[selectedSpread]) {
+                  setPipeline(spreadToPipeline[selectedSpread])
+                }
+              }}
               style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>AFE #</label>
-            <input
-              type="text"
-              value={afe}
-              onChange={(e) => setAfe(e.target.value)}
-              placeholder="AFE number"
-              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
-            />
+            >
+              <option value="">Select Spread...</option>
+              {spreadOptions.map(s => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Pipeline</label>
