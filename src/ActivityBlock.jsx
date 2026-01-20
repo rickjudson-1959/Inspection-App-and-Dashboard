@@ -755,13 +755,24 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
     }
     
     return (
-      <div key={field.name}>
+      <div key={field.name} style={{
+        padding: '12px',
+        backgroundColor: '#f8f9fa',
+        borderRadius: '6px',
+        border: '1px solid #dee2e6'
+      }}>
         <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>{field.label}</label>
         {field.type === 'select' ? (
           <select
             value={block.qualityData[field.name] || ''}
-            onChange={(e) => updateQualityData(block.id, field.name, e.target.value)}
-            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+            onChange={(e) => {
+              updateQualityData(block.id, field.name, e.target.value)
+              // Show reminder popup if field has reminder and value is Yes
+              if (field.reminder && e.target.value === 'Yes') {
+                alert(field.reminder)
+              }
+            }}
+            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', backgroundColor: 'white' }}
           >
             <option value="">Select...</option>
             {field.options.map(opt => (

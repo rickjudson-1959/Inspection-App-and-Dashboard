@@ -207,8 +207,7 @@ export const qualityFieldsByActivity = {
   'Coating': [], // Handled by CoatingLog component
   'Ditch': [], // Handled by DitchLog component
   'Lower-in': [
-    { name: 'paddingDepth', label: 'Padding Depth (cm)', type: 'number' },
-    { name: 'depthOfCover', label: 'Depth of Cover (m)', type: 'number' },
+    { name: 'beddingPadding', label: 'Bedding/Padding', type: 'select', options: ['Yes', 'No'], reminder: 'Remember to fill out the Bedding & Padding trackable item in the Trackable Items section.' },
     { name: 'clearance', label: 'Clearance from Foreign Lines (m)', type: 'number' },
     { name: 'liftPlanVerified', label: 'Lift Plan Verified', type: 'select', options: ['Yes', 'No'] },
     { name: 'equipmentInspected', label: 'Equipment Inspected', type: 'select', options: ['Yes', 'No'] }
