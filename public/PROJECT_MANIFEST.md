@@ -1,8 +1,8 @@
 # PIPE-UP PROJECT MANIFEST
 ## Pipeline Inspector SaaS Application
 
-**Last Updated:** January 19, 2026  
-**Version:** 1.9  
+**Last Updated:** January 20, 2026  
+**Version:** 2.0  
 **Stack:** React + Vite + Supabase + Vercel  
 **Live URL:** https://app.pipe-up.ca  
 **API Domain:** https://api.pipe-up.ca (custom domain verified)
@@ -11,7 +11,7 @@
 
 ## 📁 FILE INVENTORY (95+ files in /src)
 
-### 🔀 ROUTING & CORE
+### 📀 ROUTING & CORE
 | File | Lines | Purpose |
 |------|-------|---------|
 | `main.jsx` | 5,400+ | **ROUTER** - All routes defined here. Check this first! |
@@ -28,10 +28,11 @@
 | `WeldLog.jsx` | ~350 | Weld data capture |
 | `CoatingLog.jsx` | ~300 | Coating inspection data |
 | `BendingLog.jsx` | ~250 | Bending data capture |
+| `GradingLog.jsx` | ~700 | Grading inspection with ALL collapsible sections |
 | `TallySheetScanner.jsx` | ~300 | OCR camera/file upload for joint import |
 | `TrackableItemsTracker.jsx` | ~400 | Mats, fencing, ramps with linking |
 
-### 👔 ADMIN MODULE
+### 💼 ADMIN MODULE
 | File | Lines | Purpose |
 |------|-------|---------|
 | `AdminPortal.jsx` | 1,200+ | **ADMIN HUB** - User management, reports, approvals, billing |
@@ -62,7 +63,7 @@
 
 ---
 
-## ✅ COMPLETED FEATURES (as of Jan 19, 2026)
+## ✅ COMPLETED FEATURES (as of Jan 20, 2026)
 
 ### Core Inspection System
 - ✅ Multi-activity daily inspection tickets
@@ -74,6 +75,19 @@
 - ✅ Voice-to-text input support
 - ✅ Photo capture and upload
 - ✅ Trackable items (mats, fencing, ramps with linking)
+
+### Activity-Specific Logs with Collapsible Sections
+- ✅ **GradingLog.jsx** - ALL sections collapsible (Jan 20):
+  - 🛤️ ROW CONDITIONS
+  - ⚠️ PILE SEPARATION (yellow highlight)
+  - 🌱 TOPSOIL STATUS
+  - 💧 DRAINAGE
+  - 🌿 ENVIRONMENTAL CONTROLS (green highlight)
+  - 🚧 SOFT SPOTS / PROBLEM AREAS (yellow highlight)
+  - 🚗 ACCESS & CROSSINGS (blue highlight)
+  - 📝 COMMENTS
+- ✅ **TopsoilLog** - Collapsible sections
+- ⚠️ **StringingLog** - Quality checks need restoration (identified Jan 20)
 
 ### OCR & Data Import
 - ✅ Tally sheet OCR scanner (Claude Vision)
@@ -216,6 +230,16 @@ git push origin main
 
 ---
 
+## ⚠️ KNOWN ISSUES / IN PROGRESS
+
+| Issue | Status | Notes |
+|-------|--------|-------|
+| StringingLog quality checks | Needs fix | Should have collapsible sections like GradingLog |
+| TrackableItemsTracker | Intermittent | Items sometimes save with null report_id on new reports |
+| ReportWorkflow.jsx import | Fixed | Had broken supabaseClient import path |
+
+---
+
 ## 📋 DEVELOPMENT ROADMAP
 
 ### Immediate (Phase 4-6 Invoicing)
@@ -226,10 +250,11 @@ git push origin main
 5. Reporting dashboard
 
 ### Short-term
-1. Complete audit logging for all components
-2. Chief's Aggregate Report (multiple inspector reports)
-3. Audit History Viewer UI panel
-4. Dashboard analytics and charts
+1. Fix StringingLog collapsible quality sections
+2. Complete audit logging for all components
+3. Chief's Aggregate Report (multiple inspector reports)
+4. Audit History Viewer UI panel
+5. Dashboard analytics and charts
 
 ### Medium-term
 1. Mobile-optimized field interface
@@ -242,8 +267,23 @@ git push origin main
 ## 📞 KEY CONTACTS
 
 - **David Pfeiffer** - FortisBC Director of Major Projects (expressed interest in testing)
+- **Dave Fitton** - Senior welding inspector (invited to test welding reports)
 - **Pembina Pipeline** - Industry contact
 - **Michels Canada** - Industry contact
+
+---
+
+## 🔄 RECENT CHANGES LOG
+
+| Date | What Changed |
+|------|--------------|
+| **Jan 20, 2026** | GradingLog.jsx - ALL sections now collapsible |
+| **Jan 20, 2026** | Identified StringingLog quality checks need restoration |
+| **Jan 20, 2026** | Fixed ReportWorkflow.jsx supabaseClient import error |
+| **Jan 19, 2026** | ReportViewer - Approve/Reject buttons added |
+| **Jan 19, 2026** | AdminPortal - View buttons added to Approvals & Reports tabs |
+| **Jan 17, 2026** | Delete User functionality with Edge Function |
+| **Jan 17, 2026** | Billing Reconciliation with "No Talk" transparency |
 
 ---
 
@@ -253,6 +293,7 @@ git push origin main
 - Inspector timesheet items link via `daily_ticket_id` foreign key
 - All financial changes require audit logging via auditLoggerV3
 - "No Talk" transparency means no behind-the-scenes adjustments
+- Rick prefers SQL as copyable text for Supabase SQL Editor (not file downloads)
 
 ---
 

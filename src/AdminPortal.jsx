@@ -33,6 +33,16 @@ function AdminPortal() {
   const [allReports, setAllReports] = useState([])
   const [loadingReports, setLoadingReports] = useState(false)
 
+  // Timesheet Review Queue state (Phase 4)
+  const [pendingTimesheets, setPendingTimesheets] = useState([])
+  const [loadingTimesheets, setLoadingTimesheets] = useState(false)
+  const [selectedTimesheet, setSelectedTimesheet] = useState(null)
+  const [showTimesheetModal, setShowTimesheetModal] = useState(false)
+  const [timesheetItems, setTimesheetItems] = useState([])
+  const [rejectNotes, setRejectNotes] = useState('')
+  const [showRejectModal, setShowRejectModal] = useState(false)
+  const [timesheetToReject, setTimesheetToReject] = useState(null)
+
   const [newOrg, setNewOrg] = useState({ name: '', slug: '' })
   const [newProject, setNewProject] = useState({ name: '', shortCode: '', organizationId: '' })
 
@@ -57,6 +67,7 @@ function AdminPortal() {
     if (activeTab === 'mats') fetchMatData()
     if (activeTab === 'audit') fetchAuditLog()
     if (activeTab === 'reports') fetchAllReports()
+    if (activeTab === 'timesheets') fetchPendingTimesheets()
   }, [activeTab])
 
   async function fetchData() {
@@ -280,6 +291,150 @@ function AdminPortal() {
       console.error('Error fetching reports:', err)
     }
     setLoadingReports(false)
+  }
+
+  // ==================== TIMESHEET REVIEW QUEUE (Phase 4) ====================
+  async function fetchPendingTimesheets() {
+    setLoadingTimesheets(true)
+    try {
+      // Get all submitted timesheets with inspector info
+      const { data: timesheets, error } = await supabase
+        .from('inspector_timesheets')
+        .select(`
+          *,
+          user_profiles:inspector_id (full_name, email),
+          inspector_profiles:inspector_id (company_name)
+        `)
+        .eq('status', 'submitted')
+        .order('submitted_at', { ascending: true })
+
+      if (error) throw error
+      setPendingTimesheets(timesheets || [])
+    } catch (err) {
+      console.error('Error fetching pending timesheets:', err)
+    }
+    setLoadingTimesheets(false)
+  }
+
+  async function viewTimesheetDetails(timesheet) {
+    setSelectedTimesheet(timesheet)
+    setShowTimesheetModal(true)
+    
+    // Fetch the line items for this timesheet
+    try {
+      const { data: items, error } = await supabase
+        .from('inspector_timesheet_items')
+        .select(`
+          *,
+          daily_tickets:daily_ticket_id (date, spread, activity_blocks)
+        `)
+        .eq('timesheet_id', timesheet.id)
+        .order('work_date', { ascending: true })
+
+      if (error) throw error
+      setTimesheetItems(items || [])
+    } catch (err) {
+      console.error('Error fetching timesheet items:', err)
+      setTimesheetItems([])
+    }
+  }
+
+  async function approveTimesheet(timesheetId) {
+    if (!confirm('Approve this timesheet for payment?')) return
+
+    try {
+      const now = new Date().toISOString()
+
+      const { error } = await supabase
+        .from('inspector_timesheets')
+        .update({
+          status: 'approved',
+          reviewed_at: now,
+          reviewed_by: userProfile?.id,
+          reviewed_by_name: userProfile?.full_name || userProfile?.email,
+          updated_at: now
+        })
+        .eq('id', timesheetId)
+
+      if (error) throw error
+
+      // Log to audit
+      await supabase.from('billing_audit_log').insert({
+        entity_type: 'inspector_timesheet',
+        entity_id: timesheetId.toString(),
+        action: 'approve',
+        performed_by: userProfile?.id,
+        performed_by_name: userProfile?.full_name || userProfile?.email,
+        details: { status_change: 'submitted → approved' }
+      })
+
+      setShowTimesheetModal(false)
+      setSelectedTimesheet(null)
+      fetchPendingTimesheets()
+      alert('Timesheet approved!')
+    } catch (err) {
+      console.error('Error approving timesheet:', err)
+      alert('Error approving timesheet: ' + err.message)
+    }
+  }
+
+  function openRejectModal(timesheet) {
+    setTimesheetToReject(timesheet)
+    setRejectNotes('')
+    setShowRejectModal(true)
+  }
+
+  async function rejectTimesheet() {
+    if (!rejectNotes.trim()) {
+      alert('Please provide rejection notes explaining what needs to be corrected.')
+      return
+    }
+
+    try {
+      const now = new Date().toISOString()
+
+      const { error } = await supabase
+        .from('inspector_timesheets')
+        .update({
+          status: 'revision_requested',
+          reviewed_at: now,
+          reviewed_by: userProfile?.id,
+          reviewed_by_name: userProfile?.full_name || userProfile?.email,
+          revision_notes: rejectNotes,
+          updated_at: now
+        })
+        .eq('id', timesheetToReject.id)
+
+      if (error) throw error
+
+      // Log to audit
+      await supabase.from('billing_audit_log').insert({
+        entity_type: 'inspector_timesheet',
+        entity_id: timesheetToReject.id.toString(),
+        action: 'revision_requested',
+        performed_by: userProfile?.id,
+        performed_by_name: userProfile?.full_name || userProfile?.email,
+        details: { 
+          status_change: 'submitted → revision_requested',
+          revision_notes: rejectNotes 
+        }
+      })
+
+      setShowRejectModal(false)
+      setTimesheetToReject(null)
+      setRejectNotes('')
+      setShowTimesheetModal(false)
+      setSelectedTimesheet(null)
+      fetchPendingTimesheets()
+      alert('Timesheet returned for revision')
+    } catch (err) {
+      console.error('Error rejecting timesheet:', err)
+      alert('Error rejecting timesheet: ' + err.message)
+    }
+  }
+
+  function formatCurrency(amount) {
+    return new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(amount || 0)
   }
 
   // ==================== USER ROLE EDITOR ====================
@@ -627,9 +782,10 @@ function AdminPortal() {
 
       <div style={{ backgroundColor: 'white', borderBottom: '1px solid #ddd', padding: '0 20px' }}>
         <div style={{ display: 'flex', gap: '0' }}>
-          {['overview', 'approvals', 'mats', 'audit', 'setup', 'organizations', 'projects', 'users', 'reports'].map(tab => (
+          {['overview', 'approvals', 'timesheets', 'mats', 'audit', 'setup', 'organizations', 'projects', 'users', 'reports'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '15px 25px', border: 'none', backgroundColor: activeTab === tab ? '#003366' : 'transparent', color: activeTab === tab ? 'white' : '#333', cursor: 'pointer', fontSize: '14px', fontWeight: activeTab === tab ? 'bold' : 'normal', textTransform: 'capitalize', position: 'relative' }}>
-              {tab === 'approvals' ? `Approvals ${pendingReports.length > 0 ? `(${pendingReports.length})` : ''}` : tab}
+              {tab === 'approvals' ? `Approvals ${pendingReports.length > 0 ? `(${pendingReports.length})` : ''}` : 
+               tab === 'timesheets' ? `Timesheets ${pendingTimesheets.length > 0 ? `(${pendingTimesheets.length})` : ''}` : tab}
             </button>
           ))}
         </div>
@@ -656,6 +812,10 @@ function AdminPortal() {
               <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', cursor: 'pointer', border: pendingReports.length > 0 ? '2px solid #ffc107' : 'none' }} onClick={() => setActiveTab('approvals')}>
                 <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px' }}>Pending Approvals</h3>
                 <p style={{ margin: 0, fontSize: '36px', fontWeight: 'bold', color: pendingReports.length > 0 ? '#ffc107' : '#28a745' }}>{pendingReports.length}</p>
+              </div>
+              <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', cursor: 'pointer', border: pendingTimesheets.length > 0 ? '2px solid #8b5cf6' : 'none' }} onClick={() => setActiveTab('timesheets')}>
+                <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px' }}>Pending Timesheets</h3>
+                <p style={{ margin: 0, fontSize: '36px', fontWeight: 'bold', color: pendingTimesheets.length > 0 ? '#8b5cf6' : '#28a745' }}>{pendingTimesheets.length}</p>
               </div>
             </div>
           </div>
@@ -707,6 +867,82 @@ function AdminPortal() {
                           </button>
                           <button onClick={() => requestRevision(report.report_id)} style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
                             ↩ Revision
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ==================== TIMESHEET REVIEW QUEUE TAB (Phase 4) ==================== */}
+        {activeTab === 'timesheets' && (
+          <div>
+            <h2>💰 Inspector Timesheet Review</h2>
+            <p style={{ color: '#666' }}>Timesheets submitted by inspectors awaiting approval for payment</p>
+            
+            {loadingTimesheets ? (
+              <p>Loading...</p>
+            ) : pendingTimesheets.length === 0 ? (
+              <div style={{ backgroundColor: '#d4edda', padding: '20px', borderRadius: '8px', marginTop: '20px' }}>
+                <p style={{ margin: 0, color: '#155724' }}>✓ No timesheets pending review</p>
+              </div>
+            ) : (
+              <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginTop: '20px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f8f9fa' }}>
+                      <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Inspector</th>
+                      <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Company</th>
+                      <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Period</th>
+                      <th style={{ padding: '15px', textAlign: 'right', borderBottom: '1px solid #ddd' }}>Hours</th>
+                      <th style={{ padding: '15px', textAlign: 'right', borderBottom: '1px solid #ddd' }}>Total</th>
+                      <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Submitted</th>
+                      <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pendingTimesheets.map(ts => (
+                      <tr key={ts.id}>
+                        <td style={{ padding: '15px', borderBottom: '1px solid #eee' }}>
+                          {ts.user_profiles?.full_name || ts.user_profiles?.email || 'Unknown'}
+                        </td>
+                        <td style={{ padding: '15px', borderBottom: '1px solid #eee' }}>
+                          {ts.inspector_profiles?.company_name || '-'}
+                        </td>
+                        <td style={{ padding: '15px', borderBottom: '1px solid #eee' }}>
+                          {ts.period_start} to {ts.period_end}
+                        </td>
+                        <td style={{ padding: '15px', borderBottom: '1px solid #eee', textAlign: 'right', fontWeight: 'bold' }}>
+                          {ts.total_hours || 0}
+                        </td>
+                        <td style={{ padding: '15px', borderBottom: '1px solid #eee', textAlign: 'right', fontWeight: 'bold', color: '#28a745' }}>
+                          {formatCurrency(ts.total_amount)}
+                        </td>
+                        <td style={{ padding: '15px', borderBottom: '1px solid #eee', fontSize: '12px', color: '#666' }}>
+                          {formatDate(ts.submitted_at)}
+                        </td>
+                        <td style={{ padding: '15px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
+                          <button 
+                            onClick={() => viewTimesheetDetails(ts)} 
+                            style={{ padding: '8px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}
+                          >
+                            👁️ Review
+                          </button>
+                          <button 
+                            onClick={() => approveTimesheet(ts.id)} 
+                            style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}
+                          >
+                            ✓ Approve
+                          </button>
+                          <button 
+                            onClick={() => openRejectModal(ts)} 
+                            style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                          >
+                            ↩ Reject
                           </button>
                         </td>
                       </tr>
@@ -1302,6 +1538,266 @@ function AdminPortal() {
                   }}
                 >
                   {inviting ? 'Sending...' : '📧 Send Invite'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== TIMESHEET DETAIL MODAL ==================== */}
+        {showTimesheetModal && selectedTimesheet && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '32px',
+              maxWidth: '900px',
+              width: '95%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ margin: 0, color: '#003366' }}>💰 Timesheet Review</h3>
+                <button 
+                  onClick={() => { setShowTimesheetModal(false); setSelectedTimesheet(null); setTimesheetItems([]); }}
+                  style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#666' }}
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Inspector Info */}
+              <div style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+                  <div>
+                    <strong style={{ color: '#666', fontSize: '12px' }}>INSPECTOR</strong>
+                    <p style={{ margin: '5px 0 0 0', fontSize: '16px' }}>{selectedTimesheet.user_profiles?.full_name || 'Unknown'}</p>
+                  </div>
+                  <div>
+                    <strong style={{ color: '#666', fontSize: '12px' }}>COMPANY</strong>
+                    <p style={{ margin: '5px 0 0 0', fontSize: '16px' }}>{selectedTimesheet.inspector_profiles?.company_name || '-'}</p>
+                  </div>
+                  <div>
+                    <strong style={{ color: '#666', fontSize: '12px' }}>PERIOD</strong>
+                    <p style={{ margin: '5px 0 0 0', fontSize: '16px' }}>{selectedTimesheet.period_start} to {selectedTimesheet.period_end}</p>
+                  </div>
+                  <div>
+                    <strong style={{ color: '#666', fontSize: '12px' }}>SUBMITTED</strong>
+                    <p style={{ margin: '5px 0 0 0', fontSize: '16px' }}>{formatDate(selectedTimesheet.submitted_at)}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Summary Totals */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '20px' }}>
+                <div style={{ backgroundColor: '#e7f3ff', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                  <strong style={{ color: '#004085', fontSize: '12px' }}>TOTAL HOURS</strong>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '24px', fontWeight: 'bold', color: '#004085' }}>{selectedTimesheet.total_hours || 0}</p>
+                </div>
+                <div style={{ backgroundColor: '#d4edda', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                  <strong style={{ color: '#155724', fontSize: '12px' }}>PER DIEM DAYS</strong>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '24px', fontWeight: 'bold', color: '#155724' }}>{selectedTimesheet.total_per_diem_days || 0}</p>
+                </div>
+                <div style={{ backgroundColor: '#fff3cd', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                  <strong style={{ color: '#856404', fontSize: '12px' }}>MILEAGE (KM)</strong>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '24px', fontWeight: 'bold', color: '#856404' }}>{selectedTimesheet.total_mileage || 0}</p>
+                </div>
+                <div style={{ backgroundColor: '#d1ecf1', padding: '15px', borderRadius: '8px', textAlign: 'center' }}>
+                  <strong style={{ color: '#0c5460', fontSize: '12px' }}>TOTAL AMOUNT</strong>
+                  <p style={{ margin: '5px 0 0 0', fontSize: '24px', fontWeight: 'bold', color: '#0c5460' }}>{formatCurrency(selectedTimesheet.total_amount)}</p>
+                </div>
+              </div>
+
+              {/* Line Items Table */}
+              <h4 style={{ marginBottom: '10px' }}>Daily Line Items</h4>
+              {timesheetItems.length === 0 ? (
+                <p style={{ color: '#666' }}>Loading line items...</p>
+              ) : (
+                <div style={{ maxHeight: '300px', overflow: 'auto', border: '1px solid #ddd', borderRadius: '8px' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                    <thead style={{ position: 'sticky', top: 0, backgroundColor: '#f8f9fa' }}>
+                      <tr>
+                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', fontSize: '12px' }}>Date</th>
+                        <th style={{ padding: '12px', textAlign: 'right', borderBottom: '1px solid #ddd', fontSize: '12px' }}>Hours</th>
+                        <th style={{ padding: '12px', textAlign: 'right', borderBottom: '1px solid #ddd', fontSize: '12px' }}>Rate</th>
+                        <th style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd', fontSize: '12px' }}>Per Diem</th>
+                        <th style={{ padding: '12px', textAlign: 'right', borderBottom: '1px solid #ddd', fontSize: '12px' }}>Mileage</th>
+                        <th style={{ padding: '12px', textAlign: 'right', borderBottom: '1px solid #ddd', fontSize: '12px' }}>Line Total</th>
+                        <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', fontSize: '12px' }}>Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {timesheetItems.map((item, idx) => (
+                        <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? 'white' : '#fafafa' }}>
+                          <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontSize: '13px' }}>{item.work_date}</td>
+                          <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontSize: '13px', textAlign: 'right' }}>{item.hours || 0}</td>
+                          <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontSize: '13px', textAlign: 'right' }}>{formatCurrency(item.hourly_rate)}</td>
+                          <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontSize: '13px', textAlign: 'center' }}>
+                            {item.per_diem ? '✓' : '-'}
+                          </td>
+                          <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontSize: '13px', textAlign: 'right' }}>{item.mileage || 0}</td>
+                          <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontSize: '13px', textAlign: 'right', fontWeight: 'bold' }}>
+                            {formatCurrency(item.line_total)}
+                          </td>
+                          <td style={{ padding: '10px 12px', borderBottom: '1px solid #eee', fontSize: '12px', color: '#666' }}>{item.notes || '-'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+
+              {/* Inspector Notes */}
+              {selectedTimesheet.notes && (
+                <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '8px' }}>
+                  <strong style={{ color: '#856404' }}>Inspector Notes:</strong>
+                  <p style={{ margin: '10px 0 0 0', color: '#856404' }}>{selectedTimesheet.notes}</p>
+                </div>
+              )}
+
+              {/* Action Buttons */}
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end', marginTop: '25px', paddingTop: '20px', borderTop: '1px solid #ddd' }}>
+                <button
+                  onClick={() => { setShowTimesheetModal(false); setSelectedTimesheet(null); setTimesheetItems([]); }}
+                  style={{
+                    padding: '12px 24px',
+                    backgroundColor: 'white',
+                    color: '#374151',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  Close
+                </button>
+                <button
+                  onClick={() => openRejectModal(selectedTimesheet)}
+                  style={{
+                    padding: '12px 24px',
+                    backgroundColor: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                >
+                  ↩ Request Revision
+                </button>
+                <button
+                  onClick={() => approveTimesheet(selectedTimesheet.id)}
+                  style={{
+                    padding: '12px 24px',
+                    backgroundColor: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                >
+                  ✓ Approve for Payment
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ==================== TIMESHEET REJECT MODAL ==================== */}
+        {showRejectModal && timesheetToReject && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1001
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '32px',
+              maxWidth: '500px',
+              width: '95%',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+            }}>
+              <h3 style={{ margin: '0 0 20px 0', color: '#dc3545' }}>↩ Request Revision</h3>
+              
+              <p style={{ color: '#666', marginBottom: '15px' }}>
+                Please provide notes explaining what needs to be corrected on this timesheet.
+                The inspector will be notified and can resubmit after making changes.
+              </p>
+              
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#374151' }}>
+                  Revision Notes *
+                </label>
+                <textarea
+                  value={rejectNotes}
+                  onChange={(e) => setRejectNotes(e.target.value)}
+                  placeholder="Please correct the hours for January 15th - should be 8 hours not 10..."
+                  rows={4}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '15px',
+                    boxSizing: 'border-box',
+                    resize: 'vertical'
+                  }}
+                />
+              </div>
+              
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => { setShowRejectModal(false); setTimesheetToReject(null); setRejectNotes(''); }}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: 'white',
+                    color: '#374151',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '14px'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={rejectTimesheet}
+                  disabled={!rejectNotes.trim()}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: !rejectNotes.trim() ? '#d1d5db' : '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: !rejectNotes.trim() ? 'not-allowed' : 'pointer',
+                    fontSize: '14px',
+                    fontWeight: '500'
+                  }}
+                >
+                  Send Revision Request
                 </button>
               </div>
             </div>
