@@ -27,6 +27,9 @@ export default function TimesheetEditor() {
   const [projectName, setProjectName] = useState('EGP Pipeline Project')
   const [clientName, setClientName] = useState('FortisBC')
   const [spreadName, setSpreadName] = useState('')
+  
+  // Date overlap warning
+  const [dateOverlapWarning, setDateOverlapWarning] = useState(null)
 
   // Calculated totals
   const [totals, setTotals] = useState({
@@ -50,6 +53,58 @@ export default function TimesheetEditor() {
   useEffect(() => {
     calculateTotals()
   }, [lineItems])
+
+  // Check for date overlaps when dates or inspector changes
+  useEffect(() => {
+    async function checkDateOverlap() {
+      if (!selectedInspector || !periodStart || !periodEnd) {
+        setDateOverlapWarning(null)
+        return
+      }
+
+      try {
+        const { data: existingTimesheets, error } = await supabase
+          .from('inspector_timesheets')
+          .select('id, period_start, period_end, status')
+          .eq('inspector_profile_id', selectedInspector)
+          .in('status', ['submitted', 'admin_review', 'chief_review', 'approved', 'paid'])
+
+        if (error) {
+          console.error('Error checking date overlap:', error)
+          return
+        }
+
+        if (existingTimesheets && existingTimesheets.length > 0) {
+          // Skip current timesheet if editing
+          const otherTimesheets = timesheetId 
+            ? existingTimesheets.filter(ts => ts.id !== timesheetId)
+            : existingTimesheets
+
+          for (const ts of otherTimesheets) {
+            const existingStart = new Date(ts.period_start)
+            const existingEnd = new Date(ts.period_end)
+            const newStart = new Date(periodStart)
+            const newEnd = new Date(periodEnd)
+            
+            if (newStart <= existingEnd && newEnd >= existingStart) {
+              setDateOverlapWarning({
+                period_start: ts.period_start,
+                period_end: ts.period_end,
+                status: ts.status
+              })
+              return
+            }
+          }
+        }
+        
+        setDateOverlapWarning(null)
+      } catch (err) {
+        console.error('Error checking date overlap:', err)
+      }
+    }
+
+    checkDateOverlap()
+  }, [selectedInspector, periodStart, periodEnd, timesheetId])
 
   async function loadAvailableInspectors() {
     setLoading(true)
@@ -196,6 +251,42 @@ export default function TimesheetEditor() {
         setLoading(false)
         return
       }
+
+      // ========== CHECK FOR ALREADY INVOICED DATES ==========
+      // Get all dates that have already been invoiced (submitted, approved, or paid timesheets)
+      const { data: existingTimesheets, error: tsError } = await supabase
+        .from('inspector_timesheets')
+        .select('id, period_start, period_end, status')
+        .eq('inspector_profile_id', selectedInspector)
+        .in('status', ['submitted', 'admin_review', 'chief_review', 'approved', 'paid'])
+      
+      if (tsError) {
+        console.error('Error checking existing timesheets:', tsError)
+      }
+
+      // Check if requested date range overlaps with any existing timesheet
+      if (existingTimesheets && existingTimesheets.length > 0) {
+        // Skip the current timesheet if we're editing
+        const otherTimesheets = timesheetId 
+          ? existingTimesheets.filter(ts => ts.id !== timesheetId)
+          : existingTimesheets
+
+        for (const ts of otherTimesheets) {
+          // Check for date overlap
+          const existingStart = new Date(ts.period_start)
+          const existingEnd = new Date(ts.period_end)
+          const newStart = new Date(periodStart)
+          const newEnd = new Date(periodEnd)
+          
+          // Overlap exists if: newStart <= existingEnd AND newEnd >= existingStart
+          if (newStart <= existingEnd && newEnd >= existingStart) {
+            alert(`Cannot use this date range.\n\nDates ${ts.period_start} to ${ts.period_end} have already been invoiced (Status: ${ts.status.toUpperCase()}).\n\nPlease select a different date range.`)
+            setLoading(false)
+            return
+          }
+        }
+      }
+      // ========== END DUPLICATE CHECK ==========
 
       // Get the user profile to find the inspector name used in daily tickets
       const { data: userProfileData } = await supabase
@@ -586,6 +677,32 @@ export default function TimesheetEditor() {
             </div>
           </div>
           
+          {/* Date Overlap Warning */}
+          {dateOverlapWarning && (
+            <div style={{ 
+              marginTop: '16px', 
+              padding: '16px', 
+              backgroundColor: '#fef2f2', 
+              border: '1px solid #fecaca', 
+              borderRadius: '8px',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '12px'
+            }}>
+              <span style={{ fontSize: '20px' }}>⚠️</span>
+              <div>
+                <div style={{ fontWeight: '600', color: '#991b1b', marginBottom: '4px' }}>
+                  Date Range Already Invoiced
+                </div>
+                <div style={{ color: '#b91c1c', fontSize: '14px' }}>
+                  The period <strong>{dateOverlapWarning.period_start}</strong> to <strong>{dateOverlapWarning.period_end}</strong> has 
+                  already been invoiced (Status: <strong>{dateOverlapWarning.status.toUpperCase()}</strong>).
+                  Please select a different date range.
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '20px', marginTop: '20px' }}>
             <div>
               <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#374151' }}>Period Type</label>
@@ -634,17 +751,17 @@ export default function TimesheetEditor() {
           <div style={{ marginTop: '24px' }}>
             <button
               onClick={generateFromDailyTickets}
-              disabled={!selectedInspector || !periodStart || !periodEnd || loading}
+              disabled={!selectedInspector || !periodStart || !periodEnd || loading || dateOverlapWarning}
               style={{
                 padding: '12px 24px',
-                backgroundColor: '#2563eb',
+                backgroundColor: dateOverlapWarning ? '#9ca3af' : '#2563eb',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
                 fontSize: '15px',
                 fontWeight: '500',
-                cursor: (!selectedInspector || !periodStart || !periodEnd || loading) ? 'not-allowed' : 'pointer',
-                opacity: (!selectedInspector || !periodStart || !periodEnd || loading) ? 0.5 : 1
+                cursor: (!selectedInspector || !periodStart || !periodEnd || loading || dateOverlapWarning) ? 'not-allowed' : 'pointer',
+                opacity: (!selectedInspector || !periodStart || !periodEnd || loading || dateOverlapWarning) ? 0.5 : 1
               }}
             >
               {loading ? '⏳ Loading...' : '🔄 Auto-Populate from Daily Tickets'}
