@@ -2,7 +2,7 @@
 // UPDATED: Removed confusing "Not Saved Yet" status bar message
 
 import React, { useState, useEffect } from 'react'
-import { supabase } from './supabaseClient'
+import { supabase } from './supabase'
 
 function ReportWorkflow({ 
   reportId, 
