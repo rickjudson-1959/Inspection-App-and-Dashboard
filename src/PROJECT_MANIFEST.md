@@ -1,15 +1,15 @@
 # PIPE-UP PROJECT MANIFEST
 ## Pipeline Inspector SaaS Application
 
-**Last Updated:** January 16, 2026  
-**Version:** 1.7  
+**Last Updated:** January 19, 2026  
+**Version:** 1.8  
 **Stack:** React + Vite + Supabase + Vercel  
 **Live URL:** https://app.pipe-up.ca  
 **API Domain:** https://api.pipe-up.ca (custom domain verified)
 
 ---
 
-## 📁 FILE INVENTORY (80+ files in /src)
+## 📁 FILE INVENTORY (90+ files in /src)
 
 ### 📀 ROUTING & CORE
 | File | Lines | Purpose |
@@ -42,14 +42,24 @@
 ### 📝 INSPECTOR REPORTS
 | File | Lines | Purpose |
 |------|-------|---------|
-| `InspectorReport.jsx` | 4,712 | **UPDATED Jan 16** - Main daily inspection entry form, PDF export, added counterboreData persistence |
+| `InspectorReport.jsx` | 4,770 | **UPDATED Jan 19** - Added 30s auto-save, trackable items modal, fixed chainage overlap detection |
 | `ActivityBlock.jsx` | 75,440 | **UPDATED Jan 15** - Fixed manpower/equipment/meters layout spacing |
 | `ReportViewer.jsx` | 23,210 | Read-only report view for admin/chief |
 | `ReportWorkflow.jsx` | 16,503 | Submit/approve/revision workflow |
 | `RequestRevision.jsx` | 9,342 | Revision request handling |
 | `MyReports.jsx` | 14,470 | Inspector's report history |
 | `ReportsPage.jsx` | 15,398 | Reports listing/search |
-| `InspectorApp.jsx` | 9,929 | Inspector app wrapper |
+| `InspectorApp.jsx` | ~356 | **UPDATED Jan 19** - Inspector app wrapper, changed nav to "My Invoices" button |
+
+### 💰 INSPECTOR INVOICING SYSTEM (NEW Jan 19)
+| File | Lines | Purpose |
+|------|-------|---------|
+| `TimesheetEditor.jsx` | 891 | **NEW** - Main timesheet creation/editing, auto-populates from daily tickets |
+| `InspectorInvoicingDashboard.jsx` | 683 | **NEW** - Dashboard for managing timesheets, inspectors, documents, rate cards |
+| `InspectorProfileView.jsx` | 372 | **NEW** - View individual inspector profile and documents |
+| `InspectorTimesheetView.jsx` | 112 | **NEW** - View individual timesheet details |
+| `InspectorTimesheetForm.jsx` | 46 | **NEW** - Placeholder form component |
+| `HireOnPackage.jsx` | 1000+ | **NEW** - Complete inspector onboarding form with multi-step wizard |
 
 ### 🤖 AI AGENTS & OCR
 | File | Purpose |
@@ -88,7 +98,7 @@
 | File | Lines | Purpose |
 |------|-------|---------|
 | `CrossingsManager.jsx` | 42,273 | **CROSSINGS** - Foreign pipe, roads, utilities |
-| `TrackableItemsTracker.jsx` | 23,520 | Mats, fencing, ramps, goal posts, etc. |
+| `TrackableItemsTracker.jsx` | 23,520 | **UPDATED Jan 19** - Now integrated in InspectorReport with confirmation modal |
 | `MatTracker.jsx` | 15,599 | Mat tracking (legacy) |
 | `BaselineManager.jsx` | 32,728 | Project baselines |
 
@@ -157,6 +167,15 @@
 | `user_profiles` | User accounts & roles |
 | `projects` | Project definitions |
 | `organizations` | Organization/company data |
+
+### Inspector Invoicing Tables (NEW Jan 19)
+| Table | Purpose |
+|-------|---------|
+| `inspector_profiles` | Inspector company info, banking, contact details |
+| `inspector_documents` | Document tracking (WCB, insurance, certifications) with expiry dates |
+| `inspector_timesheets` | Timesheet headers with period, totals, status workflow |
+| `inspector_timesheet_lines` | Individual timesheet line items (per day) |
+| `inspector_rate_cards` | Inspector-specific rates (daily, per diem, truck, KM, etc.) |
 
 ### Activity-Specific Tables
 | Table | Purpose |
@@ -290,6 +309,12 @@ function SomeLog({ logId, reportId, data, onUpdate }) {
 | `/audit` | AuditDashboard | Admin/Chief |
 | `/regulatory` | RegulatoryDashboard | Admin/Chief/Auditor |
 | `/map` | MapDashboard | All authenticated |
+| `/inspector-invoicing` | InspectorInvoicingDashboard | **NEW Jan 19** - Admin/Chief |
+| `/inspector-invoicing/new-timesheet` | TimesheetEditor | **NEW Jan 19** - Admin/Chief |
+| `/inspector-invoicing/timesheet/:id` | InspectorTimesheetView | **NEW Jan 19** - Admin/Chief |
+| `/inspector-invoicing/profile/:id` | InspectorProfileView | **NEW Jan 19** - Admin/Chief |
+| `/timesheet` | TimesheetEditor | **NEW Jan 19** - Admin/Chief/Inspector |
+| `/hire-on` | HireOnPackage | **NEW Jan 19** - All authenticated |
 
 ---
 
@@ -312,6 +337,22 @@ function SomeLog({ logId, reportId, data, onUpdate }) {
 
 | Date | Files Changed | What Changed |
 |------|---------------|--------------|
+| **Jan 19, 2026** | `InspectorApp.jsx` | **NAVIGATION** - Removed "My Reports" button from top nav, changed to "My Invoices" button linking to `/inspector-invoicing` |
+| **Jan 19, 2026** | `InspectorApp.jsx` | **NAVIGATION** - Removed "Sign Out" button from top navigation for cleaner UI |
+| **Jan 19, 2026** | `TimesheetEditor.jsx` | **NEW** - Complete timesheet creation system with auto-population from daily tickets |
+| **Jan 19, 2026** | `TimesheetEditor.jsx` | **LOGIC** - Groups daily tickets by date, extracts equipment (ATV, Radio, FOB), calculates totals |
+| **Jan 19, 2026** | `TimesheetEditor.jsx` | **FIXED** - Database ID generation now handled by Supabase (removed `crypto.randomUUID()`) |
+| **Jan 19, 2026** | `InspectorInvoicingDashboard.jsx` | **NEW** - Dashboard with 4 tabs: Timesheets, Inspectors, Documents, Rate Cards |
+| **Jan 19, 2026** | `InspectorProfileView.jsx` | **NEW** - Inspector profile viewer with document tracking |
+| **Jan 19, 2026** | `InspectorTimesheetView.jsx` | **NEW** - Individual timesheet detail view |
+| **Jan 19, 2026** | `HireOnPackage.jsx` | **NEW** - Inspector onboarding form with company info, banking, documents |
+| **Jan 19, 2026** | Database | **NEW TABLES** - `inspector_profiles`, `inspector_documents`, `inspector_timesheets`, `inspector_timesheet_lines`, `inspector_rate_cards` |
+| **Jan 19, 2026** | `supabase/migrations/` | **NEW** - Created migration scripts: `create_inspector_invoicing_tables.sql`, `reset_inspector_invoicing_tables.sql`, `create_test_inspector.sql` |
+| **Jan 19, 2026** | `InspectorReport.jsx` | **FEATURE** - Added 30-second auto-save with popup notification |
+| **Jan 19, 2026** | `InspectorReport.jsx` | **FEATURE** - Added TrackableItemsTracker with confirmation modal before report submission |
+| **Jan 19, 2026** | `InspectorReport.jsx` | **FIXED** - Chainage overlap detection now excludes current report when in edit mode |
+| **Jan 19, 2026** | `InspectorReport.jsx` | **UI** - Re-added Sign Out button to Daily Inspector Report banner (red button) |
+| **Jan 19, 2026** | `main.jsx` | **ROUTES** - Added 5 new routes for inspector invoicing system |
 | **Jan 16, 2026** | `ChiefDashboard.jsx` | **MAJOR FIX** - Restored Daily Summary UI to display aggregated data (welding progress, section progress, personnel, weather) |
 | **Jan 16, 2026** | `chiefReportHelpers.js` | **NEW** - Created helper functions for Chief Dashboard: `fetchApprovedReportsForDate`, `aggregateWeldingProgress`, `aggregateProgressBySection`, `aggregatePersonnel`, `aggregateWeather`, etc. |
 | **Jan 16, 2026** | `chiefReportHelpers.js` | **FIXED** - Fixed `aggregateWeldingProgress` to extract welding data from `activity_blocks` in reports instead of querying non-existent database tables |
@@ -369,6 +410,11 @@ function SomeLog({ logId, reportId, data, onUpdate }) {
 
 ### Medium Priority
 - [x] Chief's Daily Summary feature (aggregate multiple inspector reports) - **COMPLETED Jan 16, 2026**
+- [x] Inspector Invoicing System - **COMPLETED Jan 19, 2026**
+- [ ] Rate card setup interface in Inspector Invoicing
+- [ ] Document upload/management in Inspector Invoicing
+- [ ] Approval workflow for timesheets
+- [ ] PDF invoice generation
 - [ ] Add AI reviewer agents for Blasting, Coating, Grading
 - [ ] Large App.jsx (209K) - legacy code being migrated out
 
@@ -459,6 +505,44 @@ When starting a new session with Claude, upload:
   - Extracts specialized data: `weldData`, `bendingData`, `stringingData`, `coatingData`, `counterboreData`
   - Aggregates by activity type and displays in tables
 - UI displays: Welding Progress table, Section Progress table, Personnel Summary, Weather Data, Source Reports list
+
+### Inspector Invoicing System (NEW Jan 19, 2026)
+- **TimesheetEditor** with auto-population from daily tickets:
+  - Groups multiple daily tickets per date into single timesheet line
+  - Extracts equipment usage: ATV/UTV, Radio, FOB, Truck
+  - Calculates totals: field days, per diem, truck days, total KMs, ATV days, electronics, FOB
+  - Inspector role: can only create timesheets for themselves (auto-detects from `user_id`)
+  - Admin/Chief role: can create timesheets for any inspector
+- **Database Schema**:
+  - `inspector_timesheets`: Headers with period dates, totals, workflow status
+  - `inspector_timesheet_lines`: Daily line items with boolean flags for day types
+  - `inspector_rate_cards`: Per-inspector rates (field, per diem, truck, KM, electronics)
+  - `inspector_profiles`: Company info, banking (encrypted), contact details, clearance status
+  - `inspector_documents`: Document tracking with expiry alerts
+- **Key Fields Tracked**:
+  - `is_field_day`, `is_per_diem`, `is_truck_day`, `is_atv`, `is_electronics`, `is_fob`
+  - `total_kms`, `is_mobilization`, `is_demobilization`
+  - `invoice_subtotal`, `invoice_total` (with GST)
+- **Business Logic**:
+  - Removed: Excess KMs calculation, Meals Only tracking
+  - Added: ATV/UTV tracking, FOB (gas fob) tracking
+  - Invoice calculates: (Field Days × Rate) + (Per Diem × Rate) + (Truck × Rate) + (Electronics × Rate) + 5% GST
+
+### InspectorReport Auto-Save & Trackable Items (Jan 19, 2026)
+- **Auto-Save Feature**:
+  - Runs every 30 seconds (excludes edit mode)
+  - Shows popup notification when draft saved
+  - Saves to localStorage with timestamp
+  - Only saves if meaningful data exists
+- **Trackable Items Confirmation Modal**:
+  - Triggers before report submission
+  - Lists all 11 trackable item categories as checklist
+  - Warning banner: "STOP! Check Trackable Items"
+  - Forces user to review: Mats, Rock Trench, Extra Depth, Fencing, Ramps, Goal Posts, Access Roads, Hydrovac, Erosion Control, Signage, Equipment Cleaning
+  - Options: "Go Back & Check" or "Yes, Submit Report"
+- **Chainage Overlap Detection Fix**:
+  - Now excludes current report when checking for overlaps (edit mode)
+  - Prevents false positive warnings when editing existing reports
 
 ---
 
