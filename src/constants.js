@@ -62,8 +62,64 @@ export const qualityFieldsByActivity = {
     { name: 'surfaceCondition', label: 'Surface Condition', type: 'select', options: ['Good', 'Fair', 'Poor'] }
   ],
   'Topsoil': [
-    { name: 'stripDepth', label: 'Strip Depth (cm)', type: 'number' },
-    { name: 'stockpileLocation', label: 'Stockpile Location (KP)', type: 'text' }
+    // Horizon Separation & Stripping Depth Section
+    { name: 'horizonSection', label: '🌍 Horizon Separation & Stripping Depth', type: 'collapsible', fields: [
+      { name: 'horizonSeparationConfirmed', label: 'Horizon Separation Confirmed?', type: 'select', options: ['Pass', 'Fail', 'N/A'] },
+      { name: 'colorChangeVisible', label: 'Color Change Visible?', type: 'select', options: ['Yes - Clear', 'Yes - Faint', 'No'] },
+      { name: 'horizonPhotoTaken', label: '📷 Photo Taken?', type: 'select', options: ['Yes', 'No'] },
+      { name: 'easSpecDepth', label: 'EAS Spec Depth (cm)', type: 'number', placeholder: 'From soil survey' },
+      { name: 'actualDepth', label: 'Actual Depth (cm)', type: 'number' },
+      { name: 'depthVariance', label: 'Depth Variance (cm)', type: 'calculated', formula: 'actualDepth - easSpecDepth' },
+      { name: 'depthCompliance', label: 'Depth Compliance', type: 'calculated', formula: 'variance <= 2 ? Pass : Fail' },
+      { name: 'measurementMethod', label: 'Measurement Method', type: 'select', options: ['Tape Measure', 'Survey Rod', 'Laser Level', 'Visual Estimate'] },
+      { name: 'measurementPoints', label: '# of Measurement Points', type: 'number' }
+    ]},
+    
+    // Admixture Assessment Section
+    { name: 'admixtureSection', label: '🔬 Admixture Assessment', type: 'collapsible', fields: [
+      { name: 'admixtureVisual', label: 'Visual Assessment', type: 'select', options: ['<5% - Acceptable', '5-15% - Monitor', '>15% - Fail'] },
+      { name: 'admixtureCompliance', label: 'Compliance', type: 'select', options: ['Pass', 'Fail'] },
+      { name: 'admixtureCause', label: 'Cause (if >5%)', type: 'select', options: ['N/A', 'Operator Error', 'Soil Conditions', 'Equipment Issue', 'Weather Related'] },
+      { name: 'admixtureCorrectiveAction', label: 'Corrective Action', type: 'text', placeholder: 'Action taken if required' },
+      { name: 'admixturePhotoTaken', label: '📷 Photo Taken?', type: 'select', options: ['Yes', 'No'] }
+    ]},
+    
+    // Stockpile Management Section
+    { name: 'stockpileSection', label: '📦 Stockpile Management', type: 'collapsible', fields: [
+      { name: 'stockpileSeparationDistance', label: 'Separation Distance (m)', type: 'number', placeholder: 'Min 1.0m required' },
+      { name: 'stockpileSeparationCompliance', label: 'Separation Compliance (≥1.0m)', type: 'select', options: ['Pass', 'Fail'] },
+      { name: 'topsoilPileLocation', label: 'Topsoil Pile Location', type: 'select', options: ['Work Side', 'Spoil Side', 'Both Sides'] },
+      { name: 'stockpilePhotoTaken', label: '📷 Photo Taken?', type: 'select', options: ['Yes', 'No'] }
+    ]},
+    
+    // Windrows & Wildlife Passage Section
+    { name: 'windrowSection', label: '🦌 Windrows & Wildlife Passage', type: 'collapsible', fields: [
+      { name: 'windrowBreaksPresent', label: 'Breaks Present?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+      { name: 'windrowBreakSpacing', label: 'Break Spacing (m)', type: 'number', placeholder: 'Distance between breaks' },
+      { name: 'wildlifePassageOK', label: 'Wildlife Passage OK?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+      { name: 'crossDrainageOK', label: 'Cross-Drainage OK?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+      { name: 'windrowPhotoTaken', label: '📷 Photo Taken?', type: 'select', options: ['Yes', 'No'] }
+    ]},
+    
+    // Buffer & Setback Compliance Section
+    { name: 'bufferSection', label: '🌿 Buffer & Setback Compliance', type: 'collapsible', fields: [
+      { name: 'bufferZonesPresent', label: 'Buffer Zones Present?', type: 'select', options: ['Yes', 'No', 'N/A'] },
+      { name: 'stakesVisible', label: 'Stakes Visible?', type: 'select', options: ['Yes - Clear', 'Yes - Partial', 'No - Missing', 'N/A'] },
+      { name: 'strippingStoppedAtStakes', label: 'Stripping Stopped at Stakes?', type: 'select', options: ['Pass - Exact', 'Pass - Short of Stakes', 'Fail - Past Stakes', 'N/A'] },
+      { name: 'bufferEncroachment', label: 'Buffer Encroachment?', type: 'select', options: ['None', 'Minor (<1m)', 'Significant (>1m) - NCR'] },
+      { name: 'bufferKPLocation', label: 'Buffer Location (KP)', type: 'text', placeholder: 'KP of buffer zone' },
+      { name: 'bufferGPSMarked', label: '📍 GPS Location Recorded?', type: 'select', options: ['Yes', 'No'] },
+      { name: 'bufferPhotoTaken', label: '📷 Buffer Photo Taken?', type: 'select', options: ['Yes', 'No'] }
+    ]},
+    
+    // Weather & Erosion Risk Section
+    { name: 'weatherRiskSection', label: '🌧️ Weather & Erosion Risk', type: 'collapsible', fields: [
+      { name: 'currentWeatherConditions', label: 'Current Conditions', type: 'select', options: ['Dry', 'Light Rain', 'Heavy Rain', 'Snow', 'Frost'] },
+      { name: 'rainForecast24hr', label: 'Rain in Next 24hr?', type: 'select', options: ['No', 'Yes - Light', 'Yes - Heavy', 'Unknown'] },
+      { name: 'pilesStabilizedBeforeRain', label: 'Piles Stabilized?', type: 'select', options: ['Yes', 'No - At Risk', 'In Progress', 'N/A'] },
+      { name: 'erosionRiskLevel', label: 'Erosion Risk Level', type: 'select', options: ['Low', 'Medium', 'High - Monitor', 'Critical - Action Req'] },
+      { name: 'escMeasuresInPlace', label: 'ESC Measures in Place?', type: 'select', options: ['Yes - Adequate', 'Yes - Partial', 'No - Required', 'N/A'] }
+    ]}
   ],
   'Grading': [], // Handled by GradingLog component
   'Stringing': [
