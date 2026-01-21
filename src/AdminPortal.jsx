@@ -5,6 +5,7 @@ import { supabase } from './supabase'
 import * as XLSX from 'xlsx'
 import ComplianceAuditTrail from './ComplianceAuditTrail.jsx'
 import RateImport from './RateImport.jsx'
+import MasterSwitcher from './MasterSwitcher.jsx'
 
 function AdminPortal() {
   const navigate = useNavigate()
@@ -796,7 +797,8 @@ function AdminPortal() {
           <h1 style={{ margin: 0, fontSize: '24px' }}>Pipe-Up Admin Portal</h1>
           <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>{isSuperAdmin ? 'Super Admin' : 'Admin'} - {userProfile?.organizations?.name || 'All Organizations'}</p>
         </div>
-        <div style={{ display: 'flex', gap: '10px' }}>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <MasterSwitcher compact />
           <button onClick={() => navigate('/inspector-invoicing')} style={{ padding: '10px 20px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>💰 Inspector Invoicing</button>
           <button onClick={() => navigate('/dashboard')} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>CMT Dashboard</button>
           <button onClick={() => navigate('/evm')} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>EVM Dashboard</button>
