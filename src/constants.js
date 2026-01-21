@@ -219,10 +219,7 @@ export const qualityFieldsByActivity = {
   ],
   'Tie-in Completion': [], // Handled by TieInCompletionLog component
   'Cleanup - Machine': [], // Handled by MachineCleanupLog component
-  'Cleanup - Final': [
-    { name: 'seedingComplete', label: 'Seeding Complete', type: 'select', options: ['Yes', 'No', 'In Progress'] },
-    { name: 'fencingRestored', label: 'Fencing Restored', type: 'select', options: ['Yes', 'No', 'N/A'] }
-  ],
+  'Cleanup - Final': [], // Handled by FinalCleanupLog component
   'HDD': [], // Handled by HDDLog component
   'Piling': [], // Handled by PilingLog component
   'Equipment Cleaning': [], // Handled by EquipmentCleaningLog component

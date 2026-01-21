@@ -1493,7 +1493,8 @@ Important:
               ditchData: block.ditchData || null,
               gradingData: block.gradingData || null,
               cleaningLogData: block.cleaningLogData || null,
-              machineCleanupData: block.machineCleanupData || null
+              machineCleanupData: block.machineCleanupData || null,
+              finalCleanupData: block.finalCleanupData || null
             }
           })
           setActivityBlocks(loadedBlocks)
@@ -1885,6 +1886,18 @@ Important:
     }))
   }
 
+  function updateFinalCleanupData(blockId, finalCleanupData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          finalCleanupData: finalCleanupData
+        }
+      }
+      return block
+    }))
+  }
+
   // Labour management for activity blocks
   // RT = Regular Time, OT = Overtime, JH = Jump Hours (bonus)
   function addLabourToBlock(blockId, employeeName, classification, rt, ot, jh, count) {
@@ -2205,7 +2218,8 @@ Important:
           tieInCompletionData: block.tieInCompletionData || null,
           gradingData: block.gradingData || null,
           cleaningLogData: block.cleaningLogData || null,
-          machineCleanupData: block.machineCleanupData || null
+          machineCleanupData: block.machineCleanupData || null,
+          finalCleanupData: block.finalCleanupData || null
         })
       }
 
@@ -4200,6 +4214,185 @@ Important:
         y += 3
       }
 
+      // Final Cleanup Log
+      if (block.activityType === 'Cleanup - Final' && block.finalCleanupData) {
+        checkPageBreak(80)
+        addSubHeader('Final Cleanup Data', '#efebe9')
+
+        // Topsoil Replacement
+        if (block.finalCleanupData.topsoilReplacement) {
+          const tr = block.finalCleanupData.topsoilReplacement
+          const trItems = []
+          if (tr.targetDepthCm) trItems.push(`Target: ${tr.targetDepthCm}cm`)
+          if (tr.actualReplacedDepthCm) trItems.push(`Actual: ${tr.actualReplacedDepthCm}cm`)
+          if (tr.depthCompliance) trItems.push(`Compliance: ${tr.depthCompliance}`)
+          if (tr.replacedInDryConditions) trItems.push('Dry Conditions: YES')
+          if (tr.gradeMatchesSurrounding) trItems.push('Grade Match: YES')
+          if (tr.finalRockPickComplete) trItems.push('Rock Pick: Complete')
+          if (tr.stoninessMatchesAdjacent) trItems.push('Stoniness: Match')
+
+          if (trItems.length > 0) {
+            setColor('#d7ccc8', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#5d4037', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('TOPSOIL REPLACEMENT', margin + 4, y + 4)
+            y += 8
+
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(trItems.join('  |  '), margin + 4, y + 3)
+            y += 8
+
+            if (tr.admixingObserved) {
+              setColor('#dc3545', 'text')
+              doc.text('[!] AD-MIXING OBSERVED: ' + (tr.admixingNotes || 'See notes').substring(0, 80), margin + 4, y + 3)
+              setColor(BRAND.black, 'text')
+              y += 6
+            }
+          }
+        }
+
+        // Revegetation & Seeding
+        if (block.finalCleanupData.revegetation) {
+          const rv = block.finalCleanupData.revegetation
+          const rvItems = []
+          if (rv.seedMixId) rvItems.push(`Mix: ${rv.seedMixId}`)
+          if (rv.applicationRateKgHa) rvItems.push(`Rate: ${rv.applicationRateKgHa} kg/ha`)
+          if (rv.seedingMethod) rvItems.push(`Method: ${rv.seedingMethod}`)
+          if (rv.totalSeedUsedKg) rvItems.push(`Total: ${rv.totalSeedUsedKg} kg`)
+          if (rv.fertilizerType) rvItems.push(`Fert: ${rv.fertilizerType}`)
+          if (rv.fertilizerBagsUsed) rvItems.push(`Bags: ${rv.fertilizerBagsUsed}`)
+
+          if (rvItems.length > 0) {
+            checkPageBreak(20)
+            setColor('#c8e6c9', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#2e7d32', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('REVEGETATION & SEEDING', margin + 4, y + 4)
+            y += 8
+
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(rvItems.join('  |  '), margin + 4, y + 3)
+            y += 6
+
+            // Seed tag status
+            const tagStatus = rv.seedTagPhotoUploaded ? '[Photo] Seed Tag Verified' : '[!] Seed Tag Photo Required'
+            setColor(rv.seedTagPhotoUploaded ? '#28a745' : '#dc3545', 'text')
+            doc.text(tagStatus, margin + 4, y + 3)
+            setColor(BRAND.black, 'text')
+            y += 8
+          }
+        }
+
+        // Permanent ESC
+        if (block.finalCleanupData.permanentESC) {
+          const esc = block.finalCleanupData.permanentESC
+          const escItems = []
+          if (esc.permanentSiltFencesInstalled) escItems.push(`Silt Fence: ${esc.permanentSiltFenceMeters || 0}m`)
+          if (esc.finalWaterBarsInstalled) escItems.push(`Water Bars: ${esc.finalWaterBarsCount || 0}`)
+          if (esc.erosionControlBlanketsInstalled) escItems.push(`Blankets: ${esc.erosionControlBlanketM2 || 0}m2`)
+          if (esc.ripRapInstalled) escItems.push(`Rip Rap: ${esc.ripRapM3 || 0}m3`)
+          if (esc.checkDamsInstalled) escItems.push(`Check Dams: ${esc.checkDamsCount || 0}`)
+
+          if (escItems.length > 0) {
+            checkPageBreak(15)
+            setColor('#b3e5fc', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#0277bd', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('PERMANENT EROSION CONTROL (AS-BUILT)', margin + 4, y + 4)
+            y += 8
+
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(escItems.join('  |  '), margin + 4, y + 3)
+            y += 8
+          }
+        }
+
+        // Asset Restoration
+        if (block.finalCleanupData.assetRestoration) {
+          const ar = block.finalCleanupData.assetRestoration
+          const arItems = []
+          if (ar.permanentFencesReinstalled) arItems.push(`Fence: ${ar.fenceLinearMeters || 0}m (${ar.fenceType || 'N/A'})`)
+          if (ar.gatesFunctional) arItems.push(`Gates: ${ar.gatesCount || 0}`)
+          if (ar.pipelineMarkersInstalled) arItems.push(`Markers: ${ar.markersCount || 0}`)
+          if (ar.cattleGuardsRestored) arItems.push('Cattle Guards: Restored')
+          if (ar.accessRoadsRestored) arItems.push('Access Roads: Restored')
+
+          if (arItems.length > 0) {
+            checkPageBreak(15)
+            setColor('#e1bee7', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#6a1b9a', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('ASSET RESTORATION', margin + 4, y + 4)
+            y += 8
+
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(arItems.join('  |  '), margin + 4, y + 3)
+            y += 6
+
+            // Landowner walkthrough
+            if (ar.landownerWalkthroughCompleted) {
+              doc.text(`Landowner Walkthrough: ${ar.landownerWalkthroughDate || 'Date N/A'} - ${ar.landownerName || 'Name N/A'}`, margin + 4, y + 3)
+              y += 5
+              if (ar.landownerConcerns) {
+                doc.text(`Concerns: ${ar.landownerConcerns.substring(0, 80)}`, margin + 4, y + 3)
+                y += 5
+              }
+            }
+            y += 3
+          }
+        }
+
+        // Final Status
+        const statusItems = []
+        if (block.finalCleanupData.preConstructionLandUse) statusItems.push(`Land Use: ${block.finalCleanupData.preConstructionLandUse}`)
+        if (block.finalCleanupData.seedMixMatchesLandType) statusItems.push('Seed Mix Match: YES')
+        if (block.finalCleanupData.finalInspectionComplete) statusItems.push('Final Inspection: COMPLETE')
+        if (block.finalCleanupData.readyForLandownerRelease) statusItems.push('READY FOR RELEASE')
+
+        if (statusItems.length > 0) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(statusItems.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Photos
+        const totalPhotos = (block.finalCleanupData.photos?.length || 0) + (block.finalCleanupData.seedTagPhotos?.length || 0)
+        if (totalPhotos > 0) {
+          doc.text(`[Photo] ${totalPhotos} photo(s) attached`, margin + 4, y + 3)
+          y += 5
+        }
+
+        if (block.finalCleanupData.comments) {
+          checkPageBreak(12)
+          setColor(BRAND.grayLight, 'fill')
+          doc.roundedRect(margin, y, contentWidth, 10, 1, 1, 'F')
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'italic')
+          doc.setFontSize(6)
+          doc.text('Comments: ' + String(block.finalCleanupData.comments).substring(0, 150), margin + 4, y + 6)
+          y += 12
+        }
+        y += 3
+      }
+
       // Quality Checks
       if (block.qualityData && Object.keys(block.qualityData).length > 0) {
         const qualityEntries = Object.entries(block.qualityData).filter(([key, val]) => val && val !== '' && val !== 'N/A')
@@ -5415,6 +5608,7 @@ Important:
           updateGradingData={updateGradingData}
           updateCounterboreData={updateCounterboreData}
           updateMachineCleanupData={updateMachineCleanupData}
+          updateFinalCleanupData={updateFinalCleanupData}
           addLabourToBlock={addLabourToBlock}
           updateLabourJH={updateLabourJH}
           removeLabourFromBlock={removeLabourFromBlock}

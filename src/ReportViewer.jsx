@@ -1132,6 +1132,104 @@ function ReportViewer() {
                       )}
                     </div>
                   )}
+
+                  {/* Final Cleanup Data */}
+                  {block.finalCleanupData && Object.keys(block.finalCleanupData).length > 0 && (
+                    <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#efebe9', borderRadius: '6px', border: '1px solid #bcaaa4' }}>
+                      <h5 style={{ fontSize: '13px', color: '#5d4037', margin: '0 0 10px 0' }}>🌱 Final Cleanup Data</h5>
+
+                      {/* Topsoil Replacement */}
+                      {block.finalCleanupData.topsoilReplacement && (block.finalCleanupData.topsoilReplacement.actualReplacedDepthCm || block.finalCleanupData.topsoilReplacement.finalRockPickComplete) && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <strong style={{ fontSize: '11px', color: '#795548' }}>Topsoil Replacement</strong>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '4px', marginTop: '4px', fontSize: '11px' }}>
+                            {block.finalCleanupData.topsoilReplacement.targetDepthCm && <div><span style={{ color: '#666' }}>Target: </span><strong>{block.finalCleanupData.topsoilReplacement.targetDepthCm} cm</strong></div>}
+                            {block.finalCleanupData.topsoilReplacement.actualReplacedDepthCm && <div><span style={{ color: '#666' }}>Actual: </span><strong>{block.finalCleanupData.topsoilReplacement.actualReplacedDepthCm} cm</strong></div>}
+                            {block.finalCleanupData.topsoilReplacement.depthCompliance && <div><span style={{ color: '#666' }}>Compliance: </span><strong style={{ color: block.finalCleanupData.topsoilReplacement.depthCompliance === 'Pass' ? '#28a745' : '#dc3545' }}>{block.finalCleanupData.topsoilReplacement.depthCompliance}</strong></div>}
+                            <div><span style={{ color: '#666' }}>Dry Conditions: </span><strong style={{ color: block.finalCleanupData.topsoilReplacement.replacedInDryConditions ? '#28a745' : '#6c757d' }}>{block.finalCleanupData.topsoilReplacement.replacedInDryConditions ? 'YES' : 'NO'}</strong></div>
+                            <div><span style={{ color: '#666' }}>Grade Match: </span><strong style={{ color: block.finalCleanupData.topsoilReplacement.gradeMatchesSurrounding ? '#28a745' : '#6c757d' }}>{block.finalCleanupData.topsoilReplacement.gradeMatchesSurrounding ? 'YES' : 'NO'}</strong></div>
+                            <div><span style={{ color: '#666' }}>Rock Pick: </span><strong style={{ color: block.finalCleanupData.topsoilReplacement.finalRockPickComplete ? '#28a745' : '#6c757d' }}>{block.finalCleanupData.topsoilReplacement.finalRockPickComplete ? 'Complete' : 'Pending'}</strong></div>
+                          </div>
+                          {block.finalCleanupData.topsoilReplacement.admixingObserved && (
+                            <div style={{ marginTop: '4px', padding: '4px 8px', backgroundColor: '#fff3cd', borderRadius: '4px', fontSize: '10px', color: '#856404' }}>
+                              <strong>[!] AD-MIXING OBSERVED:</strong> {block.finalCleanupData.topsoilReplacement.admixingNotes || 'See notes'}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Revegetation */}
+                      {block.finalCleanupData.revegetation && (block.finalCleanupData.revegetation.seedMixId || block.finalCleanupData.revegetation.seedingMethod) && (
+                        <div style={{ marginBottom: '8px', paddingTop: '8px', borderTop: '1px solid #d7ccc8' }}>
+                          <strong style={{ fontSize: '11px', color: '#388e3c' }}>Revegetation & Seeding</strong>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '4px', marginTop: '4px', fontSize: '11px' }}>
+                            {block.finalCleanupData.revegetation.seedMixId && <div><span style={{ color: '#666' }}>Mix ID: </span><strong>{block.finalCleanupData.revegetation.seedMixId}</strong></div>}
+                            {block.finalCleanupData.revegetation.seedingMethod && <div><span style={{ color: '#666' }}>Method: </span><strong>{block.finalCleanupData.revegetation.seedingMethod}</strong></div>}
+                            {block.finalCleanupData.revegetation.applicationRateKgHa && <div><span style={{ color: '#666' }}>Rate: </span><strong>{block.finalCleanupData.revegetation.applicationRateKgHa} kg/ha</strong></div>}
+                            {block.finalCleanupData.revegetation.totalSeedUsedKg && <div><span style={{ color: '#666' }}>Total: </span><strong>{block.finalCleanupData.revegetation.totalSeedUsedKg} kg</strong></div>}
+                            {block.finalCleanupData.revegetation.fertilizerType && <div><span style={{ color: '#666' }}>Fertilizer: </span><strong>{block.finalCleanupData.revegetation.fertilizerType}</strong></div>}
+                            {block.finalCleanupData.revegetation.fertilizerBagsUsed && <div><span style={{ color: '#666' }}>Bags: </span><strong>{block.finalCleanupData.revegetation.fertilizerBagsUsed}</strong></div>}
+                          </div>
+                          <div style={{ marginTop: '4px', fontSize: '11px', fontWeight: 'bold', color: block.finalCleanupData.revegetation.seedTagPhotoUploaded ? '#28a745' : '#dc3545' }}>
+                            Seed Tag: {block.finalCleanupData.revegetation.seedTagPhotoUploaded ? '✓ VERIFIED' : '✗ REQUIRED'}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Permanent ESC */}
+                      {block.finalCleanupData.permanentESC && (block.finalCleanupData.permanentESC.permanentSiltFencesInstalled || block.finalCleanupData.permanentESC.finalWaterBarsInstalled || block.finalCleanupData.permanentESC.erosionControlBlanketsInstalled) && (
+                        <div style={{ marginBottom: '8px', paddingTop: '8px', borderTop: '1px solid #d7ccc8' }}>
+                          <strong style={{ fontSize: '11px', color: '#0277bd' }}>Permanent Erosion Control (As-Built)</strong>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '4px', marginTop: '4px', fontSize: '11px' }}>
+                            {block.finalCleanupData.permanentESC.permanentSiltFencesInstalled && <div><span style={{ color: '#666' }}>Silt Fence: </span><strong>{block.finalCleanupData.permanentESC.permanentSiltFenceMeters || 0}m</strong></div>}
+                            {block.finalCleanupData.permanentESC.finalWaterBarsInstalled && <div><span style={{ color: '#666' }}>Water Bars: </span><strong>{block.finalCleanupData.permanentESC.finalWaterBarsCount || 0}</strong></div>}
+                            {block.finalCleanupData.permanentESC.erosionControlBlanketsInstalled && <div><span style={{ color: '#666' }}>Blankets: </span><strong>{block.finalCleanupData.permanentESC.erosionControlBlanketM2 || 0} m²</strong></div>}
+                            {block.finalCleanupData.permanentESC.ripRapInstalled && <div><span style={{ color: '#666' }}>Rip Rap: </span><strong>{block.finalCleanupData.permanentESC.ripRapM3 || 0} m³</strong></div>}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Asset Restoration */}
+                      {block.finalCleanupData.assetRestoration && (block.finalCleanupData.assetRestoration.permanentFencesReinstalled || block.finalCleanupData.assetRestoration.pipelineMarkersInstalled || block.finalCleanupData.assetRestoration.landownerWalkthroughCompleted) && (
+                        <div style={{ marginBottom: '8px', paddingTop: '8px', borderTop: '1px solid #d7ccc8' }}>
+                          <strong style={{ fontSize: '11px', color: '#6a1b9a' }}>Asset Restoration</strong>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '4px', marginTop: '4px', fontSize: '11px' }}>
+                            {block.finalCleanupData.assetRestoration.permanentFencesReinstalled && <div><span style={{ color: '#666' }}>Fence: </span><strong>{block.finalCleanupData.assetRestoration.fenceLinearMeters || 0}m ({block.finalCleanupData.assetRestoration.fenceType || 'N/A'})</strong></div>}
+                            {block.finalCleanupData.assetRestoration.gatesFunctional && <div><span style={{ color: '#666' }}>Gates: </span><strong>{block.finalCleanupData.assetRestoration.gatesCount || 0}</strong></div>}
+                            {block.finalCleanupData.assetRestoration.pipelineMarkersInstalled && <div><span style={{ color: '#666' }}>Markers: </span><strong>{block.finalCleanupData.assetRestoration.markersCount || 0}</strong></div>}
+                          </div>
+                          {block.finalCleanupData.assetRestoration.landownerWalkthroughCompleted && (
+                            <div style={{ marginTop: '4px', padding: '4px 8px', backgroundColor: '#e8f5e9', borderRadius: '4px', fontSize: '10px' }}>
+                              <strong style={{ color: '#2e7d32' }}>Landowner Walkthrough:</strong> {block.finalCleanupData.assetRestoration.landownerWalkthroughDate || 'Date N/A'} - {block.finalCleanupData.assetRestoration.landownerName || 'Name N/A'}
+                              {block.finalCleanupData.assetRestoration.landownerConcerns && <div style={{ marginTop: '2px', color: '#856404' }}>Concerns: {block.finalCleanupData.assetRestoration.landownerConcerns}</div>}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Final Status */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '4px', fontSize: '11px', paddingTop: '8px', borderTop: '1px solid #d7ccc8' }}>
+                        {block.finalCleanupData.preConstructionLandUse && <div><span style={{ color: '#666' }}>Land Use: </span><strong>{block.finalCleanupData.preConstructionLandUse}</strong></div>}
+                        {block.finalCleanupData.seedMixMatchesLandType && <div><span style={{ color: '#666' }}>Seed Mix Match: </span><strong style={{ color: '#28a745' }}>YES</strong></div>}
+                        {block.finalCleanupData.finalInspectionComplete && <div style={{ fontWeight: 'bold', color: '#28a745' }}>Final Inspection: COMPLETE</div>}
+                        {block.finalCleanupData.readyForLandownerRelease && <div style={{ fontWeight: 'bold', color: '#28a745', backgroundColor: '#c8e6c9', padding: '2px 6px', borderRadius: '4px' }}>READY FOR RELEASE</div>}
+                      </div>
+
+                      {/* Photos */}
+                      {((block.finalCleanupData.photos && block.finalCleanupData.photos.length > 0) || (block.finalCleanupData.seedTagPhotos && block.finalCleanupData.seedTagPhotos.length > 0)) && (
+                        <div style={{ marginTop: '8px', fontSize: '11px', color: '#5d4037' }}>
+                          📷 {(block.finalCleanupData.photos?.length || 0) + (block.finalCleanupData.seedTagPhotos?.length || 0)} photo(s) attached
+                        </div>
+                      )}
+
+                      {/* Comments */}
+                      {block.finalCleanupData.comments && (
+                        <div style={{ marginTop: '8px', padding: '6px', backgroundColor: '#fafafa', borderRadius: '4px', fontSize: '11px' }}>
+                          <span style={{ color: '#666' }}>Comments: </span>{block.finalCleanupData.comments}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
