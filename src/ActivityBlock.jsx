@@ -759,9 +759,12 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
         padding: '12px',
         backgroundColor: '#f8f9fa',
         borderRadius: '6px',
-        border: '1px solid #dee2e6'
+        border: '1px solid #dee2e6',
+        minHeight: '80px',
+        display: 'flex',
+        flexDirection: 'column'
       }}>
-        <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>{field.label}</label>
+        <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', lineHeight: '1.3' }}>{field.label}</label>
         {field.type === 'select' ? (
           <select
             value={block.qualityData[field.name] || ''}
