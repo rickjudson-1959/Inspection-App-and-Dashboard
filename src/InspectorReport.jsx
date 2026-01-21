@@ -3780,6 +3780,185 @@ Important:
         y += 3
       }
 
+      // HDD (Horizontal Directional Drilling) Log
+      if (block.activityType === 'HDD' && block.hddData) {
+        checkPageBreak(60)
+        addSubHeader('HDD Drilling Data', '#e1f5fe')
+
+        // Basic Info
+        const hddBasic = []
+        if (block.hddData.drillContractor) hddBasic.push(`Contractor: ${block.hddData.drillContractor}`)
+        if (block.hddData.mainlineContractor) hddBasic.push(`Mainline: ${block.hddData.mainlineContractor}`)
+        if (block.hddData.drillLocationKP) hddBasic.push(`Location: KP ${block.hddData.drillLocationKP}`)
+        if (block.hddData.drillLengthM) hddBasic.push(`Length: ${block.hddData.drillLengthM}m`)
+        if (block.hddData.pipeSize) hddBasic.push(`Pipe: ${block.hddData.pipeSize}`)
+
+        if (hddBasic.length > 0) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(hddBasic.join('  |  '), margin + 4, y + 3)
+          y += 8
+        }
+
+        // Drilling Progress
+        if (block.hddData.drillingProgress) {
+          const progressItems = []
+          const dp = block.hddData.drillingProgress
+          if (dp.pilotHole?.toDateM) progressItems.push(`Pilot: ${dp.pilotHole.toDateM}m (${dp.pilotHole.percentComplete || 0}%)`)
+          if (dp.ream1?.toDateM) progressItems.push(`Ream1: ${dp.ream1.toDateM}m (${dp.ream1.percentComplete || 0}%)`)
+          if (dp.ream2?.toDateM) progressItems.push(`Ream2: ${dp.ream2.toDateM}m`)
+          if (dp.swabPass?.toDateM) progressItems.push(`Swab: ${dp.swabPass.toDateM}m`)
+          if (dp.pipePull?.toDateM) progressItems.push(`Pull: ${dp.pipePull.toDateM}m (${dp.pipePull.percentComplete || 0}%)`)
+
+          if (progressItems.length > 0) {
+            checkPageBreak(12)
+            setColor('#0288d1', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('white', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('DRILLING PROGRESS', margin + 4, y + 4)
+            y += 8
+
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(progressItems.join('  |  '), margin + 4, y + 3)
+            y += 8
+          }
+        }
+
+        // Activities
+        if (block.hddData.activities) {
+          const actItems = []
+          const act = block.hddData.activities
+          if (act.sitePreparation?.today) actItems.push(`Site Prep Today: ${act.sitePreparation.today}`)
+          if (act.rigSetUp?.today) actItems.push(`Rig Setup: ${act.rigSetUp.today}`)
+          if (act.setCasing?.today) actItems.push(`Set Casing: ${act.setCasing.today}`)
+
+          if (actItems.length > 0) {
+            doc.text('Activities: ' + actItems.join('  |  '), margin + 4, y + 3)
+            y += 6
+          }
+        }
+
+        if (block.hddData.comments) {
+          checkPageBreak(12)
+          setColor(BRAND.grayLight, 'fill')
+          doc.roundedRect(margin, y, contentWidth, 10, 1, 1, 'F')
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'italic')
+          doc.setFontSize(6)
+          doc.text('Comments: ' + String(block.hddData.comments).substring(0, 150), margin + 4, y + 6)
+          y += 12
+        }
+        y += 3
+      }
+
+      // Grading Log
+      if (block.activityType === 'Grading' && block.gradingData) {
+        checkPageBreak(50)
+        addSubHeader('Grading Data', '#fff3e0')
+
+        // ROW Conditions
+        const rowItems = []
+        if (block.gradingData.rowWidth) rowItems.push(`ROW Width: ${block.gradingData.rowWidth}m`)
+        if (block.gradingData.rowCondition) rowItems.push(`Condition: ${block.gradingData.rowCondition}`)
+        if (block.gradingData.accessMaintained) rowItems.push(`Access: ${block.gradingData.accessMaintained}`)
+
+        if (rowItems.length > 0) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(rowItems.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Pile Separation
+        const pileItems = []
+        if (block.gradingData.pileSeparationMaintained) pileItems.push(`Pile Sep: ${block.gradingData.pileSeparationMaintained}`)
+        if (block.gradingData.topsoilPileLocation) pileItems.push(`Topsoil: ${block.gradingData.topsoilPileLocation}`)
+        if (block.gradingData.subsoilPileLocation) pileItems.push(`Subsoil: ${block.gradingData.subsoilPileLocation}`)
+
+        if (pileItems.length > 0) {
+          doc.text(pileItems.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Drainage
+        const drainItems = []
+        if (block.gradingData.drainageCondition) drainItems.push(`Drainage: ${block.gradingData.drainageCondition}`)
+        if (block.gradingData.crownMaintained) drainItems.push(`Crown: ${block.gradingData.crownMaintained}`)
+        if (block.gradingData.pondingObserved) drainItems.push(`Ponding: ${block.gradingData.pondingObserved}`)
+
+        if (drainItems.length > 0) {
+          doc.text(drainItems.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Environmental Controls
+        const envItems = []
+        if (block.gradingData.siltFenceInstalled) envItems.push(`Silt Fence: ${block.gradingData.siltFenceInstalled}`)
+        if (block.gradingData.siltFenceCondition) envItems.push(`Condition: ${block.gradingData.siltFenceCondition}`)
+        if (block.gradingData.strawBales) envItems.push(`Straw Bales: ${block.gradingData.strawBales}`)
+        if (block.gradingData.erosionBlankets) envItems.push(`Erosion Blankets: ${block.gradingData.erosionBlankets}`)
+        if (block.gradingData.sedimentTraps) envItems.push(`Sed. Traps: ${block.gradingData.sedimentTraps}`)
+
+        if (envItems.length > 0) {
+          checkPageBreak(12)
+          setColor('#e8f5e9', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#2e7d32', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('ENVIRONMENTAL CONTROLS', margin + 4, y + 4)
+          y += 8
+
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(envItems.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Soft Spots
+        if (block.gradingData.softSpots?.enabled && block.gradingData.softSpots?.entries?.length > 0) {
+          checkPageBreak(20)
+          setColor('#ffebee', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#c62828', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text(`SOFT SPOTS (${block.gradingData.softSpots.entries.length})`, margin + 4, y + 4)
+          y += 8
+
+          block.gradingData.softSpots.entries.slice(0, 5).forEach((spot, i) => {
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            const spotInfo = []
+            if (spot.kp) spotInfo.push(`KP: ${spot.kp}`)
+            if (spot.length) spotInfo.push(`Length: ${spot.length}m`)
+            if (spot.treatment) spotInfo.push(`Treatment: ${spot.treatment}`)
+            doc.text(spotInfo.join('  |  '), margin + 4, y + 3)
+            y += 5
+          })
+        }
+
+        if (block.gradingData.comments) {
+          checkPageBreak(12)
+          setColor(BRAND.grayLight, 'fill')
+          doc.roundedRect(margin, y, contentWidth, 10, 1, 1, 'F')
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'italic')
+          doc.setFontSize(6)
+          doc.text('Comments: ' + String(block.gradingData.comments).substring(0, 150), margin + 4, y + 6)
+          y += 12
+        }
+        y += 3
+      }
+
       // Quality Checks
       if (block.qualityData && Object.keys(block.qualityData).length > 0) {
         const qualityEntries = Object.entries(block.qualityData).filter(([key, val]) => val && val !== '' && val !== 'N/A')
