@@ -652,6 +652,164 @@ function ReportViewer() {
                       <pre style={{ margin: 0, fontSize: '11px', whiteSpace: 'pre-wrap' }}>{JSON.stringify(block.gradingData, null, 2)}</pre>
                     </div>
                   )}
+
+                  {/* Tie-In Completion Data */}
+                  {block.tieInData && Object.keys(block.tieInData).length > 0 && (
+                    <div style={{ marginTop: '10px', backgroundColor: '#e8f4f8', padding: '12px', borderRadius: '6px', border: '1px solid #17a2b8' }}>
+                      <h4 style={{ fontSize: '14px', color: '#17a2b8', margin: '0 0 12px 0', borderBottom: '2px solid #17a2b8', paddingBottom: '8px' }}>🔧 Tie-In Completion Data</h4>
+
+                      {/* Backfill Details */}
+                      {block.tieInData.backfill && (block.tieInData.backfill.method || block.tieInData.backfill.liftThickness) && (
+                        <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#d4edda', borderRadius: '4px' }}>
+                          <h5 style={{ fontSize: '12px', color: '#155724', margin: '0 0 8px 0' }}>Backfill Details</h5>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px', fontSize: '12px' }}>
+                            {block.tieInData.backfill.method && <div><span style={{ color: '#666' }}>Method: </span><strong>{block.tieInData.backfill.method}</strong></div>}
+                            {block.tieInData.backfill.liftThickness && <div><span style={{ color: '#666' }}>Lift Thickness: </span><strong>{block.tieInData.backfill.liftThickness}</strong></div>}
+                            {block.tieInData.backfill.compactionTesting && <div><span style={{ color: '#666' }}>Compaction Testing: </span><strong>{block.tieInData.backfill.compactionTesting}</strong></div>}
+                            {block.tieInData.backfill.testResults && <div><span style={{ color: '#666' }}>Test Results: </span><strong>{block.tieInData.backfill.testResults}</strong></div>}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Cathodic Protection */}
+                      {block.tieInData.cathodicProtection && block.tieInData.cathodicProtection.installed === 'Yes' && (
+                        <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#e3f2fd', borderRadius: '4px', border: '1px solid #2196f3' }}>
+                          <h5 style={{ fontSize: '12px', color: '#1565c0', margin: '0 0 8px 0' }}>⚡ Cathodic Protection (Test Leads)</h5>
+
+                          {/* Configuration */}
+                          <div style={{ marginBottom: '8px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#1565c0', marginBottom: '4px' }}>Configuration & Leads</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '6px', fontSize: '11px' }}>
+                              {block.tieInData.cathodicProtection.stationType && <div><span style={{ color: '#666' }}>Station: </span><strong>{block.tieInData.cathodicProtection.stationType}</strong></div>}
+                              {block.tieInData.cathodicProtection.wireGauge && <div><span style={{ color: '#666' }}>Wire: </span><strong>{block.tieInData.cathodicProtection.wireGauge}</strong></div>}
+                              {block.tieInData.cathodicProtection.insulationType && <div><span style={{ color: '#666' }}>Insulation: </span><strong>{block.tieInData.cathodicProtection.insulationType}</strong></div>}
+                              {block.tieInData.cathodicProtection.wireColor && <div><span style={{ color: '#666' }}>Color: </span><strong>{block.tieInData.cathodicProtection.wireColor}</strong></div>}
+                            </div>
+                          </div>
+
+                          {/* Connection */}
+                          <div style={{ marginBottom: '8px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#1565c0', marginBottom: '4px' }}>Connection (Exothermic Weld)</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '6px', fontSize: '11px' }}>
+                              {block.tieInData.cathodicProtection.weldMethod && <div><span style={{ color: '#666' }}>Weld Method: </span><strong>{block.tieInData.cathodicProtection.weldMethod}</strong></div>}
+                              <div><span style={{ color: '#666' }}>Surface Prep (White Metal): </span><strong style={{ color: block.tieInData.cathodicProtection.surfacePrepWhiteMetal ? '#28a745' : '#dc3545' }}>{block.tieInData.cathodicProtection.surfacePrepWhiteMetal ? 'Yes' : 'No'}</strong></div>
+                              <div><span style={{ color: '#666' }}>Slag Test: </span><strong style={{ color: block.tieInData.cathodicProtection.slagTestPassed ? '#28a745' : '#dc3545' }}>{block.tieInData.cathodicProtection.slagTestPassed ? 'PASS' : 'N/A'}</strong></div>
+                              <div><span style={{ color: '#666' }}>Slack/U-Loop: </span><strong style={{ color: block.tieInData.cathodicProtection.slackULoopConfirmed ? '#28a745' : '#dc3545' }}>{block.tieInData.cathodicProtection.slackULoopConfirmed ? 'Confirmed' : 'N/A'}</strong></div>
+                              {block.tieInData.cathodicProtection.encapsulationType && <div><span style={{ color: '#666' }}>Encapsulation: </span><strong>{block.tieInData.cathodicProtection.encapsulationType}</strong></div>}
+                            </div>
+                          </div>
+
+                          {/* Termination */}
+                          <div style={{ marginBottom: '8px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#1565c0', marginBottom: '4px' }}>Termination</div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '6px', fontSize: '11px' }}>
+                              {block.tieInData.cathodicProtection.terminalBoardPosition && <div><span style={{ color: '#666' }}>Terminal Position: </span><strong>{block.tieInData.cathodicProtection.terminalBoardPosition}</strong></div>}
+                              {block.tieInData.cathodicProtection.conduitType && <div><span style={{ color: '#666' }}>Conduit: </span><strong>{block.tieInData.cathodicProtection.conduitType}</strong></div>}
+                              {block.tieInData.cathodicProtection.testStationInstalled && <div><span style={{ color: '#666' }}>Test Station: </span><strong>{block.tieInData.cathodicProtection.testStationInstalled}</strong></div>}
+                            </div>
+                          </div>
+
+                          {/* Installed By & Status */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', marginTop: '8px', paddingTop: '8px', borderTop: '1px solid #bbdefb' }}>
+                            <span><span style={{ color: '#666' }}>Installed By: </span><strong>{block.tieInData.cathodicProtection.installedBy || 'N/A'}</strong> {block.tieInData.cathodicProtection.thirdPartyName && `(${block.tieInData.cathodicProtection.thirdPartyName})`}</span>
+                            <span style={{ padding: '2px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 'bold', backgroundColor: block.tieInData.cathodicProtection.recordStatus === 'Verified' ? '#d4edda' : '#fff3cd', color: block.tieInData.cathodicProtection.recordStatus === 'Verified' ? '#155724' : '#856404' }}>
+                              {block.tieInData.cathodicProtection.recordStatus || 'Pending Review'}
+                            </span>
+                          </div>
+
+                          {/* Photos */}
+                          {block.tieInData.cathodicProtection.photos && block.tieInData.cathodicProtection.photos.length > 0 && (
+                            <div style={{ marginTop: '8px', fontSize: '11px', color: '#1565c0' }}>
+                              📷 {block.tieInData.cathodicProtection.photos.length} photo(s) attached
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Pipe Support / Crossing Support */}
+                      {block.tieInData.pipeSupport && block.tieInData.pipeSupport.required === 'Yes' && (
+                        <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#fff7ed', borderRadius: '4px', border: '1px solid #fd7e14' }}>
+                          <h5 style={{ fontSize: '12px', color: '#fd7e14', margin: '0 0 8px 0' }}>🏗️ Pipe Support (Crossing Support)</h5>
+
+                          {block.tieInData.pipeSupport.supports && block.tieInData.pipeSupport.supports.length > 0 ? (
+                            <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
+                              <thead>
+                                <tr style={{ backgroundColor: '#fd7e14', color: 'white' }}>
+                                  <th style={{ padding: '6px', textAlign: 'left' }}>Type</th>
+                                  <th style={{ padding: '6px', textAlign: 'center' }}>KP</th>
+                                  <th style={{ padding: '6px', textAlign: 'center' }}>Qty</th>
+                                  <th style={{ padding: '6px', textAlign: 'center' }}>UOM</th>
+                                  <th style={{ padding: '6px', textAlign: 'center' }}>Elevation</th>
+                                  <th style={{ padding: '6px', textAlign: 'center' }}>Parent Weld</th>
+                                  <th style={{ padding: '6px', textAlign: 'center' }}>Status</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {block.tieInData.pipeSupport.supports.map((support, i) => {
+                                  let qty = 0
+                                  if (support.type === 'sandbag_piers') qty = support.numberOfPiers || 0
+                                  else if (support.type === 'polyurethane_foam') qty = support.volumeM3 || support.numberOfKits || 0
+                                  else if (support.type === 'native_subsoil') qty = support.linearMeters || 0
+                                  else if (support.type === 'concrete_sleepers') qty = support.quantity || 0
+
+                                  return (
+                                    <tr key={i} style={{ backgroundColor: i % 2 ? '#fff' : '#fff7ed' }}>
+                                      <td style={{ padding: '6px', borderBottom: '1px solid #dee2e6' }}>{support.typeName}</td>
+                                      <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #dee2e6', fontFamily: 'monospace' }}>{support.kpLocation || '-'}</td>
+                                      <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #dee2e6', fontWeight: 'bold' }}>{qty}</td>
+                                      <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{support.uom}</td>
+                                      <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
+                                        <span style={{ color: support.elevationVerified ? '#28a745' : '#dc3545', fontWeight: 'bold' }}>
+                                          {support.elevationVerified ? '✓ Verified' : '⚠️ Not Verified'}
+                                        </span>
+                                      </td>
+                                      <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #dee2e6', fontFamily: 'monospace', fontSize: '10px' }}>{support.parentWeldId || '-'}</td>
+                                      <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
+                                        <span style={{ padding: '2px 6px', borderRadius: '8px', fontSize: '9px', fontWeight: 'bold', backgroundColor: support.elevationVerified ? '#d4edda' : '#fff3cd', color: support.elevationVerified ? '#155724' : '#856404' }}>
+                                          {support.recordStatus || 'Pending'}
+                                        </span>
+                                      </td>
+                                    </tr>
+                                  )
+                                })}
+                              </tbody>
+                            </table>
+                          ) : (
+                            <p style={{ margin: 0, fontSize: '11px', color: '#666', fontStyle: 'italic' }}>Pipe support required but no entries recorded</p>
+                          )}
+                        </div>
+                      )}
+
+                      {/* Third Party Crossings */}
+                      {block.tieInData.thirdPartyCrossings && block.tieInData.thirdPartyCrossings.length > 0 && (
+                        <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#fce4ec', borderRadius: '4px', border: '1px solid #e91e63' }}>
+                          <h5 style={{ fontSize: '12px', color: '#880e4f', margin: '0 0 8px 0' }}>🔀 Third Party Crossings ({block.tieInData.thirdPartyCrossings.length})</h5>
+                          {block.tieInData.thirdPartyCrossings.map((crossing, i) => (
+                            <div key={i} style={{ padding: '8px', backgroundColor: '#fff', borderRadius: '4px', marginBottom: '6px', fontSize: '11px' }}>
+                              <strong>{i + 1}. {crossing.utilityType || 'Unknown'}</strong>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '6px', marginTop: '4px' }}>
+                                {crossing.owner && <div><span style={{ color: '#666' }}>Owner: </span>{crossing.owner}</div>}
+                                {crossing.clearance && <div><span style={{ color: '#666' }}>Clearance: </span>{crossing.clearance}m</div>}
+                                {crossing.protectionMethod && <div><span style={{ color: '#666' }}>Protection: </span>{crossing.protectionMethod}</div>}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Anodes */}
+                      {block.tieInData.anodes && block.tieInData.anodes.installed === 'Yes' && (
+                        <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#e3f2fd', borderRadius: '4px' }}>
+                          <h5 style={{ fontSize: '12px', color: '#1565c0', margin: '0 0 8px 0' }}>🔌 Anodes</h5>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px', fontSize: '11px' }}>
+                            {block.tieInData.anodes.type && <div><span style={{ color: '#666' }}>Type: </span><strong>{block.tieInData.anodes.type}</strong></div>}
+                            {block.tieInData.anodes.quantity && <div><span style={{ color: '#666' }}>Quantity: </span><strong>{block.tieInData.anodes.quantity}</strong></div>}
+                            {block.tieInData.anodes.location && <div><span style={{ color: '#666' }}>Location: </span><strong>{block.tieInData.anodes.location}</strong></div>}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

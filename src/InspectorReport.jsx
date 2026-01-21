@@ -3553,6 +3553,233 @@ Important:
         y += 3
       }
 
+      // Tie-In Completion Log
+      if (block.activityType === 'Tie-in Completion' && block.tieInData) {
+        checkPageBreak(80)
+        addSubHeader('Tie-In Completion Data', '#e8f4f8')
+
+        // Backfill Details
+        if (block.tieInData.backfill && (block.tieInData.backfill.method || block.tieInData.backfill.liftThickness)) {
+          checkPageBreak(25)
+          setColor('#d4edda', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#155724', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('BACKFILL DETAILS', margin + 4, y + 4)
+          y += 8
+
+          const backfillItems = []
+          if (block.tieInData.backfill.method) backfillItems.push(`Method: ${block.tieInData.backfill.method}`)
+          if (block.tieInData.backfill.liftThickness) backfillItems.push(`Lift Thickness: ${block.tieInData.backfill.liftThickness}`)
+          if (block.tieInData.backfill.compactionTesting) backfillItems.push(`Compaction Testing: ${block.tieInData.backfill.compactionTesting}`)
+          if (block.tieInData.backfill.testResults) backfillItems.push(`Test Results: ${block.tieInData.backfill.testResults}`)
+
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(backfillItems.join('  |  '), margin + 4, y + 3)
+          y += 8
+        }
+
+        // Cathodic Protection
+        if (block.tieInData.cathodicProtection && block.tieInData.cathodicProtection.installed === 'Yes') {
+          checkPageBreak(40)
+          setColor('#e8f4f8', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#17a2b8', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('CATHODIC PROTECTION (TEST LEADS)', margin + 4, y + 4)
+          y += 8
+
+          // Configuration & Leads
+          const cpConfig = []
+          if (block.tieInData.cathodicProtection.stationType) cpConfig.push(`Station: ${block.tieInData.cathodicProtection.stationType}`)
+          if (block.tieInData.cathodicProtection.wireGauge) cpConfig.push(`Wire: ${block.tieInData.cathodicProtection.wireGauge}`)
+          if (block.tieInData.cathodicProtection.insulationType) cpConfig.push(`Insulation: ${block.tieInData.cathodicProtection.insulationType}`)
+          if (block.tieInData.cathodicProtection.wireColor) cpConfig.push(`Color: ${block.tieInData.cathodicProtection.wireColor}`)
+
+          if (cpConfig.length > 0) {
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text('Config: ' + cpConfig.join('  |  '), margin + 4, y + 3)
+            y += 5
+          }
+
+          // Connection (Exothermic Weld)
+          const cpConnection = []
+          if (block.tieInData.cathodicProtection.weldMethod) cpConnection.push(`Weld: ${block.tieInData.cathodicProtection.weldMethod}`)
+          if (block.tieInData.cathodicProtection.surfacePrepWhiteMetal) cpConnection.push('Surface Prep: White Metal')
+          if (block.tieInData.cathodicProtection.slagTestPassed) cpConnection.push('Slag Test: PASS')
+          if (block.tieInData.cathodicProtection.slackULoopConfirmed) cpConnection.push('Slack/U-Loop: Confirmed')
+          if (block.tieInData.cathodicProtection.encapsulationType) cpConnection.push(`Encap: ${block.tieInData.cathodicProtection.encapsulationType}`)
+
+          if (cpConnection.length > 0) {
+            doc.text('Connection: ' + cpConnection.join('  |  '), margin + 4, y + 3)
+            y += 5
+          }
+
+          // Termination
+          const cpTerm = []
+          if (block.tieInData.cathodicProtection.terminalBoardPosition) cpTerm.push(`Terminal: ${block.tieInData.cathodicProtection.terminalBoardPosition}`)
+          if (block.tieInData.cathodicProtection.conduitType) cpTerm.push(`Conduit: ${block.tieInData.cathodicProtection.conduitType}`)
+          if (block.tieInData.cathodicProtection.testStationInstalled) cpTerm.push(`Test Station: ${block.tieInData.cathodicProtection.testStationInstalled}`)
+
+          if (cpTerm.length > 0) {
+            doc.text('Termination: ' + cpTerm.join('  |  '), margin + 4, y + 3)
+            y += 5
+          }
+
+          // Installed by
+          if (block.tieInData.cathodicProtection.installedBy || block.tieInData.cathodicProtection.thirdPartyName) {
+            doc.text(`Installed By: ${block.tieInData.cathodicProtection.installedBy || 'N/A'} ${block.tieInData.cathodicProtection.thirdPartyName ? `(${block.tieInData.cathodicProtection.thirdPartyName})` : ''}`, margin + 4, y + 3)
+            y += 5
+          }
+
+          // Record Status
+          if (block.tieInData.cathodicProtection.recordStatus) {
+            const statusColor = block.tieInData.cathodicProtection.recordStatus === 'Verified' ? BRAND.green : BRAND.orange
+            setColor(statusColor, 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.text(`Status: ${block.tieInData.cathodicProtection.recordStatus}`, margin + 4, y + 3)
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            y += 5
+          }
+
+          // Photos count
+          if (block.tieInData.cathodicProtection.photos && block.tieInData.cathodicProtection.photos.length > 0) {
+            doc.text(`📷 ${block.tieInData.cathodicProtection.photos.length} photo(s) attached`, margin + 4, y + 3)
+            y += 5
+          }
+
+          y += 3
+        }
+
+        // Pipe Support / Crossing Support
+        if (block.tieInData.pipeSupport && block.tieInData.pipeSupport.required === 'Yes') {
+          checkPageBreak(35)
+          setColor('#fff7ed', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#fd7e14', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('PIPE SUPPORT (CROSSING SUPPORT)', margin + 4, y + 4)
+          y += 8
+
+          const supports = block.tieInData.pipeSupport.supports || []
+          if (supports.length > 0) {
+            // Table header
+            setColor('#fd7e14', 'fill')
+            doc.rect(margin, y, contentWidth, 5, 'F')
+            setColor(BRAND.white, 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(6)
+            doc.text('TYPE', margin + 2, y + 3.5)
+            doc.text('KP', margin + 45, y + 3.5)
+            doc.text('QTY', margin + 75, y + 3.5)
+            doc.text('UOM', margin + 95, y + 3.5)
+            doc.text('ELEV', margin + 115, y + 3.5)
+            doc.text('WELD ID', margin + 135, y + 3.5)
+            doc.text('STATUS', margin + 165, y + 3.5)
+            y += 6
+
+            supports.forEach((support, i) => {
+              checkPageBreak(6)
+              if (i % 2 === 0) {
+                setColor(BRAND.grayLight, 'fill')
+                doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+              }
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'normal')
+              doc.setFontSize(6)
+              doc.text(String(support.typeName || '-').substring(0, 18), margin + 2, y + 2.5)
+              doc.text(String(support.kpLocation || '-').substring(0, 10), margin + 45, y + 2.5)
+
+              // Get quantity based on type
+              let qty = 0
+              if (support.type === 'sandbag_piers') qty = support.numberOfPiers || 0
+              else if (support.type === 'polyurethane_foam') qty = support.volumeM3 || support.numberOfKits || 0
+              else if (support.type === 'native_subsoil') qty = support.linearMeters || 0
+              else if (support.type === 'concrete_sleepers') qty = support.quantity || 0
+
+              doc.text(String(qty), margin + 75, y + 2.5)
+              doc.text(String(support.uom || '-').substring(0, 6), margin + 95, y + 2.5)
+
+              // Elevation verified
+              setColor(support.elevationVerified ? BRAND.green : BRAND.red, 'text')
+              doc.text(support.elevationVerified ? 'YES' : 'NO', margin + 115, y + 2.5)
+              setColor(BRAND.black, 'text')
+
+              doc.text(String(support.parentWeldId || '-').substring(0, 12), margin + 135, y + 2.5)
+              doc.text(String(support.recordStatus || '-').substring(0, 12), margin + 165, y + 2.5)
+              y += 4.5
+            })
+            y += 3
+          } else {
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text('Pipe support required but no entries recorded', margin + 4, y + 3)
+            y += 6
+          }
+        }
+
+        // Third Party Crossings
+        if (block.tieInData.thirdPartyCrossings && block.tieInData.thirdPartyCrossings.length > 0) {
+          checkPageBreak(25)
+          setColor('#fce4ec', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#880e4f', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text(`THIRD PARTY CROSSINGS (${block.tieInData.thirdPartyCrossings.length})`, margin + 4, y + 4)
+          y += 8
+
+          block.tieInData.thirdPartyCrossings.forEach((crossing, i) => {
+            checkPageBreak(6)
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            const crossingInfo = []
+            if (crossing.utilityType) crossingInfo.push(crossing.utilityType)
+            if (crossing.owner) crossingInfo.push(`Owner: ${crossing.owner}`)
+            if (crossing.clearance) crossingInfo.push(`Clearance: ${crossing.clearance}m`)
+            if (crossing.protectionMethod) crossingInfo.push(`Protection: ${crossing.protectionMethod}`)
+            doc.text(`${i + 1}. ${crossingInfo.join('  |  ')}`, margin + 4, y + 3)
+            y += 5
+          })
+          y += 3
+        }
+
+        // Anodes
+        if (block.tieInData.anodes && block.tieInData.anodes.installed === 'Yes') {
+          checkPageBreak(15)
+          setColor('#e3f2fd', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#1565c0', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('ANODES', margin + 4, y + 4)
+          y += 8
+
+          const anodeInfo = []
+          if (block.tieInData.anodes.type) anodeInfo.push(`Type: ${block.tieInData.anodes.type}`)
+          if (block.tieInData.anodes.quantity) anodeInfo.push(`Qty: ${block.tieInData.anodes.quantity}`)
+          if (block.tieInData.anodes.location) anodeInfo.push(`Location: ${block.tieInData.anodes.location}`)
+
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(anodeInfo.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        y += 3
+      }
+
       // Quality Checks
       if (block.qualityData && Object.keys(block.qualityData).length > 0) {
         const qualityEntries = Object.entries(block.qualityData).filter(([key, val]) => val && val !== '' && val !== 'N/A')
