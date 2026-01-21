@@ -2,8 +2,18 @@ import React, { useState, useRef } from 'react'
 import { useActivityAudit } from './useActivityAudit'
 
 function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday, logId, reportId }) {
-  const [showCrossings, setShowCrossings] = useState(data?.crossingsEnabled || false)
-  const [showAnodes, setShowAnodes] = useState(data?.anodesEnabled || false)
+  // Collapsible section states
+  const [expandedSections, setExpandedSections] = useState({
+    backfill: false,
+    cathodicProtection: false,
+    thirdPartyCrossings: false,
+    pipeSupport: false,
+    anodes: false
+  })
+
+  const toggleSection = (section) => {
+    setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))
+  }
 
   // Audit trail hook
   const { 
@@ -126,7 +136,8 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
   }
 
   // Third Party Crossings
-  const addThirdPartyCrossing = () => {
+  const addThirdPartyCrossing = (e) => {
+    e?.stopPropagation() // Prevent collapsible from toggling
     const newCrossing = {
       id: Date.now(),
       crossingType: '',
@@ -164,13 +175,8 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
   }
 
   // Anodes
-  const toggleAnodes = () => {
-    const newEnabled = !showAnodes
-    setShowAnodes(newEnabled)
-    onChange({ ...tieInData, anodesEnabled: newEnabled })
-  }
-
-  const addAnode = () => {
+  const addAnode = (e) => {
+    e?.stopPropagation() // Prevent collapsible from toggling
     const newAnode = {
       id: Date.now(),
       anodeType: '',
@@ -213,11 +219,21 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
 
   // Styles
   const sectionStyle = {
-    marginBottom: '20px',
-    padding: '15px',
-    backgroundColor: '#f8f9fa',
+    marginBottom: '15px',
     borderRadius: '8px',
-    border: '1px solid #dee2e6'
+    border: '1px solid #dee2e6',
+    overflow: 'hidden'
+  }
+
+  const collapsibleHeaderStyle = {
+    padding: '12px 15px',
+    backgroundColor: '#f8f9fa',
+    cursor: 'pointer',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderBottom: '1px solid #dee2e6',
+    userSelect: 'none'
   }
 
   const sectionHeaderStyle = {
@@ -227,6 +243,11 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
     marginBottom: '15px',
     paddingBottom: '8px',
     borderBottom: '2px solid #fd7e14'
+  }
+
+  const sectionContentStyle = {
+    padding: '15px',
+    backgroundColor: '#fff'
   }
 
   const gridStyle = {
@@ -256,6 +277,13 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
     ...inputStyle,
     cursor: 'pointer'
   }
+
+  // Check if section has data (for indicator)
+  const hasBackfillData = tieInData.backfill.method || tieInData.backfill.paddingMaterial || tieInData.backfill.paddingDepth
+  const hasCPData = tieInData.cathodicProtection.installed
+  const hasCrossingsData = tieInData.thirdPartyCrossings.length > 0
+  const hasPipeSupportData = tieInData.pipeSupport.required
+  const hasAnodesData = tieInData.anodes.length > 0
 
   return (
     <div style={{ marginTop: '15px' }}>
@@ -309,9 +337,22 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
         </div>
       </div>
 
-      {/* BACKFILL SECTION */}
+      {/* BACKFILL SECTION - Collapsible */}
       <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>🚜 BACKFILL DETAILS</div>
+        <div
+          style={collapsibleHeaderStyle}
+          onClick={() => toggleSection('backfill')}
+        >
+          <span style={{ fontWeight: 'bold', fontSize: '14px' }}>
+            🚜 BACKFILL DETAILS
+            {hasBackfillData && <span style={{ color: '#28a745', marginLeft: '8px' }}>●</span>}
+          </span>
+          <span style={{ fontSize: '12px', color: '#6c757d' }}>
+            {expandedSections.backfill ? '▼ Collapse' : '▶ Expand'}
+          </span>
+        </div>
+        {expandedSections.backfill && (
+        <div style={sectionContentStyle}>
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Backfill Method</label>
@@ -439,11 +480,26 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
             </div>
           )}
         </div>
+        </div>
+        )}
       </div>
 
-      {/* CATHODIC PROTECTION SECTION */}
+      {/* CATHODIC PROTECTION SECTION - Collapsible */}
       <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>⚡ CATHODIC PROTECTION</div>
+        <div
+          style={collapsibleHeaderStyle}
+          onClick={() => toggleSection('cathodicProtection')}
+        >
+          <span style={{ fontWeight: 'bold', fontSize: '14px' }}>
+            ⚡ CATHODIC PROTECTION (Test Leads)
+            {hasCPData && <span style={{ color: '#28a745', marginLeft: '8px' }}>●</span>}
+          </span>
+          <span style={{ fontSize: '12px', color: '#6c757d' }}>
+            {expandedSections.cathodicProtection ? '▼ Collapse' : '▶ Expand'}
+          </span>
+        </div>
+        {expandedSections.cathodicProtection && (
+        <div style={sectionContentStyle}>
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>CP Installed</label>
@@ -575,28 +631,43 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
             </>
           )}
         </div>
+        </div>
+        )}
       </div>
 
-      {/* THIRD PARTY CROSSINGS */}
+      {/* THIRD PARTY CROSSINGS - Collapsible */}
       <div style={sectionStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <div style={{ ...sectionHeaderStyle, marginBottom: 0, borderBottom: 'none' }}>🚧 THIRD PARTY CROSSINGS</div>
-          <button
-            onClick={addThirdPartyCrossing}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: '#fd7e14',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: 'bold'
-            }}
-          >
-            + Add Crossing
-          </button>
+        <div
+          style={collapsibleHeaderStyle}
+          onClick={() => toggleSection('thirdPartyCrossings')}
+        >
+          <span style={{ fontWeight: 'bold', fontSize: '14px' }}>
+            🚧 THIRD PARTY CROSSINGS
+            {hasCrossingsData && <span style={{ color: '#28a745', marginLeft: '8px' }}>● ({tieInData.thirdPartyCrossings.length})</span>}
+          </span>
+          <span style={{ fontSize: '12px', color: '#6c757d' }}>
+            {expandedSections.thirdPartyCrossings ? '▼ Collapse' : '▶ Expand'}
+          </span>
         </div>
+        {expandedSections.thirdPartyCrossings && (
+        <div style={sectionContentStyle}>
+          <div style={{ marginBottom: '15px' }}>
+            <button
+              onClick={addThirdPartyCrossing}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#fd7e14',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '13px',
+                fontWeight: 'bold'
+              }}
+            >
+              + Add Crossing
+            </button>
+          </div>
 
         {tieInData.thirdPartyCrossings.length === 0 ? (
           <p style={{ color: '#666', fontStyle: 'italic', textAlign: 'center', padding: '10px' }}>
@@ -776,11 +847,26 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
             ))}
           </div>
         )}
+        </div>
+        )}
       </div>
 
-      {/* PIPE SUPPORT */}
+      {/* PIPE SUPPORT - Collapsible */}
       <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>🏗️ PIPE SUPPORT</div>
+        <div
+          style={collapsibleHeaderStyle}
+          onClick={() => toggleSection('pipeSupport')}
+        >
+          <span style={{ fontWeight: 'bold', fontSize: '14px' }}>
+            🏗️ PIPE SUPPORT
+            {hasPipeSupportData && <span style={{ color: '#28a745', marginLeft: '8px' }}>●</span>}
+          </span>
+          <span style={{ fontSize: '12px', color: '#6c757d' }}>
+            {expandedSections.pipeSupport ? '▼ Collapse' : '▶ Expand'}
+          </span>
+        </div>
+        {expandedSections.pipeSupport && (
+        <div style={sectionContentStyle}>
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Pipe Support Required</label>
@@ -847,30 +933,27 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
             </>
           )}
         </div>
+        </div>
+        )}
       </div>
 
-      {/* ANODES / ANODE BEDS */}
+      {/* ANODES / ANODE BEDS - Collapsible */}
       <div style={sectionStyle}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
-          <div style={{ ...sectionHeaderStyle, marginBottom: 0, borderBottom: 'none' }}>🔋 ANODES / ANODE BEDS</div>
-          <button
-            onClick={toggleAnodes}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: showAnodes ? '#dc3545' : '#28a745',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '13px'
-            }}
-          >
-            {showAnodes ? '− Hide Anodes' : '+ Add Anodes'}
-          </button>
+        <div
+          style={collapsibleHeaderStyle}
+          onClick={() => toggleSection('anodes')}
+        >
+          <span style={{ fontWeight: 'bold', fontSize: '14px' }}>
+            🔋 ANODES / ANODE BEDS
+            {hasAnodesData && <span style={{ color: '#28a745', marginLeft: '8px' }}>● ({tieInData.anodes.length})</span>}
+          </span>
+          <span style={{ fontSize: '12px', color: '#6c757d' }}>
+            {expandedSections.anodes ? '▼ Collapse' : '▶ Expand'}
+          </span>
         </div>
-
-        {showAnodes && (
-          <div>
+        {expandedSections.anodes && (
+        <div style={sectionContentStyle}>
+          <div style={{ marginBottom: '15px' }}>
             <button
               onClick={addAnode}
               style={{
@@ -881,11 +964,12 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                 borderRadius: '4px',
                 cursor: 'pointer',
                 fontSize: '13px',
-                marginBottom: '15px'
+                fontWeight: 'bold'
               }}
             >
               + Add Anode Entry
             </button>
+          </div>
 
             {tieInData.anodes.length === 0 ? (
               <p style={{ color: '#666', fontStyle: 'italic', textAlign: 'center', padding: '10px' }}>
@@ -1046,12 +1130,12 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                 </div>
               ))
             )}
-          </div>
+        </div>
         )}
       </div>
 
       {/* COMMENTS */}
-      <div style={sectionStyle}>
+      <div style={{ ...sectionStyle, padding: '15px', backgroundColor: '#f8f9fa' }}>
         <div style={sectionHeaderStyle}>📝 COMMENTS</div>
         <textarea
           value={tieInData.comments}
