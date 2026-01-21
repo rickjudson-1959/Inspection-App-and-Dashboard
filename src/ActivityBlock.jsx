@@ -775,7 +775,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                 alert(field.reminder)
               }
             }}
-            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', backgroundColor: 'white' }}
+            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', backgroundColor: 'white', boxSizing: 'border-box' }}
           >
             <option value="">Select...</option>
             {field.options.map(opt => (
@@ -813,12 +813,13 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               }
             }}
             placeholder={field.placeholder || ''}
-            style={{ 
-              width: '100%', 
-              padding: '10px', 
-              border: field.highlight ? '2px solid #28a745' : '1px solid #ced4da', 
+            style={{
+              width: '100%',
+              padding: '10px',
+              border: field.highlight ? '2px solid #28a745' : '1px solid #ced4da',
               borderRadius: '4px',
-              backgroundColor: field.readOnly ? '#e9ecef' : 'white'
+              backgroundColor: field.readOnly ? '#e9ecef' : 'white',
+              boxSizing: 'border-box'
             }}
           />
         )}
