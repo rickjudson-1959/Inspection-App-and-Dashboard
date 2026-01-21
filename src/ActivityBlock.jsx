@@ -523,6 +523,14 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
         <HDDLog
           data={block.hddData || {}}
           onChange={(data) => updateHDDData(block.id, data)}
+          contractor={block.contractor}
+          foreman={block.foreman}
+          reportDate={selectedDate}
+          startKP={block.startKP}
+          endKP={block.endKP}
+          metersToday={calculateMetersToday(block)}
+          logId={block.id}
+          reportId={reportId}
         />
       )
     }
