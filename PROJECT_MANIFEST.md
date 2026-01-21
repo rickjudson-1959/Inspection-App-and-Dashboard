@@ -1,0 +1,337 @@
+# PIPE-UP PIPELINE INSPECTOR PLATFORM
+## Project Manifest - January 20, 2026
+
+---
+
+## 1. PROJECT OVERVIEW
+
+**Project Name:** Pipe-Up Pipeline Inspector Platform
+**Client:** FortisBC EGP - Eagle Mountain Woodfibre Gas Pipeline
+**Production URL:** https://app.pipe-up.ca
+**Repository:** https://github.com/rickjudson-1959/Inspection-App-and-Dashboard
+
+### Technology Stack
+| Component | Technology |
+|-----------|------------|
+| Frontend | React 18.2.0 with Vite |
+| Backend | Supabase (PostgreSQL + Auth) |
+| Email API | Resend |
+| Deployment | Vercel |
+| PDF Generation | jsPDF + jsPDF-autotable |
+| Excel Export | XLSX |
+| Mapping | Leaflet + React-Leaflet |
+| Charting | Recharts |
+
+---
+
+## 2. USER ROLES & ACCESS
+
+| Role | Access Level |
+|------|--------------|
+| `super_admin` | Full system access |
+| `admin` | Project administration |
+| `chief_inspector` | Field inspection chief, report approval |
+| `assistant_chief_inspector` | Assistant to chief |
+| `inspector` | Field data entry |
+| `pm` | Project manager dashboards |
+| `cm` | Construction manager dashboards |
+| `executive` | Executive dashboards & summaries |
+| `ndt_auditor` | NDT monitoring & auditing |
+
+---
+
+## 3. CORE FEATURES
+
+### Inspector Field Entry
+- Activity logging with KP (kilometer post) ranges
+- Quality/compliance checklists per activity type
+- Photo capture with GPS/EXIF geolocation extraction
+- Labour classification tracking (72 classifications)
+- Equipment hour recording (323 equipment types)
+- Weather condition logging with offline cache
+- Digital signature capture
+
+### Activity Types (25 Supported)
+1. Clearing
+2. Access
+3. Topsoil (with horizon separation tracking)
+4. Grading
+5. Stringing (pipe receiving inspection)
+6. Bending
+7. Welding - Mainline
+8. Welding - Section Crew
+9. Welding - Poor Boy
+10. Welding - Tie-in
+11. Coating
+12. Ditch (with BOT checklist, pay items)
+13. Lower-in
+14. Backfill
+15. Tie-in Completion
+16. Cleanup - Machine
+17. Cleanup - Final
+18. Hydrostatic Testing
+19. HDD (Horizontal Directional Drilling)
+20. HD Bores
+21. Piling
+22. Equipment Cleaning
+23. Hydrovac
+24. Welder Testing
+25. Counterbore/Transition
+
+### Inspector Invoicing System
+- Inspector profile management (company/banking info)
+- Rate card configuration (daily rates, per diem, allowances)
+- Timesheet entry with daily categorization
+- Auto-calculation of invoice totals
+- Workflow: Draft → Submitted → Review → Approved → Paid
+- PDF invoice generation
+- Email notifications on approval/revision
+- Hire-on package completion
+
+### Dashboards
+- **CMT Dashboard** - Cost Management Tracking with progress charts
+- **EVM Dashboard** - Earned Value Management metrics
+- **Chief Dashboard** - Daily summaries, report approval, NDT tracking
+- **Assistant Chief Dashboard** - Support functions
+- **Admin Portal** - User/org/project management
+- **Inspector Invoicing** - Timesheet management
+- **NDT Auditor Dashboard** - NDT monitoring
+- **Reconciliation Dashboard** - Financial reconciliation
+
+### Reporting & Export
+- PDF report generation with all activity data
+- Excel data export
+- Weekly executive summary emails (automated)
+- Audit trail reports
+- Progress tracking by phase
+
+---
+
+## 4. DATABASE SCHEMA (SUPABASE)
+
+### Inspector Invoicing Tables
+
+**inspector_profiles**
+- Company and banking information
+- Profile completion status
+- Cleared to work flag
+
+**inspector_documents**
+- Certifications, licenses, insurance
+- Expiry date tracking
+- Verification workflow
+
+**inspector_rate_cards**
+- Daily field rate, per diem, allowances
+- Truck rate, km rate, thresholds
+- Effective date ranges
+
+**inspector_timesheets**
+- Period dates, project info
+- Summary totals (days, kms, amounts)
+- Workflow status tracking
+- Approval chain timestamps
+
+**inspector_timesheet_lines**
+- Daily line items
+- Work type flags
+- Auto-populated from daily tickets
+
+### Ditch/Trench Inspection Tables
+
+**trench_logs**
+- Report linkage, KP range
+- Trench measurements (width, depth, cover)
+- Pay items (padding/bedding with From KP/To KP)
+- BOT checklist (rocks, debris, silt fences, wildlife)
+- Water management (pumping, filter bags)
+- Soil conditions, depth compliance
+
+**trench_log_photos**
+- Geotagged photo evidence
+- GPS coordinates (6-decimal precision)
+- Photo type categorization
+
+### Trackable Items
+
+**bedding_padding** (NEW - January 2026)
+- Protection types: Bedding, Padding, Bedding and Padding, Pipe Protection, Rockshield, Lagging, Rockshield and Lagging
+- From KP / To KP
+- Length, Material, Depth/Thickness
+- Action, Equipment, Notes
+
+---
+
+## 5. SOURCE FILE STRUCTURE
+
+```
+/src/
+├── main.jsx                    # App entry point
+├── App.jsx                     # Routing & role-based access
+├── AuthContext.jsx             # Authentication management
+├── supabase.js                 # Supabase client
+├── constants.js                # Activity types, classifications
+│
+├── Dashboards/
+│   ├── Dashboard.jsx           # CMT Dashboard
+│   ├── EVMDashboard.jsx        # Earned Value Management
+│   ├── ChiefDashboard.jsx      # Chief Inspector
+│   ├── AssistantChiefDashboard.jsx
+│   ├── AdminPortal.jsx         # Administration
+│   ├── InspectorInvoicingDashboard.jsx
+│   └── NDTAuditorDashboard.jsx
+│
+├── Reports/
+│   ├── InspectorReport.jsx     # Main field report form
+│   ├── ActivityBlock.jsx       # Activity module component
+│   ├── ReportViewer.jsx        # Report display
+│   └── ReportsPage.jsx
+│
+├── Activity Logs/
+│   ├── BendingLog.jsx
+│   ├── ClearingLog.jsx
+│   ├── CoatingLog.jsx
+│   ├── DitchInspection.jsx     # Ditch with DB integration
+│   ├── GradingLog.jsx
+│   ├── HDDLog.jsx
+│   ├── HydrotestLog.jsx
+│   ├── MainlineWeldData.jsx
+│   ├── PilingLog.jsx
+│   ├── StringingLog.jsx
+│   ├── TieInCompletionLog.jsx
+│   └── [+12 more log components]
+│
+├── Invoicing/
+│   ├── HireOnPackage.jsx       # Inspector onboarding
+│   ├── TimesheetEditor.jsx     # Timesheet entry
+│   ├── TimesheetReview.jsx     # Admin review
+│   └── InvoicePDF.jsx          # PDF generation
+│
+├── Utilities/
+│   ├── auditLoggerV3.js        # Audit trail logging
+│   ├── useActivityAudit.js     # Audit React hook
+│   ├── weatherService.js       # Weather API integration
+│   ├── exifUtils.js            # Photo GPS extraction
+│   ├── kpUtils.js              # KP formatting
+│   └── chiefReportHelpers.js   # Report aggregation
+│
+└── Components/
+    ├── TrackableItemsTracker.jsx
+    ├── SignaturePad.jsx
+    ├── MapDashboard.jsx
+    └── [supporting components]
+
+/supabase/migrations/
+├── create_inspector_invoicing_tables.sql
+├── create_trench_logs.sql
+├── 20260120_add_padding_bedding_kp_columns.sql
+└── [other migrations]
+```
+
+---
+
+## 6. RECENT UPDATES (January 2026)
+
+### DitchInspection Refactoring
+- Removed Rock Ditch section (now in Trackable Items)
+- Removed Extra Depth section (now in Trackable Items)
+- Added From KP / To KP to Padding/Bedding section
+- Auto-formatting for KP values (6500 → 6+500)
+
+### Lower-in Activity Updates
+- Changed Padding Depth to Bedding/Padding (Yes/No)
+- Removed Depth of Cover (tracked in Trackable Items)
+- Kept: Foreign Line Clearance, Lift Plan Verified, Equipment Inspected
+- Added reminder popup when Bedding/Padding = Yes
+- Uniform box styling for all fields
+
+### New Trackable Item: Bedding & Padding
+- Protection Type options:
+  - Bedding
+  - Padding
+  - Bedding and Padding
+  - Pipe Protection
+  - Rockshield
+  - Lagging
+  - Rockshield and Lagging
+- From KP / To KP fields
+- Length, Material, Depth/Thickness, Action, Equipment, Notes
+
+### Database Migrations
+- `20260120_add_padding_bedding_kp_columns.sql`
+  - Added padding_bedding_from_kp column
+  - Added padding_bedding_to_kp column
+
+---
+
+## 7. DEPLOYMENT & ENVIRONMENT
+
+### Vercel Configuration
+- Auto-deployment from GitHub main branch
+- Production URL: https://app.pipe-up.ca
+- Edge functions for email notifications
+
+### Environment Variables
+```
+VITE_SUPABASE_URL=https://aatvckalnvojlykfgnmz.supabase.co
+VITE_SUPABASE_ANON_KEY=[anon-key]
+```
+
+### Build Commands
+```bash
+npm run dev      # Development server
+npm run build    # Production build
+npm run preview  # Preview production build
+```
+
+---
+
+## 8. KEY INTEGRATIONS
+
+| Integration | Purpose |
+|-------------|---------|
+| Supabase | Database, Auth, Storage, Edge Functions |
+| Resend | Email notifications (approvals, summaries) |
+| Weather API | Field condition logging |
+| Leaflet | Pipeline route mapping |
+| jsPDF | Report/Invoice PDF generation |
+| XLSX | Excel data export |
+
+---
+
+## 9. AUDIT & COMPLIANCE
+
+### Audit Logging (auditLoggerV3.js)
+- Tracks all field changes with original/new values
+- Precision mapping for numeric fields (2 decimal places)
+- User identification and timestamps
+- Report state transitions
+
+### Precision Map
+```javascript
+trench_width: 2,
+trench_depth: 2,
+depth_of_cover: 2,
+padding_meters: 2,
+pumping_hours: 2,
+groundwater_depth: 2,
+filter_bag_count: 0
+```
+
+---
+
+## 10. SUPPORT & MAINTENANCE
+
+**Developer:** Claude Code (Anthropic)
+**Primary Contact:** Richard Judson
+**Issue Tracking:** GitHub Issues
+
+### Common Operations
+- Run Supabase migrations: `npx supabase db push`
+- Deploy to Vercel: `git push origin main`
+- Check deployment status: `npx vercel ls`
+
+---
+
+*Manifest Generated: January 20, 2026*
+*Last Updated: January 20, 2026*
