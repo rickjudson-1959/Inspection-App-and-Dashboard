@@ -1244,7 +1244,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                 gap: '4px'
               }}
             >
-              {syncingKP ? '⏳' : '📍'} GPS
+              {syncingKP ? '...' : 'GPS'}
             </button>
           </div>
         </div>
@@ -1307,7 +1307,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                 gap: '4px'
               }}
             >
-              {syncingKP ? '⏳' : '📍'} GPS
+              {syncingKP ? '...' : 'GPS'}
             </button>
           </div>
         </div>
