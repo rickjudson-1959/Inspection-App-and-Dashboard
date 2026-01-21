@@ -619,7 +619,7 @@ function HDDSteeringLog({
       >
         <div style={{ marginBottom: '15px' }}>
           <button
-            onClick={() => setShowStations(!showStations)}
+            onClick={(e) => { e.stopPropagation(); setShowStations(!showStations) }}
             style={{
               padding: '8px 16px',
               backgroundColor: showStations ? '#dc3545' : '#28a745',
@@ -635,7 +635,7 @@ function HDDSteeringLog({
           </button>
           {showStations && (
             <button
-              onClick={addStation}
+              onClick={(e) => { e.stopPropagation(); addStation() }}
               style={{
                 padding: '8px 16px',
                 backgroundColor: '#17a2b8',
@@ -756,7 +756,7 @@ function HDDSteeringLog({
                           </select>
                         </td>
                         <td style={tdStyle}>
-                          <button onClick={() => removeStation(station.id)}
+                          <button onClick={(e) => { e.stopPropagation(); removeStation(station.id) }}
                             style={{ padding: '2px 6px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}>
                             ✕
                           </button>
