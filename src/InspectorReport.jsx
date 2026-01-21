@@ -2183,7 +2183,15 @@ Important:
           coatingData: block.coatingData || null,
           clearingData: block.clearingData || null,
           counterboreData: block.counterboreData || null,
-          ditchData: block.ditchData || null
+          ditchData: block.ditchData || null,
+          hddData: block.hddData || null,
+          pilingData: block.pilingData || null,
+          hydrovacData: block.hydrovacData || null,
+          welderTestingData: block.welderTestingData || null,
+          hydrotestData: block.hydrotestData || null,
+          tieInCompletionData: block.tieInCompletionData || null,
+          gradingData: block.gradingData || null,
+          cleaningLogData: block.cleaningLogData || null
         })
       }
 
@@ -3554,12 +3562,12 @@ Important:
       }
 
       // Tie-In Completion Log
-      if (block.activityType === 'Tie-in Completion' && block.tieInData) {
+      if (block.activityType === 'Tie-in Completion' && block.tieInCompletionData) {
         checkPageBreak(80)
         addSubHeader('Tie-In Completion Data', '#e8f4f8')
 
         // Backfill Details
-        if (block.tieInData.backfill && (block.tieInData.backfill.method || block.tieInData.backfill.liftThickness || block.tieInData.backfill.compactionMethod)) {
+        if (block.tieInCompletionData.backfill && (block.tieInCompletionData.backfill.method || block.tieInCompletionData.backfill.liftThickness || block.tieInCompletionData.backfill.compactionMethod)) {
           checkPageBreak(25)
           setColor('#d4edda', 'fill')
           doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
@@ -3570,14 +3578,14 @@ Important:
           y += 8
 
           const backfillItems = []
-          if (block.tieInData.backfill.method) backfillItems.push(`Method: ${block.tieInData.backfill.method}`)
-          if (block.tieInData.backfill.liftThickness) backfillItems.push(`Lift: ${block.tieInData.backfill.liftThickness}`)
-          if (block.tieInData.backfill.numberOfLifts) backfillItems.push(`# Lifts: ${block.tieInData.backfill.numberOfLifts}`)
-          if (block.tieInData.backfill.compactionMethod) backfillItems.push(`Compaction: ${block.tieInData.backfill.compactionMethod}`)
-          if (block.tieInData.backfill.compactionTestRequired) backfillItems.push(`Test Req: ${block.tieInData.backfill.compactionTestRequired}`)
-          if (block.tieInData.backfill.compactionTestPassed) backfillItems.push(`Test: ${block.tieInData.backfill.compactionTestPassed}`)
-          if (block.tieInData.backfill.paddingMaterial) backfillItems.push(`Padding: ${block.tieInData.backfill.paddingMaterial}`)
-          if (block.tieInData.backfill.paddingDepth) backfillItems.push(`Depth: ${block.tieInData.backfill.paddingDepth}`)
+          if (block.tieInCompletionData.backfill.method) backfillItems.push(`Method: ${block.tieInCompletionData.backfill.method}`)
+          if (block.tieInCompletionData.backfill.liftThickness) backfillItems.push(`Lift: ${block.tieInCompletionData.backfill.liftThickness}`)
+          if (block.tieInCompletionData.backfill.numberOfLifts) backfillItems.push(`# Lifts: ${block.tieInCompletionData.backfill.numberOfLifts}`)
+          if (block.tieInCompletionData.backfill.compactionMethod) backfillItems.push(`Compaction: ${block.tieInCompletionData.backfill.compactionMethod}`)
+          if (block.tieInCompletionData.backfill.compactionTestRequired) backfillItems.push(`Test Req: ${block.tieInCompletionData.backfill.compactionTestRequired}`)
+          if (block.tieInCompletionData.backfill.compactionTestPassed) backfillItems.push(`Test: ${block.tieInCompletionData.backfill.compactionTestPassed}`)
+          if (block.tieInCompletionData.backfill.paddingMaterial) backfillItems.push(`Padding: ${block.tieInCompletionData.backfill.paddingMaterial}`)
+          if (block.tieInCompletionData.backfill.paddingDepth) backfillItems.push(`Depth: ${block.tieInCompletionData.backfill.paddingDepth}`)
 
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
@@ -3587,7 +3595,7 @@ Important:
         }
 
         // Cathodic Protection
-        if (block.tieInData.cathodicProtection && block.tieInData.cathodicProtection.installed === 'Yes') {
+        if (block.tieInCompletionData.cathodicProtection && block.tieInCompletionData.cathodicProtection.installed === 'Yes') {
           checkPageBreak(40)
           setColor('#e8f4f8', 'fill')
           doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
@@ -3599,10 +3607,10 @@ Important:
 
           // Configuration & Leads
           const cpConfig = []
-          if (block.tieInData.cathodicProtection.stationType) cpConfig.push(`Station: ${block.tieInData.cathodicProtection.stationType}`)
-          if (block.tieInData.cathodicProtection.wireGauge) cpConfig.push(`Wire: ${block.tieInData.cathodicProtection.wireGauge}`)
-          if (block.tieInData.cathodicProtection.insulationType) cpConfig.push(`Insulation: ${block.tieInData.cathodicProtection.insulationType}`)
-          if (block.tieInData.cathodicProtection.wireColor) cpConfig.push(`Color: ${block.tieInData.cathodicProtection.wireColor}`)
+          if (block.tieInCompletionData.cathodicProtection.stationType) cpConfig.push(`Station: ${block.tieInCompletionData.cathodicProtection.stationType}`)
+          if (block.tieInCompletionData.cathodicProtection.wireGauge) cpConfig.push(`Wire: ${block.tieInCompletionData.cathodicProtection.wireGauge}`)
+          if (block.tieInCompletionData.cathodicProtection.insulationType) cpConfig.push(`Insulation: ${block.tieInCompletionData.cathodicProtection.insulationType}`)
+          if (block.tieInCompletionData.cathodicProtection.wireColor) cpConfig.push(`Color: ${block.tieInCompletionData.cathodicProtection.wireColor}`)
 
           if (cpConfig.length > 0) {
             setColor(BRAND.black, 'text')
@@ -3614,11 +3622,11 @@ Important:
 
           // Connection (Exothermic Weld)
           const cpConnection = []
-          if (block.tieInData.cathodicProtection.weldMethod) cpConnection.push(`Weld: ${block.tieInData.cathodicProtection.weldMethod}`)
-          if (block.tieInData.cathodicProtection.surfacePrepWhiteMetal) cpConnection.push('Surface Prep: White Metal')
-          if (block.tieInData.cathodicProtection.slagTestPassed) cpConnection.push('Slag Test: PASS')
-          if (block.tieInData.cathodicProtection.slackULoopConfirmed) cpConnection.push('Slack/U-Loop: Confirmed')
-          if (block.tieInData.cathodicProtection.encapsulationType) cpConnection.push(`Encap: ${block.tieInData.cathodicProtection.encapsulationType}`)
+          if (block.tieInCompletionData.cathodicProtection.weldMethod) cpConnection.push(`Weld: ${block.tieInCompletionData.cathodicProtection.weldMethod}`)
+          if (block.tieInCompletionData.cathodicProtection.surfacePrepWhiteMetal) cpConnection.push('Surface Prep: White Metal')
+          if (block.tieInCompletionData.cathodicProtection.slagTestPassed) cpConnection.push('Slag Test: PASS')
+          if (block.tieInCompletionData.cathodicProtection.slackULoopConfirmed) cpConnection.push('Slack/U-Loop: Confirmed')
+          if (block.tieInCompletionData.cathodicProtection.encapsulationType) cpConnection.push(`Encap: ${block.tieInCompletionData.cathodicProtection.encapsulationType}`)
 
           if (cpConnection.length > 0) {
             doc.text('Connection: ' + cpConnection.join('  |  '), margin + 4, y + 3)
@@ -3627,9 +3635,9 @@ Important:
 
           // Termination
           const cpTerm = []
-          if (block.tieInData.cathodicProtection.terminalBoardPosition) cpTerm.push(`Terminal: ${block.tieInData.cathodicProtection.terminalBoardPosition}`)
-          if (block.tieInData.cathodicProtection.conduitType) cpTerm.push(`Conduit: ${block.tieInData.cathodicProtection.conduitType}`)
-          if (block.tieInData.cathodicProtection.testStationInstalled) cpTerm.push(`Test Station: ${block.tieInData.cathodicProtection.testStationInstalled}`)
+          if (block.tieInCompletionData.cathodicProtection.terminalBoardPosition) cpTerm.push(`Terminal: ${block.tieInCompletionData.cathodicProtection.terminalBoardPosition}`)
+          if (block.tieInCompletionData.cathodicProtection.conduitType) cpTerm.push(`Conduit: ${block.tieInCompletionData.cathodicProtection.conduitType}`)
+          if (block.tieInCompletionData.cathodicProtection.testStationInstalled) cpTerm.push(`Test Station: ${block.tieInCompletionData.cathodicProtection.testStationInstalled}`)
 
           if (cpTerm.length > 0) {
             doc.text('Termination: ' + cpTerm.join('  |  '), margin + 4, y + 3)
@@ -3637,25 +3645,25 @@ Important:
           }
 
           // Installed by
-          if (block.tieInData.cathodicProtection.installedBy || block.tieInData.cathodicProtection.thirdPartyName) {
-            doc.text(`Installed By: ${block.tieInData.cathodicProtection.installedBy || 'N/A'} ${block.tieInData.cathodicProtection.thirdPartyName ? `(${block.tieInData.cathodicProtection.thirdPartyName})` : ''}`, margin + 4, y + 3)
+          if (block.tieInCompletionData.cathodicProtection.installedBy || block.tieInCompletionData.cathodicProtection.thirdPartyName) {
+            doc.text(`Installed By: ${block.tieInCompletionData.cathodicProtection.installedBy || 'N/A'} ${block.tieInCompletionData.cathodicProtection.thirdPartyName ? `(${block.tieInCompletionData.cathodicProtection.thirdPartyName})` : ''}`, margin + 4, y + 3)
             y += 5
           }
 
           // Record Status
-          if (block.tieInData.cathodicProtection.recordStatus) {
-            const statusColor = block.tieInData.cathodicProtection.recordStatus === 'Verified' ? BRAND.green : BRAND.orange
+          if (block.tieInCompletionData.cathodicProtection.recordStatus) {
+            const statusColor = block.tieInCompletionData.cathodicProtection.recordStatus === 'Verified' ? BRAND.green : BRAND.orange
             setColor(statusColor, 'text')
             doc.setFont('helvetica', 'bold')
-            doc.text(`Status: ${block.tieInData.cathodicProtection.recordStatus}`, margin + 4, y + 3)
+            doc.text(`Status: ${block.tieInCompletionData.cathodicProtection.recordStatus}`, margin + 4, y + 3)
             setColor(BRAND.black, 'text')
             doc.setFont('helvetica', 'normal')
             y += 5
           }
 
           // Photos count
-          if (block.tieInData.cathodicProtection.photos && block.tieInData.cathodicProtection.photos.length > 0) {
-            doc.text(`📷 ${block.tieInData.cathodicProtection.photos.length} photo(s) attached`, margin + 4, y + 3)
+          if (block.tieInCompletionData.cathodicProtection.photos && block.tieInCompletionData.cathodicProtection.photos.length > 0) {
+            doc.text(`📷 ${block.tieInCompletionData.cathodicProtection.photos.length} photo(s) attached`, margin + 4, y + 3)
             y += 5
           }
 
@@ -3663,7 +3671,7 @@ Important:
         }
 
         // Pipe Support / Crossing Support
-        if (block.tieInData.pipeSupport && block.tieInData.pipeSupport.required === 'Yes') {
+        if (block.tieInCompletionData.pipeSupport && block.tieInCompletionData.pipeSupport.required === 'Yes') {
           checkPageBreak(35)
           setColor('#fff7ed', 'fill')
           doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
@@ -3673,7 +3681,7 @@ Important:
           doc.text('PIPE SUPPORT (CROSSING SUPPORT)', margin + 4, y + 4)
           y += 8
 
-          const supports = block.tieInData.pipeSupport.supports || []
+          const supports = block.tieInCompletionData.pipeSupport.supports || []
           if (supports.length > 0) {
             // Table header
             setColor('#fd7e14', 'fill')
@@ -3732,17 +3740,17 @@ Important:
         }
 
         // Third Party Crossings
-        if (block.tieInData.thirdPartyCrossings && block.tieInData.thirdPartyCrossings.length > 0) {
+        if (block.tieInCompletionData.thirdPartyCrossings && block.tieInCompletionData.thirdPartyCrossings.length > 0) {
           checkPageBreak(25)
           setColor('#fce4ec', 'fill')
           doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
           setColor('#880e4f', 'text')
           doc.setFont('helvetica', 'bold')
           doc.setFontSize(7)
-          doc.text(`THIRD PARTY CROSSINGS (${block.tieInData.thirdPartyCrossings.length})`, margin + 4, y + 4)
+          doc.text(`THIRD PARTY CROSSINGS (${block.tieInCompletionData.thirdPartyCrossings.length})`, margin + 4, y + 4)
           y += 8
 
-          block.tieInData.thirdPartyCrossings.forEach((crossing, i) => {
+          block.tieInCompletionData.thirdPartyCrossings.forEach((crossing, i) => {
             checkPageBreak(6)
             setColor(BRAND.black, 'text')
             doc.setFont('helvetica', 'normal')
@@ -3759,14 +3767,14 @@ Important:
         }
 
         // Anodes (array of anode entries)
-        if (block.tieInData.anodes && Array.isArray(block.tieInData.anodes) && block.tieInData.anodes.length > 0) {
-          checkPageBreak(20 + block.tieInData.anodes.length * 5)
+        if (block.tieInCompletionData.anodes && Array.isArray(block.tieInCompletionData.anodes) && block.tieInCompletionData.anodes.length > 0) {
+          checkPageBreak(20 + block.tieInCompletionData.anodes.length * 5)
           setColor('#e3f2fd', 'fill')
           doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
           setColor('#1565c0', 'text')
           doc.setFont('helvetica', 'bold')
           doc.setFontSize(7)
-          doc.text(`ANODES (${block.tieInData.anodes.length})`, margin + 4, y + 4)
+          doc.text(`ANODES (${block.tieInCompletionData.anodes.length})`, margin + 4, y + 4)
           y += 8
 
           // Table header
@@ -3782,7 +3790,7 @@ Important:
           doc.text('LOCATION', margin + 150, y + 3.5)
           y += 6
 
-          block.tieInData.anodes.forEach((anode, i) => {
+          block.tieInCompletionData.anodes.forEach((anode, i) => {
             checkPageBreak(5)
             if (i % 2 === 0) {
               setColor(BRAND.grayLight, 'fill')
