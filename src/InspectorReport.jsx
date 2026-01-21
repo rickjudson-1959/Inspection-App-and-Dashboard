@@ -3559,7 +3559,7 @@ Important:
         addSubHeader('Tie-In Completion Data', '#e8f4f8')
 
         // Backfill Details
-        if (block.tieInData.backfill && (block.tieInData.backfill.method || block.tieInData.backfill.liftThickness)) {
+        if (block.tieInData.backfill && (block.tieInData.backfill.method || block.tieInData.backfill.liftThickness || block.tieInData.backfill.compactionMethod)) {
           checkPageBreak(25)
           setColor('#d4edda', 'fill')
           doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
@@ -3571,9 +3571,13 @@ Important:
 
           const backfillItems = []
           if (block.tieInData.backfill.method) backfillItems.push(`Method: ${block.tieInData.backfill.method}`)
-          if (block.tieInData.backfill.liftThickness) backfillItems.push(`Lift Thickness: ${block.tieInData.backfill.liftThickness}`)
-          if (block.tieInData.backfill.compactionTesting) backfillItems.push(`Compaction Testing: ${block.tieInData.backfill.compactionTesting}`)
-          if (block.tieInData.backfill.testResults) backfillItems.push(`Test Results: ${block.tieInData.backfill.testResults}`)
+          if (block.tieInData.backfill.liftThickness) backfillItems.push(`Lift: ${block.tieInData.backfill.liftThickness}`)
+          if (block.tieInData.backfill.numberOfLifts) backfillItems.push(`# Lifts: ${block.tieInData.backfill.numberOfLifts}`)
+          if (block.tieInData.backfill.compactionMethod) backfillItems.push(`Compaction: ${block.tieInData.backfill.compactionMethod}`)
+          if (block.tieInData.backfill.compactionTestRequired) backfillItems.push(`Test Req: ${block.tieInData.backfill.compactionTestRequired}`)
+          if (block.tieInData.backfill.compactionTestPassed) backfillItems.push(`Test: ${block.tieInData.backfill.compactionTestPassed}`)
+          if (block.tieInData.backfill.paddingMaterial) backfillItems.push(`Padding: ${block.tieInData.backfill.paddingMaterial}`)
+          if (block.tieInData.backfill.paddingDepth) backfillItems.push(`Depth: ${block.tieInData.backfill.paddingDepth}`)
 
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
@@ -3754,27 +3758,47 @@ Important:
           y += 3
         }
 
-        // Anodes
-        if (block.tieInData.anodes && block.tieInData.anodes.installed === 'Yes') {
-          checkPageBreak(15)
+        // Anodes (array of anode entries)
+        if (block.tieInData.anodes && Array.isArray(block.tieInData.anodes) && block.tieInData.anodes.length > 0) {
+          checkPageBreak(20 + block.tieInData.anodes.length * 5)
           setColor('#e3f2fd', 'fill')
           doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
           setColor('#1565c0', 'text')
           doc.setFont('helvetica', 'bold')
           doc.setFontSize(7)
-          doc.text('ANODES', margin + 4, y + 4)
+          doc.text(`ANODES (${block.tieInData.anodes.length})`, margin + 4, y + 4)
           y += 8
 
-          const anodeInfo = []
-          if (block.tieInData.anodes.type) anodeInfo.push(`Type: ${block.tieInData.anodes.type}`)
-          if (block.tieInData.anodes.quantity) anodeInfo.push(`Qty: ${block.tieInData.anodes.quantity}`)
-          if (block.tieInData.anodes.location) anodeInfo.push(`Location: ${block.tieInData.anodes.location}`)
-
-          setColor(BRAND.black, 'text')
-          doc.setFont('helvetica', 'normal')
+          // Table header
+          setColor('#2196f3', 'fill')
+          doc.rect(margin, y, contentWidth, 5, 'F')
+          setColor('white', 'text')
+          doc.setFont('helvetica', 'bold')
           doc.setFontSize(6)
-          doc.text(anodeInfo.join('  |  '), margin + 4, y + 3)
+          doc.text('TYPE', margin + 2, y + 3.5)
+          doc.text('MANUFACTURER', margin + 35, y + 3.5)
+          doc.text('SIZE', margin + 80, y + 3.5)
+          doc.text('SERIAL #', margin + 110, y + 3.5)
+          doc.text('LOCATION', margin + 150, y + 3.5)
           y += 6
+
+          block.tieInData.anodes.forEach((anode, i) => {
+            checkPageBreak(5)
+            if (i % 2 === 0) {
+              setColor(BRAND.grayLight, 'fill')
+              doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+            }
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(String(anode.type || '-').substring(0, 15), margin + 2, y + 2.5)
+            doc.text(String(anode.manufacturer || '-').substring(0, 20), margin + 35, y + 2.5)
+            doc.text(String(anode.size || '-').substring(0, 12), margin + 80, y + 2.5)
+            doc.text(String(anode.serialNumber || '-').substring(0, 15), margin + 110, y + 2.5)
+            doc.text(String(anode.location || anode.kp || '-').substring(0, 15), margin + 150, y + 2.5)
+            y += 4.5
+          })
+          y += 3
         }
 
         y += 3

@@ -838,14 +838,18 @@ function ReportViewer() {
                       <h4 style={{ fontSize: '14px', color: '#17a2b8', margin: '0 0 12px 0', borderBottom: '2px solid #17a2b8', paddingBottom: '8px' }}>🔧 Tie-In Completion Data</h4>
 
                       {/* Backfill Details */}
-                      {block.tieInData.backfill && (block.tieInData.backfill.method || block.tieInData.backfill.liftThickness) && (
+                      {block.tieInData.backfill && (block.tieInData.backfill.method || block.tieInData.backfill.liftThickness || block.tieInData.backfill.compactionMethod) && (
                         <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#d4edda', borderRadius: '4px' }}>
                           <h5 style={{ fontSize: '12px', color: '#155724', margin: '0 0 8px 0' }}>Backfill Details</h5>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '8px', fontSize: '12px' }}>
                             {block.tieInData.backfill.method && <div><span style={{ color: '#666' }}>Method: </span><strong>{block.tieInData.backfill.method}</strong></div>}
                             {block.tieInData.backfill.liftThickness && <div><span style={{ color: '#666' }}>Lift Thickness: </span><strong>{block.tieInData.backfill.liftThickness}</strong></div>}
-                            {block.tieInData.backfill.compactionTesting && <div><span style={{ color: '#666' }}>Compaction Testing: </span><strong>{block.tieInData.backfill.compactionTesting}</strong></div>}
-                            {block.tieInData.backfill.testResults && <div><span style={{ color: '#666' }}>Test Results: </span><strong>{block.tieInData.backfill.testResults}</strong></div>}
+                            {block.tieInData.backfill.numberOfLifts && <div><span style={{ color: '#666' }}>Number of Lifts: </span><strong>{block.tieInData.backfill.numberOfLifts}</strong></div>}
+                            {block.tieInData.backfill.compactionMethod && <div><span style={{ color: '#666' }}>Compaction Method: </span><strong>{block.tieInData.backfill.compactionMethod}</strong></div>}
+                            {block.tieInData.backfill.compactionTestRequired && <div><span style={{ color: '#666' }}>Compaction Test Req: </span><strong>{block.tieInData.backfill.compactionTestRequired}</strong></div>}
+                            {block.tieInData.backfill.compactionTestPassed && <div><span style={{ color: '#666' }}>Compaction Test: </span><strong style={{ color: block.tieInData.backfill.compactionTestPassed === 'Yes' ? '#28a745' : '#dc3545' }}>{block.tieInData.backfill.compactionTestPassed}</strong></div>}
+                            {block.tieInData.backfill.paddingMaterial && <div><span style={{ color: '#666' }}>Padding Material: </span><strong>{block.tieInData.backfill.paddingMaterial}</strong></div>}
+                            {block.tieInData.backfill.paddingDepth && <div><span style={{ color: '#666' }}>Padding Depth: </span><strong>{block.tieInData.backfill.paddingDepth}</strong></div>}
                           </div>
                         </div>
                       )}
@@ -977,14 +981,31 @@ function ReportViewer() {
                       )}
 
                       {/* Anodes */}
-                      {block.tieInData.anodes && block.tieInData.anodes.installed === 'Yes' && (
+                      {block.tieInData.anodes && Array.isArray(block.tieInData.anodes) && block.tieInData.anodes.length > 0 && (
                         <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#e3f2fd', borderRadius: '4px' }}>
-                          <h5 style={{ fontSize: '12px', color: '#1565c0', margin: '0 0 8px 0' }}>🔌 Anodes</h5>
-                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px', fontSize: '11px' }}>
-                            {block.tieInData.anodes.type && <div><span style={{ color: '#666' }}>Type: </span><strong>{block.tieInData.anodes.type}</strong></div>}
-                            {block.tieInData.anodes.quantity && <div><span style={{ color: '#666' }}>Quantity: </span><strong>{block.tieInData.anodes.quantity}</strong></div>}
-                            {block.tieInData.anodes.location && <div><span style={{ color: '#666' }}>Location: </span><strong>{block.tieInData.anodes.location}</strong></div>}
-                          </div>
+                          <h5 style={{ fontSize: '12px', color: '#1565c0', margin: '0 0 8px 0' }}>🔌 Anodes ({block.tieInData.anodes.length})</h5>
+                          <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: '#2196f3', color: 'white' }}>
+                                <th style={{ padding: '6px', textAlign: 'left' }}>Type</th>
+                                <th style={{ padding: '6px' }}>Manufacturer</th>
+                                <th style={{ padding: '6px' }}>Size</th>
+                                <th style={{ padding: '6px' }}>Serial #</th>
+                                <th style={{ padding: '6px' }}>Location</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {block.tieInData.anodes.map((anode, i) => (
+                                <tr key={i} style={{ backgroundColor: i % 2 ? '#fff' : '#e3f2fd' }}>
+                                  <td style={{ padding: '6px', borderBottom: '1px solid #ddd' }}>{anode.type || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{anode.manufacturer || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{anode.size || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{anode.serialNumber || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{anode.location || anode.kp || '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
                         </div>
                       )}
                     </div>
