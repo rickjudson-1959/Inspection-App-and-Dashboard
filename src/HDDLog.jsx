@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { useActivityAudit } from './useActivityAudit'
 import DrillingWasteManagement from './DrillingWasteManagement'
+import HDDSteeringLog from './HDDSteeringLog'
 
 function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday, logId, reportId }) {
   // Collapsible section states
@@ -11,11 +12,13 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
     pipeInstallation: false,
     postInstallation: false,
     wasteManagement: false,
+    steeringLog: false,
     comments: false
   })
 
   const [showReamingPasses, setShowReamingPasses] = useState(data?.reamingPasses?.enabled || false)
   const [showWasteManagement, setShowWasteManagement] = useState(data?.wasteManagementEnabled || false)
+  const [showSteeringLog, setShowSteeringLog] = useState(data?.steeringLogEnabled || false)
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))
@@ -120,6 +123,10 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
     wasteManagementEnabled: false,
     wasteManagementData: {},
 
+    // Steering Log (Bore Path Data)
+    steeringLogEnabled: false,
+    steeringLogData: {},
+
     comments: ''
   }
 
@@ -130,7 +137,8 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
     reamingPasses: { ...defaultData.reamingPasses, ...(data?.reamingPasses || {}), entries: data?.reamingPasses?.entries || [] },
     pipeInstallation: { ...defaultData.pipeInstallation, ...(data?.pipeInstallation || {}) },
     postInstallation: { ...defaultData.postInstallation, ...(data?.postInstallation || {}) },
-    wasteManagementData: data?.wasteManagementData || {}
+    wasteManagementData: data?.wasteManagementData || {},
+    steeringLogData: data?.steeringLogData || {}
   }
 
   // Audit handlers
@@ -211,6 +219,17 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
 
   const updateWasteManagementData = (wasteData) => {
     onChange({ ...hddData, wasteManagementData: wasteData })
+  }
+
+  // Steering Log toggle and update
+  const toggleSteeringLog = () => {
+    const newEnabled = !showSteeringLog
+    setShowSteeringLog(newEnabled)
+    onChange({ ...hddData, steeringLogEnabled: newEnabled })
+  }
+
+  const updateSteeringLogData = (steeringData) => {
+    onChange({ ...hddData, steeringLogData: steeringData })
   }
 
   // Styles
@@ -631,7 +650,55 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
         )}
       </CollapsibleSection>
 
-      {/* 7. COMMENTS - Collapsible */}
+      {/* 7. STEERING LOG (Bore Path Data) - Purple */}
+      <CollapsibleSection
+        id="steeringLog"
+        title="STEERING LOG (Bore Path Data)"
+        color="#6f42c1"
+        bgColor="#e2d9f3"
+        borderColor="#6f42c1"
+        contentBgColor="#f5f0ff"
+      >
+        <div style={{ marginBottom: '15px' }}>
+          <button
+            onClick={toggleSteeringLog}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: showSteeringLog ? '#dc3545' : '#6f42c1',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: 'bold'
+            }}
+          >
+            {showSteeringLog ? '− Hide Steering Log Module' : '+ Enable Steering Log Tracking'}
+          </button>
+          <p style={{ marginTop: '8px', fontSize: '11px', color: '#666' }}>
+            Track pilot hole guidance data, per-joint steering readings, bending radius alerts, and upload bore logs.
+          </p>
+        </div>
+
+        {showSteeringLog && (
+          <HDDSteeringLog
+            data={hddData.steeringLogData}
+            onChange={updateSteeringLogData}
+            contractor={contractor}
+            foreman={foreman}
+            reportDate={reportDate}
+            boreId={hddData.boreId}
+            crossingId={hddData.crossingType}
+            boreLength={hddData.boreLength}
+            startKP={startKP}
+            endKP={endKP}
+            logId={logId}
+            reportId={reportId}
+          />
+        )}
+      </CollapsibleSection>
+
+      {/* 8. COMMENTS - Collapsible */}
       <CollapsibleSection id="comments" title="COMMENTS">
         <textarea value={hddData.comments}
           onFocus={() => handleFieldFocus('comments', hddData.comments)}
