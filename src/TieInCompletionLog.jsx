@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react'
 import { useActivityAudit } from './useActivityAudit'
 import { extractGPSFromImage, formatGPSCoordinates } from './exifUtils'
+import CrossingSupport from './CrossingSupport'
 
 function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday, logId, reportId }) {
   // Collapsible section states
@@ -85,9 +86,7 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
     anodes: [],
     pipeSupport: {
       required: '',
-      type: '',
-      location: '',
-      details: ''
+      supports: []  // Array of crossing support entries managed by CrossingSupport component
     },
     comments: ''
   }
@@ -351,7 +350,7 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
   const hasBackfillData = tieInData.backfill.method || tieInData.backfill.paddingMaterial || tieInData.backfill.paddingDepth
   const hasCPData = tieInData.cathodicProtection.installed || tieInData.cathodicProtection.stationType || (tieInData.cathodicProtection.photos?.length > 0)
   const hasCrossingsData = tieInData.thirdPartyCrossings.length > 0
-  const hasPipeSupportData = tieInData.pipeSupport.required
+  const hasPipeSupportData = tieInData.pipeSupport.required || (tieInData.pipeSupport.supports?.length > 0)
   const hasAnodesData = tieInData.anodes.length > 0
 
   return (
@@ -1245,15 +1244,15 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
         )}
       </div>
 
-      {/* PIPE SUPPORT - Collapsible */}
+      {/* PIPE SUPPORT (CROSSING SUPPORT) - Collapsible */}
       <div style={sectionStyle}>
         <div
           style={collapsibleHeaderStyle}
           onClick={() => toggleSection('pipeSupport')}
         >
           <span style={{ fontWeight: 'bold', fontSize: '14px' }}>
-            🏗️ PIPE SUPPORT
-            {hasPipeSupportData && <span style={{ color: '#28a745', marginLeft: '8px' }}>●</span>}
+            🏗️ PIPE SUPPORT (Crossing Support)
+            {hasPipeSupportData && <span style={{ color: '#28a745', marginLeft: '8px' }}>● ({tieInData.pipeSupport.supports?.length || 0})</span>}
           </span>
           <span style={{ fontSize: '12px', color: '#6c757d' }}>
             {expandedSections.pipeSupport ? '▼ Collapse' : '▶ Expand'}
@@ -1261,8 +1260,8 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
         </div>
         {expandedSections.pipeSupport && (
         <div style={sectionContentStyle}>
-        <div style={gridStyle}>
-          <div>
+          {/* Pipe Support Required Question */}
+          <div style={{ marginBottom: '15px' }}>
             <label style={labelStyle}>Pipe Support Required</label>
             <select
               value={tieInData.pipeSupport.required}
@@ -1271,62 +1270,39 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                 updatePipeSupport('required', e.target.value)
                 handleNestedFieldBlur('pipeSupport', 'required', e.target.value, 'Pipe Support Required')
               }}
-              style={selectStyle}
+              style={{ ...selectStyle, maxWidth: '200px' }}
             >
               <option value="">Select...</option>
               <option value="Yes">Yes</option>
               <option value="No">No</option>
             </select>
           </div>
+
+          {/* CrossingSupport Component - only show if support is required */}
           {tieInData.pipeSupport.required === 'Yes' && (
-            <>
-              <div>
-                <label style={labelStyle}>Support Type</label>
-                <select
-                  value={tieInData.pipeSupport.type}
-                  onFocus={() => handleNestedFieldFocus('pipeSupport', 'type', tieInData.pipeSupport.type)}
-                  onChange={(e) => {
-                    updatePipeSupport('type', e.target.value)
-                    handleNestedFieldBlur('pipeSupport', 'type', e.target.value, 'Support Type')
-                  }}
-                  style={selectStyle}
-                >
-                  <option value="">Select...</option>
-                  <option value="Concrete">Concrete Support</option>
-                  <option value="Sand Bags">Sand Bags</option>
-                  <option value="Foam">Foam Cradle</option>
-                  <option value="Timber">Timber Cribbing</option>
-                  <option value="Steel">Steel Support</option>
-                  <option value="Other">Other</option>
-                </select>
-              </div>
-              <div>
-                <label style={labelStyle}>Location</label>
-                <input
-                  type="text"
-                  value={tieInData.pipeSupport.location}
-                  onFocus={() => handleNestedFieldFocus('pipeSupport', 'location', tieInData.pipeSupport.location)}
-                  onChange={(e) => updatePipeSupport('location', e.target.value)}
-                  onBlur={(e) => handleNestedFieldBlur('pipeSupport', 'location', e.target.value, 'Support Location')}
-                  placeholder="e.g. Road Crossing KP 5+250"
-                  style={inputStyle}
-                />
-              </div>
-              <div style={{ gridColumn: 'span 2' }}>
-                <label style={labelStyle}>Details</label>
-                <input
-                  type="text"
-                  value={tieInData.pipeSupport.details}
-                  onFocus={() => handleNestedFieldFocus('pipeSupport', 'details', tieInData.pipeSupport.details)}
-                  onChange={(e) => updatePipeSupport('details', e.target.value)}
-                  onBlur={(e) => handleNestedFieldBlur('pipeSupport', 'details', e.target.value, 'Support Details')}
-                  placeholder="Support specifications, dimensions..."
-                  style={inputStyle}
-                />
-              </div>
-            </>
+            <CrossingSupport
+              data={tieInData.pipeSupport}
+              onChange={(pipeSupportData) => {
+                onChange({
+                  ...tieInData,
+                  pipeSupport: pipeSupportData
+                })
+              }}
+              reportId={reportId}
+              reportDate={reportDate}
+              startKP={startKP}
+              endKP={endKP}
+              projectId="default"
+              inspector=""
+              logId={logId}
+            />
           )}
-        </div>
+
+          {tieInData.pipeSupport.required === 'No' && (
+            <p style={{ color: '#666', fontStyle: 'italic', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
+              No pipe support required for this tie-in.
+            </p>
+          )}
         </div>
         )}
       </div>
