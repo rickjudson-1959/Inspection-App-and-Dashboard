@@ -3663,7 +3663,7 @@ Important:
 
           // Photos count
           if (block.tieInCompletionData.cathodicProtection.photos && block.tieInCompletionData.cathodicProtection.photos.length > 0) {
-            doc.text(`📷 ${block.tieInCompletionData.cathodicProtection.photos.length} photo(s) attached`, margin + 4, y + 3)
+            doc.text(`[Photo] ${block.tieInCompletionData.cathodicProtection.photos.length} photo(s) attached`, margin + 4, y + 3)
             y += 5
           }
 
@@ -4210,7 +4210,7 @@ Important:
         // Mortality
         if (sighting.mortality === 'yes') {
           doc.setTextColor(220, 53, 69) // Red
-          doc.text(`⚠️ MORTALITY: ${sighting.mortalityCause || 'Cause unknown'}`, margin + 5, y)
+          doc.text(`[!] MORTALITY: ${sighting.mortalityCause || 'Cause unknown'}`, margin + 5, y)
           doc.setTextColor(0, 0, 0)
           y += 4
         }
@@ -4224,7 +4224,7 @@ Important:
         
         // Photo count
         if (sighting.photos?.length > 0) {
-          doc.text(`📷 ${sighting.photos.length} photo(s) attached`, margin + 5, y)
+          doc.text(`[Photo] ${sighting.photos.length} photo(s) attached`, margin + 5, y)
           y += 4
         }
         
@@ -4248,19 +4248,19 @@ Important:
         return acc
       }, {})
       
-      // Type labels
+      // Type labels (no emojis for PDF compatibility)
       const typeLabels = {
-        mats: '🛤️ Mats',
-        fencing: '🚧 Temporary Fencing',
-        ramps: '🛤️ Ramps',
-        goalposts: '⚡ Goal Posts',
-        access: '🚜 Access Roads',
-        hydrovac: '🚿 Hydrovac Holes',
-        erosion: '🌊 Erosion Control',
-        signage: '🚧 Signage',
-        equipment_cleaning: '🧹 Equipment Cleaning',
-        rock_trench: '🪨 Rock Trench',
-        extra_depth: '📐 Extra Depth Ditch'
+        mats: 'Mats',
+        fencing: 'Temporary Fencing',
+        ramps: 'Ramps',
+        goalposts: 'Goal Posts',
+        access: 'Access Roads',
+        hydrovac: 'Hydrovac Holes',
+        erosion: 'Erosion Control',
+        signage: 'Signage',
+        equipment_cleaning: 'Equipment Cleaning',
+        rock_trench: 'Rock Trench',
+        extra_depth: 'Extra Depth Ditch'
       }
       
       Object.entries(groupedItems).forEach(([type, items]) => {
