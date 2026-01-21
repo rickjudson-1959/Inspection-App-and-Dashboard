@@ -1010,6 +1010,128 @@ function ReportViewer() {
                       )}
                     </div>
                   )}
+
+                  {/* Machine Cleanup Data */}
+                  {block.machineCleanupData && Object.keys(block.machineCleanupData).length > 0 && (
+                    <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#e8f5e9', borderRadius: '6px', border: '1px solid #4caf50' }}>
+                      <h5 style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 10px 0' }}>🌿 Machine Cleanup Data</h5>
+
+                      {/* Subsoil Restoration */}
+                      {block.machineCleanupData.subsoilRestoration && (block.machineCleanupData.subsoilRestoration.rippingDepthCm || block.machineCleanupData.subsoilRestoration.decompactionConfirmed || block.machineCleanupData.subsoilRestoration.rockPickRequired) && (
+                        <div style={{ marginBottom: '8px' }}>
+                          <strong style={{ fontSize: '11px', color: '#2e7d32' }}>Subsoil Restoration & De-compaction</strong>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '4px', marginTop: '4px', fontSize: '11px' }}>
+                            {block.machineCleanupData.subsoilRestoration.rippingDepthCm && <div><span style={{ color: '#666' }}>Ripping Depth: </span><strong>{block.machineCleanupData.subsoilRestoration.rippingDepthCm} cm</strong></div>}
+                            {block.machineCleanupData.subsoilRestoration.numberOfPasses && <div><span style={{ color: '#666' }}>Passes: </span><strong>{block.machineCleanupData.subsoilRestoration.numberOfPasses}</strong></div>}
+                            <div><span style={{ color: '#666' }}>Decompaction: </span><strong style={{ color: block.machineCleanupData.subsoilRestoration.decompactionConfirmed ? '#28a745' : '#dc3545' }}>{block.machineCleanupData.subsoilRestoration.decompactionConfirmed ? 'YES' : 'NO'}</strong></div>
+                            {block.machineCleanupData.subsoilRestoration.rockPickRequired && <div><span style={{ color: '#666' }}>Rock Pick: </span><strong style={{ color: '#28a745' }}>YES</strong></div>}
+                            {block.machineCleanupData.subsoilRestoration.rockVolumeRemovedM3 && <div><span style={{ color: '#666' }}>Rock Removed: </span><strong>{block.machineCleanupData.subsoilRestoration.rockVolumeRemovedM3} m³</strong></div>}
+                            <div><span style={{ color: '#666' }}>Contour: </span><strong style={{ color: block.machineCleanupData.subsoilRestoration.contourMatchingRestored ? '#28a745' : '#dc3545' }}>{block.machineCleanupData.subsoilRestoration.contourMatchingRestored ? 'Restored' : 'Pending'}</strong></div>
+                            <div><span style={{ color: '#666' }}>Drainage: </span><strong style={{ color: block.machineCleanupData.subsoilRestoration.drainagePatternsRestored ? '#28a745' : '#dc3545' }}>{block.machineCleanupData.subsoilRestoration.drainagePatternsRestored ? 'Restored' : 'Pending'}</strong></div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Trench Crown */}
+                      {block.machineCleanupData.trenchCrown && (block.machineCleanupData.trenchCrown.settlementCrownHeightCm || block.machineCleanupData.trenchCrown.mechanicalCompaction) && (
+                        <div style={{ marginBottom: '8px', paddingTop: '8px', borderTop: '1px solid #a5d6a7' }}>
+                          <strong style={{ fontSize: '11px', color: '#1565c0' }}>Trench & Crown Management</strong>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '4px', marginTop: '4px', fontSize: '11px' }}>
+                            {block.machineCleanupData.trenchCrown.settlementCrownHeightCm && <div><span style={{ color: '#666' }}>Crown Height: </span><strong>{block.machineCleanupData.trenchCrown.settlementCrownHeightCm} cm</strong></div>}
+                            <div><span style={{ color: '#666' }}>Relief Gaps: </span><strong style={{ color: block.machineCleanupData.trenchCrown.crownReliefGapsInstalled ? '#28a745' : '#6c757d' }}>{block.machineCleanupData.trenchCrown.crownReliefGapsInstalled ? 'YES' : 'NO'}</strong></div>
+                            <div><span style={{ color: '#666' }}>Mech Compaction: </span><strong style={{ color: block.machineCleanupData.trenchCrown.mechanicalCompaction ? '#28a745' : '#6c757d' }}>{block.machineCleanupData.trenchCrown.mechanicalCompaction ? 'YES' : 'NO'}</strong></div>
+                            {block.machineCleanupData.trenchCrown.compactionEquipmentType && <div><span style={{ color: '#666' }}>Equipment: </span><strong>{block.machineCleanupData.trenchCrown.compactionEquipmentType}</strong></div>}
+                            {block.machineCleanupData.trenchCrown.compactionNumberOfLifts && <div><span style={{ color: '#666' }}>Lifts: </span><strong>{block.machineCleanupData.trenchCrown.compactionNumberOfLifts}</strong></div>}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Debris Recovery */}
+                      {block.machineCleanupData.debrisRecovery && block.machineCleanupData.debrisRecovery.allDebrisCleared && (
+                        <div style={{ marginBottom: '8px', paddingTop: '8px', borderTop: '1px solid #a5d6a7' }}>
+                          <strong style={{ fontSize: '11px', color: '#e65100' }}>Debris & Asset Recovery</strong>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '4px', marginTop: '4px', fontSize: '11px' }}>
+                            <div><span style={{ color: '#666' }}>Skids/Lath: </span><strong style={{ color: block.machineCleanupData.debrisRecovery.skidsLathRemoved ? '#28a745' : '#dc3545' }}>{block.machineCleanupData.debrisRecovery.skidsLathRemoved ? 'Removed' : 'Pending'}</strong></div>
+                            <div><span style={{ color: '#666' }}>Welding Rods: </span><strong style={{ color: block.machineCleanupData.debrisRecovery.weldingRodsCleared ? '#28a745' : '#dc3545' }}>{block.machineCleanupData.debrisRecovery.weldingRodsCleared ? 'Cleared' : 'Pending'}</strong></div>
+                            <div><span style={{ color: '#666' }}>Trash: </span><strong style={{ color: block.machineCleanupData.debrisRecovery.trashCleared ? '#28a745' : '#dc3545' }}>{block.machineCleanupData.debrisRecovery.trashCleared ? 'Cleared' : 'Pending'}</strong></div>
+                            <div><span style={{ color: '#666' }}>Temp Bridges: </span><strong style={{ color: block.machineCleanupData.debrisRecovery.temporaryBridgesRemoved ? '#28a745' : '#6c757d' }}>{block.machineCleanupData.debrisRecovery.temporaryBridgesRemoved ? 'Removed' : 'N/A'}</strong></div>
+                            <div><span style={{ color: '#666' }}>Ramps: </span><strong style={{ color: block.machineCleanupData.debrisRecovery.rampsRemoved ? '#28a745' : '#6c757d' }}>{block.machineCleanupData.debrisRecovery.rampsRemoved ? 'Removed' : 'N/A'}</strong></div>
+                            <div style={{ fontWeight: 'bold', color: block.machineCleanupData.debrisRecovery.allDebrisCleared ? '#28a745' : '#dc3545' }}>
+                              ALL DEBRIS: {block.machineCleanupData.debrisRecovery.allDebrisCleared ? '✓ CLEARED' : '✗ PENDING'}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Drain Tile Repairs */}
+                      {block.machineCleanupData.drainTileRepair?.applicable && block.machineCleanupData.drainTileRepair.tiles?.length > 0 && (
+                        <div style={{ marginBottom: '8px', paddingTop: '8px', borderTop: '1px solid #a5d6a7' }}>
+                          <strong style={{ fontSize: '11px', color: '#0277bd' }}>Drain Tile Repairs ({block.machineCleanupData.drainTileRepair.tiles.length})</strong>
+                          <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse', marginTop: '4px' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: '#b3e5fc' }}>
+                                <th style={{ padding: '4px', textAlign: 'left', borderBottom: '1px solid #4fc3f7' }}>KP</th>
+                                <th style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #4fc3f7' }}>Diameter</th>
+                                <th style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #4fc3f7' }}>Material</th>
+                                <th style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #4fc3f7' }}>Repair</th>
+                                <th style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #4fc3f7' }}>Status</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {block.machineCleanupData.drainTileRepair.tiles.map((tile, i) => (
+                                <tr key={i} style={{ backgroundColor: i % 2 ? '#fff' : '#e1f5fe' }}>
+                                  <td style={{ padding: '4px', borderBottom: '1px solid #ddd' }}>{tile.kp || '-'}</td>
+                                  <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{tile.diameter || '-'}"</td>
+                                  <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{tile.material || '-'}</td>
+                                  <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{tile.repairType || '-'}</td>
+                                  <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>
+                                    <span style={{ padding: '2px 6px', borderRadius: '8px', fontSize: '9px', backgroundColor: tile.status === 'Complete' ? '#d4edda' : '#fff3cd', color: tile.status === 'Complete' ? '#155724' : '#856404' }}>
+                                      {tile.status || 'Pending'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
+
+                      {/* Erosion Control */}
+                      {block.machineCleanupData.erosionControl && (block.machineCleanupData.erosionControl.waterBarsInstalled || block.machineCleanupData.erosionControl.diversionBermsInstalled || block.machineCleanupData.erosionControl.siltFenceStatus) && (
+                        <div style={{ marginBottom: '8px', paddingTop: '8px', borderTop: '1px solid #a5d6a7' }}>
+                          <strong style={{ fontSize: '11px', color: '#880e4f' }}>Erosion & Sediment Control</strong>
+                          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '4px', marginTop: '4px', fontSize: '11px' }}>
+                            {block.machineCleanupData.erosionControl.waterBarsInstalled && <div><span style={{ color: '#666' }}>Water Bars: </span><strong style={{ color: '#28a745' }}>{block.machineCleanupData.erosionControl.waterBarsLinearMeters || 0}m</strong></div>}
+                            <div><span style={{ color: '#666' }}>Diversion Berms: </span><strong style={{ color: block.machineCleanupData.erosionControl.diversionBermsInstalled ? '#28a745' : '#6c757d' }}>{block.machineCleanupData.erosionControl.diversionBermsInstalled ? 'YES' : 'NO'}</strong></div>
+                            {block.machineCleanupData.erosionControl.siltFenceStatus && <div><span style={{ color: '#666' }}>Silt Fence: </span><strong>{block.machineCleanupData.erosionControl.siltFenceStatus}</strong></div>}
+                            {block.machineCleanupData.erosionControl.strawWattlesStatus && <div><span style={{ color: '#666' }}>Straw Wattles: </span><strong>{block.machineCleanupData.erosionControl.strawWattlesStatus}</strong></div>}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Additional Info */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '4px', fontSize: '11px', paddingTop: '8px', borderTop: '1px solid #a5d6a7' }}>
+                        {block.machineCleanupData.soilType && <div><span style={{ color: '#666' }}>Soil Type: </span><strong>{block.machineCleanupData.soilType}</strong></div>}
+                        {block.machineCleanupData.landUseCategory && <div><span style={{ color: '#666' }}>Land Use: </span><strong>{block.machineCleanupData.landUseCategory}</strong></div>}
+                        {block.machineCleanupData.specializedRockPicking && <div><span style={{ color: '#666' }}>Specialized Rock Pick: </span><strong style={{ color: '#28a745' }}>YES</strong></div>}
+                        {block.machineCleanupData.importedFillUsed && <div><span style={{ color: '#666' }}>Imported Fill: </span><strong>{block.machineCleanupData.importedFillVolume || 0} m³</strong></div>}
+                      </div>
+
+                      {/* Photos */}
+                      {block.machineCleanupData.photos && block.machineCleanupData.photos.length > 0 && (
+                        <div style={{ marginTop: '8px', fontSize: '11px', color: '#2e7d32' }}>
+                          📷 {block.machineCleanupData.photos.length} photo(s) attached
+                        </div>
+                      )}
+
+                      {/* Comments */}
+                      {block.machineCleanupData.comments && (
+                        <div style={{ marginTop: '8px', padding: '6px', backgroundColor: '#f1f8e9', borderRadius: '4px', fontSize: '11px' }}>
+                          <span style={{ color: '#666' }}>Comments: </span>{block.machineCleanupData.comments}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}

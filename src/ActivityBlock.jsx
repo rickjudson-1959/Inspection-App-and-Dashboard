@@ -21,6 +21,7 @@ import TieInCompletionLog from './TieInCompletionLog.jsx'
 import DitchInspection from './DitchInspection.jsx'
 import GradingLog from './GradingLog.jsx'
 import CounterboreTransitionLog from './CounterboreTransitionLog.jsx'
+import MachineCleanupLog from './MachineCleanupLog.jsx'
 
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -137,6 +138,7 @@ function ActivityBlock({
   updateDitchData,
   updateGradingData,
   updateCounterboreData,
+  updateMachineCleanupData,
   addLabourToBlock,
   updateLabourJH,
   removeLabourFromBlock,
@@ -625,6 +627,23 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           startKP={block.startKP}
           endKP={block.endKP}
           metersToday={calculateMetersToday(block)}
+        />
+      )
+    }
+
+    if (block.activityType === 'Cleanup - Machine') {
+      return (
+        <MachineCleanupLog
+          data={block.machineCleanupData || {}}
+          onChange={(data) => updateMachineCleanupData(block.id, data)}
+          contractor={block.contractor}
+          foreman={block.foreman}
+          reportDate={selectedDate}
+          startKP={block.startKP}
+          endKP={block.endKP}
+          metersToday={calculateMetersToday(block)}
+          logId={block.id}
+          reportId={reportId}
         />
       )
     }

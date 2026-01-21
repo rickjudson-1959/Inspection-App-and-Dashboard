@@ -218,10 +218,7 @@ export const qualityFieldsByActivity = {
     { name: 'rockShield', label: 'Rock Shield Used', type: 'select', options: ['Yes', 'No', 'N/A'] }
   ],
   'Tie-in Completion': [], // Handled by TieInCompletionLog component
-  'Cleanup - Machine': [
-    { name: 'gradingComplete', label: 'Grading Complete', type: 'select', options: ['Yes', 'No', 'In Progress'] },
-    { name: 'debrisRemoved', label: 'Debris Removed', type: 'select', options: ['Yes', 'No', 'In Progress'] }
-  ],
+  'Cleanup - Machine': [], // Handled by MachineCleanupLog component
   'Cleanup - Final': [
     { name: 'seedingComplete', label: 'Seeding Complete', type: 'select', options: ['Yes', 'No', 'In Progress'] },
     { name: 'fencingRestored', label: 'Fencing Restored', type: 'select', options: ['Yes', 'No', 'N/A'] }

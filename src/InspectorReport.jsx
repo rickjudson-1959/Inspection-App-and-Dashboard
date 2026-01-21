@@ -1492,7 +1492,8 @@ Important:
               tieInCompletionData: block.tieInCompletionData || null,
               ditchData: block.ditchData || null,
               gradingData: block.gradingData || null,
-              cleaningLogData: block.cleaningLogData || null
+              cleaningLogData: block.cleaningLogData || null,
+              machineCleanupData: block.machineCleanupData || null
             }
           })
           setActivityBlocks(loadedBlocks)
@@ -1872,6 +1873,18 @@ Important:
     }))
   }
 
+  function updateMachineCleanupData(blockId, machineCleanupData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          machineCleanupData: machineCleanupData
+        }
+      }
+      return block
+    }))
+  }
+
   // Labour management for activity blocks
   // RT = Regular Time, OT = Overtime, JH = Jump Hours (bonus)
   function addLabourToBlock(blockId, employeeName, classification, rt, ot, jh, count) {
@@ -2191,7 +2204,8 @@ Important:
           hydrotestData: block.hydrotestData || null,
           tieInCompletionData: block.tieInCompletionData || null,
           gradingData: block.gradingData || null,
-          cleaningLogData: block.cleaningLogData || null
+          cleaningLogData: block.cleaningLogData || null,
+          machineCleanupData: block.machineCleanupData || null
         })
       }
 
@@ -4007,6 +4021,185 @@ Important:
         y += 3
       }
 
+      // Machine Cleanup Log
+      if (block.activityType === 'Cleanup - Machine' && block.machineCleanupData) {
+        checkPageBreak(80)
+        addSubHeader('Machine Cleanup Data', '#e8f5e9')
+
+        // Subsoil Restoration
+        if (block.machineCleanupData.subsoilRestoration) {
+          const sr = block.machineCleanupData.subsoilRestoration
+          const srItems = []
+          if (sr.rippingDepthCm) srItems.push(`Ripping: ${sr.rippingDepthCm}cm`)
+          if (sr.numberOfPasses) srItems.push(`Passes: ${sr.numberOfPasses}`)
+          if (sr.decompactionConfirmed) srItems.push('Decompaction: YES')
+          if (sr.rockPickRequired) srItems.push('Rock Pick: YES')
+          if (sr.rockVolumeRemovedM3) srItems.push(`Rock Removed: ${sr.rockVolumeRemovedM3}m3`)
+          if (sr.contourMatchingRestored) srItems.push('Contour: Restored')
+          if (sr.drainagePatternsRestored) srItems.push('Drainage: Restored')
+
+          if (srItems.length > 0) {
+            setColor('#c8e6c9', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#2e7d32', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('SUBSOIL RESTORATION & DE-COMPACTION', margin + 4, y + 4)
+            y += 8
+
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(srItems.join('  |  '), margin + 4, y + 3)
+            y += 8
+          }
+        }
+
+        // Trench Crown
+        if (block.machineCleanupData.trenchCrown) {
+          const tc = block.machineCleanupData.trenchCrown
+          const tcItems = []
+          if (tc.settlementCrownHeightCm) tcItems.push(`Crown: ${tc.settlementCrownHeightCm}cm`)
+          if (tc.crownReliefGapsInstalled) tcItems.push('Relief Gaps: YES')
+          if (tc.mechanicalCompaction) tcItems.push('Mech. Compact: YES')
+          if (tc.compactionEquipmentType) tcItems.push(`Equip: ${tc.compactionEquipmentType}`)
+          if (tc.compactionNumberOfLifts) tcItems.push(`Lifts: ${tc.compactionNumberOfLifts}`)
+
+          if (tcItems.length > 0) {
+            checkPageBreak(15)
+            setColor('#bbdefb', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#1565c0', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('TRENCH & CROWN MANAGEMENT', margin + 4, y + 4)
+            y += 8
+
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(tcItems.join('  |  '), margin + 4, y + 3)
+            y += 8
+          }
+        }
+
+        // Debris Recovery Checklist
+        if (block.machineCleanupData.debrisRecovery) {
+          const dr = block.machineCleanupData.debrisRecovery
+          const drItems = []
+          if (dr.skidsLathRemoved) drItems.push('Skids/Lath: Removed')
+          if (dr.weldingRodsCleared) drItems.push('Welding Rods: Cleared')
+          if (dr.trashCleared) drItems.push('Trash: Cleared')
+          if (dr.temporaryBridgesRemoved) drItems.push('Temp Bridges: Removed')
+          if (dr.rampsRemoved) drItems.push('Ramps: Removed')
+          if (dr.allDebrisCleared) drItems.push('ALL DEBRIS CLEARED')
+
+          if (drItems.length > 0) {
+            checkPageBreak(15)
+            setColor('#fff3e0', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#e65100', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('DEBRIS & ASSET RECOVERY', margin + 4, y + 4)
+            y += 8
+
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(drItems.join('  |  '), margin + 4, y + 3)
+            y += 8
+          }
+        }
+
+        // Drain Tile Repairs
+        if (block.machineCleanupData.drainTileRepair?.applicable && block.machineCleanupData.drainTileRepair.tiles?.length > 0) {
+          checkPageBreak(20 + block.machineCleanupData.drainTileRepair.tiles.length * 5)
+          setColor('#e1f5fe', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#0277bd', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text(`DRAIN TILE REPAIRS (${block.machineCleanupData.drainTileRepair.tiles.length})`, margin + 4, y + 4)
+          y += 8
+
+          block.machineCleanupData.drainTileRepair.tiles.slice(0, 5).forEach((tile, i) => {
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            const tileInfo = []
+            if (tile.kp) tileInfo.push(`KP: ${tile.kp}`)
+            if (tile.diameter) tileInfo.push(`${tile.diameter}"`)
+            if (tile.material) tileInfo.push(tile.material)
+            if (tile.repairType) tileInfo.push(tile.repairType)
+            if (tile.status) tileInfo.push(`Status: ${tile.status}`)
+            doc.text(`${i + 1}. ${tileInfo.join('  |  ')}`, margin + 4, y + 3)
+            y += 5
+          })
+          y += 3
+        }
+
+        // Erosion Control
+        if (block.machineCleanupData.erosionControl) {
+          const ec = block.machineCleanupData.erosionControl
+          const ecItems = []
+          if (ec.waterBarsInstalled) ecItems.push(`Water Bars: ${ec.waterBarsLinearMeters || 0}m`)
+          if (ec.diversionBermsInstalled) ecItems.push('Diversion Berms: YES')
+          if (ec.siltFenceStatus) ecItems.push(`Silt Fence: ${ec.siltFenceStatus}`)
+          if (ec.strawWattlesStatus) ecItems.push(`Straw Wattles: ${ec.strawWattlesStatus}`)
+
+          if (ecItems.length > 0) {
+            checkPageBreak(15)
+            setColor('#fce4ec', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#880e4f', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('EROSION & SEDIMENT CONTROL', margin + 4, y + 4)
+            y += 8
+
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(ecItems.join('  |  '), margin + 4, y + 3)
+            y += 8
+          }
+        }
+
+        // Additional Info
+        const addlItems = []
+        if (block.machineCleanupData.soilType) addlItems.push(`Soil: ${block.machineCleanupData.soilType}`)
+        if (block.machineCleanupData.landUseCategory) addlItems.push(`Land Use: ${block.machineCleanupData.landUseCategory}`)
+        if (block.machineCleanupData.specializedRockPicking) addlItems.push('Specialized Rock Pick: YES')
+        if (block.machineCleanupData.importedFillUsed) addlItems.push(`Imported Fill: ${block.machineCleanupData.importedFillVolume || 0}m3`)
+
+        if (addlItems.length > 0) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(addlItems.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Photos count
+        if (block.machineCleanupData.photos && block.machineCleanupData.photos.length > 0) {
+          doc.text(`[Photo] ${block.machineCleanupData.photos.length} photo(s) attached`, margin + 4, y + 3)
+          y += 5
+        }
+
+        if (block.machineCleanupData.comments) {
+          checkPageBreak(12)
+          setColor(BRAND.grayLight, 'fill')
+          doc.roundedRect(margin, y, contentWidth, 10, 1, 1, 'F')
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'italic')
+          doc.setFontSize(6)
+          doc.text('Comments: ' + String(block.machineCleanupData.comments).substring(0, 150), margin + 4, y + 6)
+          y += 12
+        }
+        y += 3
+      }
+
       // Quality Checks
       if (block.qualityData && Object.keys(block.qualityData).length > 0) {
         const qualityEntries = Object.entries(block.qualityData).filter(([key, val]) => val && val !== '' && val !== 'N/A')
@@ -5221,6 +5414,7 @@ Important:
           updateDitchData={updateDitchData}
           updateGradingData={updateGradingData}
           updateCounterboreData={updateCounterboreData}
+          updateMachineCleanupData={updateMachineCleanupData}
           addLabourToBlock={addLabourToBlock}
           updateLabourJH={updateLabourJH}
           removeLabourFromBlock={removeLabourFromBlock}
