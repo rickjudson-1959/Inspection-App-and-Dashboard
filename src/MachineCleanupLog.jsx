@@ -1,6 +1,50 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useMemo } from 'react'
 import { useActivityAudit } from './useActivityAudit'
 import { extractGPSFromImage, formatGPSCoordinates } from './exifUtils'
+
+// Collapsible section component - defined outside to prevent re-mounting on parent re-render
+function CollapsibleSection({ id, title, color, bgColor, borderColor, children, hasData, expanded, onToggle }) {
+  return (
+    <div style={{ marginBottom: '10px' }}>
+      <div
+        style={{
+          fontSize: '14px',
+          fontWeight: 'bold',
+          color: color,
+          padding: '12px 15px',
+          backgroundColor: bgColor,
+          borderRadius: expanded ? '6px 6px 0 0' : '6px',
+          cursor: 'pointer',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          userSelect: 'none',
+          border: `1px solid ${borderColor}`
+        }}
+        onClick={() => onToggle(id)}
+      >
+        <span>
+          {title}
+          {hasData && <span style={{ color: '#28a745', marginLeft: '8px' }}>●</span>}
+        </span>
+        <span style={{ fontSize: '12px', color: '#6c757d' }}>
+          {expanded ? '▼ Collapse' : '▶ Expand'}
+        </span>
+      </div>
+      {expanded && (
+        <div style={{
+          padding: '15px',
+          backgroundColor: '#fff',
+          borderRadius: '0 0 6px 6px',
+          border: `1px solid ${borderColor}`,
+          borderTop: 'none'
+        }}>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
 
 function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday, logId, reportId }) {
   // Collapsible section states
@@ -102,8 +146,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
     comments: ''
   }
 
-  // Merge incoming data with defaults
-  const cleanupData = {
+  // Merge incoming data with defaults - memoized to prevent re-computation
+  const cleanupData = useMemo(() => ({
     ...defaultData,
     ...data,
     subsoilRestoration: { ...defaultData.subsoilRestoration, ...(data?.subsoilRestoration || {}) },
@@ -112,7 +156,7 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
     drainTileRepair: { ...defaultData.drainTileRepair, ...(data?.drainTileRepair || {}) },
     erosionControl: { ...defaultData.erosionControl, ...(data?.erosionControl || {}) },
     photos: data?.photos || []
-  }
+  }), [data])
 
   // Audit-aware field handlers
   const handleFieldFocus = (fieldName, currentValue) => {
@@ -276,48 +320,6 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
     cleanupData.erosionControl.siltFenceStatus
   const hasDrainTileData = cleanupData.drainTileRepair.tiles.length > 0
 
-  // Collapsible section wrapper
-  const CollapsibleSection = ({ id, title, color, bgColor, borderColor, children, hasData }) => (
-    <div style={{ marginBottom: '10px' }}>
-      <div
-        style={{
-          fontSize: '14px',
-          fontWeight: 'bold',
-          color: color,
-          padding: '12px 15px',
-          backgroundColor: bgColor,
-          borderRadius: expandedSections[id] ? '6px 6px 0 0' : '6px',
-          cursor: 'pointer',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          userSelect: 'none',
-          border: `1px solid ${borderColor}`
-        }}
-        onClick={() => toggleSection(id)}
-      >
-        <span>
-          {title}
-          {hasData && <span style={{ color: '#28a745', marginLeft: '8px' }}>●</span>}
-        </span>
-        <span style={{ fontSize: '12px', color: '#6c757d' }}>
-          {expandedSections[id] ? '▼ Collapse' : '▶ Expand'}
-        </span>
-      </div>
-      {expandedSections[id] && (
-        <div style={{
-          padding: '15px',
-          backgroundColor: '#fff',
-          borderRadius: '0 0 6px 6px',
-          border: `1px solid ${borderColor}`,
-          borderTop: 'none'
-        }}>
-          {children}
-        </div>
-      )}
-    </div>
-  )
-
   // Styles
   const inputStyle = {
     width: '100%',
@@ -369,6 +371,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
         bgColor="#e8f5e9"
         borderColor="#a5d6a7"
         hasData={hasSubsoilData}
+        expanded={expandedSections.subsoilRestoration}
+        onToggle={toggleSection}
       >
         <div style={{ marginBottom: '15px' }}>
           <h5 style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 10px 0' }}>Ripping/Disking</h5>
@@ -513,6 +517,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
         bgColor="#e3f2fd"
         borderColor="#90caf9"
         hasData={hasTrenchData}
+        expanded={expandedSections.trenchCrown}
+        onToggle={toggleSection}
       >
         <div style={{ marginBottom: '15px' }}>
           <h5 style={{ fontSize: '13px', color: '#1565c0', margin: '0 0 10px 0' }}>Settlement Crown (Roach)</h5>
@@ -641,6 +647,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
         bgColor="#fff3e0"
         borderColor="#ffcc80"
         hasData={hasDebrisData}
+        expanded={expandedSections.debrisRecovery}
+        onToggle={toggleSection}
       >
         <div style={{ marginBottom: '15px' }}>
           <h5 style={{ fontSize: '13px', color: '#f57c00', margin: '0 0 10px 0' }}>Clean-Site Checklist</h5>
@@ -735,6 +743,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
         bgColor="#f3e5f5"
         borderColor="#ce93d8"
         hasData={hasDrainTileData}
+        expanded={expandedSections.drainTile}
+        onToggle={toggleSection}
       >
         <div style={checkboxRowStyle}>
           <input
@@ -887,6 +897,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
         bgColor="#e0f2f1"
         borderColor="#80cbc4"
         hasData={hasErosionData}
+        expanded={expandedSections.erosionControl}
+        onToggle={toggleSection}
       >
         <div style={{ marginBottom: '15px' }}>
           <h5 style={{ fontSize: '13px', color: '#00695c', margin: '0 0 10px 0' }}>Slope Stability</h5>
@@ -1097,6 +1109,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
         bgColor="#ffebee"
         borderColor="#ef9a9a"
         hasData={cleanupData.photos.length > 0}
+        expanded={expandedSections.photos}
+        onToggle={toggleSection}
       >
         <div style={{ marginBottom: '15px' }}>
           <p style={{ fontSize: '12px', color: '#666', margin: '0 0 10px 0' }}>
