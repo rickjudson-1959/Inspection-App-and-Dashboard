@@ -593,63 +593,242 @@ function ReportViewer() {
 
                   {/* Specialized Data - Welding */}
                   {block.weldData && (
-                    <div style={{ marginTop: '10px', backgroundColor: '#fce4ec', padding: '10px', borderRadius: '4px' }}>
-                      <h4 style={{ fontSize: '13px', color: '#880e4f', margin: '0 0 8px 0' }}>🔥 Weld Data</h4>
-                      <pre style={{ margin: 0, fontSize: '11px', whiteSpace: 'pre-wrap' }}>{JSON.stringify(block.weldData, null, 2)}</pre>
+                    <div style={{ marginTop: '10px', backgroundColor: '#fce4ec', padding: '12px', borderRadius: '6px', border: '1px solid #e91e63' }}>
+                      <h4 style={{ fontSize: '14px', color: '#880e4f', margin: '0 0 12px 0', borderBottom: '2px solid #880e4f', paddingBottom: '8px' }}>🔥 Weld Data</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px', fontSize: '12px', marginBottom: '12px' }}>
+                        {block.weldData.crewType && <div><span style={{ color: '#666' }}>Crew Type: </span><strong>{block.weldData.crewType}</strong></div>}
+                        {block.weldData.weldMethod && <div><span style={{ color: '#666' }}>Weld Method: </span><strong>{block.weldData.weldMethod}</strong></div>}
+                        {block.weldData.weldsToday !== undefined && <div><span style={{ color: '#666' }}>Welds Today: </span><strong>{block.weldData.weldsToday}</strong></div>}
+                        {block.weldData.totalWelds !== undefined && <div><span style={{ color: '#666' }}>Total Welds: </span><strong>{block.weldData.totalWelds}</strong></div>}
+                        {block.weldData.visualsFrom && <div><span style={{ color: '#666' }}>Visuals From: </span><strong>{block.weldData.visualsFrom}</strong></div>}
+                        {block.weldData.visualsTo && <div><span style={{ color: '#666' }}>Visuals To: </span><strong>{block.weldData.visualsTo}</strong></div>}
+                        {block.weldData.startTime && <div><span style={{ color: '#666' }}>Start Time: </span><strong>{block.weldData.startTime}</strong></div>}
+                        {block.weldData.endTime && <div><span style={{ color: '#666' }}>End Time: </span><strong>{block.weldData.endTime}</strong></div>}
+                      </div>
+                      {block.weldData.weldEntries && block.weldData.weldEntries.length > 0 && (
+                        <div style={{ marginBottom: '12px' }}>
+                          <h5 style={{ fontSize: '12px', color: '#880e4f', margin: '0 0 8px 0' }}>Weld Entries ({block.weldData.weldEntries.length})</h5>
+                          <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
+                            <thead><tr style={{ backgroundColor: '#e91e63', color: 'white' }}>
+                              <th style={{ padding: '6px', textAlign: 'left' }}>Weld #</th>
+                              <th style={{ padding: '6px' }}>Preheat</th>
+                              <th style={{ padding: '6px' }}>Pass</th>
+                              <th style={{ padding: '6px' }}>Volts</th>
+                              <th style={{ padding: '6px' }}>Amps</th>
+                              <th style={{ padding: '6px' }}>WPS OK</th>
+                            </tr></thead>
+                            <tbody>
+                              {block.weldData.weldEntries.slice(0, 10).map((w, i) => (
+                                <tr key={i} style={{ backgroundColor: i % 2 ? '#fff' : '#fce4ec' }}>
+                                  <td style={{ padding: '6px', borderBottom: '1px solid #ddd' }}>{w.weldNumber || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{w.preheat || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{w.pass || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{w.voltage || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{w.amperage || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd', color: w.meetsWPS ? '#28a745' : w.meetsWPS === false ? '#dc3545' : '#666' }}>{w.meetsWPS ? '✓' : w.meetsWPS === false ? '✗' : '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          {block.weldData.weldEntries.length > 10 && <p style={{ fontSize: '10px', color: '#666', margin: '4px 0 0 0' }}>+ {block.weldData.weldEntries.length - 10} more</p>}
+                        </div>
+                      )}
+                      {block.weldData.repairs && block.weldData.repairs.length > 0 && (
+                        <div style={{ padding: '8px', backgroundColor: '#ffebee', borderRadius: '4px' }}>
+                          <h5 style={{ fontSize: '11px', color: '#c62828', margin: '0 0 4px 0' }}>⚠️ Repairs ({block.weldData.repairs.length})</h5>
+                          {block.weldData.repairs.map((r, i) => <div key={i} style={{ fontSize: '10px' }}><strong>{r.weldNumber}</strong>: {r.defectCode} - {r.defectName}</div>)}
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* Specialized Data - Coating */}
                   {block.coatingData && Object.keys(block.coatingData).length > 0 && (
-                    <div style={{ marginTop: '10px', backgroundColor: '#e8f5e9', padding: '10px', borderRadius: '4px' }}>
-                      <h4 style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 8px 0' }}>🎨 Coating Data</h4>
-                      <pre style={{ margin: 0, fontSize: '11px', whiteSpace: 'pre-wrap' }}>{JSON.stringify(block.coatingData, null, 2)}</pre>
+                    <div style={{ marginTop: '10px', backgroundColor: '#e8f5e9', padding: '12px', borderRadius: '6px', border: '1px solid #4caf50' }}>
+                      <h4 style={{ fontSize: '14px', color: '#2e7d32', margin: '0 0 12px 0', borderBottom: '2px solid #2e7d32', paddingBottom: '8px' }}>🎨 Coating Data</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', fontSize: '12px' }}>
+                        {block.coatingData.coatingType && <div><span style={{ color: '#666' }}>Coating Type: </span><strong>{block.coatingData.coatingType}</strong></div>}
+                        {block.coatingData.applicator && <div><span style={{ color: '#666' }}>Applicator: </span><strong>{block.coatingData.applicator}</strong></div>}
+                        {block.coatingData.temperature && <div><span style={{ color: '#666' }}>Temperature: </span><strong>{block.coatingData.temperature}°C</strong></div>}
+                        {block.coatingData.humidity && <div><span style={{ color: '#666' }}>Humidity: </span><strong>{block.coatingData.humidity}%</strong></div>}
+                      </div>
+                      {block.coatingData.welds && block.coatingData.welds.length > 0 && (
+                        <div style={{ marginTop: '10px' }}>
+                          <h5 style={{ fontSize: '12px', color: '#2e7d32', margin: '0 0 8px 0' }}>Welds Coated ({block.coatingData.welds.length})</h5>
+                          <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
+                            <thead><tr style={{ backgroundColor: '#4caf50', color: 'white' }}>
+                              <th style={{ padding: '6px', textAlign: 'left' }}>Weld #</th>
+                              <th style={{ padding: '6px' }}>KP</th>
+                              <th style={{ padding: '6px' }}>Diameter</th>
+                              <th style={{ padding: '6px' }}>Wall</th>
+                            </tr></thead>
+                            <tbody>
+                              {block.coatingData.welds.slice(0, 10).map((w, i) => (
+                                <tr key={i} style={{ backgroundColor: i % 2 ? '#fff' : '#e8f5e9' }}>
+                                  <td style={{ padding: '6px', borderBottom: '1px solid #ddd' }}>{w.weldNumber || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{w.kp || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{w.diameter || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{w.wallThickness || '-'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   )}
 
                   {/* Specialized Data - Bending */}
                   {block.bendingData && Object.keys(block.bendingData).length > 0 && (
-                    <div style={{ marginTop: '10px', backgroundColor: '#fff8e1', padding: '10px', borderRadius: '4px' }}>
-                      <h4 style={{ fontSize: '13px', color: '#f57f17', margin: '0 0 8px 0' }}>↩️ Bending Data</h4>
-                      <pre style={{ margin: 0, fontSize: '11px', whiteSpace: 'pre-wrap' }}>{JSON.stringify(block.bendingData, null, 2)}</pre>
+                    <div style={{ marginTop: '10px', backgroundColor: '#fff8e1', padding: '12px', borderRadius: '6px', border: '1px solid #ffc107' }}>
+                      <h4 style={{ fontSize: '14px', color: '#f57f17', margin: '0 0 12px 0', borderBottom: '2px solid #f57f17', paddingBottom: '8px' }}>↩️ Bending Data</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px', fontSize: '12px', marginBottom: '12px' }}>
+                        {block.bendingData.bendsToday !== undefined && <div><span style={{ color: '#666' }}>Bends Today: </span><strong>{block.bendingData.bendsToday}</strong></div>}
+                        {block.bendingData.bendsPrevious !== undefined && <div><span style={{ color: '#666' }}>Previous: </span><strong>{block.bendingData.bendsPrevious}</strong></div>}
+                        {block.bendingData.totalBends !== undefined && <div><span style={{ color: '#666' }}>Total: </span><strong>{block.bendingData.totalBends}</strong></div>}
+                      </div>
+                      {block.bendingData.bendEntries && block.bendingData.bendEntries.length > 0 && (
+                        <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
+                          <thead><tr style={{ backgroundColor: '#ffc107', color: '#333' }}>
+                            <th style={{ padding: '6px', textAlign: 'left' }}>Station</th>
+                            <th style={{ padding: '6px' }}>Angle</th>
+                            <th style={{ padding: '6px' }}>Type</th>
+                            <th style={{ padding: '6px' }}>Ovality %</th>
+                            <th style={{ padding: '6px' }}>Pass</th>
+                          </tr></thead>
+                          <tbody>
+                            {block.bendingData.bendEntries.slice(0, 10).map((b, i) => (
+                              <tr key={i} style={{ backgroundColor: i % 2 ? '#fff' : '#fff8e1' }}>
+                                <td style={{ padding: '6px', borderBottom: '1px solid #ddd' }}>{b.stationKP || '-'}</td>
+                                <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{b.bendAngle || '-'}°</td>
+                                <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{b.bendType || '-'}</td>
+                                <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{b.ovalityPercent ? `${parseFloat(b.ovalityPercent).toFixed(2)}%` : '-'}</td>
+                                <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd', color: b.ovalityPass ? '#28a745' : b.ovalityPass === false ? '#dc3545' : '#666' }}>{b.ovalityPass ? '✓' : b.ovalityPass === false ? '✗' : '-'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
                     </div>
                   )}
 
                   {/* Specialized Data - Stringing */}
                   {block.stringingData && Object.keys(block.stringingData).length > 0 && (
-                    <div style={{ marginTop: '10px', backgroundColor: '#e3f2fd', padding: '10px', borderRadius: '4px' }}>
-                      <h4 style={{ fontSize: '13px', color: '#1565c0', margin: '0 0 8px 0' }}>📏 Stringing Data</h4>
-                      <pre style={{ margin: 0, fontSize: '11px', whiteSpace: 'pre-wrap' }}>{JSON.stringify(block.stringingData, null, 2)}</pre>
+                    <div style={{ marginTop: '10px', backgroundColor: '#e3f2fd', padding: '12px', borderRadius: '6px', border: '1px solid #2196f3' }}>
+                      <h4 style={{ fontSize: '14px', color: '#1565c0', margin: '0 0 12px 0', borderBottom: '2px solid #1565c0', paddingBottom: '8px' }}>📏 Stringing Data</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px', fontSize: '12px', marginBottom: '12px' }}>
+                        {block.stringingData.jointsToday !== undefined && <div><span style={{ color: '#666' }}>Joints Today: </span><strong>{block.stringingData.jointsToday}</strong></div>}
+                        {block.stringingData.jointsPrevious !== undefined && <div><span style={{ color: '#666' }}>Previous: </span><strong>{block.stringingData.jointsPrevious}</strong></div>}
+                        {block.stringingData.totalLengthM !== undefined && <div><span style={{ color: '#666' }}>Total Length: </span><strong>{block.stringingData.totalLengthM}m</strong></div>}
+                      </div>
+                      {block.stringingData.jointEntries && block.stringingData.jointEntries.length > 0 && (
+                        <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
+                          <thead><tr style={{ backgroundColor: '#2196f3', color: 'white' }}>
+                            <th style={{ padding: '6px', textAlign: 'left' }}>Joint #</th>
+                            <th style={{ padding: '6px' }}>Heat #</th>
+                            <th style={{ padding: '6px' }}>KP</th>
+                            <th style={{ padding: '6px' }}>Length</th>
+                            <th style={{ padding: '6px' }}>Wall</th>
+                            <th style={{ padding: '6px' }}>Visual</th>
+                          </tr></thead>
+                          <tbody>
+                            {block.stringingData.jointEntries.filter(j => j.status === 'Strung').slice(0, 10).map((j, i) => (
+                              <tr key={i} style={{ backgroundColor: i % 2 ? '#fff' : '#e3f2fd' }}>
+                                <td style={{ padding: '6px', borderBottom: '1px solid #ddd' }}>{j.jointNumber || '-'}</td>
+                                <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{j.heatNumber || '-'}</td>
+                                <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{j.stationKP || '-'}</td>
+                                <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{j.lengthM || '-'}m</td>
+                                <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{j.wallThickness || '-'}</td>
+                                <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd', color: j.visualCheck ? '#28a745' : '#dc3545' }}>{j.visualCheck ? '✓' : '✗'}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
                     </div>
                   )}
 
                   {/* Specialized Data - Clearing */}
                   {block.clearingData && Object.keys(block.clearingData).length > 0 && (
-                    <div style={{ marginTop: '10px', backgroundColor: '#f1f8e9', padding: '10px', borderRadius: '4px' }}>
-                      <h4 style={{ fontSize: '13px', color: '#558b2f', margin: '0 0 8px 0' }}>🌲 Clearing Data</h4>
-                      <pre style={{ margin: 0, fontSize: '11px', whiteSpace: 'pre-wrap' }}>{JSON.stringify(block.clearingData, null, 2)}</pre>
+                    <div style={{ marginTop: '10px', backgroundColor: '#f1f8e9', padding: '12px', borderRadius: '6px', border: '1px solid #8bc34a' }}>
+                      <h4 style={{ fontSize: '14px', color: '#558b2f', margin: '0 0 12px 0', borderBottom: '2px solid #558b2f', paddingBottom: '8px' }}>🌲 Clearing Data</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', fontSize: '12px' }}>
+                        {block.clearingData.clearingMethod && <div><span style={{ color: '#666' }}>Method: </span><strong>{block.clearingData.clearingMethod}</strong></div>}
+                        {block.clearingData.vegetationType && <div><span style={{ color: '#666' }}>Vegetation: </span><strong>{block.clearingData.vegetationType}</strong></div>}
+                        {block.clearingData.debrisDisposal && <div><span style={{ color: '#666' }}>Debris Disposal: </span><strong>{block.clearingData.debrisDisposal}</strong></div>}
+                      </div>
+                      {block.clearingData.timberDecks && block.clearingData.timberDecks.length > 0 && (
+                        <div style={{ marginTop: '10px' }}>
+                          <h5 style={{ fontSize: '12px', color: '#558b2f', margin: '0 0 8px 0' }}>Timber Decks ({block.clearingData.timberDecks.length})</h5>
+                          <table style={{ width: '100%', fontSize: '11px', borderCollapse: 'collapse' }}>
+                            <thead><tr style={{ backgroundColor: '#8bc34a', color: 'white' }}>
+                              <th style={{ padding: '6px', textAlign: 'left' }}>Deck ID</th>
+                              <th style={{ padding: '6px' }}>Start KP</th>
+                              <th style={{ padding: '6px' }}>End KP</th>
+                              <th style={{ padding: '6px' }}>Species</th>
+                              <th style={{ padding: '6px' }}>Volume</th>
+                            </tr></thead>
+                            <tbody>
+                              {block.clearingData.timberDecks.map((d, i) => (
+                                <tr key={i} style={{ backgroundColor: i % 2 ? '#fff' : '#f1f8e9' }}>
+                                  <td style={{ padding: '6px', borderBottom: '1px solid #ddd' }}>{d.deckId || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{d.startKp || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{d.endKp || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{d.speciesSort || '-'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>{d.volumeEstimate || '-'} m³</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   )}
 
-                  {/* Other Specialized Data */}
+                  {/* Specialized Data - HDD */}
                   {block.hddData && Object.keys(block.hddData).length > 0 && (
-                    <div style={{ marginTop: '10px', backgroundColor: '#ede7f6', padding: '10px', borderRadius: '4px' }}>
-                      <h4 style={{ fontSize: '13px', color: '#512da8', margin: '0 0 8px 0' }}>🔄 HDD Data</h4>
-                      <pre style={{ margin: 0, fontSize: '11px', whiteSpace: 'pre-wrap' }}>{JSON.stringify(block.hddData, null, 2)}</pre>
+                    <div style={{ marginTop: '10px', backgroundColor: '#ede7f6', padding: '12px', borderRadius: '6px', border: '1px solid #673ab7' }}>
+                      <h4 style={{ fontSize: '14px', color: '#512da8', margin: '0 0 12px 0', borderBottom: '2px solid #512da8', paddingBottom: '8px' }}>🔄 HDD Data</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', fontSize: '12px' }}>
+                        {block.hddData.drillingContractor && <div><span style={{ color: '#666' }}>Contractor: </span><strong>{block.hddData.drillingContractor}</strong></div>}
+                        {block.hddData.boreLength && <div><span style={{ color: '#666' }}>Bore Length: </span><strong>{block.hddData.boreLength}m</strong></div>}
+                        {block.hddData.entryAngle && <div><span style={{ color: '#666' }}>Entry Angle: </span><strong>{block.hddData.entryAngle}°</strong></div>}
+                        {block.hddData.exitAngle && <div><span style={{ color: '#666' }}>Exit Angle: </span><strong>{block.hddData.exitAngle}°</strong></div>}
+                        {block.hddData.drillingFluid && <div><span style={{ color: '#666' }}>Drilling Fluid: </span><strong>{block.hddData.drillingFluid}</strong></div>}
+                        {block.hddData.pilotHoleComplete && <div><span style={{ color: '#666' }}>Pilot Hole: </span><strong style={{ color: block.hddData.pilotHoleComplete === 'Yes' ? '#28a745' : '#666' }}>{block.hddData.pilotHoleComplete}</strong></div>}
+                        {block.hddData.reamerSize && <div><span style={{ color: '#666' }}>Reamer Size: </span><strong>{block.hddData.reamerSize}"</strong></div>}
+                        {block.hddData.pullbackComplete && <div><span style={{ color: '#666' }}>Pullback: </span><strong style={{ color: block.hddData.pullbackComplete === 'Yes' ? '#28a745' : '#666' }}>{block.hddData.pullbackComplete}</strong></div>}
+                      </div>
                     </div>
                   )}
 
+                  {/* Specialized Data - Hydrotest */}
                   {block.hydrotestData && Object.keys(block.hydrotestData).length > 0 && (
-                    <div style={{ marginTop: '10px', backgroundColor: '#e0f7fa', padding: '10px', borderRadius: '4px' }}>
-                      <h4 style={{ fontSize: '13px', color: '#00838f', margin: '0 0 8px 0' }}>💧 Hydrotest Data</h4>
-                      <pre style={{ margin: 0, fontSize: '11px', whiteSpace: 'pre-wrap' }}>{JSON.stringify(block.hydrotestData, null, 2)}</pre>
+                    <div style={{ marginTop: '10px', backgroundColor: '#e0f7fa', padding: '12px', borderRadius: '6px', border: '1px solid #00bcd4' }}>
+                      <h4 style={{ fontSize: '14px', color: '#00838f', margin: '0 0 12px 0', borderBottom: '2px solid #00838f', paddingBottom: '8px' }}>💧 Hydrotest Data</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', fontSize: '12px' }}>
+                        {block.hydrotestData.testSection && <div><span style={{ color: '#666' }}>Test Section: </span><strong>{block.hydrotestData.testSection}</strong></div>}
+                        {block.hydrotestData.testPressure && <div><span style={{ color: '#666' }}>Test Pressure: </span><strong>{block.hydrotestData.testPressure} kPa</strong></div>}
+                        {block.hydrotestData.holdTime && <div><span style={{ color: '#666' }}>Hold Time: </span><strong>{block.hydrotestData.holdTime} hrs</strong></div>}
+                        {block.hydrotestData.waterSource && <div><span style={{ color: '#666' }}>Water Source: </span><strong>{block.hydrotestData.waterSource}</strong></div>}
+                        {block.hydrotestData.testResult && <div><span style={{ color: '#666' }}>Result: </span><strong style={{ color: block.hydrotestData.testResult === 'Pass' ? '#28a745' : '#dc3545' }}>{block.hydrotestData.testResult}</strong></div>}
+                        {block.hydrotestData.pressureDropPSI && <div><span style={{ color: '#666' }}>Pressure Drop: </span><strong>{block.hydrotestData.pressureDropPSI} PSI</strong></div>}
+                      </div>
                     </div>
                   )}
 
+                  {/* Specialized Data - Grading */}
                   {block.gradingData && Object.keys(block.gradingData).length > 0 && (
-                    <div style={{ marginTop: '10px', backgroundColor: '#efebe9', padding: '10px', borderRadius: '4px' }}>
-                      <h4 style={{ fontSize: '13px', color: '#5d4037', margin: '0 0 8px 0' }}>🚧 Grading Data</h4>
-                      <pre style={{ margin: 0, fontSize: '11px', whiteSpace: 'pre-wrap' }}>{JSON.stringify(block.gradingData, null, 2)}</pre>
+                    <div style={{ marginTop: '10px', backgroundColor: '#efebe9', padding: '12px', borderRadius: '6px', border: '1px solid #795548' }}>
+                      <h4 style={{ fontSize: '14px', color: '#5d4037', margin: '0 0 12px 0', borderBottom: '2px solid #5d4037', paddingBottom: '8px' }}>🚧 Grading Data</h4>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '8px', fontSize: '12px' }}>
+                        {block.gradingData.gradingMethod && <div><span style={{ color: '#666' }}>Method: </span><strong>{block.gradingData.gradingMethod}</strong></div>}
+                        {block.gradingData.materialSource && <div><span style={{ color: '#666' }}>Material Source: </span><strong>{block.gradingData.materialSource}</strong></div>}
+                        {block.gradingData.compactionRequired && <div><span style={{ color: '#666' }}>Compaction Required: </span><strong>{block.gradingData.compactionRequired}</strong></div>}
+                        {block.gradingData.compactionMethod && <div><span style={{ color: '#666' }}>Compaction Method: </span><strong>{block.gradingData.compactionMethod}</strong></div>}
+                        {block.gradingData.slopeCompliance && <div><span style={{ color: '#666' }}>Slope Compliance: </span><strong style={{ color: block.gradingData.slopeCompliance === 'Yes' ? '#28a745' : '#dc3545' }}>{block.gradingData.slopeCompliance}</strong></div>}
+                        {block.gradingData.drainageVerified && <div><span style={{ color: '#666' }}>Drainage Verified: </span><strong style={{ color: block.gradingData.drainageVerified === 'Yes' ? '#28a745' : '#dc3545' }}>{block.gradingData.drainageVerified}</strong></div>}
+                      </div>
                     </div>
                   )}
 
