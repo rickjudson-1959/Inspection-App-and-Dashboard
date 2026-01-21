@@ -342,7 +342,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
     padding: '8px 10px',
     border: '1px solid #ced4da',
     borderRadius: '4px',
-    fontSize: '13px'
+    fontSize: '13px',
+    boxSizing: 'border-box'
   }
 
   const checkboxRowStyle = {
@@ -360,7 +361,7 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
   }
 
   return (
-    <div style={{ padding: '10px 0' }}>
+    <div style={{ padding: '10px 0', overflow: 'hidden' }}>
       {/* Inherited Info Bar */}
       <div style={{
         backgroundColor: '#e9ecef',
@@ -392,7 +393,7 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
       >
         <div style={{ marginBottom: '15px' }}>
           <h5 style={{ fontSize: '13px', color: '#795548', margin: '0 0 10px 0' }}>Depth Verification</h5>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', marginBottom: '10px' }}>
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Target Depth (cm)</label>
               <input
@@ -536,7 +537,7 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
       >
         <div style={{ marginBottom: '15px' }}>
           <h5 style={{ fontSize: '13px', color: '#388e3c', margin: '0 0 10px 0' }}>Seed Mix Data</h5>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '10px' }}>
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Seed Mix ID</label>
               <input
@@ -562,7 +563,7 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
               />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', marginBottom: '10px' }}>
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Application Rate (kg/ha)</label>
               <input
@@ -596,7 +597,7 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
               </div>
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Seeding Method</label>
               <select
@@ -629,7 +630,7 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
 
         <div style={{ marginBottom: '15px' }}>
           <h5 style={{ fontSize: '13px', color: '#388e3c', margin: '0 0 10px 0' }}>Fertilizer & Mulch</h5>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', marginBottom: '10px' }}>
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Fertilizer Type</label>
               <input
@@ -666,7 +667,7 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
               />
             </div>
           </div>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Mulch Type</label>
               <select
@@ -984,7 +985,7 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <span style={labelStyle}>Permanent fences re-installed</span>
           </div>
           {cleanupData.assetRestoration.permanentFencesReinstalled && (
-            <div style={{ marginLeft: '20px', marginBottom: '10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div style={{ marginLeft: '20px', marginBottom: '10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: '#666' }}>Fence Type</label>
                 <select
@@ -1149,7 +1150,7 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <span style={{ ...labelStyle, fontWeight: 'bold' }}>Preliminary landowner walkthrough completed</span>
           </div>
           {cleanupData.assetRestoration.landownerWalkthroughCompleted && (
-            <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <div style={{ marginTop: '10px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
               <div>
                 <label style={{ fontSize: '12px', color: '#666' }}>Date</label>
                 <input
@@ -1213,7 +1214,7 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
       >
         <div style={{ marginBottom: '15px' }}>
           <h5 style={{ fontSize: '13px', color: '#f57c00', margin: '0 0 10px 0' }}>Historical Context</h5>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Pre-Construction Land Use</label>
               <select

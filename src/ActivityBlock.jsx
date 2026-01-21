@@ -684,11 +684,11 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
     
     return (
       <div>
-        {/* Core fields in a single row */}
+        {/* Core fields in a responsive row */}
         {coreFields.length > 0 && (
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: `repeat(${Math.min(coreFields.length, 4)}, 1fr)`, 
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
             gap: '15px',
             marginBottom: '15px'
           }}>

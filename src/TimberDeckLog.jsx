@@ -256,12 +256,12 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
     },
     locationRow: {
       display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
       gap: '12px'
     },
     cutSpecRow: {
       display: 'grid',
-      gridTemplateColumns: '1fr 1fr',
+      gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
       gap: '12px'
     },
     volumeRow: {

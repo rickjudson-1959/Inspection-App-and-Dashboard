@@ -920,7 +920,7 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                 <div style={{ marginTop: '15px', padding: '15px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #dee2e6' }}>
                   <h5 style={{ margin: '0 0 15px 0', fontSize: '12px', color: '#666', fontWeight: 'bold' }}>📷 REQUIRED GEOTAGGED PHOTOS</h5>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
                     {/* Photo 1: Cadweld Connection */}
                     <div style={{ padding: '12px', backgroundColor: '#f8f9fa', borderRadius: '6px', border: '1px dashed #17a2b8' }}>
                       <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#17a2b8', marginBottom: '8px' }}>

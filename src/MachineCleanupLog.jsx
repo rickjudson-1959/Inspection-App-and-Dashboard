@@ -326,7 +326,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
     padding: '8px 10px',
     border: '1px solid #ced4da',
     borderRadius: '4px',
-    fontSize: '13px'
+    fontSize: '13px',
+    boxSizing: 'border-box'
   }
 
   const checkboxRowStyle = {
@@ -344,7 +345,7 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
   }
 
   return (
-    <div style={{ padding: '10px 0' }}>
+    <div style={{ padding: '10px 0', overflow: 'hidden' }}>
       {/* Inherited Info Bar */}
       <div style={{
         backgroundColor: '#e9ecef',
@@ -376,7 +377,7 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
       >
         <div style={{ marginBottom: '15px' }}>
           <h5 style={{ fontSize: '13px', color: '#2e7d32', margin: '0 0 10px 0' }}>Ripping/Disking</h5>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '10px' }}>
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Ripping Depth (cm)</label>
               <input
@@ -430,7 +431,7 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
           </div>
           {cleanupData.subsoilRestoration.rockPickRequired && (
             <div style={{ marginLeft: '20px', marginTop: '10px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '10px' }}>
                 <div>
                   <label style={{ fontSize: '12px', color: '#666' }}>Volume Removed (m³)</label>
                   <input
@@ -592,7 +593,7 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
           </div>
           {cleanupData.trenchCrown.mechanicalCompaction && (
             <div style={{ marginLeft: '20px', marginTop: '10px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
                 <div>
                   <label style={{ fontSize: '12px', color: '#666' }}>Equipment Type</label>
                   <select
@@ -967,7 +968,7 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
 
         <div style={{ marginBottom: '15px' }}>
           <h5 style={{ fontSize: '13px', color: '#00695c', margin: '0 0 10px 0' }}>Temporary Measures Status</h5>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Silt Fence Status</label>
               <select
@@ -1025,7 +1026,7 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
         border: '1px solid #ffcc80'
       }}>
         <h5 style={{ fontSize: '14px', color: '#f57c00', margin: '0 0 10px 0' }}>Data Context & Trackable Items</h5>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '15px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '15px' }}>
           <div>
             <label style={{ fontSize: '12px', color: '#666' }}>Soil Type</label>
             <input

@@ -389,7 +389,7 @@ export default function StringingLog({ blockId, reportId, onDataChange, existing
 
       {/* Header Info */}
       <div style={{ ...sectionStyle, borderRadius: '0', marginBottom: '0', borderTop: 'none' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px' }}>
           <div>
             <label style={labelStyle}>Contractor</label>
             <input
@@ -439,7 +439,7 @@ export default function StringingLog({ blockId, reportId, onDataChange, existing
       {/* Joint Count Summary */}
       <div style={{ ...sectionStyle, borderRadius: '0', marginBottom: '0', borderTop: 'none' }}>
         <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#0277bd' }}>Joint Count Summary</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
           <div>
             <label style={labelStyle}>Joints Today</label>
             <input
@@ -717,7 +717,7 @@ export default function StringingLog({ blockId, reportId, onDataChange, existing
             <div style={{ padding: '20px' }}>
               <div style={{ backgroundColor: '#fff3e0', padding: '12px', borderRadius: '6px', marginBottom: '16px' }}>
                 <div style={{ fontSize: '12px', color: '#666' }}>Original Joint</div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px', marginTop: '8px' }}>
                   <div><strong>Heat #:</strong> {cuttingJoint.heatNumber}</div>
                   <div><strong>Length:</strong> {cuttingJoint.lengthM} m</div>
                   <div><strong>Size:</strong> {cuttingJoint.pipeSize}</div>

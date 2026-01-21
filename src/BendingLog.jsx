@@ -255,7 +255,7 @@ export default function BendingLog({ blockId, reportId, onDataChange, existingDa
 
       {/* Header Info */}
       <div style={{ ...sectionStyle, borderRadius: '0', marginBottom: '0', borderTop: 'none' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
           <div>
             <label style={labelStyle}>Contractor</label>
             <input
@@ -286,7 +286,7 @@ export default function BendingLog({ blockId, reportId, onDataChange, existingDa
       {/* Bend Count Summary */}
       <div style={{ ...sectionStyle, borderRadius: '0', marginBottom: '0', borderTop: 'none' }}>
         <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#2e7d32' }}>Bend Count Summary</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
           <div>
             <label style={labelStyle}>Bends Today</label>
             <input

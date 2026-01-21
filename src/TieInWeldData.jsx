@@ -294,7 +294,7 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
 
       {/* Header Info */}
       <div style={{ ...sectionStyle, borderRadius: '0', marginBottom: '0', borderTop: 'none' }}>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
           <div>
             <label style={labelStyle}>Contractor</label>
             <input
@@ -621,11 +621,11 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
               PUP Details for {selectedTieInData.tieInNumber}
             </h4>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '24px' }}>
               {/* PUP CUT */}
               <div style={{ backgroundColor: '#ffebee', padding: '12px', borderRadius: '6px' }}>
                 <h5 style={{ margin: '0 0 10px 0', color: '#c62828', fontSize: '13px' }}>PUP CUT (Removed)</h5>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
                   <div>
                     <label style={{ ...labelStyle, fontSize: '10px' }}>Length Cut</label>
                     <input
@@ -677,7 +677,7 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
               {/* PUP ADDED */}
               <div style={{ backgroundColor: '#e8f5e9', padding: '12px', borderRadius: '6px' }}>
                 <h5 style={{ margin: '0 0 10px 0', color: '#2e7d32', fontSize: '13px' }}>PUP ADDED (Installed)</h5>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
                   <div>
                     <label style={{ ...labelStyle, fontSize: '10px' }}>Length Added</label>
                     <input
@@ -737,7 +737,7 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                 {/* Left Pipe */}
                 <div style={{ flex: 1, backgroundColor: 'white', padding: '12px', borderRadius: '6px', border: '2px solid #ff9800' }}>
                   <h6 style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#e65100', textAlign: 'center' }}>U/S PIPE</h6>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '11px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '6px', fontSize: '11px' }}>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>Pipe No.</label>
                       <input type="text" value={selectedTieInData.pup.leftPipeNo} onChange={(e) => updateTieInPup(selectedTieIn, 'leftPipeNo', e.target.value)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
@@ -785,7 +785,7 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                 {/* Right Pipe */}
                 <div style={{ flex: 1, backgroundColor: 'white', padding: '12px', borderRadius: '6px', border: '2px solid #ff9800' }}>
                   <h6 style={{ margin: '0 0 8px 0', fontSize: '11px', color: '#e65100', textAlign: 'center' }}>D/S PIPE</h6>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '11px' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '6px', fontSize: '11px' }}>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>Pipe No.</label>
                       <input type="text" value={selectedTieInData.pup.rightPipeNo} onChange={(e) => updateTieInPup(selectedTieIn, 'rightPipeNo', e.target.value)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
