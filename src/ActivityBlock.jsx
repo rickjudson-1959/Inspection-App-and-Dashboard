@@ -786,7 +786,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
             onChange={(e) => updateQualityData(block.id, field.name, e.target.value)}
             placeholder={field.placeholder || ''}
             rows={3}
-            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', resize: 'vertical' }}
+            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', resize: 'vertical', boxSizing: 'border-box' }}
           />
         </div>
       )
@@ -985,7 +985,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                       value={v.kp}
                       onChange={(e) => updateVerification(v.id, 'kp', e.target.value)}
                       placeholder="e.g., 5+200"
-                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace' }}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', fontFamily: 'monospace', boxSizing: 'border-box' }}
                     />
                   </div>
                   
@@ -995,7 +995,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                     <select
                       value={v.pOrX}
                       onChange={(e) => updateVerification(v.id, 'pOrX', e.target.value)}
-                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }}
                     >
                       <option value="X">X - Crossing</option>
                       <option value="P">P - Parallel</option>
@@ -1010,7 +1010,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                       value={v.owner}
                       onChange={(e) => updateVerification(v.id, 'owner', e.target.value)}
                       placeholder="e.g., Nova, Telus"
-                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }}
                     />
                   </div>
                   
@@ -1020,7 +1020,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                     <select
                       value={v.verifiedType}
                       onChange={(e) => updateVerification(v.id, 'verifiedType', e.target.value)}
-                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }}
                     >
                       <option value="">Select...</option>
                       <option value="SP">SP - Steel Pipe</option>
@@ -1038,7 +1038,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                       value={v.actualDepth}
                       onChange={(e) => updateVerification(v.id, 'actualDepth', e.target.value)}
                       placeholder="e.g., 1.85"
-                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }}
                     />
                   </div>
                   
@@ -1048,7 +1048,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                     <select
                       value={v.status}
                       onChange={(e) => updateVerification(v.id, 'status', e.target.value)}
-                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }}
                     >
                       <option value="verified">Verified</option>
                       <option value="not_found">Not Found</option>
@@ -1063,7 +1063,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                     <select
                       value={v.boundary || ''}
                       onChange={(e) => updateVerification(v.id, 'boundary', e.target.value)}
-                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }}
                     >
                       <option value="">Select...</option>
                       <option value="C/L">C/L - Centerline</option>
@@ -1082,7 +1082,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                       value={v.northing}
                       onChange={(e) => updateVerification(v.id, 'northing', e.target.value)}
                       placeholder="e.g., 5943040"
-                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }}
                     />
                   </div>
                   
@@ -1093,7 +1093,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                       value={v.easting}
                       onChange={(e) => updateVerification(v.id, 'easting', e.target.value)}
                       placeholder="e.g., 351848"
-                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }}
                     />
                   </div>
                   
@@ -1105,7 +1105,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                       value={v.notes}
                       onChange={(e) => updateVerification(v.id, 'notes', e.target.value)}
                       placeholder="Any observations, discrepancies, etc."
-                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+                      style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }}
                     />
                   </div>
                 </div>
@@ -1120,7 +1120,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
   const status = blockChainageStatus || {}
 
   return (
-    <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '2px solid #007bff', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+    <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '2px solid #007bff', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #007bff', paddingBottom: '10px', marginBottom: '15px' }}>
         <h2 style={{ margin: 0, color: '#007bff' }}>
@@ -1135,13 +1135,13 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
       </div>
 
       {/* Activity Type & Basic Info */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-        <div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '15px', marginBottom: '20px', overflow: 'hidden' }}>
+        <div style={{ overflow: 'hidden', minWidth: 0 }}>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Activity Type *</label>
           <select
             value={block.activityType}
             onChange={(e) => updateBlock(block.id, 'activityType', e.target.value)}
-            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
           >
             <option value="">Select Activity</option>
             {activityTypes.map(type => (
@@ -1149,7 +1149,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
             ))}
           </select>
         </div>
-        <div>
+        <div style={{ overflow: 'hidden', minWidth: 0 }}>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Contractor</label>
           <input
             type="text"
@@ -1162,10 +1162,10 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               }
             }}
             placeholder="Contractor name"
-            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
           />
         </div>
-        <div>
+        <div style={{ overflow: 'hidden', minWidth: 0 }}>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Foreman</label>
           <input
             type="text"
@@ -1178,10 +1178,10 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               }
             }}
             placeholder="Foreman name"
-            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px' }}
+            style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
           />
         </div>
-        <div>
+        <div style={{ overflow: 'hidden', minWidth: 0 }}>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>
             Start KP
             {status.suggestedStartKP && !block.startKP && (
@@ -1193,7 +1193,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               </button>
             )}
           </label>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', minWidth: 0 }}>
             <input
               type="text"
               value={block.startKP || ''}
@@ -1217,12 +1217,13 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                 }
               }}
               placeholder="e.g. 5+250"
-              style={{ 
-                flex: 1, 
-                padding: '10px', 
-                border: status.hasOverlap ? '2px solid #dc3545' : status.hasGap ? '2px solid #ffc107' : '1px solid #ced4da', 
+              style={{
+                flex: 1,
+                padding: '10px',
+                border: status.hasOverlap ? '2px solid #dc3545' : status.hasGap ? '2px solid #ffc107' : '1px solid #ced4da',
                 borderRadius: '4px',
-                backgroundColor: status.hasOverlap ? '#fff5f5' : status.hasGap ? '#fffbf0' : 'white'
+                backgroundColor: status.hasOverlap ? '#fff5f5' : status.hasGap ? '#fffbf0' : 'white',
+                boxSizing: 'border-box'
               }}
             />
             <button
@@ -1247,11 +1248,11 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
             </button>
           </div>
         </div>
-        <div>
+        <div style={{ overflow: 'hidden', minWidth: 0 }}>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>
             End KP
           </label>
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '8px', minWidth: 0 }}>
             <input
               type="text"
               value={block.endKP || ''}
@@ -1279,12 +1280,13 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                 }
               }}
               placeholder="e.g. 6+100"
-              style={{ 
-                flex: 1, 
-                padding: '10px', 
-                border: status.hasOverlap ? '2px solid #dc3545' : status.hasGap ? '2px solid #ffc107' : '1px solid #ced4da', 
+              style={{
+                flex: 1,
+                padding: '10px',
+                border: status.hasOverlap ? '2px solid #dc3545' : status.hasGap ? '2px solid #ffc107' : '1px solid #ced4da',
                 borderRadius: '4px',
-                backgroundColor: status.hasOverlap ? '#fff5f5' : status.hasGap ? '#fffbf0' : 'white'
+                backgroundColor: status.hasOverlap ? '#fff5f5' : status.hasGap ? '#fffbf0' : 'white',
+                boxSizing: 'border-box'
               }}
             />
             <button
@@ -1501,7 +1503,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
       )}
 
       {/* Work Description */}
-      <div style={{ marginBottom: '20px' }}>
+      <div style={{ marginBottom: '20px', overflow: 'hidden' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
           <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Work Description</label>
           <VoiceButton fieldId={`workDescription_${block.id}`} />
@@ -1511,13 +1513,14 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           onChange={(e) => updateBlock(block.id, 'workDescription', e.target.value)}
           placeholder="Describe the work performed... (use 🎤 for voice input)"
           rows={3}
-          style={{ 
-            width: '100%', 
-            padding: '10px', 
-            border: isListening === `workDescription_${block.id}` ? '2px solid #dc3545' : '1px solid #ced4da', 
-            borderRadius: '4px', 
+          style={{
+            width: '100%',
+            padding: '10px',
+            border: isListening === `workDescription_${block.id}` ? '2px solid #dc3545' : '1px solid #ced4da',
+            borderRadius: '4px',
             resize: 'vertical',
-            backgroundColor: isListening === `workDescription_${block.id}` ? '#fff5f5' : 'white'
+            backgroundColor: isListening === `workDescription_${block.id}` ? '#fff5f5' : 'white',
+            boxSizing: 'border-box'
           }}
         />
         {isListening === `workDescription_${block.id}` && (
@@ -1528,7 +1531,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
       </div>
 
       {/* Quality Checks */}
-      <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '8px' }}>
+      <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '8px', overflow: 'hidden' }}>
         <h4 style={{ margin: '0 0 15px 0', color: '#856404' }}>⚙️ Quality Checks</h4>
         {renderQualityFields()}
       </div>
@@ -1789,7 +1792,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
             <select
               value={block.timeLostReason || ''}
               onChange={(e) => updateBlock(block.id, 'timeLostReason', e.target.value)}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }}
             >
               <option value="">None</option>
               {timeLostReasons.map(r => (
@@ -1804,7 +1807,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               value={block.timeLostHours || ''}
               onChange={(e) => updateBlock(block.id, 'timeLostHours', e.target.value)}
               placeholder="0"
-              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px' }}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }}
             />
           </div>
           <div style={{ gridColumn: '1 / -1' }}>
@@ -1888,7 +1891,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                       value={photo.location}
                       onChange={(e) => updatePhotoMetadata(block.id, photoIdx, 'location', e.target.value)}
                       placeholder="e.g. 5+250"
-                      style={{ width: '100%', padding: '4px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '12px' }}
+                      style={{ width: '100%', padding: '4px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }}
                     />
                   </td>
                   <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6' }}>
@@ -1897,7 +1900,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                       value={photo.description}
                       onChange={(e) => updatePhotoMetadata(block.id, photoIdx, 'description', e.target.value)}
                       placeholder="Description..."
-                      style={{ width: '100%', padding: '4px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '12px' }}
+                      style={{ width: '100%', padding: '4px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }}
                     />
                   </td>
                   <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
