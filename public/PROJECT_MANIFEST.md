@@ -1,300 +1,460 @@
-# PIPE-UP PROJECT MANIFEST
-## Pipeline Inspector SaaS Application
-
-**Last Updated:** January 20, 2026  
-**Version:** 2.0  
-**Stack:** React + Vite + Supabase + Vercel  
-**Live URL:** https://app.pipe-up.ca  
-**API Domain:** https://api.pipe-up.ca (custom domain verified)
+# PIPE-UP PIPELINE INSPECTOR PLATFORM
+## Project Manifest - January 21, 2026
 
 ---
 
-## 📁 FILE INVENTORY (95+ files in /src)
+## 1. PROJECT OVERVIEW
 
-### 📀 ROUTING & CORE
-| File | Lines | Purpose |
-|------|-------|---------|
-| `main.jsx` | 5,400+ | **ROUTER** - All routes defined here. Check this first! |
-| `supabaseClient.js` | ~50 | Supabase connection config |
-| `AuthContext.jsx` | ~200 | Auth state management with role-based access |
+**Project Name:** Pipe-Up Pipeline Inspector Platform
+**Client:** FortisBC EGP - Eagle Mountain Woodfibre Gas Pipeline
+**Production URL:** https://app.pipe-up.ca
+**Repository:** https://github.com/rickjudson-1959/Inspection-App-and-Dashboard
 
-### 📝 INSPECTOR MODULE
-| File | Lines | Purpose |
-|------|-------|---------|
-| `InspectorReport.jsx` | 4,713 | **MAIN FORM** - Daily inspection ticket entry |
-| `constants.js` | 800+ | Activity types, quality fields, equipment lists, EGP pipeline data |
-| `ActivityBlock.jsx` | ~600 | Collapsible activity sections with QA fields |
-| `StringingLog.jsx` | ~400 | Joint tracking with OCR import |
-| `WeldLog.jsx` | ~350 | Weld data capture |
-| `CoatingLog.jsx` | ~300 | Coating inspection data |
-| `BendingLog.jsx` | ~250 | Bending data capture |
-| `GradingLog.jsx` | ~700 | Grading inspection with ALL collapsible sections |
-| `TallySheetScanner.jsx` | ~300 | OCR camera/file upload for joint import |
-| `TrackableItemsTracker.jsx` | ~400 | Mats, fencing, ramps with linking |
-
-### 💼 ADMIN MODULE
-| File | Lines | Purpose |
-|------|-------|---------|
-| `AdminPortal.jsx` | 1,200+ | **ADMIN HUB** - User management, reports, approvals, billing |
-| `ReconciliationDashboard.jsx` | ~800 | LEM verification, billing reconciliation with audit logging |
-| `auditLoggerV3.js` | ~150 | Centralized audit logging for all financial changes |
-
-### 👷 CHIEF INSPECTOR MODULE
-| File | Lines | Purpose |
-|------|-------|---------|
-| `ChiefInspectorPortal.jsx` | ~600 | Report queue, approval workflow |
-| `ReportViewer.jsx` | 1,000+ | **FULL REPORT VIEW** - All report data with approve/reject buttons |
-
-### 💰 INSPECTOR INVOICING MODULE
-| File | Lines | Purpose |
-|------|-------|---------|
-| `InspectorInvoicing.jsx` | ~800 | Timesheet dashboard for inspectors |
-| `TimesheetEditor.jsx` | ~600 | Create/edit timesheets with auto-population from daily tickets |
-| `inspector_timesheets` | DB Table | Timesheet headers (date range, status, totals) |
-| `inspector_timesheet_items` | DB Table | Line items linked to daily tickets |
-| `inspector_rate_cards` | DB Table | Rate cards for billing calculations |
-
-### 🔧 UTILITIES
-| File | Purpose |
-|------|---------|
-| `pdfExport.js` | PDF generation for reports |
-| `excelExport.js` | Excel export functionality |
-| `weatherService.js` | Weather API integration |
+### Technology Stack
+| Component | Technology |
+|-----------|------------|
+| Frontend | React 18.2.0 with Vite |
+| Backend | Supabase (PostgreSQL + Auth) |
+| Email API | Resend |
+| Deployment | Vercel |
+| PDF Generation | jsPDF + jsPDF-autotable |
+| Excel Export | XLSX |
+| Mapping | Leaflet + React-Leaflet |
+| Charting | Recharts |
 
 ---
 
-## ✅ COMPLETED FEATURES (as of Jan 20, 2026)
+## 2. USER ROLES & ACCESS
 
-### Core Inspection System
-- ✅ Multi-activity daily inspection tickets
-- ✅ 20 construction phase types (Clearing through Hydrostatic Testing)
-- ✅ Collapsible sections for field usability
-- ✅ Quality fields per activity type
-- ✅ EGP Project pipeline breakdown (Indian Arm to Woodfibre LNG)
-- ✅ Weather auto-fill from API
-- ✅ Voice-to-text input support
-- ✅ Photo capture and upload
-- ✅ Trackable items (mats, fencing, ramps with linking)
+| Role | Access Level |
+|------|--------------|
+| `super_admin` | Full system access |
+| `admin` | Project administration |
+| `chief_inspector` | Field inspection chief, report approval |
+| `assistant_chief_inspector` | Assistant to chief |
+| `inspector` | Field data entry |
+| `pm` | Project manager dashboards |
+| `cm` | Construction manager dashboards |
+| `executive` | Executive dashboards & summaries |
+| `ndt_auditor` | NDT monitoring & auditing |
 
-### Activity-Specific Logs with Collapsible Sections
-- ✅ **GradingLog.jsx** - ALL sections collapsible (Jan 20):
-  - 🛤️ ROW CONDITIONS
-  - ⚠️ PILE SEPARATION (yellow highlight)
-  - 🌱 TOPSOIL STATUS
-  - 💧 DRAINAGE
-  - 🌿 ENVIRONMENTAL CONTROLS (green highlight)
-  - 🚧 SOFT SPOTS / PROBLEM AREAS (yellow highlight)
-  - 🚗 ACCESS & CROSSINGS (blue highlight)
-  - 📝 COMMENTS
-- ✅ **TopsoilLog** - Collapsible sections
-- ⚠️ **StringingLog** - Quality checks need restoration (identified Jan 20)
+---
 
-### OCR & Data Import
-- ✅ Tally sheet OCR scanner (Claude Vision)
-- ✅ Joint data extraction and preview
-- ✅ Import selected joints to StringingLog
-- ✅ Source tracking (`tally_sheet`) for audit
+## 3. CORE FEATURES
 
-### Workflow & Approvals
-- ✅ Submit → Review → Approve/Reject workflow
-- ✅ Revision notes with status tracking
-- ✅ Email notifications on status changes
-- ✅ Report status badges throughout UI
+### Inspector Field Entry
+- Activity logging with KP (kilometer post) ranges
+- Quality/compliance checklists per activity type
+- Photo capture with GPS/EXIF geolocation extraction
+- Labour classification tracking (72 classifications)
+- Equipment hour recording (323 equipment types)
+- Weather condition logging with offline cache
+- Digital signature capture
 
-### ReportViewer (Updated Jan 19)
-- ✅ Full report display for Admin/Chief Inspector
-- ✅ All sections rendered: Report Info, Weather, Activities, Manpower, Equipment, Quality Checks, Specialized Data, Trackable Items, Safety, Wildlife, Visitors, UPI, Comments, Photos
-- ✅ **Approve/Reject buttons** directly on report view
-- ✅ Rejection modal with required revision notes
-- ✅ Status updates without leaving page
-- ✅ Role-based button visibility (Chief Inspector, Admin, Super Admin only)
-
-### AdminPortal (Updated Jan 19)
-- ✅ **Pending Approvals tab** - View button opens ReportViewer
-- ✅ **Inspector Reports tab** - View button alongside Edit button
-- ✅ User management with delete functionality
-- ✅ Delete user Edge Function (preserves reports, removes auth)
-
-### Billing & Reconciliation
-- ✅ LEM verification workflow
-- ✅ Side-by-side digital vs. uploaded timesheet comparison
-- ✅ Discrepancy notes (mandatory for disputes)
-- ✅ Batch invoice creation
-- ✅ Status tracking: Open → Matched → Ready for Billing → Invoiced
-- ✅ Full audit logging via auditLoggerV3.js
-- ✅ "No Talk" transparency - all adjustments visible
+### Activity Types (25 Supported)
+1. Clearing
+2. Access
+3. Topsoil (with horizon separation tracking)
+4. Grading
+5. Stringing (pipe receiving inspection)
+6. Bending
+7. Welding - Mainline
+8. Welding - Section Crew
+9. Welding - Poor Boy
+10. Welding - Tie-in
+11. Coating
+12. Ditch (with BOT checklist, pay items)
+13. Lower-in
+14. Backfill
+15. Tie-in Completion
+16. Cleanup - Machine
+17. Cleanup - Final
+18. Hydrostatic Testing
+19. HDD (Horizontal Directional Drilling)
+20. HD Bores
+21. Piling
+22. Equipment Cleaning
+23. Hydrovac
+24. Welder Testing
+25. Counterbore/Transition
 
 ### Inspector Invoicing System
-- ✅ **Phase 1:** Inspector profile with rate cards
-- ✅ **Phase 2:** Invoicing dashboard with timesheet list
-- ✅ **Phase 3:** Timesheet editor with auto-population
-  - Select date range
-  - Auto-populate from daily tickets
-  - Edit per diem, mileage, notes
-  - Preview invoice calculations
-  - Submit for review
-- ⏳ **Phase 4:** Admin Review Queue (next)
-- ⏳ **Phase 5:** Approval workflow with notifications
-- ⏳ **Phase 6:** Rate card management and reporting
+- Inspector profile management (company/banking info)
+- Rate card configuration (daily rates, per diem, allowances)
+- Timesheet entry with daily categorization
+- Auto-calculation of invoice totals
+- Workflow: Draft → Submitted → Review → Approved → Paid
+- PDF invoice generation
+- Email notifications on approval/revision
+- Hire-on package completion
 
-### Audit Trail System
-- ✅ Report header changes
-- ✅ Weather changes
-- ✅ Time changes
-- ✅ Notes changes
-- ✅ Activity block add/delete
-- ✅ Workflow actions (submit/resubmit)
-- ✅ Financial adjustments (auditLoggerV3)
-- ⏳ Quality field changes within blocks
-- ⏳ Specialized log changes (Stringing, Weld, Coating, Bending)
-- ⏳ Trackable item changes
-- ⏳ UPI quantity changes
-- ⏳ Labour/Equipment entry changes
-- ⏳ Photo additions/deletions
+### Dashboards
+- **CMT Dashboard** - Cost Management Tracking with progress charts
+- **EVM Dashboard** - Earned Value Management metrics
+- **Chief Dashboard** - Daily summaries, report approval, NDT tracking
+- **Assistant Chief Dashboard** - Support functions
+- **Admin Portal** - User/org/project management
+- **Inspector Invoicing** - Timesheet management
+- **NDT Auditor Dashboard** - NDT monitoring
+- **Reconciliation Dashboard** - Financial reconciliation
 
-### Infrastructure
-- ✅ Custom domain verified (app.pipe-up.ca, api.pipe-up.ca)
-- ✅ Auth emails working
-- ✅ Supabase Edge Functions deployed
-- ✅ GitHub → Vercel CI/CD pipeline
+### Reporting & Export
+- PDF report generation with all activity data
+- Excel data export
+- Weekly executive summary emails (automated)
+- Audit trail reports
+- Progress tracking by phase
 
 ---
 
-## 🗄️ DATABASE TABLES
-
-### Core Tables
-| Table | Purpose |
-|-------|---------|
-| `daily_tickets` | Inspector report data (JSON blob) |
-| `report_status` | Workflow status tracking |
-| `report_audit_log` | Change history for reports |
-| `user_profiles` | User data with roles |
-| `trackable_items` | Mats, fencing, equipment inventory |
+## 4. DATABASE SCHEMA (SUPABASE)
 
 ### Inspector Invoicing Tables
-| Table | Purpose |
-|-------|---------|
-| `inspector_profiles` | Inspector-specific data (company, GST#, address) |
-| `inspector_timesheets` | Timesheet headers |
-| `inspector_timesheet_items` | Line items linked to daily_tickets |
-| `inspector_rate_cards` | Billing rates per inspector |
 
-### Billing Tables
-| Table | Purpose |
-|-------|---------|
-| `lem_records` | Labour/Equipment/Materials data |
-| `billing_reconciliation` | Verification records |
-| `billing_audit_log` | Financial change tracking |
+**inspector_profiles**
+- Company and banking information
+- Profile completion status
+- Cleared to work flag
+
+**inspector_documents**
+- Certifications, licenses, insurance
+- Expiry date tracking
+- Verification workflow
+
+**inspector_rate_cards**
+- Daily field rate, per diem, allowances
+- Truck rate, km rate, thresholds
+- Effective date ranges
+
+**inspector_timesheets**
+- Period dates, project info
+- Summary totals (days, kms, amounts)
+- Workflow status tracking
+- Approval chain timestamps
+
+**inspector_timesheet_lines**
+- Daily line items
+- Work type flags
+- Auto-populated from daily tickets
+
+### Ditch/Trench Inspection Tables
+
+**trench_logs**
+- Report linkage, KP range
+- Trench measurements (width, depth, cover)
+- Pay items (padding/bedding with From KP/To KP)
+- BOT checklist (rocks, debris, silt fences, wildlife)
+- Water management (pumping, filter bags)
+- Soil conditions, depth compliance
+
+**trench_log_photos**
+- Geotagged photo evidence
+- GPS coordinates (6-decimal precision)
+- Photo type categorization
+
+### HDD Drilling Waste Management Tables (NEW - January 2026)
+
+**drilling_waste_logs**
+- Report linkage, bore/crossing ID
+- Mud mixing data (total volume, storage, hauled)
+- Disposal tracking (method, location, manifest)
+- Testing compliance (salinity, toxicity, metals)
+- Certification (inspector sign-off)
+
+**drilling_waste_additives**
+- Product name, type, manufacturer
+- Quantity used, units
+- SDS availability tracking
+
+**drilling_waste_photos**
+- Geotagged evidence photos
+- Photo types: mud_system, disposal, testing, manifest, spill, general
+- GPS coordinates (6-decimal precision)
+
+### HDD Steering/Bore Path Tables (NEW - January 2026)
+
+**bore_path_logs**
+- Report linkage, bore/crossing/weld ID
+- Guidance system setup (type, frequency, calibration)
+- Design vs actual entry/exit angles
+- Pipe specifications for bending radius calculation
+- Status tracking (within tolerance, complete, adjusted)
+
+**bore_path_stations**
+- Per-joint steering data entries
+- Position data (depth, pitch, azimuth, KP)
+- Offset from design (horizontal/vertical)
+- Bending radius alerts
+
+**bore_path_documents**
+- Uploaded bore logs, steering reports
+- GPS metadata from photos
+- Document type categorization
+
+### Trackable Items
+
+**bedding_padding** (NEW - January 2026)
+- Protection types: Bedding, Padding, Bedding and Padding, Pipe Protection, Rockshield, Lagging, Rockshield and Lagging
+- From KP / To KP
+- Length, Material, Depth/Thickness
+- Action, Equipment, Notes
 
 ---
 
-## 🔐 RLS POLICIES
+## 5. SOURCE FILE STRUCTURE
 
-```sql
--- Reports
-CREATE POLICY "Allow authenticated users to read reports" 
-ON daily_tickets FOR SELECT TO authenticated USING (true);
+```
+/src/
+├── main.jsx                    # App entry point
+├── App.jsx                     # Routing & role-based access
+├── AuthContext.jsx             # Authentication management
+├── supabase.js                 # Supabase client
+├── constants.js                # Activity types, classifications
+│
+├── Dashboards/
+│   ├── Dashboard.jsx           # CMT Dashboard
+│   ├── EVMDashboard.jsx        # Earned Value Management
+│   ├── ChiefDashboard.jsx      # Chief Inspector
+│   ├── AssistantChiefDashboard.jsx
+│   ├── AdminPortal.jsx         # Administration
+│   ├── InspectorInvoicingDashboard.jsx
+│   └── NDTAuditorDashboard.jsx
+│
+├── Reports/
+│   ├── InspectorReport.jsx     # Main field report form
+│   ├── ActivityBlock.jsx       # Activity module component
+│   ├── ReportViewer.jsx        # Report display
+│   └── ReportsPage.jsx
+│
+├── Activity Logs/
+│   ├── BendingLog.jsx
+│   ├── ClearingLog.jsx
+│   ├── CoatingLog.jsx
+│   ├── DitchInspection.jsx     # Ditch with DB integration
+│   ├── GradingLog.jsx
+│   ├── HDDLog.jsx              # Collapsible sections, waste mgmt, steering log
+│   ├── HDDSteeringLog.jsx      # NEW - Bore path tracking (Jan 2026)
+│   ├── DrillingWasteManagement.jsx  # NEW - Directive 050 (Jan 2026)
+│   ├── HydrotestLog.jsx
+│   ├── MainlineWeldData.jsx
+│   ├── PilingLog.jsx
+│   ├── StringingLog.jsx
+│   ├── TieInCompletionLog.jsx
+│   └── [+12 more log components]
+│
+├── Invoicing/
+│   ├── HireOnPackage.jsx       # Inspector onboarding
+│   ├── TimesheetEditor.jsx     # Timesheet entry
+│   ├── TimesheetReview.jsx     # Admin review
+│   └── InvoicePDF.jsx          # PDF generation
+│
+├── Utilities/
+│   ├── auditLoggerV3.js        # Audit trail logging
+│   ├── useActivityAudit.js     # Audit React hook
+│   ├── weatherService.js       # Weather API integration
+│   ├── exifUtils.js            # Photo GPS extraction
+│   ├── kpUtils.js              # KP formatting
+│   └── chiefReportHelpers.js   # Report aggregation
+│
+└── Components/
+    ├── TrackableItemsTracker.jsx
+    ├── SignaturePad.jsx
+    ├── MapDashboard.jsx
+    └── [supporting components]
 
-CREATE POLICY "Allow authenticated users to read report status" 
-ON report_status FOR SELECT TO authenticated USING (true);
-
--- Audit Logs
-CREATE POLICY "Users can view audit logs" 
-ON report_audit_log FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "Users can insert audit logs" 
-ON report_audit_log FOR INSERT TO authenticated WITH CHECK (true);
-
--- Inspector Invoicing
-CREATE POLICY "Inspectors can view own timesheets"
-ON inspector_timesheets FOR SELECT TO authenticated 
-USING (inspector_id = auth.uid());
-
-CREATE POLICY "Admins can view all timesheets"
-ON inspector_timesheets FOR SELECT TO authenticated 
-USING (EXISTS (SELECT 1 FROM user_profiles WHERE id = auth.uid() AND role IN ('admin', 'super_admin')));
+/supabase/migrations/
+├── create_inspector_invoicing_tables.sql
+├── create_trench_logs.sql
+├── 20260120_add_padding_bedding_kp_columns.sql
+├── 20260121_create_drilling_waste_logs.sql   # NEW - Directive 050
+├── 20260121_create_bore_path_data.sql        # NEW - Steering log
+└── [other migrations]
 ```
 
 ---
 
-## 🚀 DEPLOYMENT
+## 6. RECENT UPDATES (January 2026)
 
+### HDD Module Redesign (January 21, 2026)
+
+**HDDLog.jsx - Complete Redesign**
+- 8 collapsible sections with color coding:
+  1. Bore Information (gray)
+  2. Pilot Hole - Drilling Fluid Parameters (yellow)
+  3. Reaming Passes - repeatable entries (blue)
+  4. Pipe Installation (green)
+  5. Post-Installation (gray)
+  6. Drilling Waste Management - Directive 050 (blue)
+  7. Steering Log - Bore Path Data (purple)
+  8. Comments (gray)
+- Integrated audit trail logging via useActivityAudit hook
+- Inherited info bar showing contractor, foreman, date, KP range
+
+**DrillingWasteManagement.jsx - NEW Component**
+- AER Directive 050 compliance tracking
+- 6 collapsible sections:
+  1. Mud Mixing & Volume Tracking
+  2. Additives Log (searchable, 20+ pre-configured products)
+  3. Disposal & Manifesting (mandatory manifest photo)
+  4. Testing & Compliance (salinity, toxicity, metals)
+  5. Evidence - Photo Documentation (GPS-tagged)
+  6. Certification & Comments
+- Volume balance calculation (mixed - hauled = in storage)
+- Disposal method tracking (landspray, landfill, approved facility)
+
+**HDDSteeringLog.jsx - NEW Component**
+- Real-time pilot hole guidance tracking
+- 6 collapsible sections:
+  1. Guidance System Setup (walk-over, wireline, gyro)
+  2. Design vs Actual Entry/Exit Angles (auto variance)
+  3. Steering Data - Per Joint/Station (repeatable table)
+  4. Bending Radius Alerts (pipe diameter lookup)
+  5. Evidence - Document Upload
+  6. Comments
+- Minimum bend radius auto-calculation by pipe diameter
+- Weld ID linking to pipe string
+- Known issue: Section collapses on field changes (to be fixed)
+
+### Database Migrations (January 21, 2026)
+- `20260121_create_drilling_waste_logs.sql`
+  - drilling_waste_logs table
+  - drilling_waste_additives table
+  - drilling_waste_photos table
+  - RLS policies for authenticated users
+
+- `20260121_create_bore_path_data.sql`
+  - bore_path_logs table
+  - bore_path_stations table
+  - bore_path_documents table
+  - RLS policies for authenticated users
+
+### Audit Logger Updates (January 21, 2026)
+- Added precision mappings for drilling waste fields:
+  - total_volume_mixed_m3: 2
+  - volume_in_storage_m3: 2
+  - volume_hauled_m3: 2
+  - vac_truck_hours: 2
+  - mud_weight: 1
+  - viscosity: 0
+  - grout_volume: 2
+  - grout_pressure: 1
+- Added environmental regulatory patterns for drilling waste
+
+---
+
+### DitchInspection Refactoring
+- Removed Rock Ditch section (now in Trackable Items)
+- Removed Extra Depth section (now in Trackable Items)
+- Added From KP / To KP to Padding/Bedding section
+- Auto-formatting for KP values (6500 → 6+500)
+
+### Lower-in Activity Updates
+- Changed Padding Depth to Bedding/Padding (Yes/No)
+- Removed Depth of Cover (tracked in Trackable Items)
+- Kept: Foreign Line Clearance, Lift Plan Verified, Equipment Inspected
+- Added reminder popup when Bedding/Padding = Yes
+- Uniform box styling for all fields
+
+### New Trackable Item: Bedding & Padding
+- Protection Type options:
+  - Bedding
+  - Padding
+  - Bedding and Padding
+  - Pipe Protection
+  - Rockshield
+  - Lagging
+  - Rockshield and Lagging
+- From KP / To KP fields
+- Length, Material, Depth/Thickness, Action, Equipment, Notes
+
+### Database Migrations
+- `20260120_add_padding_bedding_kp_columns.sql`
+  - Added padding_bedding_from_kp column
+  - Added padding_bedding_to_kp column
+
+---
+
+## 7. DEPLOYMENT & ENVIRONMENT
+
+### Vercel Configuration
+- Auto-deployment from GitHub main branch
+- Production URL: https://app.pipe-up.ca
+- Edge functions for email notifications
+
+### Environment Variables
+```
+VITE_SUPABASE_URL=https://aatvckalnvojlykfgnmz.supabase.co
+VITE_SUPABASE_ANON_KEY=[anon-key]
+```
+
+### Build Commands
 ```bash
-# From project directory
-cd ~/Documents/"Inspection App and Dashboard"
-git add .
-git commit -m "Update"
-git push origin main
-# Vercel auto-deploys from main branch
+npm run dev      # Development server
+npm run build    # Production build
+npm run preview  # Preview production build
 ```
 
 ---
 
-## ⚠️ KNOWN ISSUES / IN PROGRESS
+## 8. KEY INTEGRATIONS
 
-| Issue | Status | Notes |
-|-------|--------|-------|
-| StringingLog quality checks | Needs fix | Should have collapsible sections like GradingLog |
-| TrackableItemsTracker | Intermittent | Items sometimes save with null report_id on new reports |
-| ReportWorkflow.jsx import | Fixed | Had broken supabaseClient import path |
-
----
-
-## 📋 DEVELOPMENT ROADMAP
-
-### Immediate (Phase 4-6 Invoicing)
-1. Admin Review Queue for timesheets
-2. Timesheet approval workflow with notifications
-3. Rate card management UI
-4. Invoice PDF generation
-5. Reporting dashboard
-
-### Short-term
-1. Fix StringingLog collapsible quality sections
-2. Complete audit logging for all components
-3. Chief's Aggregate Report (multiple inspector reports)
-4. Audit History Viewer UI panel
-5. Dashboard analytics and charts
-
-### Medium-term
-1. Mobile-optimized field interface
-2. Offline capability with sync
-3. API 1169 compliance checklist integration
-4. Contractor portal (read-only access)
+| Integration | Purpose |
+|-------------|---------|
+| Supabase | Database, Auth, Storage, Edge Functions |
+| Resend | Email notifications (approvals, summaries) |
+| Weather API | Field condition logging |
+| Leaflet | Pipeline route mapping |
+| jsPDF | Report/Invoice PDF generation |
+| XLSX | Excel data export |
 
 ---
 
-## 📞 KEY CONTACTS
+## 9. AUDIT & COMPLIANCE
 
-- **David Pfeiffer** - FortisBC Director of Major Projects (expressed interest in testing)
-- **Dave Fitton** - Senior welding inspector (invited to test welding reports)
-- **Pembina Pipeline** - Industry contact
-- **Michels Canada** - Industry contact
+### Audit Logging (auditLoggerV3.js)
+- Tracks all field changes with original/new values
+- Precision mapping for numeric fields (2 decimal places)
+- User identification and timestamps
+- Report state transitions
+
+### Precision Map
+```javascript
+// Trench/Ditch
+trench_width: 2,
+trench_depth: 2,
+depth_of_cover: 2,
+padding_meters: 2,
+pumping_hours: 2,
+groundwater_depth: 2,
+filter_bag_count: 0,
+
+// Drilling Waste (Directive 050)
+total_volume_mixed_m3: 2,
+volume_in_storage_m3: 2,
+volume_hauled_m3: 2,
+storage_capacity_m3: 2,
+vac_truck_hours: 2,
+mud_weight: 1,
+viscosity: 0,
+fluid_loss: 1,
+grout_volume: 2,
+grout_pressure: 1
+```
 
 ---
 
-## 🔄 RECENT CHANGES LOG
+## 10. SUPPORT & MAINTENANCE
 
-| Date | What Changed |
-|------|--------------|
-| **Jan 20, 2026** | GradingLog.jsx - ALL sections now collapsible |
-| **Jan 20, 2026** | Identified StringingLog quality checks need restoration |
-| **Jan 20, 2026** | Fixed ReportWorkflow.jsx supabaseClient import error |
-| **Jan 19, 2026** | ReportViewer - Approve/Reject buttons added |
-| **Jan 19, 2026** | AdminPortal - View buttons added to Approvals & Reports tabs |
-| **Jan 17, 2026** | Delete User functionality with Edge Function |
-| **Jan 17, 2026** | Billing Reconciliation with "No Talk" transparency |
+**Developer:** Claude Code (Anthropic)
+**Primary Contact:** Richard Judson
+**Issue Tracking:** GitHub Issues
 
----
-
-## 📝 NOTES
-
-- Daily tickets use integer IDs (not UUIDs) - handle accordingly in joins
-- Inspector timesheet items link via `daily_ticket_id` foreign key
-- All financial changes require audit logging via auditLoggerV3
-- "No Talk" transparency means no behind-the-scenes adjustments
-- Rick prefers SQL as copyable text for Supabase SQL Editor (not file downloads)
+### Common Operations
+- Run Supabase migrations: `npx supabase db push`
+- Deploy to Vercel: `git push origin main`
+- Check deployment status: `npx vercel ls`
 
 ---
 
-*Keep this manifest updated when making significant changes!*
+*Manifest Generated: January 20, 2026*
+*Last Updated: January 21, 2026*

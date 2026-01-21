@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - January 20, 2026
+## Project Manifest - January 21, 2026
 
 ---
 
@@ -152,6 +152,45 @@
 - GPS coordinates (6-decimal precision)
 - Photo type categorization
 
+### HDD Drilling Waste Management Tables (NEW - January 2026)
+
+**drilling_waste_logs**
+- Report linkage, bore/crossing ID
+- Mud mixing data (total volume, storage, hauled)
+- Disposal tracking (method, location, manifest)
+- Testing compliance (salinity, toxicity, metals)
+- Certification (inspector sign-off)
+
+**drilling_waste_additives**
+- Product name, type, manufacturer
+- Quantity used, units
+- SDS availability tracking
+
+**drilling_waste_photos**
+- Geotagged evidence photos
+- Photo types: mud_system, disposal, testing, manifest, spill, general
+- GPS coordinates (6-decimal precision)
+
+### HDD Steering/Bore Path Tables (NEW - January 2026)
+
+**bore_path_logs**
+- Report linkage, bore/crossing/weld ID
+- Guidance system setup (type, frequency, calibration)
+- Design vs actual entry/exit angles
+- Pipe specifications for bending radius calculation
+- Status tracking (within tolerance, complete, adjusted)
+
+**bore_path_stations**
+- Per-joint steering data entries
+- Position data (depth, pitch, azimuth, KP)
+- Offset from design (horizontal/vertical)
+- Bending radius alerts
+
+**bore_path_documents**
+- Uploaded bore logs, steering reports
+- GPS metadata from photos
+- Document type categorization
+
 ### Trackable Items
 
 **bedding_padding** (NEW - January 2026)
@@ -193,7 +232,9 @@
 │   ├── CoatingLog.jsx
 │   ├── DitchInspection.jsx     # Ditch with DB integration
 │   ├── GradingLog.jsx
-│   ├── HDDLog.jsx
+│   ├── HDDLog.jsx              # Collapsible sections, waste mgmt, steering log
+│   ├── HDDSteeringLog.jsx      # NEW - Bore path tracking (Jan 2026)
+│   ├── DrillingWasteManagement.jsx  # NEW - Directive 050 (Jan 2026)
 │   ├── HydrotestLog.jsx
 │   ├── MainlineWeldData.jsx
 │   ├── PilingLog.jsx
@@ -225,12 +266,81 @@
 ├── create_inspector_invoicing_tables.sql
 ├── create_trench_logs.sql
 ├── 20260120_add_padding_bedding_kp_columns.sql
+├── 20260121_create_drilling_waste_logs.sql   # NEW - Directive 050
+├── 20260121_create_bore_path_data.sql        # NEW - Steering log
 └── [other migrations]
 ```
 
 ---
 
 ## 6. RECENT UPDATES (January 2026)
+
+### HDD Module Redesign (January 21, 2026)
+
+**HDDLog.jsx - Complete Redesign**
+- 8 collapsible sections with color coding:
+  1. Bore Information (gray)
+  2. Pilot Hole - Drilling Fluid Parameters (yellow)
+  3. Reaming Passes - repeatable entries (blue)
+  4. Pipe Installation (green)
+  5. Post-Installation (gray)
+  6. Drilling Waste Management - Directive 050 (blue)
+  7. Steering Log - Bore Path Data (purple)
+  8. Comments (gray)
+- Integrated audit trail logging via useActivityAudit hook
+- Inherited info bar showing contractor, foreman, date, KP range
+
+**DrillingWasteManagement.jsx - NEW Component**
+- AER Directive 050 compliance tracking
+- 6 collapsible sections:
+  1. Mud Mixing & Volume Tracking
+  2. Additives Log (searchable, 20+ pre-configured products)
+  3. Disposal & Manifesting (mandatory manifest photo)
+  4. Testing & Compliance (salinity, toxicity, metals)
+  5. Evidence - Photo Documentation (GPS-tagged)
+  6. Certification & Comments
+- Volume balance calculation (mixed - hauled = in storage)
+- Disposal method tracking (landspray, landfill, approved facility)
+
+**HDDSteeringLog.jsx - NEW Component**
+- Real-time pilot hole guidance tracking
+- 6 collapsible sections:
+  1. Guidance System Setup (walk-over, wireline, gyro)
+  2. Design vs Actual Entry/Exit Angles (auto variance)
+  3. Steering Data - Per Joint/Station (repeatable table)
+  4. Bending Radius Alerts (pipe diameter lookup)
+  5. Evidence - Document Upload
+  6. Comments
+- Minimum bend radius auto-calculation by pipe diameter
+- Weld ID linking to pipe string
+- Known issue: Section collapses on field changes (to be fixed)
+
+### Database Migrations (January 21, 2026)
+- `20260121_create_drilling_waste_logs.sql`
+  - drilling_waste_logs table
+  - drilling_waste_additives table
+  - drilling_waste_photos table
+  - RLS policies for authenticated users
+
+- `20260121_create_bore_path_data.sql`
+  - bore_path_logs table
+  - bore_path_stations table
+  - bore_path_documents table
+  - RLS policies for authenticated users
+
+### Audit Logger Updates (January 21, 2026)
+- Added precision mappings for drilling waste fields:
+  - total_volume_mixed_m3: 2
+  - volume_in_storage_m3: 2
+  - volume_hauled_m3: 2
+  - vac_truck_hours: 2
+  - mud_weight: 1
+  - viscosity: 0
+  - grout_volume: 2
+  - grout_pressure: 1
+- Added environmental regulatory patterns for drilling waste
+
+---
 
 ### DitchInspection Refactoring
 - Removed Rock Ditch section (now in Trackable Items)
@@ -309,13 +419,26 @@ npm run preview  # Preview production build
 
 ### Precision Map
 ```javascript
+// Trench/Ditch
 trench_width: 2,
 trench_depth: 2,
 depth_of_cover: 2,
 padding_meters: 2,
 pumping_hours: 2,
 groundwater_depth: 2,
-filter_bag_count: 0
+filter_bag_count: 0,
+
+// Drilling Waste (Directive 050)
+total_volume_mixed_m3: 2,
+volume_in_storage_m3: 2,
+volume_hauled_m3: 2,
+storage_capacity_m3: 2,
+vac_truck_hours: 2,
+mud_weight: 1,
+viscosity: 0,
+fluid_loss: 1,
+grout_volume: 2,
+grout_pressure: 1
 ```
 
 ---
@@ -334,4 +457,4 @@ filter_bag_count: 0
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: January 20, 2026*
+*Last Updated: January 21, 2026*
