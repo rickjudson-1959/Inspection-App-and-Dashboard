@@ -2696,9 +2696,25 @@ Important:
     }
 
     const setColor = (color, type = 'fill') => {
-      if (type === 'fill') doc.setFillColor(color[0], color[1], color[2])
-      else if (type === 'text') doc.setTextColor(color[0], color[1], color[2])
-      else if (type === 'draw') doc.setDrawColor(color[0], color[1], color[2])
+      let r, g, b
+      if (typeof color === 'string' && color.startsWith('#')) {
+        // Handle hex color strings like '#e2d5f1'
+        const hex = color.slice(1)
+        r = parseInt(hex.substring(0, 2), 16)
+        g = parseInt(hex.substring(2, 4), 16)
+        b = parseInt(hex.substring(4, 6), 16)
+      } else if (Array.isArray(color)) {
+        // Handle RGB arrays like [255, 255, 255]
+        r = color[0]
+        g = color[1]
+        b = color[2]
+      } else {
+        // Fallback to black
+        r = 0; g = 0; b = 0
+      }
+      if (type === 'fill') doc.setFillColor(r, g, b)
+      else if (type === 'text') doc.setTextColor(r, g, b)
+      else if (type === 'draw') doc.setDrawColor(r, g, b)
     }
 
     const checkPageBreak = (neededSpace = 30) => {
