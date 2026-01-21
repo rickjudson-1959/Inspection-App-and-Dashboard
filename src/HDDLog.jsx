@@ -1,5 +1,6 @@
 import React, { useState, useRef } from 'react'
 import { useActivityAudit } from './useActivityAudit'
+import DrillingWasteManagement from './DrillingWasteManagement'
 
 function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday, logId, reportId }) {
   // Collapsible section states
@@ -9,10 +10,12 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
     reamingPasses: false,
     pipeInstallation: false,
     postInstallation: false,
+    wasteManagement: false,
     comments: false
   })
 
   const [showReamingPasses, setShowReamingPasses] = useState(data?.reamingPasses?.enabled || false)
+  const [showWasteManagement, setShowWasteManagement] = useState(data?.wasteManagementEnabled || false)
 
   const toggleSection = (section) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))
@@ -113,6 +116,10 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
       groutPressure: ''
     },
 
+    // Drilling Waste Management (Directive 050)
+    wasteManagementEnabled: false,
+    wasteManagementData: {},
+
     comments: ''
   }
 
@@ -122,7 +129,8 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
     pilotHole: { ...defaultData.pilotHole, ...(data?.pilotHole || {}) },
     reamingPasses: { ...defaultData.reamingPasses, ...(data?.reamingPasses || {}), entries: data?.reamingPasses?.entries || [] },
     pipeInstallation: { ...defaultData.pipeInstallation, ...(data?.pipeInstallation || {}) },
-    postInstallation: { ...defaultData.postInstallation, ...(data?.postInstallation || {}) }
+    postInstallation: { ...defaultData.postInstallation, ...(data?.postInstallation || {}) },
+    wasteManagementData: data?.wasteManagementData || {}
   }
 
   // Audit handlers
@@ -193,6 +201,17 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
   }
 
   const getReamingPassLabel = (pass, index) => pass.passNumber ? `Pass #${pass.passNumber}` : `Pass #${index + 1}`
+
+  // Waste Management toggle and update
+  const toggleWasteManagement = () => {
+    const newEnabled = !showWasteManagement
+    setShowWasteManagement(newEnabled)
+    onChange({ ...hddData, wasteManagementEnabled: newEnabled })
+  }
+
+  const updateWasteManagementData = (wasteData) => {
+    onChange({ ...hddData, wasteManagementData: wasteData })
+  }
 
   // Styles
   const gridStyle = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }
@@ -565,7 +584,54 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
         </div>
       </CollapsibleSection>
 
-      {/* 6. COMMENTS - Collapsible */}
+      {/* 6. DRILLING WASTE MANAGEMENT (Directive 050) - Collapsible */}
+      <CollapsibleSection
+        id="wasteManagement"
+        title="DRILLING WASTE MANAGEMENT (Directive 050)"
+        color="#17a2b8"
+        bgColor="#d1ecf1"
+        borderColor="#17a2b8"
+        contentBgColor="#e8f7fc"
+      >
+        <div style={{ marginBottom: '15px' }}>
+          <button
+            onClick={toggleWasteManagement}
+            style={{
+              padding: '10px 20px',
+              backgroundColor: showWasteManagement ? '#dc3545' : '#17a2b8',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: 'bold'
+            }}
+          >
+            {showWasteManagement ? '− Hide Waste Management Module' : '+ Enable Waste Management Tracking'}
+          </button>
+          <p style={{ marginTop: '8px', fontSize: '11px', color: '#666' }}>
+            Track mud volumes, additives, disposal manifests, and compliance testing per AER Directive 050.
+          </p>
+        </div>
+
+        {showWasteManagement && (
+          <DrillingWasteManagement
+            data={hddData.wasteManagementData}
+            onChange={updateWasteManagementData}
+            contractor={contractor}
+            foreman={foreman}
+            reportDate={reportDate}
+            boreId={hddData.boreId}
+            crossingId={hddData.crossingType}
+            startKP={startKP}
+            endKP={endKP}
+            logId={logId}
+            reportId={reportId}
+          />
+        )}
+      </CollapsibleSection>
+
+      {/* 7. COMMENTS - Collapsible */}
       <CollapsibleSection id="comments" title="COMMENTS">
         <textarea value={hddData.comments}
           onFocus={() => handleFieldFocus('comments', hddData.comments)}

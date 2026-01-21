@@ -50,6 +50,18 @@ export const PRECISION_MAP = {
 
   // Filter bag count - 0 decimal places (whole numbers)
   filter_bag_count: 0,
+
+  // Drilling Waste Management (Directive 050) - 2 decimal places
+  total_volume_mixed_m3: 2,
+  volume_in_storage_m3: 2,
+  volume_hauled_m3: 2,
+  storage_capacity_m3: 2,
+  vac_truck_hours: 2,
+  mud_weight: 1,
+  viscosity: 0,
+  fluid_loss: 1,
+  grout_volume: 2,
+  grout_pressure: 1,
   
   // Wall thickness - 3 decimal places (critical for pipe specs)
   wall_thickness: 3,
@@ -125,7 +137,9 @@ const REGULATORY_PATTERNS = {
   ],
   environmental: [
     'wildlife', 'erosion', 'topsoil', 'subsoil', 'sediment', 'water',
-    'species', 'nesting', 'habitat', 'contamination', 'spill', 'drainage'
+    'species', 'nesting', 'habitat', 'contamination', 'spill', 'drainage',
+    'drilling_waste', 'mud', 'disposal', 'manifest', 'salinity', 'toxicity',
+    'metals', 'bentonite', 'polymer', 'additive', 'landfill', 'landspray'
   ],
   soil_handling: [
     'topsoil', 'subsoil', 'stockpile', 'segregation', 'stripping',
