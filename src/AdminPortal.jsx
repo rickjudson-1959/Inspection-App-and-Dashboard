@@ -48,6 +48,12 @@ function AdminPortal() {
   const [newOrg, setNewOrg] = useState({ name: '', slug: '' })
   const [newProject, setNewProject] = useState({ name: '', shortCode: '', organizationId: '' })
 
+  // Inspector Profile Modal state
+  const [showProfileModal, setShowProfileModal] = useState(false)
+  const [selectedProfile, setSelectedProfile] = useState(null)
+  const [profileDocuments, setProfileDocuments] = useState([])
+  const [loadingProfile, setLoadingProfile] = useState(false)
+
   // Setup tab state
   const [selectedOrgForSetup, setSelectedOrgForSetup] = useState('')
 
@@ -88,6 +94,47 @@ function AdminPortal() {
     setProjects(projectsData || [])
 
     setLoading(false)
+  }
+
+  // ==================== INSPECTOR PROFILE MODAL ====================
+  async function openProfileModal(profileId) {
+    setLoadingProfile(true)
+    setShowProfileModal(true)
+    try {
+      // Load full profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('inspector_profiles')
+        .select('*')
+        .eq('id', profileId)
+        .single()
+
+      if (profileError) throw profileError
+      setSelectedProfile(profileData)
+
+      // Load documents
+      const { data: docsData } = await supabase
+        .from('inspector_documents')
+        .select('*')
+        .eq('inspector_profile_id', profileId)
+        .order('created_at', { ascending: false })
+
+      setProfileDocuments(docsData || [])
+    } catch (err) {
+      console.error('Error loading profile:', err)
+      alert('Error loading profile: ' + err.message)
+    }
+    setLoadingProfile(false)
+  }
+
+  function getExpiryStatus(expiryDate) {
+    if (!expiryDate) return { color: '#6b7280', label: 'No Expiry', bg: '#f3f4f6' }
+    const today = new Date()
+    const expiry = new Date(expiryDate)
+    const daysUntil = Math.ceil((expiry - today) / (1000 * 60 * 60 * 24))
+    if (daysUntil < 0) return { color: '#dc2626', bg: '#fee2e2', label: 'EXPIRED' }
+    if (daysUntil <= 7) return { color: '#ea580c', bg: '#ffedd5', label: `${daysUntil}d` }
+    if (daysUntil <= 30) return { color: '#ca8a04', bg: '#fef9c3', label: `${daysUntil}d` }
+    return { color: '#16a34a', bg: '#dcfce7', label: `${daysUntil}d` }
   }
 
   // ==================== PENDING APPROVALS ====================
@@ -1271,7 +1318,7 @@ function AdminPortal() {
                           if (profile) {
                             return (
                               <button
-                                onClick={() => navigate(`/inspector-profile/${profile.id}`)}
+                                onClick={() => openProfileModal(profile.id)}
                                 style={{
                                   padding: '6px 12px',
                                   backgroundColor: profile.cleared_to_work ? '#28a745' : profile.profile_complete ? '#ffc107' : '#6c757d',
@@ -1780,6 +1827,249 @@ function AdminPortal() {
                   Send Revision Request
                 </button>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* Inspector Profile Modal */}
+        {showProfileModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1001
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              maxWidth: '800px',
+              width: '95%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)'
+            }}>
+              {/* Header */}
+              <div style={{
+                padding: '20px 24px',
+                borderBottom: '1px solid #e5e7eb',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                position: 'sticky',
+                top: 0,
+                backgroundColor: 'white',
+                zIndex: 1
+              }}>
+                <h2 style={{ margin: 0, fontSize: '20px' }}>Inspector Profile</h2>
+                <button
+                  onClick={() => { setShowProfileModal(false); setSelectedProfile(null); setProfileDocuments([]); }}
+                  style={{ background: 'none', border: 'none', fontSize: '24px', cursor: 'pointer', color: '#6b7280' }}
+                >
+                  ×
+                </button>
+              </div>
+
+              {loadingProfile ? (
+                <div style={{ padding: '40px', textAlign: 'center' }}>Loading profile...</div>
+              ) : selectedProfile ? (
+                <div style={{ padding: '24px' }}>
+                  {/* Status Banner */}
+                  <div style={{
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    marginBottom: '20px',
+                    backgroundColor: selectedProfile.cleared_to_work ? '#d1fae5' : selectedProfile.profile_complete ? '#fef3c7' : '#fee2e2',
+                    color: selectedProfile.cleared_to_work ? '#065f46' : selectedProfile.profile_complete ? '#92400e' : '#991b1b',
+                    fontWeight: '600'
+                  }}>
+                    {selectedProfile.cleared_to_work ? '✓ Cleared to Work' : selectedProfile.profile_complete ? '⏳ Pending Clearance' : '📝 Profile Incomplete'}
+                  </div>
+
+                  {/* Company Information */}
+                  <div style={{ marginBottom: '24px' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#374151' }}>Company Information</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>Company Name</div>
+                        <div style={{ fontWeight: '500' }}>{selectedProfile.company_name || '-'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>Email</div>
+                        <div style={{ fontWeight: '500' }}>{selectedProfile.company_email || '-'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>Phone</div>
+                        <div style={{ fontWeight: '500' }}>{selectedProfile.company_phone || '-'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>Address</div>
+                        <div style={{ fontWeight: '500' }}>
+                          {selectedProfile.company_address || '-'}
+                          {selectedProfile.company_city && `, ${selectedProfile.company_city}`}
+                          {selectedProfile.company_province && `, ${selectedProfile.company_province}`}
+                          {selectedProfile.company_postal_code && ` ${selectedProfile.company_postal_code}`}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Contact Information */}
+                  <div style={{ marginBottom: '24px' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#374151' }}>Primary Contact</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>Name</div>
+                        <div style={{ fontWeight: '500' }}>{selectedProfile.primary_contact_name || '-'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>Phone</div>
+                        <div style={{ fontWeight: '500' }}>{selectedProfile.primary_contact_phone || '-'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>Email</div>
+                        <div style={{ fontWeight: '500' }}>{selectedProfile.primary_contact_email || '-'}</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Banking Information */}
+                  <div style={{ marginBottom: '24px' }}>
+                    <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#374151' }}>Banking Information</h3>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '12px' }}>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>Bank Name</div>
+                        <div style={{ fontWeight: '500' }}>{selectedProfile.bank_name || '-'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>Transit #</div>
+                        <div style={{ fontWeight: '500' }}>{selectedProfile.bank_transit || '-'}</div>
+                      </div>
+                      <div>
+                        <div style={{ fontSize: '12px', color: '#6b7280' }}>Account #</div>
+                        <div style={{ fontWeight: '500' }}>
+                          {selectedProfile.bank_account ? `****${selectedProfile.bank_account.slice(-4)}` : '-'}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Documents */}
+                  <div>
+                    <h3 style={{ fontSize: '16px', fontWeight: '600', marginBottom: '12px', color: '#374151' }}>
+                      Documents ({profileDocuments.length})
+                    </h3>
+                    {profileDocuments.length === 0 ? (
+                      <div style={{ padding: '20px', textAlign: 'center', color: '#9ca3af', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
+                        No documents uploaded
+                      </div>
+                    ) : (
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: '#f9fafb' }}>
+                            <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Document</th>
+                            <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Type</th>
+                            <th style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #e5e7eb' }}>Expiry</th>
+                            <th style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #e5e7eb' }}>Status</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {profileDocuments.map(doc => {
+                            const expiry = getExpiryStatus(doc.expiry_date)
+                            return (
+                              <tr key={doc.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                                <td style={{ padding: '10px' }}>
+                                  {doc.document_url ? (
+                                    <a href={doc.document_url} target="_blank" rel="noopener noreferrer" style={{ color: '#2563eb' }}>
+                                      {doc.document_name || 'View Document'}
+                                    </a>
+                                  ) : (
+                                    doc.document_name || '-'
+                                  )}
+                                </td>
+                                <td style={{ padding: '10px' }}>{doc.document_type || '-'}</td>
+                                <td style={{ padding: '10px', textAlign: 'center' }}>
+                                  <span style={{
+                                    padding: '4px 8px',
+                                    borderRadius: '12px',
+                                    fontSize: '11px',
+                                    backgroundColor: expiry.bg,
+                                    color: expiry.color
+                                  }}>
+                                    {doc.expiry_date ? new Date(doc.expiry_date).toLocaleDateString() : 'No Expiry'}
+                                  </span>
+                                </td>
+                                <td style={{ padding: '10px', textAlign: 'center' }}>
+                                  <span style={{
+                                    padding: '4px 8px',
+                                    borderRadius: '12px',
+                                    fontSize: '11px',
+                                    backgroundColor: doc.verified ? '#d1fae5' : '#fef3c7',
+                                    color: doc.verified ? '#065f46' : '#92400e'
+                                  }}>
+                                    {doc.verified ? '✓ Verified' : '⏳ Pending'}
+                                  </span>
+                                </td>
+                              </tr>
+                            )
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div style={{ marginTop: '24px', display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                    {!selectedProfile.cleared_to_work && selectedProfile.profile_complete && (
+                      <button
+                        onClick={async () => {
+                          if (confirm('Clear this inspector to work?')) {
+                            await supabase
+                              .from('inspector_profiles')
+                              .update({ cleared_to_work: true })
+                              .eq('id', selectedProfile.id)
+                            alert('Inspector cleared to work!')
+                            setShowProfileModal(false)
+                            fetchData()
+                          }
+                        }}
+                        style={{
+                          padding: '10px 20px',
+                          backgroundColor: '#28a745',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontWeight: '500'
+                        }}
+                      >
+                        ✓ Clear to Work
+                      </button>
+                    )}
+                    <button
+                      onClick={() => { setShowProfileModal(false); setSelectedProfile(null); setProfileDocuments([]); }}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: '#6b7280',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontWeight: '500'
+                      }}
+                    >
+                      Close
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#9ca3af' }}>Profile not found</div>
+              )}
             </div>
           </div>
         )}
