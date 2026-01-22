@@ -12,6 +12,7 @@ function AdminPortal() {
   const { signOut, userProfile } = useAuth()
   const [organizations, setOrganizations] = useState([])
   const [users, setUsers] = useState([])
+  const [inspectorProfiles, setInspectorProfiles] = useState([])
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('overview')
@@ -78,6 +79,10 @@ function AdminPortal() {
 
     const { data: usersData } = await supabase.from('user_profiles').select('*, organizations(name)').order('email')
     setUsers(usersData || [])
+
+    // Fetch inspector profiles to link with users
+    const { data: inspectorProfilesData } = await supabase.from('inspector_profiles').select('id, user_id, company_name, profile_complete, cleared_to_work')
+    setInspectorProfiles(inspectorProfilesData || [])
 
     const { data: projectsData } = await supabase.from('projects').select('*, organizations(name)').order('name')
     setProjects(projectsData || [])
@@ -1230,6 +1235,7 @@ function AdminPortal() {
                     <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Email</th>
                     <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Role</th>
                     <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Organization</th>
+                    <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Profile</th>
                     <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #ddd', width: '120px' }}>Actions</th>
                   </tr>
                 </thead>
@@ -1259,6 +1265,32 @@ function AdminPortal() {
                         </select>
                       </td>
                       <td style={{ padding: '15px', borderBottom: '1px solid #eee' }}>{user.organizations?.name || 'N/A'}</td>
+                      <td style={{ padding: '15px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
+                        {(() => {
+                          const profile = inspectorProfiles.find(p => p.user_id === user.id)
+                          if (profile) {
+                            return (
+                              <button
+                                onClick={() => navigate(`/inspector-profile/${profile.id}`)}
+                                style={{
+                                  padding: '6px 12px',
+                                  backgroundColor: profile.cleared_to_work ? '#28a745' : profile.profile_complete ? '#ffc107' : '#6c757d',
+                                  color: profile.cleared_to_work ? 'white' : profile.profile_complete ? '#212529' : 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  fontSize: '12px',
+                                  fontWeight: '500'
+                                }}
+                                title={profile.company_name || 'View Profile'}
+                              >
+                                {profile.cleared_to_work ? '✓ View' : profile.profile_complete ? '⏳ Review' : '📝 Incomplete'}
+                              </button>
+                            )
+                          }
+                          return <span style={{ color: '#999', fontSize: '12px' }}>No profile</span>
+                        })()}
+                      </td>
                       <td style={{ padding: '15px', borderBottom: '1px solid #eee', textAlign: 'center', width: '120px' }}>
                         <button
                           onClick={() => deleteUser(user.id, user.email)}

@@ -18,6 +18,7 @@ import AssistantChiefDashboard from './AssistantChiefDashboard.jsx'
 import AuditorDashboard from './AuditorDashboard.jsx'
 import NDTAuditorDashboard from './NDTAuditorDashboard.jsx'
 import AdminPortal from './AdminPortal.jsx'
+import InspectorProfileView from './InspectorProfileView.jsx'
 
 // Root redirect - sends users to their role-specific landing page
 function RootRedirect() {
@@ -105,6 +106,13 @@ function App() {
           <Route path="/admin" element={
             <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
               <AdminPortal />
+            </ProtectedRoute>
+          } />
+
+          {/* Inspector Profile View */}
+          <Route path="/inspector-profile/:id" element={
+            <ProtectedRoute allowedRoles={['admin', 'super_admin', 'chief', 'asst_chief']}>
+              <InspectorProfileView />
             </ProtectedRoute>
           } />
           
