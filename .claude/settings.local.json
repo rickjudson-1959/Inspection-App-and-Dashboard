@@ -3,7 +3,32 @@
     "allow": [
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(npx supabase:*)",
+      "Bash(npm run build:*)",
+      "Bash(timeout 15 npm run dev:*)",
+      "Bash(pkill:*)",
+      "Bash(npx vercel ls)",
+      "Bash(curl:*)",
+      "Bash(npx vercel:*)",
+      "Bash(grep:*)",
+      "Bash(xargs:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(for file in src/CoatingLog.jsx src/ClearingLog.jsx src/GradingLog.jsx src/HydrotestLog.jsx src/HDDLog.jsx src/PilingLog.jsx src/HydrovacLog.jsx)",
+      "Bash(do)",
+      "Bash(if grep -q \"gridTemplateColumns: ''1fr\" \"$file\")",
+      "Bash(then)",
+      "Bash(echo:*)",
+      "Bash(fi)",
+      "Bash(done)",
+      "Bash(cd /Users/richardsjudson/Documents/Inspection\\\\ App\\\\ and\\\\ Dashboard && vercel --prod:*)",
+      "Bash(cd /Users/richardsjudson/Documents/Inspection\\\\ App\\\\ and\\\\ Dashboard && vercel --prod --force:*)",
+      "Bash(vercel --prod:*)",
+      "Bash(timeout 10 npm run dev:*)",
+      "Bash(node -e \"require\\(''''./src/HDDSteeringLog.jsx''''\\)\")",
+      "Bash(firebase deploy:*)",
+      "Bash(npx firebase-tools:*)"
     ]
   }
 }
