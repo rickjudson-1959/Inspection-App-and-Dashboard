@@ -15,7 +15,7 @@ export const ROLE_CONFIG = {
   admin: {
     landingPage: '/admin',
     displayName: 'Administrator',
-    canAccess: ['admin', 'field-entry', 'auditor-dashboard', 'ndt-auditor', 'chief-dashboard', 'assistant-chief', 'cmt-dashboard', 'evm-dashboard']
+    canAccess: ['admin', 'field-entry', 'auditor-dashboard', 'ndt-auditor', 'chief-dashboard', 'assistant-chief', 'cmt-dashboard', 'evm-dashboard', 'inspector-profile']
   },
   exec: {
     landingPage: '/evm-dashboard',
@@ -35,12 +35,12 @@ export const ROLE_CONFIG = {
   chief: {
     landingPage: '/chief-dashboard',
     displayName: 'Chief Inspector',
-    canAccess: ['chief-dashboard', 'cmt-dashboard', 'auditor-dashboard', 'ndt-auditor', 'field-entry']
+    canAccess: ['chief-dashboard', 'cmt-dashboard', 'auditor-dashboard', 'ndt-auditor', 'field-entry', 'inspector-profile']
   },
   asst_chief: {
     landingPage: '/assistant-chief',
     displayName: 'Assistant Chief Inspector',
-    canAccess: ['assistant-chief', 'chief-dashboard', 'cmt-dashboard', 'field-entry']
+    canAccess: ['assistant-chief', 'chief-dashboard', 'cmt-dashboard', 'field-entry', 'inspector-profile']
   },
   ndt_auditor: {
     landingPage: '/ndt-auditor',
@@ -55,7 +55,7 @@ export const ROLE_CONFIG = {
   super_admin: {
     landingPage: '/admin',
     displayName: 'Super Administrator',
-    canAccess: ['admin', 'field-entry', 'auditor-dashboard', 'ndt-auditor', 'chief-dashboard', 'assistant-chief', 'cmt-dashboard', 'evm-dashboard']
+    canAccess: ['admin', 'field-entry', 'auditor-dashboard', 'ndt-auditor', 'chief-dashboard', 'assistant-chief', 'cmt-dashboard', 'evm-dashboard', 'inspector-profile']
   }
 }
 
@@ -68,16 +68,21 @@ export function getLandingPage(role) {
 export function canAccessRoute(role, routePath) {
   // Remove leading slash and query params for matching
   const cleanPath = routePath.replace(/^\//, '').split('?')[0]
-  
+
   // Admin and super_admin can access everything
   if (role === 'admin' || role === 'super_admin') {
     return true
   }
-  
+
   const config = ROLE_CONFIG[role]
   if (!config) return false
-  
-  return config.canAccess.includes(cleanPath)
+
+  // Check exact match first
+  if (config.canAccess.includes(cleanPath)) return true
+
+  // Check base path for dynamic routes (e.g., inspector-profile/abc123 -> inspector-profile)
+  const basePath = cleanPath.split('/')[0]
+  return config.canAccess.includes(basePath)
 }
 
 // Get display name for a role
