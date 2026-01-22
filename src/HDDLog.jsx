@@ -3,6 +3,43 @@ import { useActivityAudit } from './useActivityAudit'
 import DrillingWasteManagement from './DrillingWasteManagement'
 import HDDSteeringLog from './HDDSteeringLog'
 
+// Collapsible section wrapper - MUST be defined outside component to prevent remounting
+const CollapsibleSection = ({ id, title, expanded, onToggle, color = '#495057', bgColor = '#e9ecef', borderColor = '#dee2e6', contentBgColor = '#f8f9fa', children }) => (
+  <div style={{ marginBottom: '10px' }}>
+    <div
+      style={{
+        fontSize: '14px',
+        fontWeight: 'bold',
+        color: color,
+        padding: '12px 15px',
+        backgroundColor: bgColor,
+        borderRadius: expanded ? '6px 6px 0 0' : '6px',
+        cursor: 'pointer',
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        userSelect: 'none',
+        border: `1px solid ${borderColor}`
+      }}
+      onClick={() => onToggle(id)}
+    >
+      <span>{title}</span>
+      <span style={{ fontSize: '18px' }}>{expanded ? '−' : '+'}</span>
+    </div>
+    {expanded && (
+      <div style={{
+        padding: '15px',
+        backgroundColor: contentBgColor,
+        borderRadius: '0 0 6px 6px',
+        border: `1px solid ${borderColor}`,
+        borderTop: 'none'
+      }}>
+        {children}
+      </div>
+    )}
+  </div>
+)
+
 function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday, logId, reportId }) {
   // Collapsible section states
   const [expandedSections, setExpandedSections] = useState({
@@ -23,43 +60,6 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
   const toggleSection = (section) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))
   }
-
-  // Collapsible section wrapper component
-  const CollapsibleSection = ({ id, title, color = '#495057', bgColor = '#e9ecef', borderColor = '#dee2e6', contentBgColor = '#f8f9fa', children }) => (
-    <div style={{ marginBottom: '10px' }}>
-      <div
-        style={{
-          fontSize: '14px',
-          fontWeight: 'bold',
-          color: color,
-          padding: '12px 15px',
-          backgroundColor: bgColor,
-          borderRadius: expandedSections[id] ? '6px 6px 0 0' : '6px',
-          cursor: 'pointer',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          userSelect: 'none',
-          border: `1px solid ${borderColor}`
-        }}
-        onClick={() => toggleSection(id)}
-      >
-        <span>{title}</span>
-        <span style={{ fontSize: '18px' }}>{expandedSections[id] ? '−' : '+'}</span>
-      </div>
-      {expandedSections[id] && (
-        <div style={{
-          padding: '15px',
-          backgroundColor: contentBgColor,
-          borderRadius: '0 0 6px 6px',
-          border: `1px solid ${borderColor}`,
-          borderTop: 'none'
-        }}>
-          {children}
-        </div>
-      )}
-    </div>
-  )
 
   // Audit trail hook
   const {
@@ -266,7 +266,7 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
       )}
 
       {/* 1. BORE INFORMATION - Collapsible */}
-      <CollapsibleSection id="boreInfo" title="BORE INFORMATION">
+      <CollapsibleSection id="boreInfo" title="BORE INFORMATION" expanded={expandedSections.boreInfo} onToggle={toggleSection}>
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Bore ID</label>
@@ -353,6 +353,8 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
       <CollapsibleSection
         id="pilotHole"
         title="PILOT HOLE (Drilling Fluid Parameters)"
+        expanded={expandedSections.pilotHole}
+        onToggle={toggleSection}
         color="#856404"
         bgColor="#fff3cd"
         borderColor="#ffc107"
@@ -430,6 +432,8 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
       <CollapsibleSection
         id="reamingPasses"
         title="REAMING PASSES"
+        expanded={expandedSections.reamingPasses}
+        onToggle={toggleSection}
         color="#0c5460"
         bgColor="#d1ecf1"
         borderColor="#17a2b8"
@@ -493,6 +497,8 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
       <CollapsibleSection
         id="pipeInstallation"
         title="PIPE INSTALLATION"
+        expanded={expandedSections.pipeInstallation}
+        onToggle={toggleSection}
         color="#155724"
         bgColor="#d4edda"
         borderColor="#28a745"
@@ -554,7 +560,7 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
       </CollapsibleSection>
 
       {/* 5. POST-INSTALLATION */}
-      <CollapsibleSection id="postInstallation" title="POST-INSTALLATION">
+      <CollapsibleSection id="postInstallation" title="POST-INSTALLATION" expanded={expandedSections.postInstallation} onToggle={toggleSection}>
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Annular Space Verified?</label>
@@ -607,6 +613,8 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
       <CollapsibleSection
         id="wasteManagement"
         title="DRILLING WASTE MANAGEMENT (Directive 050)"
+        expanded={expandedSections.wasteManagement}
+        onToggle={toggleSection}
         color="#17a2b8"
         bgColor="#d1ecf1"
         borderColor="#17a2b8"
@@ -654,6 +662,8 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
       <CollapsibleSection
         id="steeringLog"
         title="STEERING LOG (Bore Path Data)"
+        expanded={expandedSections.steeringLog}
+        onToggle={toggleSection}
         color="#6f42c1"
         bgColor="#e2d9f3"
         borderColor="#6f42c1"
@@ -699,7 +709,7 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
       </CollapsibleSection>
 
       {/* 8. COMMENTS - Collapsible */}
-      <CollapsibleSection id="comments" title="COMMENTS">
+      <CollapsibleSection id="comments" title="COMMENTS" expanded={expandedSections.comments} onToggle={toggleSection}>
         <textarea value={hddData.comments}
           onFocus={() => handleFieldFocus('comments', hddData.comments)}
           onChange={(e) => updateField('comments', e.target.value)}
