@@ -163,10 +163,8 @@ export default function CrossingVarianceDashboard({ dateRange = '30', onClose })
     return status === 'warning'
   })
 
-  // Financial calculations
+  // Total meters calculation
   const totalMeters = combinedBores.reduce((sum, b) => sum + (parseFloat(b.bore_length) || 0), 0)
-  const totalCost = combinedBores.reduce((sum, b) => sum + (parseFloat(b.estimated_cost) || 0), 0)
-  const costPerMeter = totalMeters > 0 ? totalCost / totalMeters : 0
 
   // Helper function to calculate exit variance from KP strings
   function calculateExitVariance(designKP, actualKP) {
@@ -385,17 +383,17 @@ export default function CrossingVarianceDashboard({ dateRange = '30', onClose })
           </div>
         </div>
 
-        {/* Financial Card */}
+        {/* Total Meters Card */}
         <div style={{ backgroundColor: '#f0f9ff', borderRadius: '8px', padding: '16px', border: '2px solid #0ea5e9' }}>
-          <div style={{ fontSize: '12px', color: '#0369a1', fontWeight: '600' }}>COST PER METER</div>
+          <div style={{ fontSize: '12px', color: '#0369a1', fontWeight: '600' }}>TOTAL BORED</div>
           <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#0369a1', marginTop: '4px' }}>
-            ${costPerMeter.toFixed(2)}
+            {totalMeters.toFixed(1)}m
           </div>
           <div style={{ fontSize: '11px', color: '#0284c7' }}>
-            Total: {totalMeters.toFixed(1)}m
+            {combinedBores.length} crossings
           </div>
           <div style={{ fontSize: '11px', color: '#0284c7' }}>
-            Est. Cost: ${totalCost.toLocaleString()}
+            Avg: {combinedBores.length > 0 ? (totalMeters / combinedBores.length).toFixed(1) : 0}m/crossing
           </div>
         </div>
       </div>
