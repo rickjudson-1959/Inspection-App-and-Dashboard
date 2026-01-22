@@ -62,7 +62,20 @@ export const PRECISION_MAP = {
   fluid_loss: 1,
   grout_volume: 2,
   grout_pressure: 1,
-  
+
+  // Conventional Bore - Annular Space & Grouting
+  calculated_annulus_volume: 4,
+  actual_grout_pumped_m3: 4,
+  grout_variance_percent: 1,
+  winch_tension: 0,
+  total_water_used_m3: 2,
+  mud_volume_m3: 2,
+  start_pitch_percent: 1,
+  exit_pitch_percent: 1,
+  casing_diameter_inches: 2,
+  carrier_diameter_inches: 2,
+  bore_length: 2,
+
   // Wall thickness - 3 decimal places (critical for pipe specs)
   wall_thickness: 3,
   wt: 3,

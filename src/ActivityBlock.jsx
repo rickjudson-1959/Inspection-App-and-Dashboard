@@ -23,6 +23,7 @@ import GradingLog from './GradingLog.jsx'
 import CounterboreTransitionLog from './CounterboreTransitionLog.jsx'
 import MachineCleanupLog from './MachineCleanupLog.jsx'
 import FinalCleanupLog from './FinalCleanupLog.jsx'
+import ConventionalBoreLog from './ConventionalBoreLog.jsx'
 
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -141,6 +142,7 @@ function ActivityBlock({
   updateCounterboreData,
   updateMachineCleanupData,
   updateFinalCleanupData,
+  updateConventionalBoreData,
   addLabourToBlock,
   updateLabourJH,
   removeLabourFromBlock,
@@ -523,6 +525,23 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
         <HDDLog
           data={block.hddData || {}}
           onChange={(data) => updateHDDData(block.id, data)}
+          contractor={block.contractor}
+          foreman={block.foreman}
+          reportDate={selectedDate}
+          startKP={block.startKP}
+          endKP={block.endKP}
+          metersToday={calculateMetersToday(block)}
+          logId={block.id}
+          reportId={reportId}
+        />
+      )
+    }
+
+    if (block.activityType === 'HD Bores') {
+      return (
+        <ConventionalBoreLog
+          data={block.conventionalBoreData || {}}
+          onChange={(data) => updateConventionalBoreData(block.id, data)}
           contractor={block.contractor}
           foreman={block.foreman}
           reportDate={selectedDate}

@@ -1898,6 +1898,18 @@ Important:
     }))
   }
 
+  function updateConventionalBoreData(blockId, conventionalBoreData) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          conventionalBoreData: conventionalBoreData
+        }
+      }
+      return block
+    }))
+  }
+
   // Labour management for activity blocks
   // RT = Regular Time, OT = Overtime, JH = Jump Hours (bonus)
   function addLabourToBlock(blockId, employeeName, classification, rt, ot, jh, count) {
@@ -5609,6 +5621,7 @@ Important:
           updateCounterboreData={updateCounterboreData}
           updateMachineCleanupData={updateMachineCleanupData}
           updateFinalCleanupData={updateFinalCleanupData}
+          updateConventionalBoreData={updateConventionalBoreData}
           addLabourToBlock={addLabourToBlock}
           updateLabourJH={updateLabourJH}
           removeLabourFromBlock={removeLabourFromBlock}
