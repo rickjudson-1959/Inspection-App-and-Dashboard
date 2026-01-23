@@ -7,6 +7,9 @@ import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import { supabase } from './supabase'
 
+// Offline mode imports
+import { syncManager, chainageCache, useOnlineStatus, useSyncStatus } from './offline'
+
 // Import constants from separate file
 import { 
   PROJECT_NAME, 
@@ -44,6 +47,11 @@ function InspectorReport() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const [saving, setSaving] = useState(false)
+
+  // Offline mode hooks
+  const isOnline = useOnlineStatus()
+  const { pendingCount, syncStatus } = useSyncStatus()
+  const [offlineSaveSuccess, setOfflineSaveSuccess] = useState(false)
 
   // Edit mode
   const editReportId = searchParams.get('edit')
@@ -447,6 +455,11 @@ Important:
   // ============================================
   // AUTO-SAVE / DRAFT FUNCTIONALITY
   // ============================================
+
+  // Initialize chainage cache for offline overlap checking
+  useEffect(() => {
+    chainageCache.init()
+  }, [])
 
   // Check for existing draft on component mount
   useEffect(() => {
@@ -2123,6 +2136,94 @@ Important:
     setSaving(true)
 
     try {
+      // ==================== OFFLINE MODE ====================
+      // If offline and not in edit mode, save to IndexedDB for later sync
+      if (!isOnline && !isEditMode) {
+        console.log('[InspectorReport] Saving report offline...')
+
+        // Check overlaps using cached data
+        const cachedOverlapWarnings = await chainageCache.checkOverlapsOffline(activityBlocks, selectedDate)
+        if (cachedOverlapWarnings.length > 0) {
+          setSaving(false)
+          const warningMessages = cachedOverlapWarnings.slice(0, 5).map(w => w.message).join('\n')
+          const proceed = confirm(
+            '⚠️ CHAINAGE OVERLAP WARNING (Offline Check)\n\n' +
+            warningMessages +
+            '\n\nNote: This check uses cached data. A full check will occur when syncing online.\n\nClick OK to save anyway, or Cancel to go back and fix.'
+          )
+          if (!proceed) return
+          setSaving(true)
+        }
+
+        // Build report data for offline storage
+        const reportData = {
+          date: selectedDate,
+          spread: spread,
+          afe: afe,
+          inspector_name: inspectorName,
+          pipeline: pipeline,
+          weather: weather,
+          precipitation: parseFloat(precipitation) || 0,
+          temp_high: parseFloat(tempHigh) || null,
+          temp_low: parseFloat(tempLow) || null,
+          wind_speed: parseFloat(windSpeed) || null,
+          row_condition: rowCondition,
+          start_time: startTime || null,
+          stop_time: stopTime || null,
+          safety_notes: safetyNotes,
+          safety_recognition: safetyRecognitionData,
+          land_environment: landEnvironment,
+          wildlife_sighting: wildlifeSightingData,
+          general_comments: generalComments,
+          visitors: visitors,
+          inspector_mileage: parseFloat(inspectorMileage) || null,
+          inspector_equipment: inspectorEquipment,
+          unit_price_items_enabled: unitPriceItemsEnabled,
+          unit_price_data: unitPriceData,
+          created_by: userProfile?.id || null
+        }
+
+        // Add chainage reasons to blocks
+        const blocksWithReasons = activityBlocks.map(block => ({
+          ...block,
+          chainageOverlapReason: chainageReasons[block.id]?.overlapReason || null,
+          chainageGapReason: chainageReasons[block.id]?.gapReason || null
+        }))
+
+        // Save to IndexedDB
+        const offlineReportId = await syncManager.saveReportOffline(reportData, blocksWithReasons)
+
+        // Clear localStorage draft
+        localStorage.removeItem(DRAFT_STORAGE_KEY)
+        setDraftSaved(false)
+
+        setSaving(false)
+        setOfflineSaveSuccess(true)
+
+        alert(
+          '✅ Report Saved Offline\n\n' +
+          'Your report has been saved locally and will be automatically uploaded when you reconnect to the internet.\n\n' +
+          `Offline Report ID: ${offlineReportId.substring(0, 8)}...`
+        )
+
+        // Clear the form for a new report
+        setTimeout(() => {
+          setOfflineSaveSuccess(false)
+          // Reset to new report state
+          setActivityBlocks([createEmptyActivity()])
+          setVisitors([])
+          setTrackableItemsData([])
+          setSafetyRecognitionData({ enabled: false, cards: [] })
+          setWildlifeSightingData({ enabled: false, sightings: [] })
+          setSafetyNotes('')
+          setLandEnvironment('')
+          setGeneralComments('')
+        }, 2000)
+
+        return
+      }
+
+      // ==================== ONLINE MODE ====================
       // Check for historical overlaps with previously saved reports
       const historicalWarnings = await checkHistoricalOverlaps(activityBlocks)
       console.log('Historical overlap check complete. Warnings found:', historicalWarnings.length)
@@ -5987,24 +6088,45 @@ Important:
           <button
             onClick={() => setShowTrackableItemsModal(true)}
             disabled={saving}
-            style={{ 
-              padding: '20px 60px', 
-              backgroundColor: '#28a745', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '8px', 
-              cursor: saving ? 'not-allowed' : 'pointer', 
-              fontSize: '20px', 
+            style={{
+              padding: '20px 60px',
+              backgroundColor: isOnline ? '#28a745' : '#ff9800',
+              color: 'white',
+              border: 'none',
+              borderRadius: '8px',
+              cursor: saving ? 'not-allowed' : 'pointer',
+              fontSize: '20px',
               fontWeight: 'bold',
               boxShadow: '0 4px 6px rgba(0,0,0,0.2)'
             }}
           >
-            {saving ? '⏳ Submitting...' : '✅ Submit Report'}
+            {saving
+              ? '⏳ Submitting...'
+              : isOnline
+                ? '✅ Submit Report'
+                : '📴 Save Offline'}
           </button>
+          {pendingCount > 0 && (
+            <span style={{
+              position: 'absolute',
+              top: '-8px',
+              right: '-8px',
+              backgroundColor: '#dc3545',
+              color: 'white',
+              borderRadius: '50%',
+              padding: '2px 8px',
+              fontSize: '12px',
+              fontWeight: 'bold'
+            }}>
+              {pendingCount}
+            </span>
+          )}
         </div>
-        
+
         <p style={{ textAlign: 'center', margin: '15px 0 0 0', fontSize: '13px', color: '#666' }}>
-          Submitting will save your report and send it to the Chief Inspector for review
+          {isOnline
+            ? 'Submitting will save your report and send it to the Chief Inspector for review'
+            : 'You are offline. Report will be saved locally and synced when connected.'}
         </p>
 
         {/* Secondary options */}

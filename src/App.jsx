@@ -2,6 +2,7 @@ import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './AuthContext.jsx'
 import ProtectedRoute, { getLandingPage } from './ProtectedRoute.jsx'
+import OfflineStatusBar from './components/OfflineStatusBar.jsx'
 
 // ============================================================================
 // CHUNK 2: APP.JSX - Role-Based Routing
@@ -46,6 +47,7 @@ function App() {
   return (
     <AuthProvider>
       <Router>
+        <OfflineStatusBar />
         <Routes>
           {/* Public */}
           <Route path="/login" element={<Login />} />
