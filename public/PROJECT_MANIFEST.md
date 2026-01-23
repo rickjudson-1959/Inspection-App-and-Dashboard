@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - January 21, 2026
+## Project Manifest - January 22, 2026
 
 ---
 
@@ -21,6 +21,7 @@
 | Excel Export | XLSX |
 | Mapping | Leaflet + React-Leaflet |
 | Charting | Recharts |
+| PWA/Offline | vite-plugin-pwa + IndexedDB (idb) |
 
 ---
 
@@ -104,6 +105,16 @@
 - Weekly executive summary emails (automated)
 - Audit trail reports
 - Progress tracking by phase
+
+### PWA Offline Mode (NEW - January 2026)
+- **Progressive Web App** - Installable on mobile devices
+- **Offline Report Creation** - Full daily reports without internet
+- **IndexedDB Storage** - Pending reports and photo blobs stored locally
+- **Auto-Sync** - Automatic upload when connection restored
+- **Chainage Cache** - Overlap checking works offline using cached data
+- **Conflict Detection** - Detects duplicate reports (same date/inspector/spread)
+- **Visual Status Bar** - Shows offline mode and pending report count
+- **Retry Logic** - Failed syncs retry up to 5 times with exponential backoff
 
 ---
 
@@ -256,11 +267,19 @@
 │   ├── kpUtils.js              # KP formatting
 │   └── chiefReportHelpers.js   # Report aggregation
 │
-└── Components/
-    ├── TrackableItemsTracker.jsx
-    ├── SignaturePad.jsx
-    ├── MapDashboard.jsx
-    └── [supporting components]
+├── Components/
+│   ├── TrackableItemsTracker.jsx
+│   ├── SignaturePad.jsx
+│   ├── MapDashboard.jsx
+│   ├── OfflineStatusBar.jsx    # NEW - PWA status indicator
+│   └── [supporting components]
+│
+└── offline/                     # NEW - PWA Offline Mode (Jan 2026)
+    ├── db.js                    # IndexedDB schema & CRUD
+    ├── syncManager.js           # Sync logic, photo upload, conflict handling
+    ├── chainageCache.js         # Cached chainage data for offline overlap check
+    ├── hooks.js                 # useOnlineStatus, useSyncStatus, usePWAInstall
+    └── index.js                 # Barrel export
 
 /supabase/migrations/
 ├── create_inspector_invoicing_tables.sql
@@ -274,6 +293,59 @@
 ---
 
 ## 6. RECENT UPDATES (January 2026)
+
+### PWA Offline Mode (January 22, 2026)
+
+**Complete offline capability for field inspectors**
+
+Inspectors can now create complete daily reports without internet connectivity, with automatic sync when back online.
+
+**New Files Created:**
+- `src/offline/db.js` - IndexedDB schema with 4 stores:
+  - `pendingReports` - Full report data waiting to sync
+  - `photos` - Photo blobs stored separately for performance
+  - `chainageCache` - Historical KP ranges for overlap checking
+  - `userSession` - Cached auth for offline validation
+- `src/offline/syncManager.js` - Core sync logic:
+  - Saves reports to IndexedDB when offline
+  - Stores photos as blobs (separate from report data)
+  - Auto-syncs when online detected
+  - Uploads photos first, then report data
+  - Retry failed syncs (max 5 attempts)
+  - Conflict detection for duplicate reports
+- `src/offline/chainageCache.js` - Offline overlap checking:
+  - Caches last 500 reports' chainages
+  - Refreshes every 24 hours when online
+  - Checks overlaps locally when offline
+- `src/offline/hooks.js` - React hooks:
+  - `useOnlineStatus()` - Real-time online/offline detection
+  - `useSyncStatus()` - Pending count, sync state
+  - `usePWAInstall()` - Install prompt handling
+  - `useServiceWorker()` - SW registration and updates
+- `src/components/OfflineStatusBar.jsx` - Visual status:
+  - Fixed bar at top of screen
+  - Orange "Offline Mode" or green "Syncing..."
+  - Pending report count badge
+  - "Sync Now" and "Install App" buttons
+
+**Files Modified:**
+- `vite.config.js` - Added VitePWA plugin with:
+  - Workbox service worker generation
+  - App manifest (name, icons, start_url)
+  - Runtime caching for Supabase API
+- `index.html` - PWA meta tags (theme-color, apple-touch-icon)
+- `src/App.jsx` - Added OfflineStatusBar component
+- `src/InspectorReport.jsx` - Offline-aware save flow:
+  - Detects offline state
+  - Uses cached chainage data for overlap check
+  - Saves to IndexedDB instead of Supabase
+  - Shows "Save Offline" button when disconnected
+
+**PWA Assets:**
+- `public/pwa-192x192.png` - App icon (192x192)
+- `public/pwa-512x512.png` - App icon (512x512, maskable)
+
+---
 
 ### HDD Module Redesign (January 21, 2026)
 
@@ -457,4 +529,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: January 21, 2026*
+*Last Updated: January 22, 2026*
