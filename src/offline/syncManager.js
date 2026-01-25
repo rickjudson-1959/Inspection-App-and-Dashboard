@@ -228,11 +228,14 @@ class SyncManager {
   // Sync a single report
   async syncReport(report) {
     console.log(`[SyncManager] Syncing report ${report.id}...`)
+    console.log(`[SyncManager] Report data:`, report.reportData)
     await updatePendingReportStatus(report.id, 'syncing', report.syncAttempts + 1)
 
     try {
       // Check for conflicts first
+      console.log(`[SyncManager] Checking for conflicts...`)
       const conflict = await this.checkForConflict(report.reportData)
+      console.log(`[SyncManager] Conflict check result:`, conflict)
       if (conflict) {
         console.log(`[SyncManager] Conflict detected for report ${report.id}`)
         await updatePendingReportStatus(report.id, 'conflict', report.syncAttempts + 1)
@@ -245,7 +248,9 @@ class SyncManager {
       }
 
       // Get photos for this report
+      console.log(`[SyncManager] Getting photos...`)
       const photos = await getPhotosByReportId(report.id)
+      console.log(`[SyncManager] Found ${photos.length} photos`)
 
       // Upload photos first
       const uploadedPhotos = await this.uploadPhotos(photos, report.reportData)
@@ -281,9 +286,7 @@ class SyncManager {
           inspector_equipment: report.reportData.inspector_equipment,
           unit_price_items_enabled: report.reportData.unit_price_items_enabled,
           unit_price_data: report.reportData.unit_price_data,
-          created_by: report.reportData.created_by,
-          synced_from_offline: true,
-          offline_created_at: report.createdAt
+          created_by: report.reportData.created_by
         })
         .select()
         .single()

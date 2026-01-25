@@ -5,7 +5,67 @@ import { syncManager } from '../offline/syncManager'
 export default function OfflineStatusBar() {
   const isOnline = useOnlineStatus()
   const { pendingCount, syncStatus, refreshPendingCount } = useSyncStatus()
-  const { isInstallable, installApp } = usePWAInstall()
+
+  const handleSyncNow = async () => {
+    if (isOnline && pendingCount > 0) {
+      await syncManager.syncAllPending()
+      refreshPendingCount()
+    }
+  }
+
+  return (
+    <>
+      {/* Status bar */}
+      <div
+        id="offline-status-bar"
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          zIndex: 999999,
+          padding: '8px 16px',
+          backgroundColor: isOnline ? '#4caf50' : '#ff9800',
+          color: '#fff',
+          fontSize: '14px',
+          fontWeight: 'bold',
+          textAlign: 'center',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          gap: '12px'
+        }}>
+        <span>
+          {isOnline ? '🟢 Online' : '🟠 Offline Mode'}
+          {pendingCount > 0 && ` — ${pendingCount} report${pendingCount > 1 ? 's' : ''} pending sync`}
+          {syncStatus === 'syncing' && ' (syncing...)'}
+        </span>
+        {isOnline && pendingCount > 0 && syncStatus !== 'syncing' && (
+          <button
+            onClick={handleSyncNow}
+            style={{
+              padding: '4px 12px',
+              backgroundColor: 'rgba(255,255,255,0.2)',
+              color: '#fff',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: 'bold'
+            }}
+          >
+            Sync Now
+          </button>
+        )}
+      </div>
+      {/* Spacer to push content below the fixed bar */}
+      <div style={{ height: '40px' }} />
+    </>
+  )
+}
+
+function OfflineStatusBarOld() {
 
   const handleSyncNow = async () => {
     if (isOnline && pendingCount > 0) {
@@ -21,9 +81,32 @@ export default function OfflineStatusBar() {
     }
   }
 
-  // Don't show bar if online with no pending items and not installable
-  if (isOnline && pendingCount === 0 && !isInstallable && syncStatus !== 'syncing') {
-    return null
+  // Always show a minimal indicator (can be removed in production)
+  const showFullBar = !isOnline || pendingCount > 0 || isInstallable || syncStatus === 'syncing'
+
+  // Show minimal online indicator when everything is fine
+  if (!showFullBar) {
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 8,
+        right: 8,
+        zIndex: 10000,
+        padding: '4px 10px',
+        backgroundColor: '#4caf50',
+        color: '#fff',
+        borderRadius: '12px',
+        fontSize: '12px',
+        fontWeight: 500,
+        boxShadow: '0 2px 4px rgba(0,0,0,0.2)',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '4px'
+      }}>
+        <span style={{ width: 8, height: 8, backgroundColor: '#fff', borderRadius: '50%' }}></span>
+        Online
+      </div>
+    )
   }
 
   const barStyle = {

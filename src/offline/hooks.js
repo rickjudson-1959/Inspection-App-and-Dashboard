@@ -6,6 +6,12 @@ export function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
 
   useEffect(() => {
+    // Function to check and update online status
+    function checkOnlineStatus() {
+      const currentStatus = navigator.onLine
+      setIsOnline(prevStatus => prevStatus !== currentStatus ? currentStatus : prevStatus)
+    }
+
     function handleOnline() {
       setIsOnline(true)
     }
@@ -14,12 +20,35 @@ export function useOnlineStatus() {
       setIsOnline(false)
     }
 
+    // Also check on visibility change (tab focus)
+    function handleVisibilityChange() {
+      if (document.visibilityState === 'visible') {
+        checkOnlineStatus()
+      }
+    }
+
+    // Also check on window focus
+    function handleFocus() {
+      checkOnlineStatus()
+    }
+
     window.addEventListener('online', handleOnline)
     window.addEventListener('offline', handleOffline)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    window.addEventListener('focus', handleFocus)
+
+    // Periodic check every 2 seconds as fallback
+    const interval = setInterval(checkOnlineStatus, 2000)
+
+    // Initial check
+    checkOnlineStatus()
 
     return () => {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+      window.removeEventListener('focus', handleFocus)
+      clearInterval(interval)
     }
   }, [])
 
