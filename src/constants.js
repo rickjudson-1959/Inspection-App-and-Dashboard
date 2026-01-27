@@ -247,6 +247,40 @@ export const timeLostReasons = [
   'Other'
 ]
 
+// Efficiency Audit - Production Status definitions
+export const productionStatuses = [
+  { value: 'ACTIVE', label: 'Active', multiplier: 1.0, color: '#28a745' },
+  { value: 'SYNC_DELAY', label: 'Sync Delay', multiplier: 0.7, color: '#ffc107' },
+  { value: 'MANAGEMENT_DRAG', label: 'Mgmt Drag', multiplier: 0.0, color: '#dc3545' }
+]
+
+// Efficiency Audit - Impact Scope definitions
+export const impactScopes = [
+  { value: 'ASSET_ONLY', label: 'Asset Only', description: 'Affects single entry' },
+  { value: 'ENTIRE_CREW', label: 'Entire Crew', description: 'Affects all entries in block' }
+]
+
+// Efficiency Audit - Drag reason categories with systemic defaults
+// Reasons marked as defaultSystemic: true will auto-select "Entire Crew" impact
+export const dragReasonCategories = [
+  { value: 'waiting_permits', label: 'Waiting for permits', defaultSystemic: true },
+  { value: 'waiting_instructions', label: 'Waiting for instructions', defaultSystemic: true },
+  { value: 'waiting_materials', label: 'Waiting for materials', defaultSystemic: false },
+  { value: 'coordination_delay', label: 'Coordination delay', defaultSystemic: false },
+  { value: 'weather_hold', label: 'Weather hold', defaultSystemic: true },
+  { value: 'safety_standdown', label: 'Safety stand-down', defaultSystemic: true },
+  { value: 'equipment_breakdown', label: 'Equipment breakdown', defaultSystemic: false },
+  { value: 'first_nations_monitor', label: 'First Nations monitor', defaultSystemic: true },
+  { value: 'bird_window', label: 'Bird nesting window', defaultSystemic: true },
+  { value: 'environmental_window', label: 'Environmental window', defaultSystemic: true },
+  { value: 'landowner_access', label: 'Landowner access issue', defaultSystemic: true },
+  { value: 'regulatory_hold', label: 'Regulatory hold', defaultSystemic: true },
+  { value: 'other', label: 'Other', defaultSystemic: false }
+]
+
+// Efficiency Audit - Default hourly burn rates
+export const defaultRates = { labour: 85, equipment: 150 }
+
 // Labour classifications from CX2-FC contract (72 classifications)
 export const labourClassifications = [
   'APPRENTICE OPER/OILER',

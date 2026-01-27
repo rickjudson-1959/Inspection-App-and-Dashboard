@@ -1,9 +1,10 @@
 // ActivityBlock.jsx - Extracted from InspectorReport.jsx
 // A single activity block component with all rendering logic
 import React, { useState, useEffect, memo } from 'react'
-import { activityTypes, qualityFieldsByActivity, labourClassifications, equipmentTypes, timeLostReasons } from './constants.js'
+import { activityTypes, qualityFieldsByActivity, labourClassifications, equipmentTypes, timeLostReasons, productionStatuses, dragReasonCategories, impactScopes } from './constants.js'
 import { syncKPFromGPS } from './kpUtils.js'
 import { supabase } from './supabase'
+import { calculateShadowHours, calculateTotalBilledHours, calculateTotalShadowHours, calculateInertiaRatio, hasSystemicDelay, getDelayType } from './shadowAuditUtils.js'
 
 // Specialized log components
 import MainlineWeldData from './MainlineWeldData.jsx'
@@ -145,8 +146,15 @@ function ActivityBlock({
   updateConventionalBoreData,
   addLabourToBlock,
   updateLabourJH,
+  updateLabourProductionStatus,
+  updateLabourShadowHours,
+  updateLabourDragReason,
   removeLabourFromBlock,
   addEquipmentToBlock,
+  updateEquipmentProductionStatus,
+  updateEquipmentShadowHours,
+  updateEquipmentDragReason,
+  updateSystemicDelay,
   removeEquipmentFromBlock,
   handleWorkPhotosSelect,
   updatePhotoMetadata,
@@ -186,6 +194,77 @@ function ActivityBlock({
   
   // Track if previous data has been loaded
   const [previousDataLoaded, setPreviousDataLoaded] = useState(false)
+
+  // Delay reason autocomplete state
+  const [showReasonSuggestions, setShowReasonSuggestions] = useState(false)
+  const [reasonInputValue, setReasonInputValue] = useState('')
+  const [customReasons, setCustomReasons] = useState(() => {
+    try {
+      const saved = localStorage.getItem('customDelayReasons')
+      return saved ? JSON.parse(saved) : []
+    } catch (e) {
+      return []
+    }
+  })
+
+  // Combined list of all reasons (default + custom)
+  const allReasons = [
+    ...dragReasonCategories,
+    ...customReasons.map(r => ({ value: r, label: r, defaultSystemic: false, isCustom: true }))
+  ]
+
+  // Filter suggestions based on input
+  const filteredSuggestions = reasonInputValue
+    ? allReasons.filter(r => r.label.toLowerCase().includes(reasonInputValue.toLowerCase()))
+    : allReasons
+
+  // Save custom reason to localStorage
+  const saveCustomReason = (reason) => {
+    if (!reason || reason.trim() === '') return
+    const trimmed = reason.trim()
+    // Check if it already exists in default or custom reasons
+    const existsInDefault = dragReasonCategories.some(r => r.label.toLowerCase() === trimmed.toLowerCase())
+    const existsInCustom = customReasons.some(r => r.toLowerCase() === trimmed.toLowerCase())
+    if (!existsInDefault && !existsInCustom) {
+      const updated = [...customReasons, trimmed]
+      setCustomReasons(updated)
+      try {
+        localStorage.setItem('customDelayReasons', JSON.stringify(updated))
+      } catch (e) {
+        // localStorage may be blocked in incognito
+      }
+    }
+  }
+
+  // Status button tooltips
+  const statusTooltips = {
+    SYNC_DELAY: 'Sync Delay: Crew is waiting but may do limited work - coordination issues, waiting for materials/equipment to arrive, minor holdups. Counts as 70% productive time.',
+    MANAGEMENT_DRAG: 'Management Drag: Complete work stoppage due to decisions outside crew control - permits, regulatory holds, waiting for instructions, environmental windows. Counts as 0% productive time.'
+  }
+
+  // Delay reason examples tooltip
+  const delayReasonExamples = `Common delay reasons (you can type your own):
+• Waiting for permits
+• Waiting for instructions
+• Waiting for materials
+• Coordination delay
+• Weather hold
+• Safety stand-down
+• Equipment breakdown
+• First Nations monitor
+• Bird nesting window
+• Environmental window
+• Landowner access issue
+• Regulatory hold`
+
+  // Sync reason input with block's systemic delay reason
+  useEffect(() => {
+    const reason = block.systemicDelay?.reason || ''
+    // Find the label for this reason value
+    const reasonConfig = dragReasonCategories.find(r => r.value === reason) ||
+      customReasons.map(r => ({ value: r, label: r })).find(r => r.value === reason)
+    setReasonInputValue(reasonConfig?.label || reason)
+  }, [block.systemicDelay?.reason, customReasons])
 
   // Load previous metres and holes from historical reports when activity type changes
   useEffect(() => {
@@ -1144,13 +1223,131 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
     )
   }
 
+  // Production Status Toggle Component for Efficiency Audit
+  const individualStatusTooltips = {
+    ACTIVE: 'Active: Working efficiently at full productivity (100%)',
+    SYNC_DELAY: 'Sync Delay: Partial work - waiting for materials, coordination issues (70% productivity)',
+    MANAGEMENT_DRAG: 'Mgmt Drag: Complete stop - permits, regulatory, instructions needed (0% productivity)'
+  }
+
+  const ProductionStatusToggle = ({ value, onChange, onReasonChange, reason }) => {
+    const [showReasonInput, setShowReasonInput] = useState(false)
+    const needsReason = value === 'SYNC_DELAY' || value === 'MANAGEMENT_DRAG'
+
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
+          {productionStatuses.map(status => (
+            <button
+              key={status.value}
+              type="button"
+              onClick={() => {
+                onChange(status.value)
+                if (status.value !== 'ACTIVE') {
+                  setShowReasonInput(true)
+                } else {
+                  setShowReasonInput(false)
+                  if (onReasonChange) onReasonChange('')
+                }
+              }}
+              title={individualStatusTooltips[status.value]}
+              style={{
+                padding: '4px 6px',
+                fontSize: '10px',
+                fontWeight: value === status.value ? 'bold' : 'normal',
+                backgroundColor: value === status.value ? status.color : '#e9ecef',
+                color: value === status.value ? 'white' : '#666',
+                border: `1px solid ${value === status.value ? status.color : '#ced4da'}`,
+                borderRadius: '3px',
+                cursor: 'pointer',
+                minWidth: '24px',
+                transition: 'all 0.15s ease'
+              }}
+            >
+              {status.value === 'ACTIVE' ? '✓' : status.value === 'SYNC_DELAY' ? '⏳' : '⛔'}
+            </button>
+          ))}
+          {needsReason && onReasonChange && (
+            <span
+              style={{ fontSize: '9px', color: '#6f42c1', cursor: 'pointer', marginLeft: '4px' }}
+              onClick={() => setShowReasonInput(!showReasonInput)}
+              title="Click to add/edit delay reason"
+            >
+              {reason ? '✎' : '+reason'}
+            </span>
+          )}
+        </div>
+        {showReasonInput && needsReason && onReasonChange && (
+          <input
+            type="text"
+            value={reason || ''}
+            onChange={(e) => onReasonChange(e.target.value)}
+            placeholder="Delay reason..."
+            title={delayReasonExamples}
+            style={{
+              padding: '3px 6px',
+              fontSize: '10px',
+              border: '1px solid #ced4da',
+              borderRadius: '3px',
+              width: '120px'
+            }}
+          />
+        )}
+      </div>
+    )
+  }
+
   const status = blockChainageStatus || {}
 
+  // Determine if systemic delay is active for visual highlighting
+  const systemicDelayActive = hasSystemicDelay(block)
+  const systemicDelayStatus = block.systemicDelay?.status
+  const systemicStatusConfig = systemicDelayActive ? productionStatuses.find(s => s.value === systemicDelayStatus) : null
+
+  // Container styling based on systemic delay state
+  const containerStyle = {
+    backgroundColor: systemicDelayActive
+      ? (systemicDelayStatus === 'MANAGEMENT_DRAG' ? '#fff5f5' : '#fffbf0')
+      : '#fff',
+    padding: '20px',
+    borderRadius: '8px',
+    marginBottom: '20px',
+    border: systemicDelayActive
+      ? `3px solid ${systemicStatusConfig?.color || '#dc3545'}`
+      : '2px solid #007bff',
+    boxShadow: systemicDelayActive
+      ? `0 0 10px ${systemicStatusConfig?.color || '#dc3545'}40`
+      : '0 2px 4px rgba(0,0,0,0.1)',
+    overflow: 'hidden',
+    transition: 'all 0.3s ease'
+  }
+
   return (
-    <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '2px solid #007bff', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+    <div style={containerStyle}>
+      {/* Systemic Delay Banner - shown when entire crew is affected */}
+      {systemicDelayActive && (
+        <div style={{
+          backgroundColor: systemicStatusConfig?.color || '#dc3545',
+          color: 'white',
+          padding: '10px 15px',
+          margin: '-20px -20px 15px -20px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          fontWeight: 'bold'
+        }}>
+          <span>
+            {systemicDelayStatus === 'MANAGEMENT_DRAG' ? '⛔' : '⏳'} SYSTEMIC DELAY - ENTIRE CREW AFFECTED
+          </span>
+          <span style={{ fontSize: '12px', opacity: 0.9 }}>
+            {block.systemicDelay?.reason || 'No reason specified'}
+          </span>
+        </div>
+      )}
+
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #007bff', paddingBottom: '10px', marginBottom: '15px' }}>
-        <h2 style={{ margin: 0, color: '#007bff' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: systemicDelayActive ? `2px solid ${systemicStatusConfig?.color}` : '2px solid #007bff', paddingBottom: '10px', marginBottom: '15px' }}>
+        <h2 style={{ margin: 0, color: systemicDelayActive ? systemicStatusConfig?.color : '#007bff' }}>
           ACTIVITY {blockIndex + 1}: {block.activityType || '(Select Type)'}
         </h2>
         <button
@@ -1598,6 +1795,142 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
         )}
       </div>
 
+      {/* Crew Delay - Only show toggle when NOT active, show full controls when active */}
+      <div style={{
+        marginBottom: '20px',
+        padding: '12px 15px',
+        backgroundColor: systemicDelayActive ? (systemicDelayStatus === 'MANAGEMENT_DRAG' ? '#f8d7da' : '#fff3cd') : '#f8f9fa',
+        borderRadius: '8px',
+        border: systemicDelayActive ? `2px solid ${systemicStatusConfig?.color}` : '1px solid #dee2e6'
+      }}>
+        {!block.systemicDelay?.active ? (
+          // Simple toggle when not active
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            <span style={{ fontSize: '13px', color: '#666' }}>
+              ⏱️ Did the entire crew experience a delay?
+            </span>
+            <button
+              type="button"
+              onClick={() => updateSystemicDelay(block.id, { active: true, status: 'SYNC_DELAY', reason: '' })}
+              style={{
+                padding: '8px 16px',
+                fontSize: '13px',
+                fontWeight: 'bold',
+                backgroundColor: '#6f42c1',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer'
+              }}
+            >
+              Report Crew Delay
+            </button>
+          </div>
+        ) : (
+          // Full controls when active
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <span style={{ fontWeight: 'bold', fontSize: '14px', color: systemicStatusConfig?.color || '#dc3545' }}>
+                ⚠️ Crew-Wide Delay Active
+              </span>
+              <button
+                type="button"
+                onClick={() => updateSystemicDelay(block.id, { active: false })}
+                style={{
+                  padding: '4px 10px',
+                  fontSize: '11px',
+                  backgroundColor: '#6c757d',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer'
+                }}
+              >
+                ✕ Cancel
+              </button>
+            </div>
+            {/* Status Buttons with Tooltips */}
+            <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div style={{ display: 'flex', gap: '4px' }}>
+                  {productionStatuses.filter(s => s.value !== 'ACTIVE').map(s => (
+                    <div key={s.value} style={{ position: 'relative' }} className="tooltip-container">
+                      <button
+                        type="button"
+                        onClick={() => updateSystemicDelay(block.id, { ...block.systemicDelay, status: s.value })}
+                        style={{
+                          padding: '8px 14px',
+                          fontSize: '12px',
+                          fontWeight: block.systemicDelay?.status === s.value ? 'bold' : 'normal',
+                          backgroundColor: block.systemicDelay?.status === s.value ? s.color : '#e9ecef',
+                          color: block.systemicDelay?.status === s.value ? 'white' : '#666',
+                          border: `1px solid ${block.systemicDelay?.status === s.value ? s.color : '#ced4da'}`,
+                          borderRadius: '4px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {s.value === 'SYNC_DELAY' ? '⏳ Sync Delay' : '⛔ Mgmt Drag'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {/* Explanation text below buttons */}
+                <div style={{ fontSize: '10px', color: '#666', maxWidth: '280px', lineHeight: '1.3' }}>
+                  <strong>⏳ Sync Delay</strong>: Partial work (70%) - waiting for materials, coordination<br/>
+                  <strong>⛔ Mgmt Drag</strong>: Full stop (0%) - permits, regulatory, instructions needed
+                </div>
+              </div>
+
+              {/* Delay Reason - simple text input with info box */}
+              <div style={{ flex: 1, minWidth: '200px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#666' }}>
+                    Delay Reason:
+                  </label>
+                  <span
+                    style={{
+                      fontSize: '10px',
+                      color: '#6f42c1',
+                      cursor: 'pointer',
+                      textDecoration: 'underline'
+                    }}
+                    onClick={() => alert(delayReasonExamples)}
+                  >
+                    [see examples]
+                  </span>
+                </div>
+                <input
+                  type="text"
+                  value={reasonInputValue}
+                  onChange={(e) => {
+                    setReasonInputValue(e.target.value)
+                  }}
+                  onBlur={() => {
+                    // Save custom reason and update block if not empty
+                    if (reasonInputValue.trim()) {
+                      saveCustomReason(reasonInputValue)
+                      updateSystemicDelay(block.id, { ...block.systemicDelay, reason: reasonInputValue.trim() })
+                    }
+                  }}
+                  placeholder="Type delay reason..."
+                  style={{
+                    width: '100%',
+                    padding: '8px 12px',
+                    fontSize: '12px',
+                    border: `1px solid ${systemicStatusConfig?.color || '#ced4da'}`,
+                    borderRadius: '4px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+            </div>
+            <div style={{ marginTop: '10px', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+              This delay applies to ALL manpower and equipment entries below.
+            </div>
+          </>
+        )}
+      </div>
+
       {/* Manpower */}
       <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#d4edda', borderRadius: '8px' }}>
         <h4 style={{ margin: '0 0 10px 0', color: '#155724' }}>👷 Manpower</h4>
@@ -1681,52 +2014,138 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
         </div>
 
         {block.labourEntries.length > 0 && (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#c3e6cb' }}>
-                <th style={{ padding: '8px', textAlign: 'left' }}>Employee</th>
-                <th style={{ padding: '8px', textAlign: 'left' }}>Classification</th>
-                <th style={{ padding: '8px', textAlign: 'center', width: '55px' }}>RT</th>
-                <th style={{ padding: '8px', textAlign: 'center', width: '55px' }}>OT</th>
-                <th style={{ padding: '8px', textAlign: 'center', width: '65px' }}>JH</th>
-                <th style={{ padding: '8px', textAlign: 'center', width: '50px' }}>Cnt</th>
-                <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {block.labourEntries.map(entry => {
-                const rt = entry.rt !== undefined ? entry.rt : Math.min(entry.hours || 0, 8)
-                const ot = entry.ot !== undefined ? entry.ot : Math.max(0, (entry.hours || 0) - 8)
-                const jh = entry.jh !== undefined ? entry.jh : 0
-                return (
-                  <tr key={entry.id} style={{ backgroundColor: '#fff' }}>
-                    <td style={{ padding: '6px 8px', borderBottom: '1px solid #dee2e6' }}>{entry.employeeName || '-'}</td>
-                    <td style={{ padding: '6px 8px', borderBottom: '1px solid #dee2e6', fontSize: '12px' }}>{entry.classification}</td>
-                    <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#d4edda' }}>{rt}</td>
-                    <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: ot > 0 ? '#fff3cd' : '#fff' }}>{ot > 0 ? ot : '-'}</td>
-                    <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: jh > 0 ? '#cce5ff' : '#fff' }}>
-                      <input
-                        type="number"
-                        value={jh || ''}
-                        onChange={(e) => updateLabourJH(block.id, entry.id, e.target.value)}
-                        placeholder="0"
-                        style={{ width: '45px', padding: '4px', border: '1px solid #ced4da', borderRadius: '3px', textAlign: 'center', fontSize: '12px' }}
-                      />
-                    </td>
-                    <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.count}</td>
-                    <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                      <button
-                        onClick={() => removeLabourFromBlock(block.id, entry.id)}
-                        style={{ padding: '2px 6px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
-                      >
-                        ✕
-                      </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '700px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#c3e6cb' }}>
+                  <th style={{ padding: '8px', textAlign: 'left' }}>Employee</th>
+                  <th style={{ padding: '8px', textAlign: 'left' }}>Classification</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '45px' }}>RT</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '45px' }}>OT</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '55px' }}>JH</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}>Cnt</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '75px', backgroundColor: '#e2d5f1' }}>Status</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '55px', backgroundColor: '#e2d5f1' }}>Shadow</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {block.labourEntries.map(entry => {
+                  const rt = entry.rt !== undefined ? entry.rt : Math.min(entry.hours || 0, 8)
+                  const ot = entry.ot !== undefined ? entry.ot : Math.max(0, (entry.hours || 0) - 8)
+                  const jh = entry.jh !== undefined ? entry.jh : 0
+                  const billedHours = (rt + ot) * (entry.count || 1)
+                  const prodStatus = entry.productionStatus || 'ACTIVE'
+                  const shadowHours = calculateShadowHours(billedHours, prodStatus, entry.shadowEffectiveHours)
+                  const statusConfig = productionStatuses.find(s => s.value === prodStatus)
+                  return (
+                    <React.Fragment key={entry.id}>
+                      <tr style={{ backgroundColor: '#fff' }}>
+                        <td style={{ padding: '6px 8px', borderBottom: '1px solid #dee2e6' }}>{entry.employeeName || '-'}</td>
+                        <td style={{ padding: '6px 8px', borderBottom: '1px solid #dee2e6', fontSize: '12px' }}>{entry.classification}</td>
+                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#d4edda' }}>{rt}</td>
+                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: ot > 0 ? '#fff3cd' : '#fff' }}>{ot > 0 ? ot : '-'}</td>
+                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: jh > 0 ? '#cce5ff' : '#fff' }}>
+                          <input
+                            type="number"
+                            value={jh || ''}
+                            onChange={(e) => updateLabourJH(block.id, entry.id, e.target.value)}
+                            placeholder="0"
+                            style={{ width: '40px', padding: '4px', border: '1px solid #ced4da', borderRadius: '3px', textAlign: 'center', fontSize: '12px' }}
+                          />
+                        </td>
+                        <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.count}</td>
+                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f5fc' }}>
+                          <ProductionStatusToggle
+                            value={prodStatus}
+                            onChange={(status) => updateLabourProductionStatus(block.id, entry.id, status)}
+                          />
+                        </td>
+                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f5fc' }}>
+                          <input
+                            type="number"
+                            value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? entry.shadowEffectiveHours : shadowHours.toFixed(1)}
+                            onChange={(e) => updateLabourShadowHours(block.id, entry.id, e.target.value)}
+                            style={{
+                              width: '45px',
+                              padding: '4px',
+                              border: `1px solid ${statusConfig?.color || '#ced4da'}`,
+                              borderRadius: '3px',
+                              textAlign: 'center',
+                              fontSize: '12px',
+                              backgroundColor: entry.shadowEffectiveHours !== null ? '#fff3cd' : '#fff'
+                            }}
+                            title={entry.shadowEffectiveHours !== null ? 'Manual override' : 'Auto-calculated'}
+                          />
+                        </td>
+                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
+                          <button
+                            onClick={() => removeLabourFromBlock(block.id, entry.id)}
+                            style={{ padding: '2px 6px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                      {/* Drag Reason Row - shown when status is not ACTIVE */}
+                      {prodStatus !== 'ACTIVE' && (
+                        <tr style={{ backgroundColor: statusConfig?.color === '#ffc107' ? '#fffbf0' : '#fff5f5' }}>
+                          <td colSpan={9} style={{ padding: '6px 8px', borderBottom: '1px solid #dee2e6' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 'bold', color: statusConfig?.color }}>
+                                Delay Reason:
+                              </span>
+                              <select
+                                value={dragReasonCategories.some(r => r.label === entry.dragReason) ? entry.dragReason : '_custom'}
+                                onChange={(e) => {
+                                  if (e.target.value !== '_custom') {
+                                    updateLabourDragReason(block.id, entry.id, e.target.value)
+                                  }
+                                }}
+                                style={{
+                                  padding: '4px 8px',
+                                  border: `1px solid ${statusConfig?.color || '#ced4da'}`,
+                                  borderRadius: '4px',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                <option value="">-- Select common reason --</option>
+                                {dragReasonCategories.map(r => (
+                                  <option key={r.value} value={r.label}>{r.label}</option>
+                                ))}
+                                <option value="_custom">-- Or type custom below --</option>
+                              </select>
+                              <span style={{ fontSize: '11px', color: '#666' }}>or</span>
+                              <input
+                                type="text"
+                                value={entry.dragReason || ''}
+                                onChange={(e) => updateLabourDragReason(block.id, entry.id, e.target.value)}
+                                onBlur={(e) => {
+                                  if (e.target.value.trim()) {
+                                    saveCustomReason(e.target.value)
+                                  }
+                                }}
+                                placeholder="Type custom reason..."
+                                style={{
+                                  flex: 1,
+                                  padding: '4px 8px',
+                                  border: `1px solid ${statusConfig?.color || '#ced4da'}`,
+                                  borderRadius: '4px',
+                                  fontSize: '12px',
+                                  minWidth: '150px',
+                                  maxWidth: '250px'
+                                }}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
 
@@ -1780,84 +2199,122 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
         </div>
 
         {block.equipmentEntries.length > 0 && (
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#b8daff' }}>
-                <th style={{ padding: '8px', textAlign: 'left' }}>Equipment</th>
-                <th style={{ padding: '8px', textAlign: 'center', width: '80px' }}>Hours</th>
-                <th style={{ padding: '8px', textAlign: 'center', width: '80px' }}>Count</th>
-                <th style={{ padding: '8px', textAlign: 'center', width: '60px' }}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {block.equipmentEntries.map(entry => (
-                <tr key={entry.id} style={{ backgroundColor: '#fff' }}>
-                  <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6' }}>{entry.type}</td>
-                  <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.hours}</td>
-                  <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.count}</td>
-                  <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                    <button
-                      onClick={() => removeEquipmentFromBlock(block.id, entry.id)}
-                      style={{ padding: '2px 6px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
-                    >
-                      ✕
-                    </button>
-                  </td>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '550px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#b8daff' }}>
+                  <th style={{ padding: '8px', textAlign: 'left' }}>Equipment</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '60px' }}>Hours</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '50px' }}>Count</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '75px', backgroundColor: '#e2d5f1' }}>Status</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '55px', backgroundColor: '#e2d5f1' }}>Shadow</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {block.equipmentEntries.map(entry => {
+                  const billedHours = (parseFloat(entry.hours) || 0) * (entry.count || 1)
+                  const prodStatus = entry.productionStatus || 'ACTIVE'
+                  const shadowHours = calculateShadowHours(billedHours, prodStatus, entry.shadowEffectiveHours)
+                  const statusConfig = productionStatuses.find(s => s.value === prodStatus)
+                  return (
+                    <React.Fragment key={entry.id}>
+                      <tr style={{ backgroundColor: '#fff' }}>
+                        <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6' }}>{entry.type}</td>
+                        <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.hours}</td>
+                        <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.count}</td>
+                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f5fc' }}>
+                          <ProductionStatusToggle
+                            value={prodStatus}
+                            onChange={(status) => updateEquipmentProductionStatus(block.id, entry.id, status)}
+                          />
+                        </td>
+                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f5fc' }}>
+                          <input
+                            type="number"
+                            value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? entry.shadowEffectiveHours : shadowHours.toFixed(1)}
+                            onChange={(e) => updateEquipmentShadowHours(block.id, entry.id, e.target.value)}
+                            style={{
+                              width: '45px',
+                              padding: '4px',
+                              border: `1px solid ${statusConfig?.color || '#ced4da'}`,
+                              borderRadius: '3px',
+                              textAlign: 'center',
+                              fontSize: '12px',
+                              backgroundColor: entry.shadowEffectiveHours !== null ? '#fff3cd' : '#fff'
+                            }}
+                            title={entry.shadowEffectiveHours !== null ? 'Manual override' : 'Auto-calculated'}
+                          />
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
+                          <button
+                            onClick={() => removeEquipmentFromBlock(block.id, entry.id)}
+                            style={{ padding: '2px 6px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                          >
+                            ✕
+                          </button>
+                        </td>
+                      </tr>
+                      {/* Drag Reason Row - shown when status is not ACTIVE */}
+                      {prodStatus !== 'ACTIVE' && (
+                        <tr style={{ backgroundColor: statusConfig?.color === '#ffc107' ? '#fffbf0' : '#fff5f5' }}>
+                          <td colSpan={6} style={{ padding: '6px 8px', borderBottom: '1px solid #dee2e6' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                              <span style={{ fontSize: '11px', fontWeight: 'bold', color: statusConfig?.color }}>
+                                Delay Reason:
+                              </span>
+                              <select
+                                value={dragReasonCategories.some(r => r.label === entry.dragReason) ? entry.dragReason : '_custom'}
+                                onChange={(e) => {
+                                  if (e.target.value !== '_custom') {
+                                    updateEquipmentDragReason(block.id, entry.id, e.target.value)
+                                  }
+                                }}
+                                style={{
+                                  padding: '4px 8px',
+                                  border: `1px solid ${statusConfig?.color || '#ced4da'}`,
+                                  borderRadius: '4px',
+                                  fontSize: '12px'
+                                }}
+                              >
+                                <option value="">-- Select common reason --</option>
+                                {dragReasonCategories.map(r => (
+                                  <option key={r.value} value={r.label}>{r.label}</option>
+                                ))}
+                                <option value="_custom">-- Or type custom below --</option>
+                              </select>
+                              <span style={{ fontSize: '11px', color: '#666' }}>or</span>
+                              <input
+                                type="text"
+                                value={entry.dragReason || ''}
+                                onChange={(e) => updateEquipmentDragReason(block.id, entry.id, e.target.value)}
+                                onBlur={(e) => {
+                                  if (e.target.value.trim()) {
+                                    saveCustomReason(e.target.value)
+                                  }
+                                }}
+                                placeholder="Type custom reason..."
+                                style={{
+                                  flex: 1,
+                                  padding: '4px 8px',
+                                  border: `1px solid ${statusConfig?.color || '#ced4da'}`,
+                                  borderRadius: '4px',
+                                  fontSize: '12px',
+                                  minWidth: '150px',
+                                  maxWidth: '250px'
+                                }}
+                              />
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
-      </div>
-
-      {/* Time Lost */}
-      <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f8d7da', borderRadius: '8px' }}>
-        <h4 style={{ margin: '0 0 15px 0', color: '#721c24' }}>⏱️ Time Lost</h4>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 1fr', gap: '10px' }}>
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Reason</label>
-            <select
-              value={block.timeLostReason || ''}
-              onChange={(e) => updateBlock(block.id, 'timeLostReason', e.target.value)}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }}
-            >
-              <option value="">None</option>
-              {timeLostReasons.map(r => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px' }}>Hours Lost</label>
-            <input
-              type="number"
-              value={block.timeLostHours || ''}
-              onChange={(e) => updateBlock(block.id, 'timeLostHours', e.target.value)}
-              placeholder="0"
-              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }}
-            />
-          </div>
-          <div style={{ gridColumn: '1 / -1' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
-              <label style={{ fontSize: '11px', fontWeight: 'bold' }}>Details</label>
-              <VoiceButton fieldId={`timeLostDetails_${block.id}`} style={{ padding: '4px 8px', fontSize: '11px' }} />
-            </div>
-            <input
-              type="text"
-              value={block.timeLostDetails || ''}
-              onChange={(e) => updateBlock(block.id, 'timeLostDetails', e.target.value)}
-              placeholder="Describe reason for time lost... (use 🎤 for voice)"
-              style={{ 
-                width: '100%', 
-                padding: '8px', 
-                border: isListening === `timeLostDetails_${block.id}` ? '2px solid #dc3545' : '1px solid #ced4da', 
-                borderRadius: '4px', 
-                fontSize: '13px',
-                backgroundColor: isListening === `timeLostDetails_${block.id}` ? '#fff5f5' : 'white'
-              }}
-            />
-          </div>
-        </div>
       </div>
 
       {/* Work Photos */}

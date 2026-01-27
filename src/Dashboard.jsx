@@ -8,6 +8,7 @@ import { useAuth } from './AuthContext.jsx'
 import EVMDashboard from './EVMDashboard'
 import { supabase } from './supabase'
 import MasterSwitcher from './MasterSwitcher.jsx'
+import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
 
 // ============================================================================
 // CMT DASHBOARD - Eagle Mountain - Woodfibre Gas Pipeline (EGP)
@@ -531,6 +532,7 @@ function Dashboard({ onBackToReport }) {
               { id: 'overview', label: '📋 Overview' },
               { id: 'progress', label: '📏 Progress' },
               { id: 'productivity', label: '⚡ Productivity' },
+              { id: 'efficiency', label: '💸 Efficiency' },
               { id: 'quality', label: '✅ Quality' },
               { id: 'crews', label: '👷 Crews' },
               { id: 'photos', label: '📷 Photos' },
@@ -793,6 +795,11 @@ function Dashboard({ onBackToReport }) {
             </div>
           </div>
         </>
+      )}
+
+      {/* EFFICIENCY TAB - Efficiency Audit Dashboard */}
+      {activeTab === 'efficiency' && (
+        <ShadowAuditDashboard />
       )}
 
       {/* QUALITY TAB */}

@@ -28,6 +28,9 @@ import {
 // Import ActivityBlock component (handles all specialized logs internally)
 import ActivityBlock from './ActivityBlock.jsx'
 
+// Import shadow audit utils for efficiency tracking
+import { generateShadowAuditSummary } from './shadowAuditUtils.js'
+
 // Report-level components (not part of activity blocks)
 import SafetyRecognition from './SafetyRecognition.jsx'
 import WildlifeSighting from './WildlifeSighting.jsx'
@@ -1959,9 +1962,108 @@ Important:
       if (block.id === blockId) {
         return {
           ...block,
-          labourEntries: block.labourEntries.map(entry => 
+          labourEntries: block.labourEntries.map(entry =>
             entry.id === labourId ? { ...entry, jh: parseFloat(jhValue) || 0 } : entry
           )
+        }
+      }
+      return block
+    }))
+  }
+
+  // Efficiency Audit - Labour handlers
+  function updateLabourProductionStatus(blockId, labourId, status) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          labourEntries: block.labourEntries.map(entry =>
+            entry.id === labourId ? { ...entry, productionStatus: status, shadowEffectiveHours: null } : entry
+          )
+        }
+      }
+      return block
+    }))
+  }
+
+  function updateLabourShadowHours(blockId, labourId, hours) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          labourEntries: block.labourEntries.map(entry =>
+            entry.id === labourId ? { ...entry, shadowEffectiveHours: hours === '' ? null : parseFloat(hours) } : entry
+          )
+        }
+      }
+      return block
+    }))
+  }
+
+  function updateLabourDragReason(blockId, labourId, reason) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          labourEntries: block.labourEntries.map(entry =>
+            entry.id === labourId ? { ...entry, dragReason: reason } : entry
+          )
+        }
+      }
+      return block
+    }))
+  }
+
+  // Efficiency Audit - Equipment handlers
+  function updateEquipmentProductionStatus(blockId, equipmentId, status) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          equipmentEntries: block.equipmentEntries.map(entry =>
+            entry.id === equipmentId ? { ...entry, productionStatus: status, shadowEffectiveHours: null } : entry
+          )
+        }
+      }
+      return block
+    }))
+  }
+
+  function updateEquipmentShadowHours(blockId, equipmentId, hours) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          equipmentEntries: block.equipmentEntries.map(entry =>
+            entry.id === equipmentId ? { ...entry, shadowEffectiveHours: hours === '' ? null : parseFloat(hours) } : entry
+          )
+        }
+      }
+      return block
+    }))
+  }
+
+  function updateEquipmentDragReason(blockId, equipmentId, reason) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          equipmentEntries: block.equipmentEntries.map(entry =>
+            entry.id === equipmentId ? { ...entry, dragReason: reason } : entry
+          )
+        }
+      }
+      return block
+    }))
+  }
+
+  // Efficiency Audit - Systemic (Entire Crew) delay handler
+  function updateSystemicDelay(blockId, systemicDelay) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          systemicDelay: systemicDelay
         }
       }
       return block
@@ -2297,6 +2399,29 @@ Important:
           }
         }
 
+        // Process labour entries with shadow audit data
+        const processedLabourEntries = block.labourEntries.map(entry => ({
+          ...entry,
+          productionStatus: entry.productionStatus || 'ACTIVE',
+          shadowEffectiveHours: entry.shadowEffectiveHours ?? null,
+          dragReason: entry.dragReason || ''
+        }))
+
+        // Process equipment entries with shadow audit data
+        const processedEquipmentEntries = block.equipmentEntries.map(entry => ({
+          ...entry,
+          productionStatus: entry.productionStatus || 'ACTIVE',
+          shadowEffectiveHours: entry.shadowEffectiveHours ?? null,
+          dragReason: entry.dragReason || ''
+        }))
+
+        // Create block with processed entries for shadow audit calculation
+        const blockForAudit = {
+          ...block,
+          labourEntries: processedLabourEntries,
+          equipmentEntries: processedEquipmentEntries
+        }
+
         processedBlocks.push({
           id: block.id,
           activityType: block.activityType,
@@ -2306,8 +2431,8 @@ Important:
           startKP: block.startKP,
           endKP: block.endKP,
           workDescription: block.workDescription,
-          labourEntries: block.labourEntries,
-          equipmentEntries: block.equipmentEntries,
+          labourEntries: processedLabourEntries,
+          equipmentEntries: processedEquipmentEntries,
           qualityData: block.qualityData,
           workPhotos: workPhotoData,
           timeLostReason: block.timeLostReason,
@@ -2315,6 +2440,8 @@ Important:
           timeLostDetails: block.timeLostDetails,
           chainageOverlapReason: chainageReasons[block.id]?.overlapReason || null,
           chainageGapReason: chainageReasons[block.id]?.gapReason || null,
+          // Efficiency Audit summary
+          shadowAuditSummary: generateShadowAuditSummary(blockForAudit),
           // Specialized data for different activity types
           weldData: block.weldData || null,
           bendingData: block.bendingData || null,
@@ -5725,8 +5852,15 @@ Important:
           updateConventionalBoreData={updateConventionalBoreData}
           addLabourToBlock={addLabourToBlock}
           updateLabourJH={updateLabourJH}
+          updateLabourProductionStatus={updateLabourProductionStatus}
+          updateLabourShadowHours={updateLabourShadowHours}
+          updateLabourDragReason={updateLabourDragReason}
           removeLabourFromBlock={removeLabourFromBlock}
           addEquipmentToBlock={addEquipmentToBlock}
+          updateEquipmentProductionStatus={updateEquipmentProductionStatus}
+          updateEquipmentShadowHours={updateEquipmentShadowHours}
+          updateEquipmentDragReason={updateEquipmentDragReason}
+          updateSystemicDelay={updateSystemicDelay}
           removeEquipmentFromBlock={removeEquipmentFromBlock}
           handleWorkPhotosSelect={handleWorkPhotosSelect}
           updatePhotoMetadata={updatePhotoMetadata}

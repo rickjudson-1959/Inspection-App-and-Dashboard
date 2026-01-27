@@ -6,6 +6,7 @@ import * as XLSX from 'xlsx'
 import ComplianceAuditTrail from './ComplianceAuditTrail.jsx'
 import RateImport from './RateImport.jsx'
 import MasterSwitcher from './MasterSwitcher.jsx'
+import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
 
 function AdminPortal() {
   const navigate = useNavigate()
@@ -583,7 +584,10 @@ function AdminPortal() {
       alert('Please fill in email and name')
       return
     }
-    
+
+    console.log('📨 Sending invitation to:', inviteEmail)
+    console.log('👤 Name:', inviteName, '| Role:', inviteRole)
+
     setInviting(true)
     try {
       const response = await fetch('https://aatvckalnvojlykfgnmz.supabase.co/functions/v1/invite-user', {
@@ -598,22 +602,46 @@ function AdminPortal() {
           user_role: inviteRole
         })
       })
-      
+
       const result = await response.json()
-      
+      console.log('📬 Edge function response:', result)
+
       if (!response.ok) {
         throw new Error(result.error || 'Failed to invite user')
       }
-      
-      alert(`Invitation sent to ${inviteEmail}!`)
+
+      // Log invitation details
+      console.log('📧 Invite result:', {
+        email_sent: result.email_sent,
+        email_error: result.email_error,
+        user_id: result.user_id
+      })
+
+      // Always show invitation link in console - make it very visible
+      if (result.invitation_link) {
+        console.log('%c═══════════════════════════════════════════════════════════════', 'color: green; font-weight: bold')
+        console.log('%c🔗 INVITATION LINK - Copy this and send to the user:', 'color: green; font-size: 14px; font-weight: bold')
+        console.log('%c' + result.invitation_link, 'color: blue; font-size: 12px')
+        console.log('%c═══════════════════════════════════════════════════════════════', 'color: green; font-weight: bold')
+      } else {
+        console.warn('⚠️ No invitation link was returned from the server')
+      }
+
+      // Show appropriate message
+      if (result.email_sent) {
+        alert(`Invitation sent to ${inviteEmail}!`)
+      } else {
+        alert(`User created but email not sent: ${result.email_error || 'Unknown error'}. Check console for invitation link.`)
+      }
+
       setShowInviteModal(false)
       setInviteEmail('')
       setInviteName('')
       setInviteRole('inspector')
       fetchData()
-      
+
     } catch (err) {
-      console.error('Error inviting user:', err)
+      console.error('❌ Error inviting user:', err)
       alert('Error inviting user: ' + err.message)
     }
     setInviting(false)
@@ -863,7 +891,7 @@ function AdminPortal() {
 
       <div style={{ backgroundColor: 'white', borderBottom: '1px solid #ddd', padding: '0 20px' }}>
         <div style={{ display: 'flex', gap: '0' }}>
-          {['overview', 'approvals', 'mats', 'audit', 'setup', 'organizations', 'projects', 'users', 'reports'].map(tab => (
+          {['overview', 'approvals', 'efficiency', 'mats', 'audit', 'setup', 'organizations', 'projects', 'users', 'reports'].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '15px 25px', border: 'none', backgroundColor: activeTab === tab ? '#003366' : 'transparent', color: activeTab === tab ? 'white' : '#333', cursor: 'pointer', fontSize: '14px', fontWeight: activeTab === tab ? 'bold' : 'normal', textTransform: 'capitalize', position: 'relative' }}>
               {tab === 'approvals' ? `Approvals ${pendingReports.length > 0 ? `(${pendingReports.length})` : ''}` : tab}
             </button>
@@ -952,6 +980,11 @@ function AdminPortal() {
               </div>
             )}
           </div>
+        )}
+
+        {/* ==================== SHADOW EFFICIENCY AUDIT TAB ==================== */}
+        {activeTab === 'efficiency' && (
+          <ShadowAuditDashboard />
         )}
 
         {/* ==================== MAT INVENTORY TAB ==================== */}

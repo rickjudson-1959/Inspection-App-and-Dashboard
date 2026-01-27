@@ -406,11 +406,80 @@ function EVMDashboard() {
   const [loading, setLoading] = useState(true)
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0])
   const [activeTab, setActiveTab] = useState('overview')
+  const [dragMetrics, setDragMetrics] = useState(null)
 
   useEffect(() => {
     // Simulate loading
     setTimeout(() => setLoading(false), 500)
   }, [])
+
+  // Fetch Efficiency Audit data for drag cost analysis
+  useEffect(() => {
+    async function fetchDragMetrics() {
+      try {
+        const thirtyDaysAgo = new Date()
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+
+        const { data: reports, error } = await supabase
+          .from('daily_tickets')
+          .select('date, spread, activity_blocks')
+          .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
+          .lte('date', asOfDate)
+
+        if (error) {
+          console.error('Error fetching drag metrics:', error)
+          return
+        }
+
+        // Aggregate shadow audit data
+        let totalBilledHours = 0
+        let totalShadowHours = 0
+        let totalValueLost = 0
+        let systemicCount = 0
+        let assetCount = 0
+        const reasonBreakdown = {}
+
+        for (const report of reports || []) {
+          const blocks = report.activity_blocks || []
+          for (const block of blocks) {
+            const summary = block.shadowAuditSummary
+            if (summary) {
+              totalBilledHours += summary.totalBilledHours || 0
+              totalShadowHours += summary.totalShadowHours || 0
+              totalValueLost += summary.totalValueLost || 0
+
+              if (summary.delayType === 'SYSTEMIC') {
+                systemicCount++
+                const reason = summary.systemicDelay?.reason || 'unspecified'
+                reasonBreakdown[reason] = (reasonBreakdown[reason] || 0) + (summary.totalValueLost || 0)
+              } else if (summary.delayType === 'ASSET_SPECIFIC') {
+                assetCount++
+              }
+            }
+          }
+        }
+
+        const inertiaRatio = totalBilledHours > 0 ? (totalShadowHours / totalBilledHours) * 100 : 100
+        const dragRate = totalBilledHours > 0 ? ((totalBilledHours - totalShadowHours) / totalBilledHours) * 100 : 0
+
+        setDragMetrics({
+          totalBilledHours,
+          totalShadowHours,
+          totalValueLost,
+          inertiaRatio,
+          dragRate,
+          systemicCount,
+          assetCount,
+          reasonBreakdown,
+          reportCount: reports?.length || 0
+        })
+      } catch (err) {
+        console.error('Error in fetchDragMetrics:', err)
+      }
+    }
+
+    fetchDragMetrics()
+  }, [asOfDate])
 
   const demoData = useMemo(() => generateEGPDemoData(asOfDate), [asOfDate])
   const sCurveData = useMemo(() => generateSCurveData(asOfDate), [asOfDate])
@@ -503,7 +572,7 @@ function EVMDashboard() {
 
       {/* Tab Content */}
       {activeTab === 'overview' && (
-        <OverviewTab metrics={metrics} sCurveData={sCurveData} healthAssessment={healthAssessment} />
+        <OverviewTab metrics={metrics} sCurveData={sCurveData} healthAssessment={healthAssessment} dragMetrics={dragMetrics} />
       )}
       {activeTab === 'phases' && (
         <PhasesTab phases={phases} />
@@ -528,7 +597,7 @@ function EVMDashboard() {
 // TAB COMPONENTS
 // ============================================================================
 
-function OverviewTab({ metrics, sCurveData, healthAssessment }) {
+function OverviewTab({ metrics, sCurveData, healthAssessment, dragMetrics }) {
   return (
     <>
       {/* Core EVM Metrics */}
@@ -560,6 +629,103 @@ function OverviewTab({ metrics, sCurveData, healthAssessment }) {
           <KPICard title="To-Complete PI (TCPI)" value={metrics.TCPI} format="index" subtitle="Required future efficiency" />
         </div>
       </div>
+
+      {/* Value Leakage Analysis - Efficiency Audit Integration */}
+      <>
+        <div style={{ backgroundColor: '#6a1b9a', color: 'white', padding: '10px 15px', borderRadius: '4px 4px 0 0', fontWeight: 'bold' }}>
+          💸 VALUE LEAKAGE ANALYSIS (Efficiency Audit)
+        </div>
+        {(!dragMetrics || dragMetrics.totalBilledHours === 0) ? (
+          <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '0 0 4px 4px', marginBottom: '20px', border: '1px solid #ddd', borderTop: 'none', textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '10px' }}>📊</div>
+            <h3 style={{ margin: '0 0 10px 0', color: '#666' }}>No Efficiency Audit Data Available</h3>
+            <p style={{ color: '#999', fontSize: '14px', margin: 0 }}>
+              Shadow audit data will appear here once inspectors submit reports with production status tracking.<br/>
+              This section shows value lost to inefficiency, drag rates, and CPI impact analysis.
+            </p>
+          </div>
+        ) : (
+          <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '0 0 4px 4px', marginBottom: '20px', border: '1px solid #ddd', borderTop: 'none' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '15px', marginBottom: '20px' }}>
+              <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef', borderLeft: '4px solid #dc3545' }}>
+                <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>Total Drag Cost</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#dc3545' }}>
+                  {formatCurrency(dragMetrics.totalValueLost)}
+                </div>
+                <div style={{ fontSize: '11px', color: '#999' }}>Value lost to inefficiency</div>
+              </div>
+              <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef', borderLeft: '4px solid #6a1b9a' }}>
+                <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>Drag Rate</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: dragMetrics.dragRate > 10 ? '#dc3545' : dragMetrics.dragRate > 5 ? '#ffc107' : '#28a745' }}>
+                  {dragMetrics.dragRate.toFixed(1)}%
+                </div>
+                <div style={{ fontSize: '11px', color: '#999' }}>% of billed hours unproductive</div>
+              </div>
+              <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef', borderLeft: `4px solid ${dragMetrics.inertiaRatio >= 90 ? '#28a745' : dragMetrics.inertiaRatio >= 70 ? '#ffc107' : '#dc3545'}` }}>
+                <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>Inertia Ratio</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: dragMetrics.inertiaRatio >= 90 ? '#28a745' : dragMetrics.inertiaRatio >= 70 ? '#ffc107' : '#dc3545' }}>
+                  {dragMetrics.inertiaRatio.toFixed(1)}%
+                </div>
+                <div style={{ fontSize: '11px', color: '#999' }}>Productive efficiency</div>
+              </div>
+              <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef', borderLeft: '4px solid #dc3545' }}>
+                <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>Systemic Delays</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: dragMetrics.systemicCount > 0 ? '#dc3545' : '#28a745' }}>
+                  {dragMetrics.systemicCount}
+                </div>
+                <div style={{ fontSize: '11px', color: '#999' }}>Crew-wide stoppages</div>
+              </div>
+              <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef', borderLeft: '4px solid #ffc107' }}>
+                <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>Asset Delays</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#ffc107' }}>
+                  {dragMetrics.assetCount}
+                </div>
+                <div style={{ fontSize: '11px', color: '#999' }}>Individual equipment issues</div>
+              </div>
+            </div>
+
+            {/* CPI Impact Analysis */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+              <div style={{ padding: '15px', backgroundColor: '#fff5f5', borderRadius: '8px', border: '1px solid #f8d7da' }}>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#721c24' }}>CPI Impact from Drag</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>Reported CPI</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: getIndexColor(metrics.CPI) }}>{metrics.CPI.toFixed(2)}</div>
+                  </div>
+                  <div style={{ fontSize: '24px', color: '#666' }}>→</div>
+                  <div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>True CPI (excl. drag)</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: getIndexColor(metrics.CPI * (100 / dragMetrics.inertiaRatio)) }}>
+                      {(metrics.CPI * (100 / dragMetrics.inertiaRatio)).toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ fontSize: '11px', color: '#856404', marginTop: '10px', padding: '8px', backgroundColor: '#fff3cd', borderRadius: '4px' }}>
+                  If drag costs were eliminated, CPI would improve by {((metrics.CPI * (100 / dragMetrics.inertiaRatio)) - metrics.CPI).toFixed(2)} points
+                </div>
+              </div>
+
+              <div style={{ padding: '15px', backgroundColor: '#f8f5fc', borderRadius: '8px', border: '1px solid #e2d5f1' }}>
+                <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#6a1b9a' }}>Top Drag Sources</h4>
+                {Object.keys(dragMetrics.reasonBreakdown).length === 0 ? (
+                  <div style={{ fontSize: '12px', color: '#666', fontStyle: 'italic' }}>No systemic delays recorded</div>
+                ) : (
+                  Object.entries(dragMetrics.reasonBreakdown)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 3)
+                    .map(([reason, value]) => (
+                      <div key={reason} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '6px 0', borderBottom: '1px solid #eee' }}>
+                        <span style={{ fontSize: '12px', textTransform: 'capitalize' }}>{reason.replace(/_/g, ' ')}</span>
+                        <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#dc3545' }}>{formatCurrency(value)}</span>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </>
 
       {/* S-Curve & Comparison */}
       <div style={{ display: 'grid', gridTemplateColumns: '60% 40%', gap: '20px', marginBottom: '20px' }}>

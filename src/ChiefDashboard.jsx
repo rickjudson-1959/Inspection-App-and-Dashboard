@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext.jsx'
 import { supabase } from './supabase'
 import jsPDF from 'jspdf'
 import MasterSwitcher from './MasterSwitcher.jsx'
+import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
 
 // Import helper functions
 import {
@@ -762,6 +763,7 @@ function ChiefDashboard() {
           <button onClick={() => setActiveTab('regulatory')} style={tabButtonStyle(activeTab === 'regulatory')}>📋 Auditor View</button>
           <button onClick={() => setActiveTab('gallery')} style={tabButtonStyle(activeTab === 'gallery')}>📷 Photo Gallery</button>
           <button onClick={() => setActiveTab('personnel')} style={tabButtonStyle(activeTab === 'personnel')}>👷 Personnel</button>
+          <button onClick={() => setActiveTab('efficiency')} style={tabButtonStyle(activeTab === 'efficiency')}>📊 Efficiency</button>
         </div>
       </div>
 
@@ -1222,6 +1224,13 @@ function ChiefDashboard() {
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* ============ EFFICIENCY TAB ============ */}
+      {activeTab === 'efficiency' && (
+        <div style={{ padding: '30px' }}>
+          <ShadowAuditDashboard />
         </div>
       )}
 

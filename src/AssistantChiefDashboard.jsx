@@ -6,6 +6,7 @@ import MiniMapWidget from './MiniMapWidget.jsx'
 import SafetyRecognition from './SafetyRecognition.jsx'
 import WildlifeSighting from './WildlifeSighting.jsx'
 import jsPDF from 'jspdf'
+import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
 
 // Weather API Key
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
@@ -1857,6 +1858,9 @@ function AssistantChiefDashboard() {
           <button style={tabStyle(activeTab === 'generate-report')} onClick={() => setActiveTab('generate-report')}>
             📄 Generate Report
           </button>
+          <button style={tabStyle(activeTab === 'efficiency')} onClick={() => setActiveTab('efficiency')}>
+            📊 Efficiency
+          </button>
         </div>
       </div>
 
@@ -3358,6 +3362,13 @@ function AssistantChiefDashboard() {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ============================================= */}
+        {/* EFFICIENCY TAB */}
+        {/* ============================================= */}
+        {activeTab === 'efficiency' && (
+          <ShadowAuditDashboard />
         )}
       </div>
 
