@@ -23,6 +23,8 @@ import TimesheetEditor from './TimesheetEditor.jsx'
 import TimesheetReview from './TimesheetReview.jsx'
 import './index.css'
 import './App.css'
+import OfflineStatusBar from './components/OfflineStatusBar.jsx'
+import UpdatePrompt from './components/UpdatePrompt.jsx'
 
 function ProtectedRoute({ children, allowedRoles = [] }) {
   const { user, userProfile, loading } = useAuth()
@@ -254,6 +256,8 @@ ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
+        <OfflineStatusBar />
+        <UpdatePrompt />
         <AppRoutes />
       </AuthProvider>
     </BrowserRouter>
