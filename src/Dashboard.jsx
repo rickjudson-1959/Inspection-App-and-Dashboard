@@ -9,6 +9,7 @@ import EVMDashboard from './EVMDashboard'
 import { supabase } from './supabase'
 import MasterSwitcher from './MasterSwitcher.jsx'
 import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
+import { aggregateReliabilityScore, calculateTotalBilledHours, calculateTotalShadowHours, calculateValueLost } from './shadowAuditUtils.js'
 
 // ============================================================================
 // CMT DASHBOARD - Eagle Mountain - Woodfibre Gas Pipeline (EGP)
@@ -388,6 +389,20 @@ function Dashboard({ onBackToReport }) {
       return generateEGPDemoData(dateRange)
     }
 
+    // Calculate reliability score (Goodhart's Law protection)
+    const allBlocks = reports.flatMap(r => r.activity_blocks || [])
+    const reliabilityData = aggregateReliabilityScore(allBlocks)
+
+    // Calculate total value lost for efficiency metrics
+    let totalValueLost = 0
+    let totalBilledHours = 0
+    let totalShadowHours = 0
+    allBlocks.forEach(block => {
+      totalBilledHours += calculateTotalBilledHours(block)
+      totalShadowHours += calculateTotalShadowHours(block)
+      totalValueLost += calculateValueLost(block, {}, {})
+    })
+
     return {
       dailyArray,
       totalCost,
@@ -399,7 +414,15 @@ function Dashboard({ onBackToReport }) {
       totalLabourHours,
       totalEquipmentHours,
       totalTimeLost,
-      reportCount: reports.length
+      reportCount: reports.length,
+      // Reliability & Efficiency metrics
+      reliability: reliabilityData,
+      efficiency: {
+        totalBilledHours,
+        totalShadowHours,
+        totalValueLost,
+        inertiaRatio: totalBilledHours > 0 ? (totalShadowHours / totalBilledHours) * 100 : 100
+      }
     }
   }, [reports, dateRange])
 
@@ -596,6 +619,96 @@ function Dashboard({ onBackToReport }) {
               <div style={{ padding: '15px', backgroundColor: '#e2d5f1', borderRadius: '8px', textAlign: 'center' }}>
                 <div style={{ fontSize: '26px', fontWeight: 'bold', color: '#6f42c1' }}>{getTotalPhotoCount()}</div>
                 <div style={{ fontSize: '11px', color: '#666' }}>Work Photos</div>
+              </div>
+            </div>
+
+            {/* Efficiency & Reliability Row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginTop: '15px' }}>
+              {/* Reliability Shield */}
+              <div style={{
+                padding: '15px',
+                backgroundColor: metrics?.reliability?.bgColor || '#d4edda',
+                borderRadius: '8px',
+                textAlign: 'center',
+                border: `2px solid ${metrics?.reliability?.color || '#28a745'}`,
+                position: 'relative'
+              }}>
+                <div style={{ fontSize: '28px', marginBottom: '4px' }}>
+                  {metrics?.reliability?.icon || '🛡️'}
+                </div>
+                <div style={{
+                  fontSize: '18px',
+                  fontWeight: 'bold',
+                  color: metrics?.reliability?.color || '#28a745'
+                }}>
+                  {metrics?.reliability?.overallScore || 100}%
+                </div>
+                <div style={{ fontSize: '11px', color: '#666', fontWeight: 'bold' }}>
+                  Data Reliability
+                </div>
+                <div style={{
+                  fontSize: '9px',
+                  color: metrics?.reliability?.color || '#28a745',
+                  marginTop: '2px'
+                }}>
+                  {metrics?.reliability?.label || 'Reliable'}
+                </div>
+              </div>
+
+              {/* Efficiency Score */}
+              <div style={{
+                padding: '15px',
+                backgroundColor: metrics?.efficiency?.inertiaRatio >= 90 ? '#d4edda' :
+                                metrics?.efficiency?.inertiaRatio >= 70 ? '#fff3cd' : '#f8d7da',
+                borderRadius: '8px',
+                textAlign: 'center'
+              }}>
+                <div style={{
+                  fontSize: '26px',
+                  fontWeight: 'bold',
+                  color: metrics?.efficiency?.inertiaRatio >= 90 ? '#28a745' :
+                         metrics?.efficiency?.inertiaRatio >= 70 ? '#856404' : '#dc3545'
+                }}>
+                  {(metrics?.efficiency?.inertiaRatio || 100).toFixed(0)}%
+                </div>
+                <div style={{ fontSize: '11px', color: '#666' }}>Efficiency</div>
+                <div style={{ fontSize: '9px', color: '#999' }}>
+                  {(metrics?.efficiency?.totalShadowHours || 0).toFixed(0)}/{(metrics?.efficiency?.totalBilledHours || 0).toFixed(0)} hrs
+                </div>
+              </div>
+
+              {/* Value Lost */}
+              <div style={{ padding: '15px', backgroundColor: '#f8d7da', borderRadius: '8px', textAlign: 'center' }}>
+                <div style={{ fontSize: '26px', fontWeight: 'bold', color: '#dc3545' }}>
+                  ${((metrics?.efficiency?.totalValueLost || 0) / 1000).toFixed(0)}K
+                </div>
+                <div style={{ fontSize: '11px', color: '#666' }}>Value Lost</div>
+                <div style={{ fontSize: '9px', color: '#999' }}>Due to inefficiency</div>
+              </div>
+
+              {/* Alert Summary */}
+              <div style={{
+                padding: '15px',
+                backgroundColor: (metrics?.reliability?.redCount || 0) > 0 ? '#f8d7da' :
+                                (metrics?.reliability?.amberCount || 0) > 0 ? '#fff3cd' : '#d4edda',
+                borderRadius: '8px',
+                textAlign: 'center'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <span style={{ fontSize: '12px' }}>
+                    <span style={{ color: '#28a745' }}>●</span> {metrics?.reliability?.greenCount || 0}
+                  </span>
+                  <span style={{ fontSize: '12px' }}>
+                    <span style={{ color: '#ffc107' }}>●</span> {metrics?.reliability?.amberCount || 0}
+                  </span>
+                  <span style={{ fontSize: '12px' }}>
+                    <span style={{ color: '#dc3545' }}>●</span> {metrics?.reliability?.redCount || 0}
+                  </span>
+                </div>
+                <div style={{ fontSize: '11px', color: '#666', fontWeight: 'bold' }}>Block Status</div>
+                <div style={{ fontSize: '9px', color: '#999' }}>
+                  {metrics?.reliability?.blockCount || 0} blocks analyzed
+                </div>
               </div>
             </div>
 

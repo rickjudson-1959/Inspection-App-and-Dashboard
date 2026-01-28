@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  ComposedChart, Line, Bar, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
+  ComposedChart, Line, Bar, Area, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   ResponsiveContainer, BarChart, Cell, ReferenceLine, PieChart, Pie
 } from 'recharts'
 import { supabase } from './supabase'
+import { calculateVAAC } from './shadowAuditUtils.js'
 
 // ============================================================================
 // EARNED VALUE MANAGEMENT (EVM) EXECUTIVE DASHBOARD
@@ -16,6 +17,7 @@ const EVMColors = {
   EV: '#28a745',
   PV: '#007bff',
   AC: '#dc3545',
+  VAAC: '#6f42c1',  // Value-Adjusted Actual Cost (purple - shadow line)
   variance: { positive: '#28a745', negative: '#dc3545', neutral: '#6c757d' },
   gauge: { excellent: '#28a745', good: '#7cb342', warning: '#ffc107', danger: '#dc3545' },
   phases: {
@@ -310,38 +312,54 @@ function generateEGPDemoData(asOfDate) {
   }
 }
 
-// Generate S-Curve data
+// Generate S-Curve data with VAAC (Value-Adjusted Actual Cost)
+// VAAC shows what the project SHOULD have cost with 100% management efficiency
 function generateSCurveData(asOfDate) {
   const data = []
   const start = new Date(EGP_PROJECT.baselineStart)
   const end = new Date(asOfDate)
   const BAC = EGP_PROJECT.totalBudget
   const totalDays = 365
-  
+
   let current = new Date(start)
   let weekNum = 0
-  
+  let cumulativeValueLost = 0
+
   while (current <= end && weekNum < 52) {
     const daysElapsed = Math.floor((current - start) / (1000 * 60 * 60 * 24))
     const sCurveFactor = 1 / (1 + Math.exp(-0.02 * (daysElapsed - totalDays * 0.45)))
-    
+
     // Add some realistic variance
     const spiVariance = 0.88 + (Math.random() * 0.16) // 0.88 to 1.04
     const cpiVariance = 0.94 + (Math.random() * 0.10) // 0.94 to 1.04
-    
+
+    const AC = BAC * sCurveFactor * spiVariance / cpiVariance
+
+    // Simulate cumulative value lost (inefficiency gap)
+    // Realistic: 3-8% of weekly spend is lost to management drag
+    const weeklySpend = weekNum > 0 ? AC - (data[weekNum - 1]?.AC || 0) : AC
+    const inefficiencyRate = 0.03 + (Math.random() * 0.05) // 3-8%
+    cumulativeValueLost += weeklySpend * inefficiencyRate
+
+    // VAAC = Actual Cost - Value Lost (what it SHOULD have cost)
+    const VAAC = calculateVAAC(AC, cumulativeValueLost)
+
     data.push({
       date: current.toISOString().split('T')[0],
       displayDate: current.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
       week: `W${weekNum + 1}`,
       PV: BAC * sCurveFactor,
       EV: BAC * sCurveFactor * spiVariance,
-      AC: BAC * sCurveFactor * spiVariance / cpiVariance
+      AC,
+      VAAC,
+      valueLost: cumulativeValueLost,
+      efficiencyGap: AC - VAAC  // Visual gap between AC and VAAC
     })
-    
+
     current.setDate(current.getDate() + 7)
     weekNum++
   }
-  
+
   return data
 }
 
@@ -730,19 +748,58 @@ function OverviewTab({ metrics, sCurveData, healthAssessment, dragMetrics }) {
       {/* S-Curve & Comparison */}
       <div style={{ display: 'grid', gridTemplateColumns: '60% 40%', gap: '20px', marginBottom: '20px' }}>
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', border: '1px solid #ddd' }}>
-          <h3 style={{ fontSize: '14px', fontWeight: 'bold', marginTop: 0, marginBottom: '15px' }}>Cumulative Performance S-Curve</h3>
+          <h3 style={{ fontSize: '14px', fontWeight: 'bold', marginTop: 0, marginBottom: '5px' }}>Cumulative Performance S-Curve</h3>
+          <p style={{ fontSize: '11px', color: '#666', margin: '0 0 10px 0' }}>
+            VAAC (purple) shows what the project <strong>should</strong> have cost with 100% efficiency
+          </p>
           <ResponsiveContainer width="100%" height={300}>
             <ComposedChart data={sCurveData}>
               <CartesianGrid strokeDasharray="3 3" />
               <XAxis dataKey="displayDate" tick={{ fontSize: 10 }} interval={3} />
               <YAxis tickFormatter={(v) => `$${(v/1000000).toFixed(0)}M`} tick={{ fontSize: 11 }} />
-              <Tooltip formatter={(value, name) => [formatCurrency(value), name === 'PV' ? 'Planned Value' : name === 'EV' ? 'Earned Value' : 'Actual Cost']} />
-              <Legend wrapperStyle={{ fontSize: '12px' }} />
+              <Tooltip
+                formatter={(value, name) => {
+                  const labels = {
+                    'PV': 'Planned Value',
+                    'EV': 'Earned Value',
+                    'AC': 'Actual Cost',
+                    'VAAC': 'Value-Adjusted Actual Cost'
+                  }
+                  return [formatCurrency(value), labels[name] || name]
+                }}
+                labelFormatter={(label) => label}
+              />
+              <Legend wrapperStyle={{ fontSize: '11px' }} />
               <Line type="monotone" dataKey="PV" stroke={EVMColors.PV} strokeWidth={3} strokeDasharray="8 4" dot={false} name="Planned Value (PV)" />
               <Line type="monotone" dataKey="EV" stroke={EVMColors.EV} strokeWidth={3} dot={false} name="Earned Value (EV)" />
               <Line type="monotone" dataKey="AC" stroke={EVMColors.AC} strokeWidth={2} dot={false} name="Actual Cost (AC)" />
+              <Line type="monotone" dataKey="VAAC" stroke={EVMColors.VAAC} strokeWidth={2} strokeDasharray="4 2" dot={false} name="Shadow VAAC" />
+              {/* Shaded area showing efficiency gap (difference between AC and VAAC) */}
+              <Area type="monotone" dataKey="efficiencyGap" fill="#6f42c1" fillOpacity={0.15} stroke="none" name="Efficiency Gap" />
             </ComposedChart>
           </ResponsiveContainer>
+          {/* VAAC Legend explanation */}
+          {sCurveData.length > 0 && (
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              padding: '10px',
+              backgroundColor: '#f8f5fc',
+              borderRadius: '4px',
+              marginTop: '10px',
+              fontSize: '11px'
+            }}>
+              <div>
+                <span style={{ color: EVMColors.AC, fontWeight: 'bold' }}>●</span> Actual Cost: {formatCurrency(sCurveData[sCurveData.length - 1]?.AC || 0)}
+              </div>
+              <div>
+                <span style={{ color: EVMColors.VAAC, fontWeight: 'bold' }}>●</span> VAAC: {formatCurrency(sCurveData[sCurveData.length - 1]?.VAAC || 0)}
+              </div>
+              <div style={{ color: '#dc3545', fontWeight: 'bold' }}>
+                Efficiency Gap: {formatCurrency(sCurveData[sCurveData.length - 1]?.valueLost || 0)}
+              </div>
+            </div>
+          )}
         </div>
 
         <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', border: '1px solid #ddd' }}>

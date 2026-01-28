@@ -635,3 +635,258 @@ export function aggregateEfficiencyVerification(blocks) {
     blockCount: blocks.length
   }
 }
+
+// ============================================================================
+// RELIABILITY SCORE CALCULATION
+// Cross-references Time Integrity, Physical Alignment, and applies penalties
+// for "Activity without Productivity" (Goodhart's Law protection)
+// ============================================================================
+
+/**
+ * Calculate Data Reliability Score for dashboard display
+ * Implements the three-point triangulation:
+ * 1. Time Integrity: shadow_effective_hours vs billed_hours
+ * 2. Physical Alignment: inertia_ratio vs actual linear progress (KP range)
+ * 3. Penalty: Flag "Activity without Productivity" when I_R > 0.9 but progress < 70%
+ *
+ * @param {object} block - Activity block with all data
+ * @param {number} plannedDailyRate - Expected metres per day for this phase
+ * @returns {object} - Reliability score with status, flags, and color coding
+ */
+export function calculateReliabilityScore(block, plannedDailyRate = null) {
+  const activityType = block.activityType || 'default'
+  const target = plannedDailyRate || dailyProductionTargets[activityType] || dailyProductionTargets.default
+
+  // === POINT 1: TIME INTEGRITY ===
+  // Compare shadow_effective_hours to billed_hours
+  const billedHours = calculateTotalBilledHours(block)
+  const shadowHours = calculateTotalShadowHours(block)
+  const timeIntegrityRatio = billedHours > 0 ? shadowHours / billedHours : 1
+
+  // === POINT 2: PHYSICAL ALIGNMENT ===
+  // Compare inertia_ratio to actual linear progress (Start KP vs End KP)
+  const inertiaRatio = calculateInertiaRatio(block) / 100  // 0-1 scale
+  const linearMetres = calculateLinearMetres(block)
+  const progressRatio = target > 0 ? linearMetres / target : 1
+
+  // Alignment check: do time metrics match physical output?
+  const physicalAlignment = Math.abs(inertiaRatio - progressRatio)
+
+  // === POINT 3: PENALTY - "ACTIVITY WITHOUT PRODUCTIVITY" ===
+  // If I_R > 0.9 but progress < 70% of planned daily rate
+  let reliabilityScore = 100
+  let status = 'GREEN'  // Default: metrics align
+  let flag = null
+  let penalty = 0
+
+  // Check for Activity without Productivity (Goodhart's Law violation)
+  if (inertiaRatio > 0.9 && progressRatio < 0.7) {
+    flag = 'ACTIVITY_WITHOUT_PRODUCTIVITY'
+    penalty = 35  // Major penalty
+    reliabilityScore -= penalty
+    status = 'AMBER'  // Warning: possible gaming
+  }
+
+  // Check for systemic mismatch (high rework or complete misalignment)
+  const qualityRate = calculateQualityPassRate(block) / 100
+  if (qualityRate < 0.8 || (inertiaRatio > 0.85 && progressRatio < 0.5)) {
+    if (flag === 'ACTIVITY_WITHOUT_PRODUCTIVITY') {
+      // Escalate to RED if both conditions met
+      status = 'RED'
+      penalty += 25
+      reliabilityScore -= 25
+      flag = 'SYSTEMIC_MISMATCH'
+    } else {
+      flag = qualityRate < 0.8 ? 'HIGH_REWORK_RATE' : 'METRIC_MISALIGNMENT'
+      penalty = 30
+      reliabilityScore -= penalty
+      status = 'RED'
+    }
+  }
+
+  // Additional penalty for zero progress with significant hours
+  if (linearMetres === 0 && billedHours > 8) {
+    reliabilityScore -= 15
+    if (!flag) {
+      flag = 'NO_PHYSICAL_PROGRESS'
+      status = 'AMBER'
+    }
+  }
+
+  // Ensure score doesn't go below 0
+  reliabilityScore = Math.max(0, reliabilityScore)
+
+  // Determine icon and message based on status
+  const statusConfig = {
+    GREEN: {
+      icon: '🛡️',
+      iconType: 'shield-check',
+      color: '#28a745',
+      bgColor: '#d4edda',
+      borderColor: '#c3e6cb',
+      label: 'Reliable',
+      message: 'Metrics align with physical progress'
+    },
+    AMBER: {
+      icon: '⚠️',
+      iconType: 'shield-warning',
+      color: '#856404',
+      bgColor: '#fff3cd',
+      borderColor: '#ffeeba',
+      label: 'Review Needed',
+      message: flag === 'ACTIVITY_WITHOUT_PRODUCTIVITY'
+        ? 'High activity reported but low physical progress'
+        : 'Metrics require verification'
+    },
+    RED: {
+      icon: '🚨',
+      iconType: 'shield-alert',
+      color: '#721c24',
+      bgColor: '#f8d7da',
+      borderColor: '#f5c6cb',
+      label: 'Alert',
+      message: flag === 'SYSTEMIC_MISMATCH'
+        ? 'Systemic mismatch detected - investigate'
+        : 'High rework rates or metric misalignment'
+    }
+  }
+
+  return {
+    score: Math.round(reliabilityScore),
+    status,
+    ...statusConfig[status],
+
+    // Detailed metrics for tooltip/expansion
+    metrics: {
+      timeIntegrityRatio: Math.round(timeIntegrityRatio * 100),
+      inertiaRatio: Math.round(inertiaRatio * 100),
+      progressRatio: Math.round(progressRatio * 100),
+      qualityRate: Math.round(qualityRate * 100),
+      physicalAlignment: Math.round((1 - physicalAlignment) * 100),
+      linearMetres: Math.round(linearMetres),
+      billedHours: Math.round(billedHours * 10) / 10,
+      shadowHours: Math.round(shadowHours * 10) / 10,
+      plannedTarget: target
+    },
+
+    // Flag details
+    flag,
+    penalty,
+
+    // For EVM calculations
+    activityType
+  }
+}
+
+/**
+ * Aggregate reliability scores across multiple blocks for dashboard KPI
+ * @param {Array} blocks - Array of activity blocks
+ * @returns {object} - Aggregated reliability metrics for KPI display
+ */
+export function aggregateReliabilityScore(blocks) {
+  if (!blocks || blocks.length === 0) {
+    return {
+      overallScore: 100,
+      status: 'GREEN',
+      icon: '🛡️',
+      color: '#28a745',
+      bgColor: '#d4edda',
+      label: 'No Data',
+      greenCount: 0,
+      amberCount: 0,
+      redCount: 0,
+      flagBreakdown: {}
+    }
+  }
+
+  let totalScore = 0
+  let greenCount = 0
+  let amberCount = 0
+  let redCount = 0
+  const flagBreakdown = {}
+
+  for (const block of blocks) {
+    const result = calculateReliabilityScore(block)
+    totalScore += result.score
+
+    if (result.status === 'GREEN') greenCount++
+    else if (result.status === 'AMBER') amberCount++
+    else if (result.status === 'RED') redCount++
+
+    if (result.flag) {
+      flagBreakdown[result.flag] = (flagBreakdown[result.flag] || 0) + 1
+    }
+  }
+
+  const overallScore = Math.round(totalScore / blocks.length)
+
+  // Determine overall status
+  let status = 'GREEN'
+  if (redCount > blocks.length * 0.1 || overallScore < 60) {
+    status = 'RED'
+  } else if (amberCount > blocks.length * 0.2 || overallScore < 80) {
+    status = 'AMBER'
+  }
+
+  const statusConfig = {
+    GREEN: { icon: '🛡️', color: '#28a745', bgColor: '#d4edda', label: 'Reliable' },
+    AMBER: { icon: '⚠️', color: '#856404', bgColor: '#fff3cd', label: 'Review' },
+    RED: { icon: '🚨', color: '#721c24', bgColor: '#f8d7da', label: 'Alert' }
+  }
+
+  return {
+    overallScore,
+    status,
+    ...statusConfig[status],
+    greenCount,
+    amberCount,
+    redCount,
+    flagBreakdown,
+    blockCount: blocks.length
+  }
+}
+
+/**
+ * Calculate Value-Adjusted Actual Cost (VAAC) for Shadow EVM
+ * VAAC = Actual Cost - Value Lost
+ * Shows what the project SHOULD have cost with 100% management efficiency
+ *
+ * @param {number} actualCost - Total actual cost to date
+ * @param {number} valueLost - Total value lost due to inefficiency
+ * @returns {number} - Value-adjusted actual cost
+ */
+export function calculateVAAC(actualCost, valueLost) {
+  return Math.max(0, actualCost - valueLost)
+}
+
+/**
+ * Generate Shadow EVM data points for S-Curve
+ * Creates a parallel VAAC line alongside standard AC line
+ *
+ * @param {Array} evmData - Array of {date, plannedValue, earnedValue, actualCost}
+ * @param {Array} efficiencyData - Array of {date, valueLost}
+ * @returns {Array} - EVM data with VAAC added
+ */
+export function generateShadowEVMData(evmData, efficiencyData) {
+  // Create a lookup of value lost by date
+  const valueLostByDate = {}
+  let cumulativeValueLost = 0
+
+  for (const entry of efficiencyData) {
+    cumulativeValueLost += entry.valueLost || 0
+    valueLostByDate[entry.date] = cumulativeValueLost
+  }
+
+  // Add VAAC to each EVM data point
+  return evmData.map(point => {
+    const valueLostToDate = valueLostByDate[point.date] || 0
+    const vaac = calculateVAAC(point.actualCost || 0, valueLostToDate)
+
+    return {
+      ...point,
+      vaac,
+      valueLost: valueLostToDate,
+      efficiencyGap: (point.actualCost || 0) - vaac  // Visual gap between AC and VAAC
+    }
+  })
+}
