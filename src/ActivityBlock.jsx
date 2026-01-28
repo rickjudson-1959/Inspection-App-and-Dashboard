@@ -101,6 +101,178 @@ function mergeRanges(ranges) {
   return merged
 }
 
+// SearchableSelect component - type to filter dropdown
+function SearchableSelect({
+  value,
+  onChange,
+  options,
+  placeholder = 'Select...',
+  style = {}
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [searchText, setSearchText] = useState('')
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const containerRef = React.useRef(null)
+  const inputRef = React.useRef(null)
+
+  // Filter options based on search text
+  const filteredOptions = options.filter(opt =>
+    opt.toLowerCase().includes(searchText.toLowerCase())
+  )
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsOpen(false)
+        setSearchText('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  // Reset highlight when filtered list changes
+  useEffect(() => {
+    setHighlightedIndex(0)
+  }, [searchText])
+
+  const handleSelect = (opt) => {
+    onChange(opt)
+    setIsOpen(false)
+    setSearchText('')
+  }
+
+  const handleKeyDown = (e) => {
+    if (!isOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') {
+        setIsOpen(true)
+        e.preventDefault()
+      }
+      return
+    }
+
+    switch (e.key) {
+      case 'ArrowDown':
+        setHighlightedIndex(prev =>
+          prev < filteredOptions.length - 1 ? prev + 1 : prev
+        )
+        e.preventDefault()
+        break
+      case 'ArrowUp':
+        setHighlightedIndex(prev => prev > 0 ? prev - 1 : 0)
+        e.preventDefault()
+        break
+      case 'Enter':
+        if (filteredOptions[highlightedIndex]) {
+          handleSelect(filteredOptions[highlightedIndex])
+        }
+        e.preventDefault()
+        break
+      case 'Escape':
+        setIsOpen(false)
+        setSearchText('')
+        break
+    }
+  }
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', ...style }}>
+      <div
+        onClick={() => {
+          setIsOpen(true)
+          setTimeout(() => inputRef.current?.focus(), 0)
+        }}
+        style={{
+          width: '100%',
+          padding: '8px',
+          border: '1px solid #ced4da',
+          borderRadius: '4px',
+          backgroundColor: '#fff',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          boxSizing: 'border-box',
+          minHeight: '38px'
+        }}
+      >
+        {isOpen ? (
+          <input
+            ref={inputRef}
+            type="text"
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type to search..."
+            style={{
+              border: 'none',
+              outline: 'none',
+              width: '100%',
+              fontSize: '14px',
+              padding: 0,
+              backgroundColor: 'transparent'
+            }}
+            autoFocus
+          />
+        ) : (
+          <span style={{
+            color: value ? '#333' : '#999',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            fontSize: '14px'
+          }}>
+            {value || placeholder}
+          </span>
+        )}
+        <span style={{ marginLeft: '8px', color: '#666' }}>▼</span>
+      </div>
+
+      {isOpen && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          backgroundColor: '#fff',
+          border: '1px solid #ced4da',
+          borderRadius: '4px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 1000,
+          maxHeight: '250px',
+          overflowY: 'auto',
+          marginTop: '2px'
+        }}>
+          {filteredOptions.length === 0 ? (
+            <div style={{ padding: '10px', color: '#999', textAlign: 'center', fontSize: '13px' }}>
+              No matches found
+            </div>
+          ) : (
+            filteredOptions.map((opt, idx) => (
+              <div
+                key={opt}
+                onClick={() => handleSelect(opt)}
+                style={{
+                  padding: '10px 12px',
+                  cursor: 'pointer',
+                  backgroundColor: idx === highlightedIndex ? '#e3f2fd' :
+                                   opt === value ? '#f5f5f5' : '#fff',
+                  borderBottom: idx < filteredOptions.length - 1 ? '1px solid #f0f0f0' : 'none',
+                  fontSize: '13px'
+                }}
+                onMouseEnter={() => setHighlightedIndex(idx)}
+              >
+                {opt}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ActivityBlock({
   block,
   blockIndex,
@@ -1951,16 +2123,12 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Classification</label>
-            <select
+            <SearchableSelect
               value={currentLabour.classification}
-              onChange={(e) => setCurrentLabour({ ...currentLabour, classification: e.target.value })}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
-            >
-              <option value="">Select Classification</option>
-              {labourClassifications.map(c => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
+              onChange={(val) => setCurrentLabour({ ...currentLabour, classification: val })}
+              options={labourClassifications}
+              placeholder="Select Classification"
+            />
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#155724' }}>RT</label>
@@ -2156,16 +2324,12 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 100px auto', gap: '15px', marginBottom: '15px', alignItems: 'end' }}>
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Equipment Type</label>
-            <select
+            <SearchableSelect
               value={currentEquipment.type}
-              onChange={(e) => setCurrentEquipment({ ...currentEquipment, type: e.target.value })}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
-            >
-              <option value="">Select Equipment</option>
-              {equipmentTypes.map(t => (
-                <option key={t} value={t}>{t}</option>
-              ))}
-            </select>
+              onChange={(val) => setCurrentEquipment({ ...currentEquipment, type: val })}
+              options={equipmentTypes}
+              placeholder="Select Equipment"
+            />
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Hours</label>
