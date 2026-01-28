@@ -1,9 +1,11 @@
 // ShadowAuditDashboard.jsx - Efficiency Audit Dashboard for Admin Portal
 // Shows value lost, inertia ratios, and delay breakdowns across all reports
+// Includes Goodhart's Law protection with triangulation verification
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 import { defaultRates } from './constants.js'
+import { verifyEfficiency, aggregateEfficiencyVerification } from './shadowAuditUtils.js'
 
 function ShadowAuditDashboard() {
   const [loading, setLoading] = useState(true)
@@ -25,7 +27,20 @@ function ShadowAuditDashboard() {
     assetDelayCount: 0,
     delayReasonBreakdown: {},
     spreadComparison: [],
-    dailyTrend: []
+    dailyTrend: [],
+    // Goodhart's Law protection metrics
+    reliability: {
+      overallReliability: 'RELIABLE',
+      totalLinearMetres: 0,
+      overallProductionRatio: 100,
+      overallQualityRate: 100,
+      totalReworkCost: 0,
+      avgProductivityDragPenalty: 0,
+      criticalAlerts: [],
+      unreliableBlocks: 0,
+      questionableBlocks: 0,
+      trueCostOfCompletion: 0
+    }
   })
 
   useEffect(() => {
@@ -148,6 +163,13 @@ function ShadowAuditDashboard() {
       ? (totalShadowHours / totalBilledHours) * 100
       : 100
 
+    // Goodhart's Law Protection: Aggregate efficiency verification
+    const allBlocks = reportsData.flatMap(r => r.activity_blocks || [])
+    const reliability = aggregateEfficiencyVerification(allBlocks)
+
+    // Calculate True Cost of Completion
+    const trueCostOfCompletion = totalValueLost + reliability.totalReworkCost
+
     setMetrics({
       totalBilledHours,
       totalShadowHours,
@@ -157,7 +179,11 @@ function ShadowAuditDashboard() {
       assetDelayCount,
       delayReasonBreakdown,
       spreadComparison,
-      dailyTrend
+      dailyTrend,
+      reliability: {
+        ...reliability,
+        trueCostOfCompletion
+      }
     })
   }
 
@@ -276,10 +302,111 @@ function ShadowAuditDashboard() {
         </div>
       </div>
 
+      {/* Data Reliability Indicator - Goodhart's Law Protection */}
+      {metrics.reliability.criticalAlerts.length > 0 || metrics.reliability.overallReliability !== 'RELIABLE' ? (
+        <div style={{
+          backgroundColor: metrics.reliability.overallReliability === 'UNRELIABLE' ? '#f8d7da' :
+                          metrics.reliability.overallReliability === 'QUESTIONABLE' ? '#fff3cd' : '#d1ecf1',
+          border: `1px solid ${metrics.reliability.overallReliability === 'UNRELIABLE' ? '#f5c6cb' :
+                               metrics.reliability.overallReliability === 'QUESTIONABLE' ? '#ffeeba' : '#bee5eb'}`,
+          borderRadius: '8px',
+          padding: '15px 20px',
+          marginBottom: '20px'
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '24px' }}>
+                {metrics.reliability.overallReliability === 'UNRELIABLE' ? '⚠️' :
+                 metrics.reliability.overallReliability === 'QUESTIONABLE' ? '🔍' : 'ℹ️'}
+              </span>
+              <div>
+                <strong style={{
+                  color: metrics.reliability.overallReliability === 'UNRELIABLE' ? '#721c24' :
+                         metrics.reliability.overallReliability === 'QUESTIONABLE' ? '#856404' : '#0c5460'
+                }}>
+                  Data Reliability: {metrics.reliability.overallReliability.replace('_', ' ')}
+                </strong>
+                <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: '#666' }}>
+                  {metrics.reliability.unreliableBlocks} unreliable, {metrics.reliability.questionableBlocks} questionable blocks
+                </p>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '20px', marginLeft: 'auto' }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>Production</div>
+                <div style={{
+                  fontSize: '18px',
+                  fontWeight: 'bold',
+                  color: metrics.reliability.overallProductionRatio >= 80 ? '#28a745' :
+                         metrics.reliability.overallProductionRatio >= 60 ? '#ffc107' : '#dc3545'
+                }}>
+                  {metrics.reliability.overallProductionRatio.toFixed(0)}%
+                </div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>Quality</div>
+                <div style={{
+                  fontSize: '18px',
+                  fontWeight: 'bold',
+                  color: metrics.reliability.overallQualityRate >= 90 ? '#28a745' :
+                         metrics.reliability.overallQualityRate >= 80 ? '#ffc107' : '#dc3545'
+                }}>
+                  {metrics.reliability.overallQualityRate.toFixed(0)}%
+                </div>
+              </div>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{ fontSize: '11px', color: '#666', textTransform: 'uppercase' }}>Rework Cost</div>
+                <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#dc3545' }}>
+                  ${metrics.reliability.totalReworkCost.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Critical Alerts */}
+          {metrics.reliability.criticalAlerts.length > 0 && (
+            <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid rgba(0,0,0,0.1)' }}>
+              <strong style={{ fontSize: '12px', color: '#721c24' }}>Metric Mismatch Alerts:</strong>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', marginTop: '8px' }}>
+                {metrics.reliability.criticalAlerts.slice(0, 5).map((alert, idx) => (
+                  <span key={idx} style={{
+                    padding: '4px 10px',
+                    backgroundColor: alert.severity === 'critical' ? '#dc3545' : '#ffc107',
+                    color: alert.severity === 'critical' ? '#fff' : '#333',
+                    borderRadius: '12px',
+                    fontSize: '11px',
+                    fontWeight: 'bold'
+                  }}>
+                    {alert.type.replace(/_/g, ' ')}: {alert.activityType}
+                  </span>
+                ))}
+                {metrics.reliability.criticalAlerts.length > 5 && (
+                  <span style={{ fontSize: '11px', color: '#666' }}>
+                    +{metrics.reliability.criticalAlerts.length - 5} more
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      ) : null}
+
       {/* Key Metrics Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '30px' }}>
+        {/* True Cost of Completion - New Primary Metric */}
+        <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', borderLeft: '4px solid #6f42c1' }}>
+          <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', textTransform: 'uppercase' }}>True Cost of Completion</h3>
+          <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', color: '#6f42c1' }}>
+            ${metrics.reliability.trueCostOfCompletion.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+          </p>
+          <p style={{ margin: '5px 0 0 0', fontSize: '12px', color: '#666' }}>
+            Value lost + rework cost
+          </p>
+        </div>
+
         <div style={{ backgroundColor: '#fff', padding: '25px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', borderLeft: '4px solid #dc3545' }}>
-          <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', textTransform: 'uppercase' }}>Total Value Lost</h3>
+          <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '13px', textTransform: 'uppercase' }}>Value Lost (Time)</h3>
           <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', color: '#dc3545' }}>
             ${metrics.totalValueLost.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
           </p>
