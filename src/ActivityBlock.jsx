@@ -115,10 +115,13 @@ function SearchableSelect({
   const containerRef = React.useRef(null)
   const inputRef = React.useRef(null)
 
-  // Filter options based on search text
-  const filteredOptions = options.filter(opt =>
-    opt.toLowerCase().includes(searchText.toLowerCase())
-  )
+  // Filter options based on search text - matches all words in any order
+  const filteredOptions = options.filter(opt => {
+    if (!searchText.trim()) return true
+    const optLower = opt.toLowerCase().replace(/-/g, ' ')
+    const searchWords = searchText.toLowerCase().split(/\s+/).filter(w => w)
+    return searchWords.every(word => optLower.includes(word))
+  })
 
   // Close dropdown when clicking outside
   useEffect(() => {
