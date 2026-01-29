@@ -1427,12 +1427,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
   }
 
   // Production Status Toggle Component for Efficiency Audit
-  const individualStatusTooltips = {
-    ACTIVE: 'Active: Working efficiently at full productivity (100%)',
-    SYNC_DELAY: 'Sync Delay: Partial work - waiting for materials, coordination issues (70% productivity)',
-    MANAGEMENT_DRAG: 'Mgmt Drag: Complete stop - permits, regulatory, instructions needed (0% productivity)'
-  }
-
+  // Field Activity Status Toggle - inspector-friendly terminology
   const ProductionStatusToggle = ({ value, onChange, onReasonChange, reason }) => {
     const [showReasonInput, setShowReasonInput] = useState(false)
     const needsReason = value === 'SYNC_DELAY' || value === 'MANAGEMENT_DRAG'
@@ -1453,7 +1448,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                   if (onReasonChange) onReasonChange('')
                 }
               }}
-              title={individualStatusTooltips[status.value]}
+              title={status.tooltip}
               style={{
                 padding: '4px 6px',
                 fontSize: '10px',
@@ -1467,16 +1462,16 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                 transition: 'all 0.15s ease'
               }}
             >
-              {status.value === 'ACTIVE' ? '✓' : status.value === 'SYNC_DELAY' ? '⏳' : '⛔'}
+              {status.icon}
             </button>
           ))}
           {needsReason && onReasonChange && (
             <span
               style={{ fontSize: '9px', color: '#6f42c1', cursor: 'pointer', marginLeft: '4px' }}
               onClick={() => setShowReasonInput(!showReasonInput)}
-              title="Click to add/edit delay reason"
+              title="Click to add/edit reason"
             >
-              {reason ? '✎' : '+reason'}
+              {reason ? '✎' : '+why'}
             </span>
           )}
         </div>
@@ -1485,7 +1480,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
             type="text"
             value={reason || ''}
             onChange={(e) => onReasonChange(e.target.value)}
-            placeholder="Delay reason..."
+            placeholder="Reason..."
             title={delayReasonExamples}
             style={{
               padding: '3px 6px',
@@ -2010,7 +2005,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           // Simple toggle when not active
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
             <span style={{ fontSize: '13px', color: '#666' }}>
-              ⏱️ Did the entire crew experience a delay?
+              ⏱️ Did the entire crew have reduced productivity?
             </span>
             <button
               type="button"
@@ -2019,14 +2014,14 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                 padding: '8px 16px',
                 fontSize: '13px',
                 fontWeight: 'bold',
-                backgroundColor: '#6f42c1',
+                backgroundColor: '#17a2b8',
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
                 cursor: 'pointer'
               }}
             >
-              Report Crew Delay
+              Report Site Condition
             </button>
           </div>
         ) : (
@@ -2034,7 +2029,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           <>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
               <span style={{ fontWeight: 'bold', fontSize: '14px', color: systemicStatusConfig?.color || '#dc3545' }}>
-                ⚠️ Crew-Wide Delay Active
+                ⚠️ Site Condition Affecting Crew
               </span>
               <button
                 type="button"
@@ -2049,7 +2044,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                   cursor: 'pointer'
                 }}
               >
-                ✕ Cancel
+                ✕ Clear
               </button>
             </div>
             {/* Status Buttons with Tooltips */}
@@ -2072,15 +2067,15 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                           cursor: 'pointer'
                         }}
                       >
-                        {s.value === 'SYNC_DELAY' ? '⏳ Sync Delay' : '⛔ Mgmt Drag'}
+                        {s.icon} {s.label}
                       </button>
                     </div>
                   ))}
                 </div>
                 {/* Explanation text below buttons */}
-                <div style={{ fontSize: '10px', color: '#666', maxWidth: '280px', lineHeight: '1.3' }}>
-                  <strong>⏳ Sync Delay</strong>: Partial work (70%) - waiting for materials, coordination<br/>
-                  <strong>⛔ Mgmt Drag</strong>: Full stop (0%) - permits, regulatory, instructions needed
+                <div style={{ fontSize: '10px', color: '#666', maxWidth: '320px', lineHeight: '1.3' }}>
+                  <strong>⏳ Partial Work</strong>: Slowed by materials, sync, or minor site issues<br/>
+                  <strong>🛑 Standby</strong>: Waiting for permits, instructions, or regulatory clearance
                 </div>
               </div>
 
@@ -2214,7 +2209,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
 
         {block.labourEntries.length > 0 && (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '700px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '750px' }}>
               <thead>
                 <tr style={{ backgroundColor: '#c3e6cb' }}>
                   <th style={{ padding: '8px', textAlign: 'left' }}>Employee</th>
@@ -2223,8 +2218,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                   <th style={{ padding: '8px', textAlign: 'center', width: '45px' }}>OT</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '55px' }}>JH</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}>Cnt</th>
-                  <th style={{ padding: '8px', textAlign: 'center', width: '75px', backgroundColor: '#e2d5f1' }}>Status</th>
-                  <th style={{ padding: '8px', textAlign: 'center', width: '55px', backgroundColor: '#e2d5f1' }}>Shadow</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '80px', backgroundColor: '#e8f4ea' }} title="Field Activity Status">Field Status</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '55px', backgroundColor: '#e8f4ea' }} title="Productive Hours">Productive</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
                 </tr>
               </thead>
@@ -2254,13 +2249,13 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                           />
                         </td>
                         <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.count}</td>
-                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f5fc' }}>
+                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f9fa' }}>
                           <ProductionStatusToggle
                             value={prodStatus}
                             onChange={(status) => updateLabourProductionStatus(block.id, entry.id, status)}
                           />
                         </td>
-                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f5fc' }}>
+                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f9fa' }}>
                           <input
                             type="number"
                             value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? entry.shadowEffectiveHours : shadowHours.toFixed(1)}
@@ -2466,8 +2461,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                   <th style={{ padding: '8px', textAlign: 'left' }}>Equipment</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '60px' }}>Hours</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '50px' }}>Count</th>
-                  <th style={{ padding: '8px', textAlign: 'center', width: '75px', backgroundColor: '#e2d5f1' }}>Status</th>
-                  <th style={{ padding: '8px', textAlign: 'center', width: '55px', backgroundColor: '#e2d5f1' }}>Shadow</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '80px', backgroundColor: '#d4e6f7' }} title="Field Activity Status">Field Status</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '55px', backgroundColor: '#d4e6f7' }} title="Productive Hours">Productive</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
                 </tr>
               </thead>
@@ -2483,13 +2478,13 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                         <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6' }}>{entry.type}</td>
                         <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.hours}</td>
                         <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.count}</td>
-                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f5fc' }}>
+                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f9fa' }}>
                           <ProductionStatusToggle
                             value={prodStatus}
                             onChange={(status) => updateEquipmentProductionStatus(block.id, entry.id, status)}
                           />
                         </td>
-                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f5fc' }}>
+                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f9fa' }}>
                           <input
                             type="number"
                             value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? entry.shadowEffectiveHours : shadowHours.toFixed(1)}
@@ -2642,12 +2637,13 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
         )}
       </div>
 
-      {/* Truth Trigger - Productivity Mismatch Detection */}
+      {/* Verification Summary - Billed vs Productive Hours */}
       {(() => {
         // Calculate metrics for this block
         const totalBilledHours = calculateTotalBilledHours(block)
         const totalShadowHours = calculateTotalShadowHours(block)
-        const inertiaRatio = totalBilledHours > 0 ? (totalShadowHours / totalBilledHours) * 100 : 0
+        const productivePercent = totalBilledHours > 0 ? (totalShadowHours / totalBilledHours) * 100 : 100
+        const nonWorkingHours = totalBilledHours - totalShadowHours
 
         // Calculate linear metres (KP Difference)
         let linearMetres = 0
@@ -2659,80 +2655,96 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           }
         }
 
-        // Check if any entry is marked as ACTIVE (multiplier 1.0)
+        // Check if any entry is marked as Full Production
         const hasActiveEntries = [
           ...(block.labourEntries || []),
           ...(block.equipmentEntries || [])
         ].some(entry => (entry.productionStatus || 'ACTIVE') === 'ACTIVE')
 
-        // Truth Trigger conditions:
-        // 1. High efficiency (>= 80%) but low/no progress (< 50m)
-        // 2. OR: Any entry marked ACTIVE but KP difference is 0
-        const highEfficiencyLowProgress = inertiaRatio >= 80 && linearMetres < 50 && totalBilledHours > 0
-        const activeButZeroProgress = hasActiveEntries && linearMetres === 0 && totalBilledHours > 0
+        // Verification needed conditions:
+        // 1. High productivity % but low/no progress (< 50m)
+        // 2. OR: Any entry marked Full Production but KP difference is 0
+        const highProductivityLowProgress = productivePercent >= 80 && linearMetres < 50 && totalBilledHours > 0
+        const fullProductionButZeroProgress = hasActiveEntries && linearMetres === 0 && totalBilledHours > 0
+        const needsVerification = highProductivityLowProgress || fullProductionButZeroProgress
 
-        const isTruthTrigger = highEfficiencyLowProgress || activeButZeroProgress
-
-        if (!isTruthTrigger) return null
-
-        // Determine trigger reason for display
-        const triggerReason = activeButZeroProgress && linearMetres === 0
-          ? 'Production Status marked "Active" but KP difference is 0'
-          : `Inertia Ratio: ${inertiaRatio.toFixed(0)}% (high productivity) | Linear Metres: ${linearMetres}m (low progress)`
+        // Always show verification summary when there are hours
+        if (totalBilledHours === 0) return null
 
         return (
           <div style={{
             padding: '15px',
-            backgroundColor: '#f8d7da',
+            backgroundColor: needsVerification ? '#fff3cd' : '#e8f5e9',
             borderRadius: '8px',
-            border: '2px solid #dc3545',
+            border: needsVerification ? '2px solid #ffc107' : '1px solid #c3e6cb',
             marginBottom: '15px'
           }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
-              <span style={{ fontSize: '24px' }}>🚨</span>
-              <div>
-                <h4 style={{ margin: 0, color: '#721c24', fontSize: '14px' }}>
-                  Productivity Mismatch Detected
-                </h4>
-                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#856404' }}>
-                  {triggerReason}
-                </p>
-              </div>
-            </div>
-
-            <div style={{ marginBottom: '10px' }}>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#721c24', marginBottom: '6px' }}>
-                Please explain the cause of low progress: <span style={{ color: '#dc3545' }}>*</span>
-              </label>
-              <textarea
-                value={block.reliability_notes || ''}
-                onChange={(e) => updateBlock(block.id, 'reliability_notes', e.target.value)}
-                placeholder="Examples: Setup day for new spread, equipment mobilization, safety stand-down for training, waiting for survey crew, material delivery delays..."
-                style={{
-                  width: '100%',
-                  minHeight: '80px',
-                  padding: '10px',
-                  border: block.reliability_notes?.trim() ? '1px solid #28a745' : '2px solid #dc3545',
-                  borderRadius: '4px',
-                  fontSize: '13px',
-                  resize: 'vertical',
-                  boxSizing: 'border-box',
-                  backgroundColor: block.reliability_notes?.trim() ? '#fff' : '#fff5f5'
-                }}
-                required
-              />
-              {!block.reliability_notes?.trim() && (
-                <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#dc3545', fontWeight: 'bold' }}>
-                  This explanation is required before submitting the report.
-                </p>
+            {/* Verification Summary Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+              <h4 style={{ margin: 0, color: '#495057', fontSize: '14px' }}>
+                📋 Verification Summary
+              </h4>
+              {!needsVerification && (
+                <span style={{ fontSize: '12px', color: '#28a745', fontWeight: 'bold' }}>✓ Verified</span>
               )}
             </div>
 
-            <div style={{ fontSize: '11px', color: '#666', padding: '8px', backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: '4px' }}>
-              <strong>Why this matters:</strong> High productive time with minimal progress may indicate
-              data entry issues or legitimate circumstances (mobilization, setup, weather). Your explanation
-              helps verify data integrity and provides context for project analysis.
+            {/* Billed vs Productive Summary */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: needsVerification ? '15px' : '0' }}>
+              <div style={{ textAlign: 'center', padding: '10px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #dee2e6' }}>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#495057' }}>{totalBilledHours.toFixed(1)}</div>
+                <div style={{ fontSize: '11px', color: '#666' }}>Billed Hours</div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '10px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #dee2e6' }}>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#28a745' }}>{totalShadowHours.toFixed(1)}</div>
+                <div style={{ fontSize: '11px', color: '#666' }}>Productive Hours</div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '10px', backgroundColor: nonWorkingHours > 0 ? '#fff3cd' : '#fff', borderRadius: '6px', border: '1px solid #dee2e6' }}>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', color: nonWorkingHours > 0 ? '#856404' : '#28a745' }}>{nonWorkingHours.toFixed(1)}</div>
+                <div style={{ fontSize: '11px', color: '#666' }}>Non-Working Hours</div>
+              </div>
             </div>
+
+            {/* Additional context needed */}
+            {needsVerification && (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                  <span style={{ fontSize: '18px' }}>📝</span>
+                  <span style={{ fontSize: '12px', color: '#856404' }}>
+                    {fullProductionButZeroProgress && linearMetres === 0
+                      ? 'Full production status set but no KP progress recorded'
+                      : `${productivePercent.toFixed(0)}% productive time with ${linearMetres}m progress`}
+                  </span>
+                </div>
+
+                <div style={{ marginBottom: '10px' }}>
+                  <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#495057', marginBottom: '6px' }}>
+                    Please add a note explaining site conditions: <span style={{ color: '#dc3545' }}>*</span>
+                  </label>
+                  <textarea
+                    value={block.reliability_notes || ''}
+                    onChange={(e) => updateBlock(block.id, 'reliability_notes', e.target.value)}
+                    placeholder="Examples: Setup day for new spread, equipment mobilization, safety stand-down, waiting for survey crew..."
+                    style={{
+                      width: '100%',
+                      minHeight: '70px',
+                      padding: '10px',
+                      border: block.reliability_notes?.trim() ? '1px solid #28a745' : '2px solid #ffc107',
+                      borderRadius: '4px',
+                      fontSize: '13px',
+                      resize: 'vertical',
+                      boxSizing: 'border-box',
+                      backgroundColor: block.reliability_notes?.trim() ? '#fff' : '#fffbf0'
+                    }}
+                  />
+                  {!block.reliability_notes?.trim() && (
+                    <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#856404' }}>
+                      A brief note helps document the site conditions accurately.
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )
       })()}

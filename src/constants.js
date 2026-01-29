@@ -247,11 +247,11 @@ export const timeLostReasons = [
   'Other'
 ]
 
-// Efficiency Audit - Production Status definitions
+// Field Activity Status definitions (inspector-friendly terminology)
 export const productionStatuses = [
-  { value: 'ACTIVE', label: 'Active', multiplier: 1.0, color: '#28a745' },
-  { value: 'SYNC_DELAY', label: 'Sync Delay', multiplier: 0.7, color: '#ffc107' },
-  { value: 'MANAGEMENT_DRAG', label: 'Mgmt Drag', multiplier: 0.0, color: '#dc3545' }
+  { value: 'ACTIVE', label: 'Full Production', icon: '🚀', multiplier: 1.0, color: '#28a745', tooltip: 'Working at expected pace' },
+  { value: 'SYNC_DELAY', label: 'Partial Work', icon: '⏳', multiplier: 0.7, color: '#ffc107', tooltip: 'Slowed by materials, sync, or minor site issues' },
+  { value: 'MANAGEMENT_DRAG', label: 'Standby', icon: '🛑', multiplier: 0.0, color: '#dc3545', tooltip: 'Waiting for permits, instructions, or regulatory clearance' }
 ]
 
 // Efficiency Audit - Impact Scope definitions
