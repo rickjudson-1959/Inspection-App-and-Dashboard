@@ -756,7 +756,7 @@ function OverviewTab({ metrics, sCurveData, healthAssessment, dragMetrics, metri
             </div>
 
             {/* Responsibility Breakdown - Owner vs Contractor vs Neutral */}
-            {dragMetrics.partyBreakdown && dragMetrics.partyBreakdown.total > 0 && (
+            {dragMetrics.partyBreakdown && dragMetrics.totalValueLost > 0 && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                 <div style={{ padding: '15px', backgroundColor: '#f0f9ff', borderRadius: '8px', border: '1px solid #bae6fd' }}>
                   <h4 style={{ margin: '0 0 15px 0', fontSize: '13px', color: '#0369a1' }}>🔧 Accountability Breakdown</h4>
@@ -773,7 +773,7 @@ function OverviewTab({ metrics, sCurveData, healthAssessment, dragMetrics, metri
                         {formatCurrency(dragMetrics.partyBreakdown.owner)}
                       </div>
                       <div style={{ fontSize: '10px', color: '#666' }}>
-                        {dragMetrics.partyBreakdown.total > 0 ? ((dragMetrics.partyBreakdown.owner / dragMetrics.partyBreakdown.total) * 100).toFixed(0) : 0}%
+                        {dragMetrics.totalValueLost > 0 ? ((dragMetrics.partyBreakdown.owner / dragMetrics.totalValueLost) * 100).toFixed(0) : 0}%
                       </div>
                     </div>
                     {/* Contractor */}
@@ -788,7 +788,7 @@ function OverviewTab({ metrics, sCurveData, healthAssessment, dragMetrics, metri
                         {formatCurrency(dragMetrics.partyBreakdown.contractor)}
                       </div>
                       <div style={{ fontSize: '10px', color: '#666' }}>
-                        {dragMetrics.partyBreakdown.total > 0 ? ((dragMetrics.partyBreakdown.contractor / dragMetrics.partyBreakdown.total) * 100).toFixed(0) : 0}%
+                        {dragMetrics.totalValueLost > 0 ? ((dragMetrics.partyBreakdown.contractor / dragMetrics.totalValueLost) * 100).toFixed(0) : 0}%
                       </div>
                     </div>
                     {/* Neutral */}
@@ -803,9 +803,30 @@ function OverviewTab({ metrics, sCurveData, healthAssessment, dragMetrics, metri
                         {formatCurrency(dragMetrics.partyBreakdown.neutral)}
                       </div>
                       <div style={{ fontSize: '10px', color: '#666' }}>
-                        {dragMetrics.partyBreakdown.total > 0 ? ((dragMetrics.partyBreakdown.neutral / dragMetrics.partyBreakdown.total) * 100).toFixed(0) : 0}%
+                        {dragMetrics.totalValueLost > 0 ? ((dragMetrics.partyBreakdown.neutral / dragMetrics.totalValueLost) * 100).toFixed(0) : 0}%
                       </div>
                     </div>
+                    {/* Unattributed */}
+                    {(() => {
+                      const unattributed = dragMetrics.totalValueLost - (dragMetrics.partyBreakdown.owner + dragMetrics.partyBreakdown.contractor + dragMetrics.partyBreakdown.neutral)
+                      if (unattributed <= 0) return null
+                      return (
+                        <div style={{ textAlign: 'center' }}>
+                          <div style={{
+                            width: '60px', height: '60px', borderRadius: '50%',
+                            backgroundColor: '#9ca3af', display: 'flex', alignItems: 'center',
+                            justifyContent: 'center', margin: '0 auto 8px', color: 'white', fontSize: '24px'
+                          }}>❓</div>
+                          <div style={{ fontSize: '11px', color: '#666', fontWeight: '600' }}>UNATTRIBUTED</div>
+                          <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#9ca3af' }}>
+                            {formatCurrency(unattributed)}
+                          </div>
+                          <div style={{ fontSize: '10px', color: '#666' }}>
+                            {dragMetrics.totalValueLost > 0 ? ((unattributed / dragMetrics.totalValueLost) * 100).toFixed(0) : 0}%
+                          </div>
+                        </div>
+                      )
+                    })()}
                   </div>
                 </div>
 
@@ -817,9 +838,13 @@ function OverviewTab({ metrics, sCurveData, healthAssessment, dragMetrics, metri
                   <p style={{ fontSize: '11px', color: '#666', margin: '0 0 10px 0' }}>
                     Value lost to contractor-caused delays (mechanical breakdown, supervisory latency, ROW congestion, etc.)
                   </p>
-                  {dragMetrics.partyBreakdown.contractor > 0 && (
+                  {dragMetrics.partyBreakdown.contractor > 0 ? (
                     <div style={{ padding: '8px', backgroundColor: '#fef3c7', borderRadius: '4px', fontSize: '11px', color: '#92400e' }}>
                       ⚠️ This amount may be recoverable through back-charges or contract negotiations
+                    </div>
+                  ) : (
+                    <div style={{ padding: '8px', backgroundColor: '#e0e7ff', borderRadius: '4px', fontSize: '11px', color: '#3730a3' }}>
+                      ℹ️ Assign delay reasons in reports to attribute value lost to parties
                     </div>
                   )}
                 </div>
