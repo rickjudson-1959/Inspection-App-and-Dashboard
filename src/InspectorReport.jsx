@@ -4835,6 +4835,358 @@ Important:
         y += 3
       }
 
+      // Welding - Tie-in Log
+      if (block.activityType === 'Welding - Tie-in' && block.weldData?.tieIns?.length > 0) {
+        checkPageBreak(40)
+        addSubHeader('Tie-In Weld Data', '#fff3e0')
+
+        // Summary row
+        setColor('#fff3e0', 'fill')
+        doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
+        setColor(BRAND.navy, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.text(`Tie-Ins: ${block.weldData.tieIns.length}`, margin + 4, y + 5)
+        if (block.weldData.pipeSize) doc.text(`Pipe: ${block.weldData.pipeSize}`, margin + 50, y + 5)
+        y += 11
+
+        // Table header
+        setColor('#fd7e14', 'fill')
+        doc.rect(margin, y, contentWidth, 5, 'F')
+        setColor(BRAND.white, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(6)
+        doc.text('WELD #', margin + 2, y + 3.5)
+        doc.text('LOCATION', margin + 35, y + 3.5)
+        doc.text('US JOINT', margin + 65, y + 3.5)
+        doc.text('DS JOINT', margin + 95, y + 3.5)
+        doc.text('WPS', margin + 125, y + 3.5)
+        doc.text('STATUS', margin + 155, y + 3.5)
+        y += 6
+
+        // Table rows
+        block.weldData.tieIns.forEach((tieIn, i) => {
+          checkPageBreak(6)
+          if (i % 2 === 0) {
+            setColor(BRAND.grayLight, 'fill')
+            doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+          }
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(String(tieIn.weldNumber || tieIn.tieInNumber || '-').substring(0, 12), margin + 2, y + 2.5)
+          doc.text(String(tieIn.location || tieIn.kp || '-').substring(0, 12), margin + 35, y + 2.5)
+          doc.text(String(tieIn.usJointNumber || '-').substring(0, 12), margin + 65, y + 2.5)
+          doc.text(String(tieIn.dsJointNumber || '-').substring(0, 12), margin + 95, y + 2.5)
+          doc.text(String(tieIn.wpsId || '-').substring(0, 12), margin + 125, y + 2.5)
+          doc.text(String(tieIn.status || 'In Progress').substring(0, 12), margin + 155, y + 2.5)
+          y += 4.5
+        })
+        y += 3
+      }
+
+      // Conventional Bore (HD Bores) Log
+      if (block.activityType === 'HD Bores' && block.conventionalBoreData) {
+        checkPageBreak(50)
+        addSubHeader('Conventional Bore Data', '#e3f2fd')
+
+        // Basic Info
+        const boreBasic = []
+        if (block.conventionalBoreData.boreMethod) boreBasic.push(`Method: ${block.conventionalBoreData.boreMethod}`)
+        if (block.conventionalBoreData.boreContractor) boreBasic.push(`Contractor: ${block.conventionalBoreData.boreContractor}`)
+        if (block.conventionalBoreData.crossingType) boreBasic.push(`Crossing: ${block.conventionalBoreData.crossingType}`)
+        if (block.conventionalBoreData.boreLengthM) boreBasic.push(`Length: ${block.conventionalBoreData.boreLengthM}m`)
+        if (block.conventionalBoreData.casingSize) boreBasic.push(`Casing: ${block.conventionalBoreData.casingSize}`)
+
+        if (boreBasic.length > 0) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(boreBasic.join('  |  '), margin + 4, y + 3)
+          y += 8
+        }
+
+        // Progress
+        const progressItems = []
+        if (block.conventionalBoreData.progressTodayM) progressItems.push(`Today: ${block.conventionalBoreData.progressTodayM}m`)
+        if (block.conventionalBoreData.progressToDateM) progressItems.push(`To Date: ${block.conventionalBoreData.progressToDateM}m`)
+        if (block.conventionalBoreData.percentComplete) progressItems.push(`Complete: ${block.conventionalBoreData.percentComplete}%`)
+
+        if (progressItems.length > 0) {
+          setColor('#1976d2', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor(BRAND.white, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('PROGRESS: ' + progressItems.join('  |  '), margin + 4, y + 4)
+          y += 8
+        }
+
+        if (block.conventionalBoreData.comments) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'italic')
+          doc.setFontSize(6)
+          doc.text('Comments: ' + String(block.conventionalBoreData.comments).substring(0, 100), margin + 4, y + 3)
+          y += 6
+        }
+        y += 3
+      }
+
+      // Piling Log
+      if (block.activityType === 'Piling' && block.pilingData) {
+        checkPageBreak(50)
+        addSubHeader('Piling Data', '#fce4ec')
+
+        // Basic Info
+        const pilingBasic = []
+        if (block.pilingData.pilingContractor) pilingBasic.push(`Contractor: ${block.pilingData.pilingContractor}`)
+        if (block.pilingData.pileDriverNumber) pilingBasic.push(`Driver #: ${block.pilingData.pileDriverNumber}`)
+        if (block.pilingData.pileNo) pilingBasic.push(`Pile #: ${block.pilingData.pileNo}`)
+        if (block.pilingData.pileTypeSize) pilingBasic.push(`Type/Size: ${block.pilingData.pileTypeSize}`)
+
+        if (pilingBasic.length > 0) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(pilingBasic.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Pile Details
+        const pileDetails = []
+        if (block.pilingData.finalLength) pileDetails.push(`Final Length: ${block.pilingData.finalLength}`)
+        if (block.pilingData.noOfSplices) pileDetails.push(`Splices: ${block.pilingData.noOfSplices}`)
+        if (block.pilingData.hammerType) pileDetails.push(`Hammer: ${block.pilingData.hammerType}`)
+        if (block.pilingData.hammerWeightKg) pileDetails.push(`Weight: ${block.pilingData.hammerWeightKg}kg`)
+        if (block.pilingData.dropDistanceM) pileDetails.push(`Drop: ${block.pilingData.dropDistanceM}m`)
+        if (block.pilingData.refusalCriteria) pileDetails.push(`Refusal: ${block.pilingData.refusalCriteria}`)
+
+        if (pileDetails.length > 0) {
+          doc.text(pileDetails.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Elevations
+        const elevations = []
+        if (block.pilingData.gradeElevation) elevations.push(`Grade: ${block.pilingData.gradeElevation}`)
+        if (block.pilingData.cutOffElevation) elevations.push(`Cut-Off: ${block.pilingData.cutOffElevation}`)
+
+        if (elevations.length > 0) {
+          doc.text(elevations.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Locations table
+        if (block.pilingData.locations?.length > 0) {
+          checkPageBreak(20)
+          setColor('#e91e63', 'fill')
+          doc.rect(margin, y, contentWidth, 5, 'F')
+          setColor(BRAND.white, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(6)
+          doc.text('LOCATION', margin + 2, y + 3.5)
+          doc.text('KP', margin + 60, y + 3.5)
+          doc.text('NOTES', margin + 100, y + 3.5)
+          y += 6
+
+          block.pilingData.locations.forEach((loc, i) => {
+            checkPageBreak(5)
+            if (i % 2 === 0) {
+              setColor(BRAND.grayLight, 'fill')
+              doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+            }
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(String(loc.description || loc.location || '-').substring(0, 25), margin + 2, y + 2.5)
+            doc.text(String(loc.kp || '-').substring(0, 15), margin + 60, y + 2.5)
+            doc.text(String(loc.notes || '-').substring(0, 40), margin + 100, y + 2.5)
+            y += 4.5
+          })
+        }
+
+        if (block.pilingData.comments) {
+          checkPageBreak(10)
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'italic')
+          doc.setFontSize(6)
+          doc.text('Comments: ' + String(block.pilingData.comments).substring(0, 100), margin + 4, y + 3)
+          y += 6
+        }
+        y += 3
+      }
+
+      // Equipment Cleaning Log
+      if (block.activityType === 'Equipment Cleaning' && block.cleaningLogData?.entries?.length > 0) {
+        checkPageBreak(40)
+        addSubHeader('Equipment Cleaning Log', '#c8e6c9')
+
+        // Summary
+        setColor('#c8e6c9', 'fill')
+        doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
+        setColor(BRAND.navy, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.text(`Equipment Cleaned: ${block.cleaningLogData.entries.length}`, margin + 4, y + 5)
+        y += 11
+
+        // Table header
+        setColor('#28a745', 'fill')
+        doc.rect(margin, y, contentWidth, 5, 'F')
+        setColor(BRAND.white, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(6)
+        doc.text('DATE', margin + 2, y + 3.5)
+        doc.text('UNIT/ITEM', margin + 30, y + 3.5)
+        doc.text('LEVEL', margin + 80, y + 3.5)
+        doc.text('PHOTOS', margin + 110, y + 3.5)
+        doc.text('LSD', margin + 135, y + 3.5)
+        doc.text('DIRECTION', margin + 165, y + 3.5)
+        y += 6
+
+        // Table rows
+        block.cleaningLogData.entries.forEach((entry, i) => {
+          checkPageBreak(5)
+          if (i % 2 === 0) {
+            setColor(BRAND.grayLight, 'fill')
+            doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+          }
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(String(entry.date || '-').substring(0, 10), margin + 2, y + 2.5)
+          doc.text(String(entry.unitItem || '-').substring(0, 20), margin + 30, y + 2.5)
+          doc.text(String(entry.cleaningLevel || '-').substring(0, 10), margin + 80, y + 2.5)
+          doc.text(String(entry.photosTaken || '-').substring(0, 8), margin + 110, y + 2.5)
+          doc.text(String(entry.lsd || '-').substring(0, 12), margin + 135, y + 2.5)
+          doc.text(String(entry.directionOfTravel || '-').substring(0, 15), margin + 165, y + 2.5)
+          y += 4.5
+        })
+        y += 3
+      }
+
+      // Hydrovac Log
+      if (block.activityType === 'Hydrovac' && block.hydrovacData) {
+        checkPageBreak(50)
+        addSubHeader('Hydrovac Data', '#e1f5fe')
+
+        // Holes summary
+        if (block.hydrovacData.holes) {
+          const h = block.hydrovacData.holes
+          setColor('#03a9f4', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
+          setColor(BRAND.white, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          const holesInfo = []
+          if (h.parallelToday) holesInfo.push(`Parallel Today: ${h.parallelToday}`)
+          if (h.crossingToday) holesInfo.push(`Crossing Today: ${h.crossingToday}`)
+          if (h.totalToday) holesInfo.push(`Total Today: ${h.totalToday}`)
+          if (h.totalToDate) holesInfo.push(`To Date: ${h.totalToDate}`)
+          doc.text(holesInfo.join('  |  '), margin + 4, y + 5)
+          y += 11
+        }
+
+        // Facilities table
+        if (block.hydrovacData.facilities?.length > 0) {
+          setColor('#0288d1', 'fill')
+          doc.rect(margin, y, contentWidth, 5, 'F')
+          setColor(BRAND.white, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(6)
+          doc.text('FACILITY', margin + 2, y + 3.5)
+          doc.text('KP', margin + 50, y + 3.5)
+          doc.text('TYPE', margin + 80, y + 3.5)
+          doc.text('DEPTH', margin + 110, y + 3.5)
+          doc.text('STATUS', margin + 140, y + 3.5)
+          y += 6
+
+          block.hydrovacData.facilities.forEach((fac, i) => {
+            checkPageBreak(5)
+            if (i % 2 === 0) {
+              setColor(BRAND.grayLight, 'fill')
+              doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+            }
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(String(fac.facilityOwner || fac.name || '-').substring(0, 20), margin + 2, y + 2.5)
+            doc.text(String(fac.kp || '-').substring(0, 10), margin + 50, y + 2.5)
+            doc.text(String(fac.facilityType || '-').substring(0, 12), margin + 80, y + 2.5)
+            doc.text(String(fac.depth || '-').substring(0, 10), margin + 110, y + 2.5)
+            doc.text(String(fac.status || '-').substring(0, 15), margin + 140, y + 2.5)
+            y += 4.5
+          })
+        }
+        y += 3
+      }
+
+      // Welder Testing Log
+      if (block.activityType === 'Welder Testing' && block.welderTestingData?.welderTests?.length > 0) {
+        checkPageBreak(40)
+        addSubHeader('Welder Testing Log', '#fff8e1')
+
+        // Summary
+        setColor('#fff8e1', 'fill')
+        doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
+        setColor(BRAND.navy, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        const passCount = block.welderTestingData.welderTests.filter(t => t.passFail === 'Pass').length
+        const failCount = block.welderTestingData.welderTests.filter(t => t.passFail === 'Fail').length
+        doc.text(`Welder Tests: ${block.welderTestingData.welderTests.length} (Pass: ${passCount}, Fail: ${failCount})`, margin + 4, y + 5)
+        y += 11
+
+        // Table header
+        setColor('#ffc107', 'fill')
+        doc.rect(margin, y, contentWidth, 5, 'F')
+        setColor(BRAND.black, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(6)
+        doc.text('WELDER', margin + 2, y + 3.5)
+        doc.text('PROJECT ID', margin + 40, y + 3.5)
+        doc.text('DATE', margin + 75, y + 3.5)
+        doc.text('MATERIAL', margin + 100, y + 3.5)
+        doc.text('RESULT', margin + 130, y + 3.5)
+        doc.text('PROCEDURE', margin + 155, y + 3.5)
+        y += 6
+
+        // Table rows
+        block.welderTestingData.welderTests.forEach((test, i) => {
+          checkPageBreak(5)
+          if (i % 2 === 0) {
+            setColor(BRAND.grayLight, 'fill')
+            doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+          }
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(String(test.welderName || '-').substring(0, 15), margin + 2, y + 2.5)
+          doc.text(String(test.welderProjectId || '-').substring(0, 12), margin + 40, y + 2.5)
+          doc.text(String(test.testDate || '-').substring(0, 10), margin + 75, y + 2.5)
+          doc.text(String(test.testMaterial || '-').substring(0, 12), margin + 100, y + 2.5)
+          // Color code pass/fail
+          if (test.passFail === 'Pass') setColor(BRAND.green, 'text')
+          else if (test.passFail === 'Fail') setColor(BRAND.red, 'text')
+          doc.text(String(test.passFail || '-').substring(0, 8), margin + 130, y + 2.5)
+          setColor(BRAND.black, 'text')
+          doc.text(String(test.weldProcedure || '-').substring(0, 15), margin + 155, y + 2.5)
+          y += 4.5
+        })
+        y += 3
+      }
+
+      // Hydrostatic Testing Log (placeholder - minimal data)
+      if (block.activityType === 'Hydrostatic Testing' && block.hydrotestData) {
+        checkPageBreak(20)
+        addSubHeader('Hydrostatic Testing', '#e8eaf6')
+        setColor(BRAND.black, 'text')
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(7)
+        doc.text('Hydrotest data recorded - see detailed report', margin + 4, y + 3)
+        y += 8
+      }
+
       // Quality Checks
       if (block.qualityData && Object.keys(block.qualityData).length > 0) {
         const qualityEntries = Object.entries(block.qualityData).filter(([key, val]) => val && val !== '' && val !== 'N/A')
