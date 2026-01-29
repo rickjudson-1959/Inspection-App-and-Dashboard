@@ -1314,27 +1314,129 @@ function ReportViewer() {
           </div>
         )}
 
-        {/* SAFETY RECOGNITION */}
-        {report.safety_recognition_data?.enabled && report.safety_recognition_data?.cards?.length > 0 && (
+        {/* SAFETY RECOGNITION CARDS */}
+        {report.safety_recognition?.enabled && report.safety_recognition?.cards?.length > 0 && (
           <div style={{ ...sectionStyle, backgroundColor: '#d4edda', border: '1px solid #28a745' }}>
-            <h2 style={sectionHeaderStyle('#28a745')}>🏆 Safety Recognition</h2>
-            {report.safety_recognition_data.cards.map((card, idx) => (
-              <div key={idx} style={{ backgroundColor: 'white', padding: '12px', borderRadius: '4px', marginBottom: '10px' }}>
-                <strong>{card.employeeName}</strong> ({card.company}) - {card.category}
-                <p style={{ margin: '5px 0 0 0', fontSize: '13px' }}>{card.description}</p>
+            <h2 style={sectionHeaderStyle('#28a745')}>🏆 Safety Recognition / Hazard ID Cards ({report.safety_recognition.cards.length})</h2>
+            {report.safety_recognition.cards.map((card, idx) => (
+              <div key={idx} style={{
+                backgroundColor: 'white',
+                padding: '15px',
+                borderRadius: '6px',
+                marginBottom: '12px',
+                border: card.cardType === 'safe' ? '2px solid #ffc107' : '2px solid #28a745'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', paddingBottom: '8px', borderBottom: '1px solid #eee' }}>
+                  <strong style={{ color: card.cardType === 'safe' ? '#856404' : '#155724' }}>
+                    {card.cardType === 'safe' ? '⚠️ Hazard ID Card' : '🏆 Positive Recognition'} #{idx + 1}
+                  </strong>
+                  <span style={{ fontSize: '12px', color: '#666' }}>{card.observerDate}</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', fontSize: '13px', marginBottom: '10px' }}>
+                  <div><span style={{ color: '#666' }}>Observer:</span> <strong>{card.observerName || '-'}</strong></div>
+                  <div><span style={{ color: '#666' }}>Person Observed:</span> <strong>{card.observeeName || '-'}</strong></div>
+                  <div><span style={{ color: '#666' }}>Location:</span> <strong>{card.location || '-'}</strong></div>
+                  <div><span style={{ color: '#666' }}>Company:</span> <strong>{card.companyType === 'client' ? 'Client' : card.companyType === 'contractor' ? 'Contractor' : '-'}</strong></div>
+                </div>
+                {card.cardType === 'safe' && card.causeType && (
+                  <div style={{ fontSize: '13px', marginBottom: '8px' }}>
+                    <span style={{ color: '#666' }}>Cause:</span> <strong>{card.causeType}</strong>
+                  </div>
+                )}
+                {card.situationDescription && (
+                  <div style={{ backgroundColor: '#f8f9fa', padding: '10px', borderRadius: '4px', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#666', marginBottom: '4px' }}>Description:</div>
+                    <p style={{ margin: 0, fontSize: '13px' }}>{card.situationDescription}</p>
+                  </div>
+                )}
+                {card.cardType === 'safe' && card.whatCouldHaveHappened && (
+                  <div style={{ backgroundColor: '#fff3cd', padding: '10px', borderRadius: '4px', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#856404', marginBottom: '4px' }}>What Could Have Happened:</div>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#856404' }}>{card.whatCouldHaveHappened}</p>
+                  </div>
+                )}
+                {card.actions && card.actions.length > 0 && (
+                  <div style={{ marginTop: '10px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#666', marginBottom: '6px' }}>Actions:</div>
+                    <table style={{ width: '100%', fontSize: '12px', borderCollapse: 'collapse' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#e9ecef' }}>
+                          <th style={{ padding: '6px', textAlign: 'left', borderBottom: '1px solid #dee2e6' }}>Action</th>
+                          <th style={{ padding: '6px', textAlign: 'left', borderBottom: '1px solid #dee2e6' }}>By Whom</th>
+                          <th style={{ padding: '6px', textAlign: 'left', borderBottom: '1px solid #dee2e6' }}>Due</th>
+                          <th style={{ padding: '6px', textAlign: 'left', borderBottom: '1px solid #dee2e6' }}>Completed</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {card.actions.map((action, aIdx) => (
+                          <tr key={aIdx}>
+                            <td style={{ padding: '6px', borderBottom: '1px solid #eee' }}>{action.action}</td>
+                            <td style={{ padding: '6px', borderBottom: '1px solid #eee' }}>{action.byWhom || '-'}</td>
+                            <td style={{ padding: '6px', borderBottom: '1px solid #eee' }}>{action.dueDate || '-'}</td>
+                            <td style={{ padding: '6px', borderBottom: '1px solid #eee' }}>{action.dateCompleted || '-'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                <div style={{ display: 'flex', gap: '15px', marginTop: '10px', fontSize: '12px', color: '#666' }}>
+                  {card.acknowledged && <span style={{ color: '#28a745' }}>✓ Acknowledged</span>}
+                  {card.supervisorSignoff && <span>Supervisor: {card.supervisorSignoff}</span>}
+                  {card.incidentNumber && <span>Incident #: {card.incidentNumber}</span>}
+                </div>
+                {card.comments && (
+                  <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#666', fontStyle: 'italic' }}>Comments: {card.comments}</p>
+                )}
               </div>
             ))}
           </div>
         )}
 
         {/* WILDLIFE SIGHTINGS */}
-        {report.wildlife_sighting_data?.enabled && report.wildlife_sighting_data?.sightings?.length > 0 && (
-          <div style={{ ...sectionStyle, backgroundColor: '#e8f5e9', border: '1px solid #4caf50' }}>
-            <h2 style={sectionHeaderStyle('#4caf50')}>🦌 Wildlife Sightings</h2>
-            {report.wildlife_sighting_data.sightings.map((sighting, idx) => (
-              <div key={idx} style={{ backgroundColor: 'white', padding: '12px', borderRadius: '4px', marginBottom: '10px' }}>
-                <strong>{sighting.species}</strong> - {sighting.count} observed at KP {sighting.kp}
-                {sighting.notes && <p style={{ margin: '5px 0 0 0', fontSize: '13px' }}>{sighting.notes}</p>}
+        {report.wildlife_sighting?.enabled && report.wildlife_sighting?.sightings?.length > 0 && (
+          <div style={{ ...sectionStyle, backgroundColor: '#e8f8f5', border: '1px solid #20c997' }}>
+            <h2 style={sectionHeaderStyle('#20c997')}>🦌 Wildlife Sightings ({report.wildlife_sighting.sightings.length})</h2>
+            {report.wildlife_sighting.sightings.map((sighting, idx) => (
+              <div key={idx} style={{ backgroundColor: 'white', padding: '15px', borderRadius: '6px', marginBottom: '12px', border: '1px solid #b2dfdb' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', paddingBottom: '8px', borderBottom: '1px solid #eee' }}>
+                  <strong style={{ color: '#0ca678' }}>
+                    🦌 Sighting #{idx + 1}: {(sighting.species || []).join(', ') || sighting.otherSpecies || 'Unknown Species'}
+                  </strong>
+                  <span style={{ fontSize: '12px', color: '#666' }}>{sighting.date} {sighting.time}</span>
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '10px', fontSize: '13px', marginBottom: '10px' }}>
+                  <div><span style={{ color: '#666' }}>Inspector:</span> <strong>{sighting.inspector || '-'}</strong></div>
+                  <div><span style={{ color: '#666' }}>Count:</span> <strong>{sighting.numberOfAnimals || '-'}</strong></div>
+                  <div><span style={{ color: '#666' }}>Gender:</span> <strong>{sighting.gender || '-'}</strong></div>
+                  <div><span style={{ color: '#666' }}>Age:</span> <strong>{sighting.ageGroup || '-'}</strong></div>
+                </div>
+                {sighting.location && (
+                  <div style={{ fontSize: '13px', marginBottom: '8px' }}>
+                    <span style={{ color: '#666' }}>Location:</span> <strong>{sighting.location}</strong>
+                    {sighting.gpsCoordinates && <span style={{ marginLeft: '10px', color: '#666' }}>GPS: {sighting.gpsCoordinates}</span>}
+                  </div>
+                )}
+                {sighting.speciesDetail && (
+                  <div style={{ fontSize: '13px', marginBottom: '8px' }}>
+                    <span style={{ color: '#666' }}>Species Detail:</span> <strong>{sighting.speciesDetail}</strong>
+                  </div>
+                )}
+                {sighting.activity && (
+                  <div style={{ backgroundColor: '#f8f9fa', padding: '10px', borderRadius: '4px', marginBottom: '8px' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#666', marginBottom: '4px' }}>Activity:</div>
+                    <p style={{ margin: 0, fontSize: '13px' }}>{sighting.activity}</p>
+                  </div>
+                )}
+                {sighting.mortality === 'yes' && (
+                  <div style={{ backgroundColor: '#fff3cd', padding: '10px', borderRadius: '4px', marginBottom: '8px', border: '1px solid #ffc107' }}>
+                    <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#856404', marginBottom: '4px' }}>⚠️ Mortality Observed</div>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#856404' }}>Cause: {sighting.mortalityCause || 'Not specified'}</p>
+                  </div>
+                )}
+                {sighting.comments && (
+                  <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#666', fontStyle: 'italic' }}>Comments: {sighting.comments}</p>
+                )}
               </div>
             ))}
           </div>
