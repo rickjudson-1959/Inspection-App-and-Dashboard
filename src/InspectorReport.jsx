@@ -3431,37 +3431,37 @@ Important:
 
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
-          doc.setFontSize(8)
+          doc.setFontSize(7)
 
           // Billed Hours
-          doc.text('Billed:', margin + 4, y)
+          doc.text('Billed:', margin + 3, y)
           doc.setFont('helvetica', 'bold')
-          doc.text(`${totalBilled.toFixed(1)} hrs`, margin + 22, y)
+          doc.text(`${totalBilled.toFixed(1)}h`, margin + 18, y)
 
           // Productive Hours
           doc.setFont('helvetica', 'normal')
-          doc.text('Productive:', margin + 50, y)
+          doc.text('Productive:', margin + 38, y)
           setColor(BRAND.green, 'text')
           doc.setFont('helvetica', 'bold')
-          doc.text(`${totalProductive.toFixed(1)} hrs`, margin + 75, y)
+          doc.text(`${totalProductive.toFixed(1)}h`, margin + 60, y)
 
           // Non-Working Hours
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
-          doc.text('Non-Working:', margin + 105, y)
+          doc.text('Non-Working:', margin + 82, y)
           setColor(BRAND.red, 'text')
           doc.setFont('helvetica', 'bold')
-          doc.text(`${nonWorking.toFixed(1)} hrs`, margin + 135, y)
+          doc.text(`${nonWorking.toFixed(1)}h`, margin + 110, y)
 
           // Efficiency
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
-          doc.text('Efficiency:', margin + 160, y)
+          doc.text('Efficiency:', margin + 132, y)
           if (efficiency >= 90) setColor(BRAND.green, 'text')
           else if (efficiency >= 70) setColor([245, 158, 11], 'text')
           else setColor(BRAND.red, 'text')
           doc.setFont('helvetica', 'bold')
-          doc.text(`${efficiency.toFixed(0)}%`, margin + 178, y)
+          doc.text(`${efficiency.toFixed(0)}%`, margin + 155, y)
 
           y += 10
         }
