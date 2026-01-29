@@ -22,8 +22,19 @@ function UpdatePrompt() {
     },
   })
 
-  const handleUpdate = () => {
-    updateServiceWorker(true)
+  const handleUpdate = async () => {
+    try {
+      // Update the service worker and wait for it to complete
+      await updateServiceWorker(true)
+      // If the page doesn't reload automatically, force it after a short delay
+      setTimeout(() => {
+        window.location.reload()
+      }, 1000)
+    } catch (error) {
+      console.error('Error updating service worker:', error)
+      // Force reload as fallback
+      window.location.reload()
+    }
   }
 
   const handleDismiss = () => {
