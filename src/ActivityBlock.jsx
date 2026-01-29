@@ -101,14 +101,31 @@ function mergeRanges(ranges) {
   return merged
 }
 
+// Get full reason config from drag reason (by label or value)
+function getReasonConfig(dragReason) {
+  if (!dragReason) return null
+  return dragReasonCategories.find(
+    r => r.label === dragReason || r.value === dragReason
+  ) || null
+}
+
 // Get responsible party from drag reason (by label or value)
 function getResponsibleParty(dragReason) {
-  if (!dragReason) return null
-  const reasonConfig = dragReasonCategories.find(
-    r => r.label === dragReason || r.value === dragReason
-  )
+  const reasonConfig = getReasonConfig(dragReason)
   if (!reasonConfig || !reasonConfig.responsibleParty) return null
   return responsiblePartyConfig[reasonConfig.responsibleParty] || null
+}
+
+// Check if reason requires note when Standby is selected
+function reasonRequiresNote(dragReason) {
+  const reasonConfig = getReasonConfig(dragReason)
+  return reasonConfig?.requiresNote === true
+}
+
+// Check if reason should lock Impact Scope to Entire Crew
+function reasonLocksSystemic(dragReason) {
+  const reasonConfig = getReasonConfig(dragReason)
+  return reasonConfig?.lockSystemic === true
 }
 
 // SearchableSelect component - type to filter dropdown
@@ -2079,51 +2096,108 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                 </div>
               </div>
 
-              {/* Delay Reason - simple text input with info box */}
-              <div style={{ flex: 1, minWidth: '200px' }}>
+              {/* Delay Reason - dropdown with accountability mapping */}
+              <div style={{ flex: 1, minWidth: '250px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                   <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#666' }}>
-                    Delay Reason:
+                    Site Condition:
                   </label>
-                  <span
-                    style={{
-                      fontSize: '10px',
-                      color: '#6f42c1',
-                      cursor: 'pointer',
-                      textDecoration: 'underline'
-                    }}
-                    onClick={() => alert(delayReasonExamples)}
-                  >
-                    [see examples]
-                  </span>
+                  {/* Show lock indicator if reason locks to systemic */}
+                  {reasonLocksSystemic(block.systemicDelay?.reason) && (
+                    <span style={{ fontSize: '10px', color: '#dc3545', fontWeight: 'bold' }}>
+                      🔒 Affects Entire Crew
+                    </span>
+                  )}
                 </div>
-                <input
-                  type="text"
-                  value={reasonInputValue}
+                <select
+                  value={dragReasonCategories.some(r => r.label === block.systemicDelay?.reason) ? block.systemicDelay?.reason : '_custom'}
                   onChange={(e) => {
-                    setReasonInputValue(e.target.value)
-                  }}
-                  onBlur={() => {
-                    // Save custom reason and update block if not empty
-                    if (reasonInputValue.trim()) {
-                      saveCustomReason(reasonInputValue)
-                      updateSystemicDelay(block.id, { ...block.systemicDelay, reason: reasonInputValue.trim() })
+                    if (e.target.value !== '_custom' && e.target.value !== '') {
+                      updateSystemicDelay(block.id, { ...block.systemicDelay, reason: e.target.value })
+                      setReasonInputValue(e.target.value)
                     }
                   }}
-                  placeholder="Type delay reason..."
                   style={{
                     width: '100%',
                     padding: '8px 12px',
                     fontSize: '12px',
                     border: `1px solid ${systemicStatusConfig?.color || '#ced4da'}`,
                     borderRadius: '4px',
-                    boxSizing: 'border-box'
+                    marginBottom: '6px'
                   }}
-                />
+                >
+                  <option value="">-- Select reason --</option>
+                  <optgroup label="🏛️ Owner / Regulatory">
+                    {dragReasonCategories.filter(r => r.responsibleParty === 'owner').map(r => (
+                      <option key={r.value} value={r.label}>{r.label} {r.lockSystemic ? '🔒' : ''}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="🔧 Contractor Issue">
+                    {dragReasonCategories.filter(r => r.responsibleParty === 'contractor').map(r => (
+                      <option key={r.value} value={r.label}>{r.label}</option>
+                    ))}
+                  </optgroup>
+                  <optgroup label="⚖️ Neutral (Act of God)">
+                    {dragReasonCategories.filter(r => r.responsibleParty === 'neutral').map(r => (
+                      <option key={r.value} value={r.label}>{r.label} {r.lockSystemic ? '🔒' : ''}</option>
+                    ))}
+                  </optgroup>
+                  <option value="_custom">-- Or type custom below --</option>
+                </select>
+                {/* Custom reason input */}
+                {(!dragReasonCategories.some(r => r.label === block.systemicDelay?.reason) || block.systemicDelay?.reason === '') && (
+                  <input
+                    type="text"
+                    value={reasonInputValue}
+                    onChange={(e) => setReasonInputValue(e.target.value)}
+                    onBlur={() => {
+                      if (reasonInputValue.trim()) {
+                        saveCustomReason(reasonInputValue)
+                        updateSystemicDelay(block.id, { ...block.systemicDelay, reason: reasonInputValue.trim() })
+                      }
+                    }}
+                    placeholder="Type custom reason..."
+                    style={{
+                      width: '100%',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      border: `1px solid ${systemicStatusConfig?.color || '#ced4da'}`,
+                      borderRadius: '4px',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                )}
+                {/* Responsible Party Badge */}
+                {block.systemicDelay?.reason && (
+                  <div style={{ marginTop: '6px' }}>
+                    {(() => {
+                      const party = getResponsibleParty(block.systemicDelay?.reason)
+                      if (!party) return null
+                      return (
+                        <span
+                          style={{
+                            padding: '3px 8px',
+                            fontSize: '10px',
+                            fontWeight: 'bold',
+                            borderRadius: '12px',
+                            backgroundColor: party.bgColor,
+                            color: party.color,
+                            border: `1px solid ${party.color}`
+                          }}
+                        >
+                          {party.icon} {party.label} Issue
+                        </span>
+                      )
+                    })()}
+                  </div>
+                )}
               </div>
             </div>
             <div style={{ marginTop: '10px', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
-              This delay applies to ALL manpower and equipment entries below.
+              {reasonLocksSystemic(block.systemicDelay?.reason)
+                ? '🔒 This condition affects the entire crew and cannot be scoped to individual assets.'
+                : 'This condition applies to ALL manpower and equipment entries below.'
+              }
             </div>
           </>
         )}
@@ -2363,21 +2437,25 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                                 )
                               })()}
                             </div>
-                            {/* Mandatory Contractor Drag Note - required when contractor + Management Drag */}
+                            {/* Mandatory Note - required when contractor issue + Standby status */}
                             {(() => {
                               const party = getResponsibleParty(entry.dragReason)
-                              const isContractorManagementDrag = party?.label === 'Contractor' && prodStatus === 'MANAGEMENT_DRAG'
-                              if (!isContractorManagementDrag) return null
+                              const needsNote = reasonRequiresNote(entry.dragReason) && prodStatus === 'MANAGEMENT_DRAG'
+                              if (!needsNote) return null
+                              const isContractor = party?.label === 'Contractor'
                               return (
                                 <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#f8d7da', borderRadius: '4px', border: '1px solid #dc3545' }}>
                                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#721c24', marginBottom: '4px' }}>
-                                    🔧 Contractor Failure Detail <span style={{ color: '#dc3545' }}>* Required</span>
+                                    {isContractor ? '🔧 Contractor Issue Detail' : '📝 Issue Detail'} <span style={{ color: '#dc3545' }}>* Required</span>
                                   </label>
                                   <input
                                     type="text"
                                     value={entry.contractorDragNote || ''}
                                     onChange={(e) => updateLabourContractorNote(block.id, entry.id, e.target.value)}
-                                    placeholder="e.g., Ditch not dug to spec, Foreman absent from ROW, Equipment not maintained..."
+                                    placeholder={isContractor
+                                      ? "e.g., Ditch sloughing at KP 12+500, Foreman absent from ROW, Grade 2% off spec..."
+                                      : "Describe the specific issue..."
+                                    }
                                     style={{
                                       width: '100%',
                                       padding: '6px 8px',
@@ -2390,7 +2468,10 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                                   />
                                   {!entry.contractorDragNote?.trim() && (
                                     <p style={{ margin: '4px 0 0 0', fontSize: '10px', color: '#dc3545' }}>
-                                      Explain the specific contractor failure for accountability tracking
+                                      {isContractor
+                                        ? 'Explain the specific contractor failure for accountability tracking'
+                                        : 'Please provide details for this issue'
+                                      }
                                     </p>
                                   )}
                                 </div>
@@ -2592,21 +2673,25 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                                 )
                               })()}
                             </div>
-                            {/* Mandatory Contractor Drag Note - required when contractor + Management Drag */}
+                            {/* Mandatory Note - required when contractor issue + Standby status */}
                             {(() => {
                               const party = getResponsibleParty(entry.dragReason)
-                              const isContractorManagementDrag = party?.label === 'Contractor' && prodStatus === 'MANAGEMENT_DRAG'
-                              if (!isContractorManagementDrag) return null
+                              const needsNote = reasonRequiresNote(entry.dragReason) && prodStatus === 'MANAGEMENT_DRAG'
+                              if (!needsNote) return null
+                              const isContractor = party?.label === 'Contractor'
                               return (
                                 <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#f8d7da', borderRadius: '4px', border: '1px solid #dc3545' }}>
                                   <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#721c24', marginBottom: '4px' }}>
-                                    🔧 Contractor Failure Detail <span style={{ color: '#dc3545' }}>* Required</span>
+                                    {isContractor ? '🔧 Contractor Issue Detail' : '📝 Issue Detail'} <span style={{ color: '#dc3545' }}>* Required</span>
                                   </label>
                                   <input
                                     type="text"
                                     value={entry.contractorDragNote || ''}
                                     onChange={(e) => updateEquipmentContractorNote(block.id, entry.id, e.target.value)}
-                                    placeholder="e.g., Equipment not maintained, Inadequate rigging, Operator error..."
+                                    placeholder={isContractor
+                                      ? "e.g., Equipment not maintained, Inadequate rigging, Operator error..."
+                                      : "Describe the specific issue..."
+                                    }
                                     style={{
                                       width: '100%',
                                       padding: '6px 8px',
@@ -2619,7 +2704,10 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                                   />
                                   {!entry.contractorDragNote?.trim() && (
                                     <p style={{ margin: '4px 0 0 0', fontSize: '10px', color: '#dc3545' }}>
-                                      Explain the specific contractor failure for accountability tracking
+                                      {isContractor
+                                        ? 'Explain the specific contractor failure for accountability tracking'
+                                        : 'Please provide details for this issue'
+                                      }
                                     </p>
                                   )}
                                 </div>

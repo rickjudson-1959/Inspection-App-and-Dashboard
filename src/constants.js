@@ -260,42 +260,57 @@ export const impactScopes = [
   { value: 'ENTIRE_CREW', label: 'Entire Crew', description: 'Affects all entries in block' }
 ]
 
-// Efficiency Audit - Drag reason categories with systemic defaults and responsible party
-// Reasons marked as defaultSystemic: true will auto-select "Entire Crew" impact
-// responsibleParty: 'owner' | 'contractor' | 'neutral' | 'unknown'
+// Delay Reason Categories with Accountability Mapping
+// - responsibleParty: 'owner' | 'contractor' | 'neutral' | 'unknown'
+// - defaultSystemic: true = auto-select "Entire Crew" impact
+// - lockSystemic: true = FORCE "Entire Crew" and disable toggle (e.g., environmental windows)
+// - requiresNote: true = must provide detail in reliability_notes when Standby selected
 //
-// OWNER: Permits, Land Access, First Nations, Engineering delays
-// CONTRACTOR: Mechanical, Latency, ROW Congestion, Rework, Materials
-// NEUTRAL: Weather, Force Majeure, Safety (shared responsibility)
+// OWNER ISSUE: Permits, Land Access, First Nations, Environmental Windows, Engineering
+// CONTRACTOR ISSUE: Mechanical, Supervisory, ROW, Rework, Materials, Grade
+// NEUTRAL (Act of God): Extreme Weather, Force Majeure
 export const dragReasonCategories = [
-  // Owner responsibility - regulatory, permits, third-party access, engineering
-  { value: 'waiting_permits', label: 'Waiting for permits', defaultSystemic: true, responsibleParty: 'owner' },
-  { value: 'first_nations_monitor', label: 'First Nations monitor', defaultSystemic: true, responsibleParty: 'owner' },
-  { value: 'landowner_access', label: 'Land access issue', defaultSystemic: true, responsibleParty: 'owner' },
-  { value: 'regulatory_hold', label: 'Regulatory hold', defaultSystemic: true, responsibleParty: 'owner' },
-  { value: 'engineering_delay', label: 'Engineering delay', defaultSystemic: true, responsibleParty: 'owner' },
-  { value: 'engineering_change', label: 'Engineering change order', defaultSystemic: true, responsibleParty: 'owner' },
-  { value: 'bird_window', label: 'Bird nesting window', defaultSystemic: true, responsibleParty: 'owner' },
-  { value: 'environmental_window', label: 'Environmental window', defaultSystemic: true, responsibleParty: 'owner' },
+  // ═══════════════════════════════════════════════════════════════════════════
+  // OWNER RESPONSIBILITY - Regulatory, permits, environmental windows, engineering
+  // ═══════════════════════════════════════════════════════════════════════════
+  { value: 'waiting_permits', label: 'Waiting for permits', defaultSystemic: true, lockSystemic: false, responsibleParty: 'owner', requiresNote: false },
+  { value: 'land_access', label: 'Land access issue', defaultSystemic: true, lockSystemic: false, responsibleParty: 'owner', requiresNote: false },
+  { value: 'first_nations_monitor', label: 'First Nations monitor', defaultSystemic: true, lockSystemic: false, responsibleParty: 'owner', requiresNote: false },
 
-  // Contractor responsibility - mechanical, latency, ROW congestion, rework, materials
-  { value: 'mechanical_failure', label: 'Mechanical failure', defaultSystemic: false, responsibleParty: 'contractor' },
-  { value: 'equipment_breakdown', label: 'Equipment breakdown', defaultSystemic: false, responsibleParty: 'contractor' },
-  { value: 'latency_delay', label: 'Latency/mobilization delay', defaultSystemic: false, responsibleParty: 'contractor' },
-  { value: 'row_congestion', label: 'ROW congestion', defaultSystemic: false, responsibleParty: 'contractor' },
-  { value: 'rework_required', label: 'Rework required', defaultSystemic: false, responsibleParty: 'contractor' },
-  { value: 'waiting_materials', label: 'Waiting for materials', defaultSystemic: false, responsibleParty: 'contractor' },
-  { value: 'coordination_delay', label: 'Coordination delay', defaultSystemic: false, responsibleParty: 'contractor' },
-  { value: 'crew_shortage', label: 'Crew shortage', defaultSystemic: false, responsibleParty: 'contractor' },
-  { value: 'supervision_absent', label: 'Supervision absent', defaultSystemic: false, responsibleParty: 'contractor' },
+  // Environmental Windows - LOCK to Entire Crew (affects whole spread)
+  { value: 'salmon_fish_window', label: 'Salmon fish window', defaultSystemic: true, lockSystemic: true, responsibleParty: 'owner', requiresNote: false },
+  { value: 'coastal_tailed_frog', label: 'Coastal tailed frog habitat', defaultSystemic: true, lockSystemic: true, responsibleParty: 'owner', requiresNote: false },
+  { value: 'bird_nesting_window', label: 'Bird nesting window', defaultSystemic: true, lockSystemic: true, responsibleParty: 'owner', requiresNote: false },
+  { value: 'environmental_window', label: 'Other environmental window', defaultSystemic: true, lockSystemic: true, responsibleParty: 'owner', requiresNote: false },
 
-  // Neutral - weather, force majeure, safety (shared responsibility)
-  { value: 'weather_hold', label: 'Weather hold', defaultSystemic: true, responsibleParty: 'neutral' },
-  { value: 'force_majeure', label: 'Force majeure', defaultSystemic: true, responsibleParty: 'neutral' },
-  { value: 'safety_standdown', label: 'Safety stand-down', defaultSystemic: true, responsibleParty: 'neutral' },
+  // Engineering & Regulatory
+  { value: 'engineering_change', label: 'Engineering change order', defaultSystemic: true, lockSystemic: false, responsibleParty: 'owner', requiresNote: false },
+  { value: 'regulatory_hold', label: 'Regulatory hold', defaultSystemic: true, lockSystemic: false, responsibleParty: 'owner', requiresNote: false },
 
-  // Unknown - custom/other
-  { value: 'other', label: 'Other', defaultSystemic: false, responsibleParty: 'unknown' }
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CONTRACTOR RESPONSIBILITY - Mechanical, supervisory, logistics, workmanship
+  // All contractor issues require notes when Standby status is selected
+  // ═══════════════════════════════════════════════════════════════════════════
+  { value: 'mechanical_breakdown', label: 'Mechanical breakdown', defaultSystemic: false, lockSystemic: false, responsibleParty: 'contractor', requiresNote: true },
+  { value: 'supervisory_latency', label: 'Supervisory latency', defaultSystemic: false, lockSystemic: false, responsibleParty: 'contractor', requiresNote: true },
+  { value: 'row_congestion', label: 'ROW congestion', defaultSystemic: false, lockSystemic: false, responsibleParty: 'contractor', requiresNote: true },
+  { value: 'ditch_sloughing', label: 'Ditch sloughing / rework', defaultSystemic: false, lockSystemic: false, responsibleParty: 'contractor', requiresNote: true },
+  { value: 'missing_materials', label: 'Missing material / logistics', defaultSystemic: false, lockSystemic: false, responsibleParty: 'contractor', requiresNote: true },
+  { value: 'incorrect_grade', label: 'Incorrect grade', defaultSystemic: false, lockSystemic: false, responsibleParty: 'contractor', requiresNote: true },
+  { value: 'crew_shortage', label: 'Crew shortage', defaultSystemic: false, lockSystemic: false, responsibleParty: 'contractor', requiresNote: true },
+  { value: 'coordination_delay', label: 'Coordination delay', defaultSystemic: false, lockSystemic: false, responsibleParty: 'contractor', requiresNote: true },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // NEUTRAL (Act of God) - Weather, force majeure, safety
+  // ═══════════════════════════════════════════════════════════════════════════
+  { value: 'extreme_weather', label: 'Extreme weather', defaultSystemic: true, lockSystemic: true, responsibleParty: 'neutral', requiresNote: false },
+  { value: 'force_majeure', label: 'Force majeure', defaultSystemic: true, lockSystemic: true, responsibleParty: 'neutral', requiresNote: false },
+  { value: 'safety_standdown', label: 'Safety stand-down', defaultSystemic: true, lockSystemic: false, responsibleParty: 'neutral', requiresNote: false },
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // UNKNOWN - Custom/other (requires note to explain)
+  // ═══════════════════════════════════════════════════════════════════════════
+  { value: 'other', label: 'Other', defaultSystemic: false, lockSystemic: false, responsibleParty: 'unknown', requiresNote: true }
 ]
 
 // Responsible party display configuration for Accountability Constraint

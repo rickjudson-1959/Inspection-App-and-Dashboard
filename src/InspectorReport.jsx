@@ -11,18 +11,19 @@ import { supabase } from './supabase'
 import { syncManager, chainageCache, useOnlineStatus, useSyncStatus } from './offline'
 
 // Import constants from separate file
-import { 
-  PROJECT_NAME, 
-  PROJECT_SHORT, 
+import {
+  PROJECT_NAME,
+  PROJECT_SHORT,
   pipelineLocations,
   spreadOptions,
   spreadToPipeline,
-  activityTypes, 
-  qualityFieldsByActivity, 
-  timeLostReasons, 
-  labourClassifications, 
-  equipmentTypes, 
-  createEmptyActivity 
+  activityTypes,
+  qualityFieldsByActivity,
+  timeLostReasons,
+  labourClassifications,
+  equipmentTypes,
+  createEmptyActivity,
+  dragReasonCategories
 } from './constants.js'
 
 // Import ActivityBlock component (handles all specialized logs internally)
@@ -2429,20 +2430,31 @@ Important:
           }
         }
 
-        // Process labour entries with shadow audit data
+        // Helper to get responsible_party from drag reason
+        const getResponsibleParty = (dragReason) => {
+          if (!dragReason) return null
+          const reasonConfig = dragReasonCategories.find(r => r.label === dragReason || r.value === dragReason)
+          return reasonConfig?.responsibleParty || null
+        }
+
+        // Process labour entries with shadow audit data and accountability
         const processedLabourEntries = block.labourEntries.map(entry => ({
           ...entry,
           productionStatus: entry.productionStatus || 'ACTIVE',
           shadowEffectiveHours: entry.shadowEffectiveHours ?? null,
-          dragReason: entry.dragReason || ''
+          dragReason: entry.dragReason || '',
+          contractorDragNote: entry.contractorDragNote || '',
+          responsible_party: getResponsibleParty(entry.dragReason)
         }))
 
-        // Process equipment entries with shadow audit data
+        // Process equipment entries with shadow audit data and accountability
         const processedEquipmentEntries = block.equipmentEntries.map(entry => ({
           ...entry,
           productionStatus: entry.productionStatus || 'ACTIVE',
           shadowEffectiveHours: entry.shadowEffectiveHours ?? null,
-          dragReason: entry.dragReason || ''
+          dragReason: entry.dragReason || '',
+          contractorDragNote: entry.contractorDragNote || '',
+          responsible_party: getResponsibleParty(entry.dragReason)
         }))
 
         // Create block with processed entries for shadow audit calculation
