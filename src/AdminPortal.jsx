@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
 import { supabase } from './supabase'
@@ -7,6 +7,13 @@ import ComplianceAuditTrail from './ComplianceAuditTrail.jsx'
 import RateImport from './RateImport.jsx'
 import MasterSwitcher from './MasterSwitcher.jsx'
 import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
+import {
+  aggregateReliabilityScore,
+  calculateTotalBilledHours,
+  calculateTotalShadowHours,
+  calculateValueLost,
+  aggregateEfficiencyVerification
+} from './shadowAuditUtils.js'
 
 function AdminPortal() {
   const navigate = useNavigate()
@@ -27,6 +34,9 @@ function AdminPortal() {
   const [matSummary, setMatSummary] = useState({ rigMats: 0, swampMats: 0 })
   const [recentMatMovements, setRecentMatMovements] = useState([])
   const [loadingMats, setLoadingMats] = useState(false)
+
+  // Efficiency metrics state (for overview dashboard)
+  const [recentReports, setRecentReports] = useState([])
 
   // Audit Activity state
   const [auditLog, setAuditLog] = useState([])
@@ -94,8 +104,58 @@ function AdminPortal() {
     const { data: projectsData } = await supabase.from('projects').select('*, organizations(name)').order('name')
     setProjects(projectsData || [])
 
+    // Fetch recent reports for efficiency metrics (last 30 days)
+    const thirtyDaysAgo = new Date()
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+    const { data: reportsData } = await supabase
+      .from('daily_tickets')
+      .select('id, date, spread, activity_blocks')
+      .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
+      .order('date', { ascending: false })
+    setRecentReports(reportsData || [])
+
     setLoading(false)
   }
+
+  // Calculate efficiency metrics from recent reports
+  const efficiencyMetrics = useMemo(() => {
+    if (!recentReports || recentReports.length === 0) {
+      return {
+        reliability: { overallScore: 100, status: 'GREEN', icon: '🛡️', label: 'No Data', greenCount: 0, amberCount: 0, redCount: 0 },
+        totalBilledHours: 0,
+        totalShadowHours: 0,
+        totalValueLost: 0,
+        inertiaRatio: 100,
+        reportCount: 0
+      }
+    }
+
+    const allBlocks = recentReports.flatMap(r => r.activity_blocks || [])
+    const reliability = aggregateReliabilityScore(allBlocks)
+    const verification = aggregateEfficiencyVerification(allBlocks)
+
+    let totalBilledHours = 0
+    let totalShadowHours = 0
+    let totalValueLost = 0
+
+    allBlocks.forEach(block => {
+      totalBilledHours += calculateTotalBilledHours(block)
+      totalShadowHours += calculateTotalShadowHours(block)
+      totalValueLost += calculateValueLost(block, {}, {})
+    })
+
+    const inertiaRatio = totalBilledHours > 0 ? (totalShadowHours / totalBilledHours) * 100 : 100
+
+    return {
+      reliability,
+      verification,
+      totalBilledHours,
+      totalShadowHours,
+      totalValueLost,
+      inertiaRatio,
+      reportCount: recentReports.length
+    }
+  }, [recentReports])
 
   // ==================== INSPECTOR PROFILE MODAL ====================
   async function openProfileModal(profileId) {
@@ -904,7 +964,9 @@ function AdminPortal() {
         {activeTab === 'overview' && (
           <div>
             <h2>Dashboard Overview</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '20px', marginTop: '20px' }}>
+
+            {/* System Stats Row */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginTop: '20px' }}>
               <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
                 <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px' }}>Organizations</h3>
                 <p style={{ margin: 0, fontSize: '36px', fontWeight: 'bold', color: '#003366' }}>{organizations.length}</p>
@@ -921,7 +983,198 @@ function AdminPortal() {
                 <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px' }}>Pending Approvals</h3>
                 <p style={{ margin: 0, fontSize: '36px', fontWeight: 'bold', color: pendingReports.length > 0 ? '#ffc107' : '#28a745' }}>{pendingReports.length}</p>
               </div>
+              <div style={{ backgroundColor: 'white', padding: '25px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
+                <h3 style={{ margin: '0 0 10px 0', color: '#666', fontSize: '14px' }}>Reports (30 days)</h3>
+                <p style={{ margin: 0, fontSize: '36px', fontWeight: 'bold', color: '#6f42c1' }}>{efficiencyMetrics.reportCount}</p>
+              </div>
             </div>
+
+            {/* Efficiency & Reliability Metrics */}
+            <h3 style={{ marginTop: '30px', marginBottom: '15px', color: '#333' }}>📊 Efficiency & Data Reliability (Last 30 Days)</h3>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
+
+              {/* Reliability Shield */}
+              <div style={{
+                backgroundColor: efficiencyMetrics.reliability?.bgColor || '#d4edda',
+                padding: '25px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                border: `2px solid ${efficiencyMetrics.reliability?.color || '#28a745'}`,
+                textAlign: 'center',
+                cursor: 'pointer'
+              }} onClick={() => setActiveTab('efficiency')}>
+                <div style={{ fontSize: '40px', marginBottom: '8px' }}>
+                  {efficiencyMetrics.reliability?.icon || '🛡️'}
+                </div>
+                <h3 style={{ margin: '0 0 5px 0', color: '#666', fontSize: '12px', textTransform: 'uppercase' }}>Data Reliability</h3>
+                <p style={{
+                  margin: 0,
+                  fontSize: '32px',
+                  fontWeight: 'bold',
+                  color: efficiencyMetrics.reliability?.color || '#28a745'
+                }}>
+                  {efficiencyMetrics.reliability?.overallScore || 100}%
+                </p>
+                <p style={{
+                  margin: '5px 0 0 0',
+                  fontSize: '12px',
+                  color: efficiencyMetrics.reliability?.color || '#28a745',
+                  fontWeight: 'bold'
+                }}>
+                  {efficiencyMetrics.reliability?.label || 'Reliable'}
+                </p>
+              </div>
+
+              {/* Efficiency Score */}
+              <div style={{
+                backgroundColor: efficiencyMetrics.inertiaRatio >= 90 ? '#d4edda' :
+                                efficiencyMetrics.inertiaRatio >= 70 ? '#fff3cd' : '#f8d7da',
+                padding: '25px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                textAlign: 'center',
+                cursor: 'pointer'
+              }} onClick={() => setActiveTab('efficiency')}>
+                <div style={{ fontSize: '40px', marginBottom: '8px' }}>⚡</div>
+                <h3 style={{ margin: '0 0 5px 0', color: '#666', fontSize: '12px', textTransform: 'uppercase' }}>Efficiency Score</h3>
+                <p style={{
+                  margin: 0,
+                  fontSize: '32px',
+                  fontWeight: 'bold',
+                  color: efficiencyMetrics.inertiaRatio >= 90 ? '#28a745' :
+                         efficiencyMetrics.inertiaRatio >= 70 ? '#856404' : '#dc3545'
+                }}>
+                  {efficiencyMetrics.inertiaRatio.toFixed(0)}%
+                </p>
+                <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#666' }}>
+                  {efficiencyMetrics.totalShadowHours.toFixed(0)} / {efficiencyMetrics.totalBilledHours.toFixed(0)} hrs productive
+                </p>
+              </div>
+
+              {/* Value Lost */}
+              <div style={{
+                backgroundColor: '#f8d7da',
+                padding: '25px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                textAlign: 'center',
+                cursor: 'pointer'
+              }} onClick={() => setActiveTab('efficiency')}>
+                <div style={{ fontSize: '40px', marginBottom: '8px' }}>💸</div>
+                <h3 style={{ margin: '0 0 5px 0', color: '#666', fontSize: '12px', textTransform: 'uppercase' }}>Value Lost</h3>
+                <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', color: '#dc3545' }}>
+                  ${(efficiencyMetrics.totalValueLost / 1000).toFixed(0)}K
+                </p>
+                <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#666' }}>
+                  Due to management drag
+                </p>
+              </div>
+
+              {/* Block Status Breakdown */}
+              <div style={{
+                backgroundColor: (efficiencyMetrics.reliability?.redCount || 0) > 0 ? '#f8d7da' :
+                                (efficiencyMetrics.reliability?.amberCount || 0) > 0 ? '#fff3cd' : '#d4edda',
+                padding: '25px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                textAlign: 'center',
+                cursor: 'pointer'
+              }} onClick={() => setActiveTab('efficiency')}>
+                <div style={{ fontSize: '40px', marginBottom: '8px' }}>📋</div>
+                <h3 style={{ margin: '0 0 5px 0', color: '#666', fontSize: '12px', textTransform: 'uppercase' }}>Block Status</h3>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginTop: '10px' }}>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#28a745' }}>
+                      {efficiencyMetrics.reliability?.greenCount || 0}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#28a745' }}>Green</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ffc107' }}>
+                      {efficiencyMetrics.reliability?.amberCount || 0}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#856404' }}>Amber</div>
+                  </div>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#dc3545' }}>
+                      {efficiencyMetrics.reliability?.redCount || 0}
+                    </div>
+                    <div style={{ fontSize: '10px', color: '#dc3545' }}>Red</div>
+                  </div>
+                </div>
+                <p style={{ margin: '8px 0 0 0', fontSize: '11px', color: '#666' }}>
+                  {efficiencyMetrics.reliability?.blockCount || 0} blocks analyzed
+                </p>
+              </div>
+
+              {/* True Cost */}
+              <div style={{
+                backgroundColor: '#e2d5f1',
+                padding: '25px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                textAlign: 'center',
+                cursor: 'pointer'
+              }} onClick={() => setActiveTab('efficiency')}>
+                <div style={{ fontSize: '40px', marginBottom: '8px' }}>🎯</div>
+                <h3 style={{ margin: '0 0 5px 0', color: '#666', fontSize: '12px', textTransform: 'uppercase' }}>True Cost Impact</h3>
+                <p style={{ margin: 0, fontSize: '32px', fontWeight: 'bold', color: '#6f42c1' }}>
+                  ${((efficiencyMetrics.totalValueLost + (efficiencyMetrics.verification?.totalReworkCost || 0)) / 1000).toFixed(0)}K
+                </p>
+                <p style={{ margin: '5px 0 0 0', fontSize: '11px', color: '#666' }}>
+                  Value lost + rework
+                </p>
+              </div>
+            </div>
+
+            {/* Critical Alerts Section */}
+            {efficiencyMetrics.verification?.criticalAlerts?.length > 0 && (
+              <div style={{
+                marginTop: '20px',
+                padding: '15px 20px',
+                backgroundColor: '#f8d7da',
+                borderRadius: '8px',
+                border: '1px solid #f5c6cb'
+              }}>
+                <h4 style={{ margin: '0 0 10px 0', color: '#721c24' }}>
+                  🚨 Critical Alerts ({efficiencyMetrics.verification.criticalAlerts.length})
+                </h4>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                  {efficiencyMetrics.verification.criticalAlerts.slice(0, 8).map((alert, idx) => (
+                    <span key={idx} style={{
+                      padding: '4px 12px',
+                      backgroundColor: alert.severity === 'critical' ? '#dc3545' : '#ffc107',
+                      color: alert.severity === 'critical' ? '#fff' : '#333',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      fontWeight: 'bold'
+                    }}>
+                      {alert.type.replace(/_/g, ' ')}: {alert.activityType || 'Unknown'}
+                    </span>
+                  ))}
+                  {efficiencyMetrics.verification.criticalAlerts.length > 8 && (
+                    <span style={{ fontSize: '11px', color: '#721c24', alignSelf: 'center' }}>
+                      +{efficiencyMetrics.verification.criticalAlerts.length - 8} more
+                    </span>
+                  )}
+                </div>
+                <button
+                  onClick={() => setActiveTab('efficiency')}
+                  style={{
+                    marginTop: '10px',
+                    padding: '8px 16px',
+                    backgroundColor: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  View Full Efficiency Report →
+                </button>
+              </div>
+            )}
           </div>
         )}
 
