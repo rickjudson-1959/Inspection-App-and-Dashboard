@@ -59,7 +59,13 @@ export const qualityFieldsByActivity = {
   'Clearing': [], // Handled by ClearingLog component
   'Access': [
     { name: 'accessWidth', label: 'Access Width (m)', type: 'number' },
-    { name: 'surfaceCondition', label: 'Surface Condition', type: 'select', options: ['Good', 'Fair', 'Poor'] }
+    { name: 'surfaceCondition', label: 'Surface Condition', type: 'select', options: ['Good', 'Fair', 'Poor'] },
+    { name: 'drainageCulverts', label: 'Drainage/Culverts', type: 'select', options: ['Clear', 'Blocked', 'Installed to Spec'] },
+    { name: 'escStatus', label: 'ESC Status (Silt Fence/Wattles)', type: 'select', options: ['Functional', 'Needs Maintenance', 'Missing'] },
+    { name: 'mattingIntegrity', label: 'Matting Integrity', type: 'select', options: ['Secure', 'Gaps Detected', 'Repairs Needed'] },
+    { name: 'gateFenceSecurity', label: 'Gate/Fence Security', type: 'select', options: ['Locked & Functional', 'Open', 'Damaged'] },
+    { name: 'cleaningStationActive', label: 'Cleaning Station Active', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'waterbarsFunctional', label: 'Waterbars Functional', type: 'select', options: ['Yes', 'No'] }
   ],
   'Topsoil': [
     // Horizon Separation & Stripping Depth Section
