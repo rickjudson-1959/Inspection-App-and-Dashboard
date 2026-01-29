@@ -9,7 +9,7 @@ import EVMDashboard from './EVMDashboard'
 import { supabase } from './supabase'
 import MasterSwitcher from './MasterSwitcher.jsx'
 import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
-import { aggregateReliabilityScore, calculateTotalBilledHours, calculateTotalShadowHours, calculateValueLost } from './shadowAuditUtils.js'
+import { aggregateReliabilityScore, calculateTotalBilledHours, calculateTotalShadowHours, calculateValueLost, aggregateValueLostByParty } from './shadowAuditUtils.js'
 import { MetricInfoIcon, MetricIntegrityModal, useMetricIntegrityModal } from './components/MetricIntegrityInfo.jsx'
 
 // ============================================================================
@@ -410,6 +410,9 @@ function Dashboard({ onBackToReport }) {
       totalValueLost += calculateValueLost(block, {}, {})
     })
 
+    // Calculate value lost by responsible party (Accountability Constraint)
+    const valueLostByParty = aggregateValueLostByParty(allBlocks, {}, {})
+
     return {
       dailyArray,
       totalCost,
@@ -428,7 +431,8 @@ function Dashboard({ onBackToReport }) {
         totalBilledHours,
         totalShadowHours,
         totalValueLost,
-        inertiaRatio: totalBilledHours > 0 ? (totalShadowHours / totalBilledHours) * 100 : 100
+        inertiaRatio: totalBilledHours > 0 ? (totalShadowHours / totalBilledHours) * 100 : 100,
+        valueLostByParty
       }
     }
   }, [reports, dateRange])
@@ -742,7 +746,7 @@ function Dashboard({ onBackToReport }) {
                 <span style={{ fontSize: '14px' }}>ℹ️</span> Learn More
               </button>
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px' }}>
               {/* Reliability Shield */}
               <div style={{
                 padding: '15px',
@@ -824,6 +828,30 @@ function Dashboard({ onBackToReport }) {
                 <div style={{ fontSize: '9px', color: '#999' }}>Due to inefficiency</div>
               </div>
 
+              {/* Contractor Drag - Accountability Constraint */}
+              <div style={{
+                padding: '15px',
+                backgroundColor: (metrics?.efficiency?.valueLostByParty?.contractor || 0) > 0 ? '#f8d7da' : '#d4edda',
+                borderRadius: '8px',
+                textAlign: 'center',
+                border: (metrics?.efficiency?.valueLostByParty?.contractor || 0) > 0 ? '2px solid #dc3545' : '1px solid #28a745'
+              }}>
+                <div style={{ fontSize: '16px', marginBottom: '2px' }}>🔧</div>
+                <div style={{
+                  fontSize: '22px',
+                  fontWeight: 'bold',
+                  color: (metrics?.efficiency?.valueLostByParty?.contractor || 0) > 0 ? '#dc3545' : '#28a745'
+                }}>
+                  ${((metrics?.efficiency?.valueLostByParty?.contractor || 0) / 1000).toFixed(0)}K
+                </div>
+                <div style={{ fontSize: '11px', color: '#666', fontWeight: 'bold' }}>Contractor Drag</div>
+                <div style={{ fontSize: '9px', color: '#999', marginTop: '2px' }}>
+                  {metrics?.efficiency?.valueLostByParty?.total > 0
+                    ? `${((metrics?.efficiency?.valueLostByParty?.contractor || 0) / metrics.efficiency.valueLostByParty.total * 100).toFixed(0)}% of total loss`
+                    : 'No drag recorded'}
+                </div>
+              </div>
+
               {/* Alert Summary */}
               <div style={{
                 padding: '15px',
@@ -849,6 +877,156 @@ function Dashboard({ onBackToReport }) {
                 </div>
               </div>
             </div>
+
+            {/* Responsibility Breakdown - Pie Chart */}
+            {(metrics?.efficiency?.valueLostByParty?.total || 0) > 0 && (
+              <div style={{ marginTop: '20px' }}>
+                <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '15px' }}>
+                  🔧 Responsibility Breakdown - Value Lost by Party
+                </h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px', alignItems: 'center' }}>
+                  {/* Pie Chart */}
+                  <div style={{ height: '200px' }}>
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={[
+                            { name: 'Contractor', value: metrics?.efficiency?.valueLostByParty?.contractor || 0, fill: '#dc3545' },
+                            { name: 'Owner', value: metrics?.efficiency?.valueLostByParty?.owner || 0, fill: '#1976d2' },
+                            { name: 'Neutral', value: metrics?.efficiency?.valueLostByParty?.neutral || 0, fill: '#6c757d' },
+                            { name: 'Unknown', value: metrics?.efficiency?.valueLostByParty?.unknown || 0, fill: '#ffc107' }
+                          ].filter(d => d.value > 0)}
+                          cx="50%"
+                          cy="50%"
+                          outerRadius={80}
+                          dataKey="value"
+                          label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
+                          labelLine={true}
+                        >
+                          {[
+                            { fill: '#dc3545' },
+                            { fill: '#1976d2' },
+                            { fill: '#6c757d' },
+                            { fill: '#ffc107' }
+                          ].map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.fill} />
+                          ))}
+                        </Pie>
+                        <Tooltip formatter={(value) => `$${(value / 1000).toFixed(1)}K`} />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+
+                  {/* Breakdown Cards */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                    {/* Contractor Drag */}
+                    <div style={{
+                      padding: '12px',
+                      backgroundColor: '#f8d7da',
+                      borderRadius: '8px',
+                      borderLeft: '4px solid #dc3545'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '18px' }}>🔧</span>
+                        <span style={{ fontWeight: 'bold', color: '#dc3545' }}>Contractor</span>
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#dc3545' }}>
+                        ${((metrics?.efficiency?.valueLostByParty?.contractor || 0) / 1000).toFixed(1)}K
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#666' }}>
+                        {metrics?.efficiency?.valueLostByParty?.total > 0
+                          ? `${((metrics?.efficiency?.valueLostByParty?.contractor || 0) / metrics.efficiency.valueLostByParty.total * 100).toFixed(1)}% of total`
+                          : '0%'}
+                      </div>
+                    </div>
+
+                    {/* Owner Drag */}
+                    <div style={{
+                      padding: '12px',
+                      backgroundColor: '#e3f2fd',
+                      borderRadius: '8px',
+                      borderLeft: '4px solid #1976d2'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '18px' }}>🏛️</span>
+                        <span style={{ fontWeight: 'bold', color: '#1976d2' }}>Owner</span>
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#1976d2' }}>
+                        ${((metrics?.efficiency?.valueLostByParty?.owner || 0) / 1000).toFixed(1)}K
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#666' }}>
+                        {metrics?.efficiency?.valueLostByParty?.total > 0
+                          ? `${((metrics?.efficiency?.valueLostByParty?.owner || 0) / metrics.efficiency.valueLostByParty.total * 100).toFixed(1)}% of total`
+                          : '0%'}
+                      </div>
+                    </div>
+
+                    {/* Neutral */}
+                    <div style={{
+                      padding: '12px',
+                      backgroundColor: '#e9ecef',
+                      borderRadius: '8px',
+                      borderLeft: '4px solid #6c757d'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '18px' }}>⚖️</span>
+                        <span style={{ fontWeight: 'bold', color: '#6c757d' }}>Neutral</span>
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#6c757d' }}>
+                        ${((metrics?.efficiency?.valueLostByParty?.neutral || 0) / 1000).toFixed(1)}K
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#666' }}>
+                        Weather, Force Majeure, Safety
+                      </div>
+                    </div>
+
+                    {/* Unknown/Other */}
+                    <div style={{
+                      padding: '12px',
+                      backgroundColor: '#fff3cd',
+                      borderRadius: '8px',
+                      borderLeft: '4px solid #ffc107'
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                        <span style={{ fontSize: '18px' }}>❓</span>
+                        <span style={{ fontWeight: 'bold', color: '#856404' }}>Unknown</span>
+                      </div>
+                      <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#856404' }}>
+                        ${((metrics?.efficiency?.valueLostByParty?.unknown || 0) / 1000).toFixed(1)}K
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#666' }}>
+                        Custom/Other reasons
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Summary insight */}
+                {(metrics?.efficiency?.valueLostByParty?.contractor || 0) > 0 && (
+                  <div style={{
+                    marginTop: '15px',
+                    padding: '12px',
+                    backgroundColor: '#f8d7da',
+                    borderRadius: '8px',
+                    border: '1px solid #dc3545',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span style={{ fontSize: '24px' }}>⚠️</span>
+                    <div>
+                      <div style={{ fontWeight: 'bold', color: '#721c24', fontSize: '13px' }}>
+                        Contractor Performance Alert
+                      </div>
+                      <div style={{ fontSize: '12px', color: '#856404' }}>
+                        ${((metrics?.efficiency?.valueLostByParty?.contractor || 0) / 1000).toFixed(1)}K in value lost is attributable to contractor issues
+                        (Mechanical, Latency, ROW Congestion, Rework, Materials). Review contractor drag notes for details.
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Activity breakdown */}
             <div>

@@ -230,6 +230,94 @@ export function calculateValueLost(block, labourRates = {}, equipmentRates = {})
 }
 
 /**
+ * Get responsible party for a drag reason
+ * @param {string} dragReason - The drag reason label or value
+ * @returns {string} - 'owner', 'contractor', 'neutral', or 'unknown'
+ */
+export function getResponsibleParty(dragReason) {
+  if (!dragReason) return 'unknown'
+  const reason = dragReasonCategories.find(r => r.label === dragReason || r.value === dragReason)
+  return reason?.responsibleParty || 'unknown'
+}
+
+/**
+ * Calculate value lost by responsible party (Accountability Constraint)
+ * Returns breakdown of value lost by owner, contractor, and neutral parties
+ * @param {object} block - Activity block with labourEntries and equipmentEntries
+ * @param {object} labourRates - Rate lookup by classification
+ * @param {object} equipmentRates - Rate lookup by equipment type
+ * @returns {object} - { owner, contractor, neutral, unknown, total }
+ */
+export function calculateValueLostByParty(block, labourRates = {}, equipmentRates = {}) {
+  const result = { owner: 0, contractor: 0, neutral: 0, unknown: 0, total: 0 }
+
+  // Labour value lost by party
+  if (block.labourEntries) {
+    for (const entry of block.labourEntries) {
+      const rt = parseFloat(entry.rt) || 0
+      const ot = parseFloat(entry.ot) || 0
+      const count = parseFloat(entry.count) || 1
+      const billedHours = (rt + ot) * count
+      const status = entry.productionStatus || 'ACTIVE'
+      const shadowHours = calculateShadowHours(billedHours, status, entry.shadowEffectiveHours)
+      const hoursLost = billedHours - shadowHours
+
+      if (hoursLost > 0) {
+        const rate = labourRates[entry.classification] || defaultRates.labour
+        const valueLost = hoursLost * rate
+        const party = getResponsibleParty(entry.dragReason)
+        result[party] += valueLost
+        result.total += valueLost
+      }
+    }
+  }
+
+  // Equipment value lost by party
+  if (block.equipmentEntries) {
+    for (const entry of block.equipmentEntries) {
+      const hours = parseFloat(entry.hours) || 0
+      const count = parseFloat(entry.count) || 1
+      const billedHours = hours * count
+      const status = entry.productionStatus || 'ACTIVE'
+      const shadowHours = calculateShadowHours(billedHours, status, entry.shadowEffectiveHours)
+      const hoursLost = billedHours - shadowHours
+
+      if (hoursLost > 0) {
+        const rate = equipmentRates[entry.type] || defaultRates.equipment
+        const valueLost = hoursLost * rate
+        const party = getResponsibleParty(entry.dragReason)
+        result[party] += valueLost
+        result.total += valueLost
+      }
+    }
+  }
+
+  return result
+}
+
+/**
+ * Aggregate value lost by party across multiple blocks
+ * @param {array} blocks - Array of activity blocks
+ * @param {object} labourRates - Rate lookup by classification
+ * @param {object} equipmentRates - Rate lookup by equipment type
+ * @returns {object} - { owner, contractor, neutral, unknown, total }
+ */
+export function aggregateValueLostByParty(blocks, labourRates = {}, equipmentRates = {}) {
+  const result = { owner: 0, contractor: 0, neutral: 0, unknown: 0, total: 0 }
+
+  for (const block of blocks) {
+    const blockLoss = calculateValueLostByParty(block, labourRates, equipmentRates)
+    result.owner += blockLoss.owner
+    result.contractor += blockLoss.contractor
+    result.neutral += blockLoss.neutral
+    result.unknown += blockLoss.unknown
+    result.total += blockLoss.total
+  }
+
+  return result
+}
+
+/**
  * Determine if block has an active systemic delay
  * @param {object} block - Activity block
  * @returns {boolean} - True if systemic delay is active

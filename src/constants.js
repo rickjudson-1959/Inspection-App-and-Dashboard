@@ -260,23 +260,51 @@ export const impactScopes = [
   { value: 'ENTIRE_CREW', label: 'Entire Crew', description: 'Affects all entries in block' }
 ]
 
-// Efficiency Audit - Drag reason categories with systemic defaults
+// Efficiency Audit - Drag reason categories with systemic defaults and responsible party
 // Reasons marked as defaultSystemic: true will auto-select "Entire Crew" impact
+// responsibleParty: 'owner' | 'contractor' | 'neutral' | 'unknown'
+//
+// OWNER: Permits, Land Access, First Nations, Engineering delays
+// CONTRACTOR: Mechanical, Latency, ROW Congestion, Rework, Materials
+// NEUTRAL: Weather, Force Majeure, Safety (shared responsibility)
 export const dragReasonCategories = [
-  { value: 'waiting_permits', label: 'Waiting for permits', defaultSystemic: true },
-  { value: 'waiting_instructions', label: 'Waiting for instructions', defaultSystemic: true },
-  { value: 'waiting_materials', label: 'Waiting for materials', defaultSystemic: false },
-  { value: 'coordination_delay', label: 'Coordination delay', defaultSystemic: false },
-  { value: 'weather_hold', label: 'Weather hold', defaultSystemic: true },
-  { value: 'safety_standdown', label: 'Safety stand-down', defaultSystemic: true },
-  { value: 'equipment_breakdown', label: 'Equipment breakdown', defaultSystemic: false },
-  { value: 'first_nations_monitor', label: 'First Nations monitor', defaultSystemic: true },
-  { value: 'bird_window', label: 'Bird nesting window', defaultSystemic: true },
-  { value: 'environmental_window', label: 'Environmental window', defaultSystemic: true },
-  { value: 'landowner_access', label: 'Landowner access issue', defaultSystemic: true },
-  { value: 'regulatory_hold', label: 'Regulatory hold', defaultSystemic: true },
-  { value: 'other', label: 'Other', defaultSystemic: false }
+  // Owner responsibility - regulatory, permits, third-party access, engineering
+  { value: 'waiting_permits', label: 'Waiting for permits', defaultSystemic: true, responsibleParty: 'owner' },
+  { value: 'first_nations_monitor', label: 'First Nations monitor', defaultSystemic: true, responsibleParty: 'owner' },
+  { value: 'landowner_access', label: 'Land access issue', defaultSystemic: true, responsibleParty: 'owner' },
+  { value: 'regulatory_hold', label: 'Regulatory hold', defaultSystemic: true, responsibleParty: 'owner' },
+  { value: 'engineering_delay', label: 'Engineering delay', defaultSystemic: true, responsibleParty: 'owner' },
+  { value: 'engineering_change', label: 'Engineering change order', defaultSystemic: true, responsibleParty: 'owner' },
+  { value: 'bird_window', label: 'Bird nesting window', defaultSystemic: true, responsibleParty: 'owner' },
+  { value: 'environmental_window', label: 'Environmental window', defaultSystemic: true, responsibleParty: 'owner' },
+
+  // Contractor responsibility - mechanical, latency, ROW congestion, rework, materials
+  { value: 'mechanical_failure', label: 'Mechanical failure', defaultSystemic: false, responsibleParty: 'contractor' },
+  { value: 'equipment_breakdown', label: 'Equipment breakdown', defaultSystemic: false, responsibleParty: 'contractor' },
+  { value: 'latency_delay', label: 'Latency/mobilization delay', defaultSystemic: false, responsibleParty: 'contractor' },
+  { value: 'row_congestion', label: 'ROW congestion', defaultSystemic: false, responsibleParty: 'contractor' },
+  { value: 'rework_required', label: 'Rework required', defaultSystemic: false, responsibleParty: 'contractor' },
+  { value: 'waiting_materials', label: 'Waiting for materials', defaultSystemic: false, responsibleParty: 'contractor' },
+  { value: 'coordination_delay', label: 'Coordination delay', defaultSystemic: false, responsibleParty: 'contractor' },
+  { value: 'crew_shortage', label: 'Crew shortage', defaultSystemic: false, responsibleParty: 'contractor' },
+  { value: 'supervision_absent', label: 'Supervision absent', defaultSystemic: false, responsibleParty: 'contractor' },
+
+  // Neutral - weather, force majeure, safety (shared responsibility)
+  { value: 'weather_hold', label: 'Weather hold', defaultSystemic: true, responsibleParty: 'neutral' },
+  { value: 'force_majeure', label: 'Force majeure', defaultSystemic: true, responsibleParty: 'neutral' },
+  { value: 'safety_standdown', label: 'Safety stand-down', defaultSystemic: true, responsibleParty: 'neutral' },
+
+  // Unknown - custom/other
+  { value: 'other', label: 'Other', defaultSystemic: false, responsibleParty: 'unknown' }
 ]
+
+// Responsible party display configuration for Accountability Constraint
+export const responsiblePartyConfig = {
+  owner: { label: 'Owner', color: '#1976d2', bgColor: '#e3f2fd', icon: '🏛️' },
+  contractor: { label: 'Contractor', color: '#dc3545', bgColor: '#f8d7da', icon: '🔧' },
+  neutral: { label: 'Neutral', color: '#6c757d', bgColor: '#e9ecef', icon: '⚖️' },
+  unknown: { label: 'Unknown', color: '#856404', bgColor: '#fff3cd', icon: '❓' }
+}
 
 // Efficiency Audit - Default hourly burn rates
 export const defaultRates = { labour: 85, equipment: 150 }

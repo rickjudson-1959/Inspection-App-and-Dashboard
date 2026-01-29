@@ -1,7 +1,7 @@
 // ActivityBlock.jsx - Extracted from InspectorReport.jsx
 // A single activity block component with all rendering logic
 import React, { useState, useEffect, memo } from 'react'
-import { activityTypes, qualityFieldsByActivity, labourClassifications, equipmentTypes, timeLostReasons, productionStatuses, dragReasonCategories, impactScopes } from './constants.js'
+import { activityTypes, qualityFieldsByActivity, labourClassifications, equipmentTypes, timeLostReasons, productionStatuses, dragReasonCategories, impactScopes, responsiblePartyConfig } from './constants.js'
 import { syncKPFromGPS } from './kpUtils.js'
 import { supabase } from './supabase'
 import { calculateShadowHours, calculateTotalBilledHours, calculateTotalShadowHours, calculateInertiaRatio, hasSystemicDelay, getDelayType } from './shadowAuditUtils.js'
@@ -99,6 +99,16 @@ function mergeRanges(ranges) {
     }
   }
   return merged
+}
+
+// Get responsible party from drag reason (by label or value)
+function getResponsibleParty(dragReason) {
+  if (!dragReason) return null
+  const reasonConfig = dragReasonCategories.find(
+    r => r.label === dragReason || r.value === dragReason
+  )
+  if (!reasonConfig || !reasonConfig.responsibleParty) return null
+  return responsiblePartyConfig[reasonConfig.responsibleParty] || null
 }
 
 // SearchableSelect component - type to filter dropdown
@@ -340,11 +350,13 @@ function ActivityBlock({
   updateLabourProductionStatus,
   updateLabourShadowHours,
   updateLabourDragReason,
+  updateLabourContractorNote,
   removeLabourFromBlock,
   addEquipmentToBlock,
   updateEquipmentProductionStatus,
   updateEquipmentShadowHours,
   updateEquipmentDragReason,
+  updateEquipmentContractorNote,
   updateSystemicDelay,
   removeEquipmentFromBlock,
   handleWorkPhotosSelect,
@@ -2298,7 +2310,9 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                               >
                                 <option value="">-- Select common reason --</option>
                                 {dragReasonCategories.map(r => (
-                                  <option key={r.value} value={r.label}>{r.label}</option>
+                                  <option key={r.value} value={r.label}>
+                                    {r.label} {r.responsibleParty === 'contractor' ? '🔧' : r.responsibleParty === 'owner' ? '🏛️' : ''}
+                                  </option>
                                 ))}
                                 <option value="_custom">-- Or type custom below --</option>
                               </select>
@@ -2323,7 +2337,62 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                                   maxWidth: '250px'
                                 }}
                               />
+                              {/* Responsible Party Badge - auto-assigned based on drag reason */}
+                              {(() => {
+                                const party = getResponsibleParty(entry.dragReason)
+                                if (!party) return null
+                                return (
+                                  <span
+                                    style={{
+                                      padding: '3px 8px',
+                                      fontSize: '10px',
+                                      fontWeight: 'bold',
+                                      borderRadius: '12px',
+                                      backgroundColor: party.bgColor,
+                                      color: party.color,
+                                      border: `1px solid ${party.color}`,
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                    title={`Accountability: ${party.label}`}
+                                  >
+                                    {party.icon} {party.label}
+                                  </span>
+                                )
+                              })()}
                             </div>
+                            {/* Mandatory Contractor Drag Note - required when contractor + Management Drag */}
+                            {(() => {
+                              const party = getResponsibleParty(entry.dragReason)
+                              const isContractorManagementDrag = party?.label === 'Contractor' && prodStatus === 'MANAGEMENT_DRAG'
+                              if (!isContractorManagementDrag) return null
+                              return (
+                                <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#f8d7da', borderRadius: '4px', border: '1px solid #dc3545' }}>
+                                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#721c24', marginBottom: '4px' }}>
+                                    🔧 Contractor Failure Detail <span style={{ color: '#dc3545' }}>* Required</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={entry.contractorDragNote || ''}
+                                    onChange={(e) => updateLabourContractorNote(block.id, entry.id, e.target.value)}
+                                    placeholder="e.g., Ditch not dug to spec, Foreman absent from ROW, Equipment not maintained..."
+                                    style={{
+                                      width: '100%',
+                                      padding: '6px 8px',
+                                      border: entry.contractorDragNote?.trim() ? '1px solid #28a745' : '2px solid #dc3545',
+                                      borderRadius: '4px',
+                                      fontSize: '12px',
+                                      boxSizing: 'border-box',
+                                      backgroundColor: entry.contractorDragNote?.trim() ? '#fff' : '#fff5f5'
+                                    }}
+                                  />
+                                  {!entry.contractorDragNote?.trim() && (
+                                    <p style={{ margin: '4px 0 0 0', fontSize: '10px', color: '#dc3545' }}>
+                                      Explain the specific contractor failure for accountability tracking
+                                    </p>
+                                  )}
+                                </div>
+                              )
+                            })()}
                           </td>
                         </tr>
                       )}
@@ -2462,7 +2531,9 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                               >
                                 <option value="">-- Select common reason --</option>
                                 {dragReasonCategories.map(r => (
-                                  <option key={r.value} value={r.label}>{r.label}</option>
+                                  <option key={r.value} value={r.label}>
+                                    {r.label} {r.responsibleParty === 'contractor' ? '🔧' : r.responsibleParty === 'owner' ? '🏛️' : ''}
+                                  </option>
                                 ))}
                                 <option value="_custom">-- Or type custom below --</option>
                               </select>
@@ -2487,7 +2558,62 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                                   maxWidth: '250px'
                                 }}
                               />
+                              {/* Responsible Party Badge - auto-assigned based on drag reason */}
+                              {(() => {
+                                const party = getResponsibleParty(entry.dragReason)
+                                if (!party) return null
+                                return (
+                                  <span
+                                    style={{
+                                      padding: '3px 8px',
+                                      fontSize: '10px',
+                                      fontWeight: 'bold',
+                                      borderRadius: '12px',
+                                      backgroundColor: party.bgColor,
+                                      color: party.color,
+                                      border: `1px solid ${party.color}`,
+                                      whiteSpace: 'nowrap'
+                                    }}
+                                    title={`Accountability: ${party.label}`}
+                                  >
+                                    {party.icon} {party.label}
+                                  </span>
+                                )
+                              })()}
                             </div>
+                            {/* Mandatory Contractor Drag Note - required when contractor + Management Drag */}
+                            {(() => {
+                              const party = getResponsibleParty(entry.dragReason)
+                              const isContractorManagementDrag = party?.label === 'Contractor' && prodStatus === 'MANAGEMENT_DRAG'
+                              if (!isContractorManagementDrag) return null
+                              return (
+                                <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#f8d7da', borderRadius: '4px', border: '1px solid #dc3545' }}>
+                                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#721c24', marginBottom: '4px' }}>
+                                    🔧 Contractor Failure Detail <span style={{ color: '#dc3545' }}>* Required</span>
+                                  </label>
+                                  <input
+                                    type="text"
+                                    value={entry.contractorDragNote || ''}
+                                    onChange={(e) => updateEquipmentContractorNote(block.id, entry.id, e.target.value)}
+                                    placeholder="e.g., Equipment not maintained, Inadequate rigging, Operator error..."
+                                    style={{
+                                      width: '100%',
+                                      padding: '6px 8px',
+                                      border: entry.contractorDragNote?.trim() ? '1px solid #28a745' : '2px solid #dc3545',
+                                      borderRadius: '4px',
+                                      fontSize: '12px',
+                                      boxSizing: 'border-box',
+                                      backgroundColor: entry.contractorDragNote?.trim() ? '#fff' : '#fff5f5'
+                                    }}
+                                  />
+                                  {!entry.contractorDragNote?.trim() && (
+                                    <p style={{ margin: '4px 0 0 0', fontSize: '10px', color: '#dc3545' }}>
+                                      Explain the specific contractor failure for accountability tracking
+                                    </p>
+                                  )}
+                                </div>
+                              )
+                            })()}
                           </td>
                         </tr>
                       )}

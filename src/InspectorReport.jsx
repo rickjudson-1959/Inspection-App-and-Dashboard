@@ -2014,6 +2014,21 @@ Important:
     }))
   }
 
+  // Contractor Drag Note - required for contractor + management drag
+  function updateLabourContractorNote(blockId, labourId, note) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          labourEntries: block.labourEntries.map(entry =>
+            entry.id === labourId ? { ...entry, contractorDragNote: note } : entry
+          )
+        }
+      }
+      return block
+    }))
+  }
+
   // Efficiency Audit - Equipment handlers
   function updateEquipmentProductionStatus(blockId, equipmentId, status) {
     setActivityBlocks(activityBlocks.map(block => {
@@ -2050,6 +2065,21 @@ Important:
           ...block,
           equipmentEntries: block.equipmentEntries.map(entry =>
             entry.id === equipmentId ? { ...entry, dragReason: reason } : entry
+          )
+        }
+      }
+      return block
+    }))
+  }
+
+  // Contractor Drag Note - required for contractor + management drag
+  function updateEquipmentContractorNote(blockId, equipmentId, note) {
+    setActivityBlocks(activityBlocks.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          equipmentEntries: block.equipmentEntries.map(entry =>
+            entry.id === equipmentId ? { ...entry, contractorDragNote: note } : entry
           )
         }
       }
@@ -5855,11 +5885,13 @@ Important:
           updateLabourProductionStatus={updateLabourProductionStatus}
           updateLabourShadowHours={updateLabourShadowHours}
           updateLabourDragReason={updateLabourDragReason}
+          updateLabourContractorNote={updateLabourContractorNote}
           removeLabourFromBlock={removeLabourFromBlock}
           addEquipmentToBlock={addEquipmentToBlock}
           updateEquipmentProductionStatus={updateEquipmentProductionStatus}
           updateEquipmentShadowHours={updateEquipmentShadowHours}
           updateEquipmentDragReason={updateEquipmentDragReason}
+          updateEquipmentContractorNote={updateEquipmentContractorNote}
           updateSystemicDelay={updateSystemicDelay}
           removeEquipmentFromBlock={removeEquipmentFromBlock}
           handleWorkPhotosSelect={handleWorkPhotosSelect}
