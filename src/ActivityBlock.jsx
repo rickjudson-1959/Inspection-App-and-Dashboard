@@ -2316,27 +2316,35 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                                 ))}
                                 <option value="_custom">-- Or type custom below --</option>
                               </select>
-                              <span style={{ fontSize: '11px', color: '#666' }}>or</span>
-                              <input
-                                type="text"
-                                value={entry.dragReason || ''}
-                                onChange={(e) => updateLabourDragReason(block.id, entry.id, e.target.value)}
-                                onBlur={(e) => {
-                                  if (e.target.value.trim()) {
-                                    saveCustomReason(e.target.value)
-                                  }
-                                }}
-                                placeholder="Type custom reason..."
-                                style={{
-                                  flex: 1,
-                                  padding: '4px 8px',
-                                  border: `1px solid ${statusConfig?.color || '#ced4da'}`,
-                                  borderRadius: '4px',
-                                  fontSize: '12px',
-                                  minWidth: '150px',
-                                  maxWidth: '250px'
-                                }}
-                              />
+                              {/* Custom reason input - only show value if it's NOT from the predefined list */}
+                              {(() => {
+                                const isFromList = dragReasonCategories.some(r => r.label === entry.dragReason)
+                                return (
+                                  <>
+                                    <span style={{ fontSize: '11px', color: '#666' }}>or</span>
+                                    <input
+                                      type="text"
+                                      value={isFromList ? '' : (entry.dragReason || '')}
+                                      onChange={(e) => updateLabourDragReason(block.id, entry.id, e.target.value)}
+                                      onBlur={(e) => {
+                                        if (e.target.value.trim()) {
+                                          saveCustomReason(e.target.value)
+                                        }
+                                      }}
+                                      placeholder="Type custom reason..."
+                                      style={{
+                                        flex: 1,
+                                        padding: '4px 8px',
+                                        border: `1px solid ${statusConfig?.color || '#ced4da'}`,
+                                        borderRadius: '4px',
+                                        fontSize: '12px',
+                                        minWidth: '150px',
+                                        maxWidth: '250px'
+                                      }}
+                                    />
+                                  </>
+                                )
+                              })()}
                               {/* Responsible Party Badge - auto-assigned based on drag reason */}
                               {(() => {
                                 const party = getResponsibleParty(entry.dragReason)
@@ -2537,27 +2545,35 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                                 ))}
                                 <option value="_custom">-- Or type custom below --</option>
                               </select>
-                              <span style={{ fontSize: '11px', color: '#666' }}>or</span>
-                              <input
-                                type="text"
-                                value={entry.dragReason || ''}
-                                onChange={(e) => updateEquipmentDragReason(block.id, entry.id, e.target.value)}
-                                onBlur={(e) => {
-                                  if (e.target.value.trim()) {
-                                    saveCustomReason(e.target.value)
-                                  }
-                                }}
-                                placeholder="Type custom reason..."
-                                style={{
-                                  flex: 1,
-                                  padding: '4px 8px',
-                                  border: `1px solid ${statusConfig?.color || '#ced4da'}`,
-                                  borderRadius: '4px',
-                                  fontSize: '12px',
-                                  minWidth: '150px',
-                                  maxWidth: '250px'
-                                }}
-                              />
+                              {/* Custom reason input - only show value if it's NOT from the predefined list */}
+                              {(() => {
+                                const isFromList = dragReasonCategories.some(r => r.label === entry.dragReason)
+                                return (
+                                  <>
+                                    <span style={{ fontSize: '11px', color: '#666' }}>or</span>
+                                    <input
+                                      type="text"
+                                      value={isFromList ? '' : (entry.dragReason || '')}
+                                      onChange={(e) => updateEquipmentDragReason(block.id, entry.id, e.target.value)}
+                                      onBlur={(e) => {
+                                        if (e.target.value.trim()) {
+                                          saveCustomReason(e.target.value)
+                                        }
+                                      }}
+                                      placeholder="Type custom reason..."
+                                      style={{
+                                        flex: 1,
+                                        padding: '4px 8px',
+                                        border: `1px solid ${statusConfig?.color || '#ced4da'}`,
+                                        borderRadius: '4px',
+                                        fontSize: '12px',
+                                        minWidth: '150px',
+                                        maxWidth: '250px'
+                                      }}
+                                    />
+                                  </>
+                                )
+                              })()}
                               {/* Responsible Party Badge - auto-assigned based on drag reason */}
                               {(() => {
                                 const party = getResponsibleParty(entry.dragReason)
