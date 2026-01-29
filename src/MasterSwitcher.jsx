@@ -3,8 +3,8 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
 
 // ============================================================================
-// CHUNK 3: MASTER SWITCHER - Admin "God Mode"
-// Only visible to admin/super_admin users
+// CHUNK 3: MASTER SWITCHER - Super Admin "God Mode"
+// Only visible to super_admin users
 // Add to any dashboard header: <MasterSwitcher compact />
 // ============================================================================
 
@@ -24,9 +24,9 @@ function MasterSwitcher({ compact = true }) {
   const { userProfile } = useAuth()
   const [isOpen, setIsOpen] = useState(false)
   
-  // Only show for admin/super_admin
+  // Only show for super_admin (God Mode restricted)
   const userRole = userProfile?.user_role || userProfile?.role
-  if (userRole !== 'admin' && userRole !== 'super_admin') {
+  if (userRole !== 'super_admin') {
     return null
   }
   

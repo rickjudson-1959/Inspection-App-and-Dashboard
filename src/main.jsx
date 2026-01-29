@@ -52,8 +52,8 @@ function ProtectedRoute({ children, allowedRoles = [] }) {
     return children
   }
 
-  // Admin "god mode" - super_admin and admin can access any route
-  if (userProfile && (userProfile.role === 'super_admin' || userProfile.role === 'admin')) {
+  // Super Admin "god mode" - only super_admin can access any route
+  if (userProfile && userProfile.role === 'super_admin') {
     return children
   }
 
