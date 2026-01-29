@@ -2,7 +2,9 @@ import React from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './AuthContext.jsx'
 import ProtectedRoute, { getLandingPage } from './ProtectedRoute.jsx'
+console.log('[App.jsx] About to import OfflineStatusBar')
 import OfflineStatusBar from './components/OfflineStatusBar.jsx'
+console.log('[App.jsx] OfflineStatusBar imported:', OfflineStatusBar)
 
 // ============================================================================
 // CHUNK 2: APP.JSX - Role-Based Routing

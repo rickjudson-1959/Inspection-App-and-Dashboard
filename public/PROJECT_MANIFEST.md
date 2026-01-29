@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - January 22, 2026
+## Project Manifest - January 26, 2026
 
 ---
 
@@ -13,7 +13,7 @@
 ### Technology Stack
 | Component | Technology |
 |-----------|------------|
-| Frontend | React 18.2.0 with Vite |
+| Frontend | React 18.2.0 with Vite + PWA |
 | Backend | Supabase (PostgreSQL + Auth) |
 | Email API | Resend |
 | Deployment | Vercel |
@@ -21,7 +21,8 @@
 | Excel Export | XLSX |
 | Mapping | Leaflet + React-Leaflet |
 | Charting | Recharts |
-| PWA/Offline | vite-plugin-pwa + IndexedDB (idb) |
+| Offline Storage | IndexedDB (idb) |
+| Service Worker | Workbox (vite-plugin-pwa) |
 
 ---
 
@@ -42,6 +43,15 @@
 ---
 
 ## 3. CORE FEATURES
+
+### Offline Mode (PWA)
+- Full offline capability for field inspectors
+- Reports saved to IndexedDB when offline
+- Photos stored as blobs locally
+- Automatic sync when connectivity restored
+- Visual status bar (green=online, orange=offline)
+- Pending report count and "Sync Now" button
+- iOS/Android mobile optimized
 
 ### Inspector Field Entry
 - Activity logging with KP (kilometer post) ranges
@@ -105,16 +115,6 @@
 - Weekly executive summary emails (automated)
 - Audit trail reports
 - Progress tracking by phase
-
-### PWA Offline Mode (NEW - January 2026)
-- **Progressive Web App** - Installable on mobile devices
-- **Offline Report Creation** - Full daily reports without internet
-- **IndexedDB Storage** - Pending reports and photo blobs stored locally
-- **Auto-Sync** - Automatic upload when connection restored
-- **Chainage Cache** - Overlap checking works offline using cached data
-- **Conflict Detection** - Detects duplicate reports (same date/inspector/spread)
-- **Visual Status Bar** - Shows offline mode and pending report count
-- **Retry Logic** - Failed syncs retry up to 5 times with exponential backoff
 
 ---
 
@@ -267,19 +267,19 @@
 │   ├── kpUtils.js              # KP formatting
 │   └── chiefReportHelpers.js   # Report aggregation
 │
-├── Components/
-│   ├── TrackableItemsTracker.jsx
-│   ├── SignaturePad.jsx
-│   ├── MapDashboard.jsx
-│   ├── OfflineStatusBar.jsx    # NEW - PWA status indicator
-│   └── [supporting components]
+├── offline/                     # PWA Offline Support (NEW - Jan 2026)
+│   ├── db.js                   # IndexedDB schema
+│   ├── syncManager.js          # Offline save & sync logic
+│   ├── chainageCache.js        # KP data cache
+│   ├── hooks.js                # useOnlineStatus, useSyncStatus
+│   └── index.js                # Barrel export
 │
-└── offline/                     # NEW - PWA Offline Mode (Jan 2026)
-    ├── db.js                    # IndexedDB schema & CRUD
-    ├── syncManager.js           # Sync logic, photo upload, conflict handling
-    ├── chainageCache.js         # Cached chainage data for offline overlap check
-    ├── hooks.js                 # useOnlineStatus, useSyncStatus, usePWAInstall
-    └── index.js                 # Barrel export
+└── Components/
+    ├── TrackableItemsTracker.jsx
+    ├── SignaturePad.jsx
+    ├── MapDashboard.jsx
+    ├── OfflineStatusBar.jsx    # PWA status indicator (NEW - Jan 2026)
+    └── [supporting components]
 
 /supabase/migrations/
 ├── create_inspector_invoicing_tables.sql
@@ -294,56 +294,59 @@
 
 ## 6. RECENT UPDATES (January 2026)
 
-### PWA Offline Mode (January 22, 2026)
+### PWA Offline Mode & Email System (January 26, 2026)
 
-**Complete offline capability for field inspectors**
-
-Inspectors can now create complete daily reports without internet connectivity, with automatic sync when back online.
+**PWA (Progressive Web App) Implementation**
+- Full offline capability for field inspectors
+- IndexedDB storage for pending reports and photos
+- Automatic sync when back online
+- Service worker with Workbox for asset caching
 
 **New Files Created:**
-- `src/offline/db.js` - IndexedDB schema with 4 stores:
-  - `pendingReports` - Full report data waiting to sync
-  - `photos` - Photo blobs stored separately for performance
-  - `chainageCache` - Historical KP ranges for overlap checking
-  - `userSession` - Cached auth for offline validation
-- `src/offline/syncManager.js` - Core sync logic:
-  - Saves reports to IndexedDB when offline
-  - Stores photos as blobs (separate from report data)
-  - Auto-syncs when online detected
-  - Uploads photos first, then report data
-  - Retry failed syncs (max 5 attempts)
-  - Conflict detection for duplicate reports
-- `src/offline/chainageCache.js` - Offline overlap checking:
-  - Caches last 500 reports' chainages
-  - Refreshes every 24 hours when online
-  - Checks overlaps locally when offline
-- `src/offline/hooks.js` - React hooks:
-  - `useOnlineStatus()` - Real-time online/offline detection
-  - `useSyncStatus()` - Pending count, sync state
-  - `usePWAInstall()` - Install prompt handling
-  - `useServiceWorker()` - SW registration and updates
-- `src/components/OfflineStatusBar.jsx` - Visual status:
-  - Fixed bar at top of screen
-  - Orange "Offline Mode" or green "Syncing..."
-  - Pending report count badge
-  - "Sync Now" and "Install App" buttons
+```
+/src/offline/
+├── db.js                    # IndexedDB schema (pendingReports, photos stores)
+├── syncManager.js           # Save offline, sync when online, retry logic
+├── chainageCache.js         # Cached KP data for offline overlap checking
+├── hooks.js                 # useOnlineStatus, useSyncStatus, usePWAInstall
+└── index.js                 # Barrel export
 
-**Files Modified:**
-- `vite.config.js` - Added VitePWA plugin with:
-  - Workbox service worker generation
-  - App manifest (name, icons, start_url)
-  - Runtime caching for Supabase API
-- `index.html` - PWA meta tags (theme-color, apple-touch-icon)
-- `src/App.jsx` - Added OfflineStatusBar component
-- `src/InspectorReport.jsx` - Offline-aware save flow:
-  - Detects offline state
-  - Uses cached chainage data for overlap check
-  - Saves to IndexedDB instead of Supabase
-  - Shows "Save Offline" button when disconnected
+/src/components/
+└── OfflineStatusBar.jsx     # Mobile-friendly status indicator
+```
 
-**PWA Assets:**
-- `public/pwa-192x192.png` - App icon (192x192)
-- `public/pwa-512x512.png` - App icon (512x512, maskable)
+**OfflineStatusBar.jsx Features:**
+- Fixed bar at top of screen
+- iOS safe-area-inset support for notched devices
+- 44px minimum touch targets for mobile
+- Shows: Online/Offline status, pending count, "Sync Now" button
+- Color coding: Green (online), Orange (offline)
+
+**InspectorReport.jsx Changes:**
+- Offline-first save flow
+- Photos stored as blobs in IndexedDB when offline
+- "Save Offline" button when disconnected
+- Automatic sync attempt on reconnect
+
+**vite.config.js Updates:**
+- Added VitePWA plugin configuration
+- Workbox runtime caching for Supabase API
+- PWA manifest with app icons
+
+**Email Invitation System Fix:**
+- Resend domain verification completed for pipe-up.ca
+- DNS records configured in Vercel (not Bluehost - nameservers point to Vercel)
+- Records added:
+  - DKIM: `resend._domainkey` (TXT)
+  - SPF: `send.pipe-up.ca` (TXT) - `v=spf1 include:amazonses.com ~all`
+  - MX: `send.pipe-up.ca` - `feedback-smtp.us-east-1.amazonses.com`
+  - DMARC: `_dmarc` (TXT) - `v=DMARC1; p=none;`
+- Invitation emails now delivered automatically via Resend
+
+**AdminPortal.jsx Updates:**
+- Enhanced console logging for invitation links
+- Colored/formatted output for easy link copying
+- Fallback link display when email delivery fails
 
 ---
 
@@ -529,4 +532,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: January 22, 2026*
+*Last Updated: January 26, 2026*

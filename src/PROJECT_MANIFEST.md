@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - January 21, 2026
+## Project Manifest - January 26, 2026
 
 ---
 
@@ -13,7 +13,7 @@
 ### Technology Stack
 | Component | Technology |
 |-----------|------------|
-| Frontend | React 18.2.0 with Vite |
+| Frontend | React 18.2.0 with Vite + PWA |
 | Backend | Supabase (PostgreSQL + Auth) |
 | Email API | Resend |
 | Deployment | Vercel |
@@ -21,6 +21,8 @@
 | Excel Export | XLSX |
 | Mapping | Leaflet + React-Leaflet |
 | Charting | Recharts |
+| Offline Storage | IndexedDB (idb) |
+| Service Worker | Workbox (vite-plugin-pwa) |
 
 ---
 
@@ -41,6 +43,15 @@
 ---
 
 ## 3. CORE FEATURES
+
+### Offline Mode (PWA)
+- Full offline capability for field inspectors
+- Reports saved to IndexedDB when offline
+- Photos stored as blobs locally
+- Automatic sync when connectivity restored
+- Visual status bar (green=online, orange=offline)
+- Pending report count and "Sync Now" button
+- iOS/Android mobile optimized
 
 ### Inspector Field Entry
 - Activity logging with KP (kilometer post) ranges
@@ -256,10 +267,18 @@
 │   ├── kpUtils.js              # KP formatting
 │   └── chiefReportHelpers.js   # Report aggregation
 │
+├── offline/                     # PWA Offline Support (NEW - Jan 2026)
+│   ├── db.js                   # IndexedDB schema
+│   ├── syncManager.js          # Offline save & sync logic
+│   ├── chainageCache.js        # KP data cache
+│   ├── hooks.js                # useOnlineStatus, useSyncStatus
+│   └── index.js                # Barrel export
+│
 └── Components/
     ├── TrackableItemsTracker.jsx
     ├── SignaturePad.jsx
     ├── MapDashboard.jsx
+    ├── OfflineStatusBar.jsx    # PWA status indicator (NEW - Jan 2026)
     └── [supporting components]
 
 /supabase/migrations/
@@ -274,6 +293,62 @@
 ---
 
 ## 6. RECENT UPDATES (January 2026)
+
+### PWA Offline Mode & Email System (January 26, 2026)
+
+**PWA (Progressive Web App) Implementation**
+- Full offline capability for field inspectors
+- IndexedDB storage for pending reports and photos
+- Automatic sync when back online
+- Service worker with Workbox for asset caching
+
+**New Files Created:**
+```
+/src/offline/
+├── db.js                    # IndexedDB schema (pendingReports, photos stores)
+├── syncManager.js           # Save offline, sync when online, retry logic
+├── chainageCache.js         # Cached KP data for offline overlap checking
+├── hooks.js                 # useOnlineStatus, useSyncStatus, usePWAInstall
+└── index.js                 # Barrel export
+
+/src/components/
+└── OfflineStatusBar.jsx     # Mobile-friendly status indicator
+```
+
+**OfflineStatusBar.jsx Features:**
+- Fixed bar at top of screen
+- iOS safe-area-inset support for notched devices
+- 44px minimum touch targets for mobile
+- Shows: Online/Offline status, pending count, "Sync Now" button
+- Color coding: Green (online), Orange (offline)
+
+**InspectorReport.jsx Changes:**
+- Offline-first save flow
+- Photos stored as blobs in IndexedDB when offline
+- "Save Offline" button when disconnected
+- Automatic sync attempt on reconnect
+
+**vite.config.js Updates:**
+- Added VitePWA plugin configuration
+- Workbox runtime caching for Supabase API
+- PWA manifest with app icons
+
+**Email Invitation System Fix:**
+- Resend domain verification completed for pipe-up.ca
+- DNS records configured in Vercel (not Bluehost - nameservers point to Vercel)
+- Records added:
+  - DKIM: `resend._domainkey` (TXT)
+  - SPF: `send.pipe-up.ca` (TXT) - `v=spf1 include:amazonses.com ~all`
+  - MX: `send.pipe-up.ca` - `feedback-smtp.us-east-1.amazonses.com`
+  - DMARC: `_dmarc` (TXT) - `v=DMARC1; p=none;`
+- Invitation emails now delivered automatically via Resend
+
+**AdminPortal.jsx Updates:**
+- Enhanced console logging for invitation links
+- Colored/formatted output for easy link copying
+- Fallback link display when email delivery fails
+
+---
 
 ### HDD Module Redesign (January 21, 2026)
 
@@ -457,4 +532,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: January 21, 2026*
+*Last Updated: January 26, 2026*

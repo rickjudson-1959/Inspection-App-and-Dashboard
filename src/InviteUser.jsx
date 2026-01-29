@@ -33,89 +33,68 @@ function InviteUser({ onSuccess, onCancel }) {
       setError('Email and name are required')
       return
     }
-    
+
     setLoading(true)
     setError(null)
-    
+
     try {
       const landingPage = getLandingPage(formData.user_role)
-      
-      // Option 1: Try direct admin invite (requires service role)
-      const { data, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(
-        formData.email,
-        {
-          data: {
-            full_name: formData.full_name,
-            user_role: formData.user_role,
-            invited_at: new Date().toISOString()
-          },
-          redirectTo: `${window.location.origin}${landingPage}`
-        }
-      )
-      
-      if (inviteError) {
-        // Option 2: Fall back to edge function
-        const { data: fnData, error: fnError } = await supabase.functions.invoke('invite-user', {
-          body: { ...formData, redirect_to: landingPage }
+
+      console.log('📨 Sending invitation to:', formData.email)
+      console.log('👤 Name:', formData.full_name, '| Role:', formData.user_role)
+
+      // Always use edge function for invitations (uses Resend for email delivery)
+      const { data: fnData, error: fnError } = await supabase.functions.invoke('invite-user', {
+        body: { ...formData, redirect_to: landingPage }
+      })
+
+      console.log('📬 Edge function response:', fnData)
+
+      if (fnError) {
+        console.error('❌ Edge function error:', fnError)
+        throw fnError
+      }
+
+      // Check if the response contains an error
+      if (fnData?.error) {
+        console.error('❌ Invitation error:', fnData.error)
+        throw new Error(fnData.error)
+      }
+
+      // Log email send status for debugging
+      if (fnData) {
+        console.log('📧 Invite response:', {
+          email_sent: fnData.email_sent,
+          email_message_id: fnData.email_message_id,
+          email_error: fnData.email_error,
+          invitation_link: fnData.invitation_link ? 'Generated' : 'Not generated'
         })
-        
-        if (fnError) {
-          console.error('Edge function error:', fnError)
-          throw fnError
+
+        // Always show invitation link in console for easy copying
+        if (fnData.invitation_link) {
+          console.log('🔗 Invitation Link (copy this to send manually):')
+          console.log(fnData.invitation_link)
         }
-        
-        // Check if the response contains an error
-        if (fnData?.error) {
-          throw new Error(fnData.error)
-        }
-        
-        // Log email send status for debugging
-        if (fnData) {
-          console.log('📧 Invite response:', {
-            email_sent: fnData.email_sent,
-            email_message_id: fnData.email_message_id,
-            email_error: fnData.email_error,
-            invitation_link: fnData.invitation_link
-          })
-          
-          // Show invitation link in console for easy copying/testing
+
+        // Check if email was sent successfully
+        if (!fnData.email_sent) {
+          const errorMsg = fnData.email_error || 'Email sending failed. The user account was created, but the invitation email was not sent.'
+          console.error('❌ Email not sent:', fnData.email_error)
+
+          // Show warning to user with invitation link
           if (fnData.invitation_link) {
-            console.log('🔗 Invitation Link:', fnData.invitation_link)
-            console.log('📋 Link Format Check:')
-            console.log('  - Has https://:', fnData.invitation_link.includes('https://'))
-            console.log('  - Contains supabase.co:', fnData.invitation_link.includes('supabase.co'))
-            console.log('  - Contains /auth/v1/verify:', fnData.invitation_link.includes('/auth/v1/verify'))
-            console.log('  - Contains redirect_to:', fnData.invitation_link.includes('redirect_to'))
-            console.log('  - Length:', fnData.invitation_link.length, 'characters')
+            setError(`Warning: ${errorMsg} The invitation link is available in the browser console.`)
+          } else {
+            setError(`Warning: ${errorMsg}`)
           }
-          
-          // Check if email was sent successfully
-          if (!fnData.email_sent) {
-            const errorMsg = fnData.email_error || 'Email sending failed. The user account was created, but the invitation email was not sent.'
-            console.error('❌ Email not sent:', fnData.email_error)
-            
-            // Show warning to user with invitation link
-            if (fnData.invitation_link) {
-              setError(`Warning: ${errorMsg} The invitation link is available in the browser console.`)
-            } else {
-              setError(`Warning: ${errorMsg}`)
-            }
-            
-            // Don't show success message if email didn't send
-            setLoading(false)
-            return
-          }
+
+          // Still show partial success since user was created
+          setSuccess(`User account created for ${formData.email}. Email not sent - copy link from console.`)
+          setFormData({ email: '', full_name: '', user_role: 'inspector' })
+          if (onSuccess) onSuccess()
+          setLoading(false)
+          return
         }
-      } else if (data?.user) {
-        // Create profile record
-        await supabase.from('user_profiles').upsert({
-          id: data.user.id,
-          email: formData.email,
-          full_name: formData.full_name,
-          user_role: formData.user_role,
-          role: formData.user_role,
-          status: 'invited'
-        }, { onConflict: 'id' })
       }
       
       setSuccess(`Invitation sent to ${formData.email}!`)
