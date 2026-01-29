@@ -5,7 +5,7 @@ import {
   ResponsiveContainer, BarChart, Cell, ReferenceLine, PieChart, Pie
 } from 'recharts'
 import { supabase } from './supabase'
-import { calculateVAAC } from './shadowAuditUtils.js'
+import { calculateVAAC, aggregateValueLostByParty } from './shadowAuditUtils.js'
 import { MetricInfoIcon, MetricIntegrityModal, useMetricIntegrityModal } from './components/MetricIntegrityInfo.jsx'
 
 // ============================================================================
@@ -460,10 +460,12 @@ function EVMDashboard() {
         let systemicCount = 0
         let assetCount = 0
         const reasonBreakdown = {}
+        const allBlocks = []
 
         for (const report of reports || []) {
           const blocks = report.activity_blocks || []
           for (const block of blocks) {
+            allBlocks.push(block)
             const summary = block.shadowAuditSummary
             if (summary) {
               totalBilledHours += summary.totalBilledHours || 0
@@ -481,6 +483,9 @@ function EVMDashboard() {
           }
         }
 
+        // Calculate value lost by responsible party (Owner vs Contractor vs Neutral)
+        const partyBreakdown = aggregateValueLostByParty(allBlocks, {}, {})
+
         const inertiaRatio = totalBilledHours > 0 ? (totalShadowHours / totalBilledHours) * 100 : 100
         const dragRate = totalBilledHours > 0 ? ((totalBilledHours - totalShadowHours) / totalBilledHours) * 100 : 0
 
@@ -493,6 +498,7 @@ function EVMDashboard() {
           systemicCount,
           assetCount,
           reasonBreakdown,
+          partyBreakdown,
           reportCount: reports?.length || 0
         })
       } catch (err) {
@@ -710,7 +716,7 @@ function OverviewTab({ metrics, sCurveData, healthAssessment, dragMetrics, metri
             </div>
 
             {/* CPI Impact Analysis */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
               <div style={{ padding: '15px', backgroundColor: '#fff5f5', borderRadius: '8px', border: '1px solid #f8d7da' }}>
                 <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#721c24' }}>CPI Impact from Drag</h4>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -748,6 +754,77 @@ function OverviewTab({ metrics, sCurveData, healthAssessment, dragMetrics, metri
                 )}
               </div>
             </div>
+
+            {/* Responsibility Breakdown - Owner vs Contractor vs Neutral */}
+            {dragMetrics.partyBreakdown && dragMetrics.partyBreakdown.total > 0 && (
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                <div style={{ padding: '15px', backgroundColor: '#f0f9ff', borderRadius: '8px', border: '1px solid #bae6fd' }}>
+                  <h4 style={{ margin: '0 0 15px 0', fontSize: '13px', color: '#0369a1' }}>🔧 Accountability Breakdown</h4>
+                  <div style={{ display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start' }}>
+                    {/* Owner */}
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{
+                        width: '60px', height: '60px', borderRadius: '50%',
+                        backgroundColor: '#3b82f6', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', margin: '0 auto 8px', color: 'white', fontSize: '24px'
+                      }}>🏢</div>
+                      <div style={{ fontSize: '11px', color: '#666', fontWeight: '600' }}>OWNER</div>
+                      <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#3b82f6' }}>
+                        {formatCurrency(dragMetrics.partyBreakdown.owner)}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#666' }}>
+                        {dragMetrics.partyBreakdown.total > 0 ? ((dragMetrics.partyBreakdown.owner / dragMetrics.partyBreakdown.total) * 100).toFixed(0) : 0}%
+                      </div>
+                    </div>
+                    {/* Contractor */}
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{
+                        width: '60px', height: '60px', borderRadius: '50%',
+                        backgroundColor: '#ef4444', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', margin: '0 auto 8px', color: 'white', fontSize: '24px'
+                      }}>🔧</div>
+                      <div style={{ fontSize: '11px', color: '#666', fontWeight: '600' }}>CONTRACTOR</div>
+                      <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#ef4444' }}>
+                        {formatCurrency(dragMetrics.partyBreakdown.contractor)}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#666' }}>
+                        {dragMetrics.partyBreakdown.total > 0 ? ((dragMetrics.partyBreakdown.contractor / dragMetrics.partyBreakdown.total) * 100).toFixed(0) : 0}%
+                      </div>
+                    </div>
+                    {/* Neutral */}
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{
+                        width: '60px', height: '60px', borderRadius: '50%',
+                        backgroundColor: '#6b7280', display: 'flex', alignItems: 'center',
+                        justifyContent: 'center', margin: '0 auto 8px', color: 'white', fontSize: '24px'
+                      }}>🌩️</div>
+                      <div style={{ fontSize: '11px', color: '#666', fontWeight: '600' }}>ACT OF GOD</div>
+                      <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#6b7280' }}>
+                        {formatCurrency(dragMetrics.partyBreakdown.neutral)}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#666' }}>
+                        {dragMetrics.partyBreakdown.total > 0 ? ((dragMetrics.partyBreakdown.neutral / dragMetrics.partyBreakdown.total) * 100).toFixed(0) : 0}%
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ padding: '15px', backgroundColor: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca' }}>
+                  <h4 style={{ margin: '0 0 10px 0', fontSize: '13px', color: '#991b1b' }}>💰 Contractor Drag Summary</h4>
+                  <div style={{ fontSize: '32px', fontWeight: 'bold', color: '#ef4444', marginBottom: '8px' }}>
+                    {formatCurrency(dragMetrics.partyBreakdown.contractor)}
+                  </div>
+                  <p style={{ fontSize: '11px', color: '#666', margin: '0 0 10px 0' }}>
+                    Value lost to contractor-caused delays (mechanical breakdown, supervisory latency, ROW congestion, etc.)
+                  </p>
+                  {dragMetrics.partyBreakdown.contractor > 0 && (
+                    <div style={{ padding: '8px', backgroundColor: '#fef3c7', borderRadius: '4px', fontSize: '11px', color: '#92400e' }}>
+                      ⚠️ This amount may be recoverable through back-charges or contract negotiations
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         )}
       </>

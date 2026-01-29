@@ -5,7 +5,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 import { defaultRates } from './constants.js'
-import { verifyEfficiency, aggregateEfficiencyVerification } from './shadowAuditUtils.js'
+import { verifyEfficiency, aggregateEfficiencyVerification, aggregateValueLostByParty } from './shadowAuditUtils.js'
 
 function ShadowAuditDashboard() {
   const [loading, setLoading] = useState(true)
@@ -26,6 +26,7 @@ function ShadowAuditDashboard() {
     systemicDelayCount: 0,
     assetDelayCount: 0,
     delayReasonBreakdown: {},
+    partyBreakdown: { owner: 0, contractor: 0, neutral: 0, unknown: 0, total: 0 },
     spreadComparison: [],
     dailyTrend: [],
     // Goodhart's Law protection metrics
@@ -167,6 +168,9 @@ function ShadowAuditDashboard() {
     const allBlocks = reportsData.flatMap(r => r.activity_blocks || [])
     const reliability = aggregateEfficiencyVerification(allBlocks)
 
+    // Calculate value lost by responsible party (Owner vs Contractor vs Neutral)
+    const partyBreakdown = aggregateValueLostByParty(allBlocks, {}, {})
+
     // Calculate True Cost of Completion
     const trueCostOfCompletion = totalValueLost + reliability.totalReworkCost
 
@@ -178,6 +182,7 @@ function ShadowAuditDashboard() {
       systemicDelayCount,
       assetDelayCount,
       delayReasonBreakdown,
+      partyBreakdown,
       spreadComparison,
       dailyTrend,
       reliability: {
@@ -445,6 +450,90 @@ function ShadowAuditDashboard() {
           </p>
         </div>
       </div>
+
+      {/* Responsibility Breakdown - Owner vs Contractor vs Neutral */}
+      {metrics.partyBreakdown && metrics.partyBreakdown.total > 0 && (
+        <div style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', marginBottom: '30px' }}>
+          <h3 style={{ margin: '0 0 5px 0', color: '#333' }}>🔧 Accountability Breakdown</h3>
+          <p style={{ fontSize: '12px', color: '#666', marginBottom: '20px' }}>Value lost by responsible party - enables back-charge negotiations and performance tracking</p>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '20px' }}>
+            {/* Owner */}
+            <div style={{ padding: '20px', backgroundColor: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe', textAlign: 'center' }}>
+              <div style={{
+                width: '50px', height: '50px', borderRadius: '50%',
+                backgroundColor: '#3b82f6', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', margin: '0 auto 10px', color: 'white', fontSize: '20px'
+              }}>🏢</div>
+              <div style={{ fontSize: '12px', color: '#1e40af', fontWeight: '600', marginBottom: '5px' }}>OWNER ISSUES</div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#3b82f6', marginBottom: '5px' }}>
+                ${metrics.partyBreakdown.owner.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                {metrics.partyBreakdown.total > 0 ? ((metrics.partyBreakdown.owner / metrics.partyBreakdown.total) * 100).toFixed(0) : 0}% of total
+              </div>
+              <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '8px' }}>Permits, land access, env. windows</div>
+            </div>
+
+            {/* Contractor */}
+            <div style={{ padding: '20px', backgroundColor: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca', textAlign: 'center' }}>
+              <div style={{
+                width: '50px', height: '50px', borderRadius: '50%',
+                backgroundColor: '#ef4444', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', margin: '0 auto 10px', color: 'white', fontSize: '20px'
+              }}>🔧</div>
+              <div style={{ fontSize: '12px', color: '#991b1b', fontWeight: '600', marginBottom: '5px' }}>CONTRACTOR ISSUES</div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ef4444', marginBottom: '5px' }}>
+                ${metrics.partyBreakdown.contractor.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                {metrics.partyBreakdown.total > 0 ? ((metrics.partyBreakdown.contractor / metrics.partyBreakdown.total) * 100).toFixed(0) : 0}% of total
+              </div>
+              <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '8px' }}>Mech. breakdown, latency, rework</div>
+            </div>
+
+            {/* Neutral */}
+            <div style={{ padding: '20px', backgroundColor: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0', textAlign: 'center' }}>
+              <div style={{
+                width: '50px', height: '50px', borderRadius: '50%',
+                backgroundColor: '#6b7280', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', margin: '0 auto 10px', color: 'white', fontSize: '20px'
+              }}>🌩️</div>
+              <div style={{ fontSize: '12px', color: '#374151', fontWeight: '600', marginBottom: '5px' }}>ACT OF GOD</div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#6b7280', marginBottom: '5px' }}>
+                ${metrics.partyBreakdown.neutral.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                {metrics.partyBreakdown.total > 0 ? ((metrics.partyBreakdown.neutral / metrics.partyBreakdown.total) * 100).toFixed(0) : 0}% of total
+              </div>
+              <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '8px' }}>Extreme weather, force majeure</div>
+            </div>
+
+            {/* Contractor Back-Charge Potential */}
+            <div style={{ padding: '20px', backgroundColor: '#fefce8', borderRadius: '8px', border: '1px solid #fef08a', textAlign: 'center' }}>
+              <div style={{
+                width: '50px', height: '50px', borderRadius: '50%',
+                backgroundColor: '#eab308', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', margin: '0 auto 10px', color: 'white', fontSize: '20px'
+              }}>💰</div>
+              <div style={{ fontSize: '12px', color: '#854d0e', fontWeight: '600', marginBottom: '5px' }}>BACK-CHARGE POTENTIAL</div>
+              <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ca8a04', marginBottom: '5px' }}>
+                ${metrics.partyBreakdown.contractor.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+              </div>
+              <div style={{ fontSize: '11px', color: '#64748b' }}>
+                Recoverable from contractor
+              </div>
+              <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '8px' }}>Review for invoice adjustment</div>
+            </div>
+          </div>
+
+          {metrics.partyBreakdown.contractor > 0 && (
+            <div style={{ marginTop: '15px', padding: '12px 15px', backgroundColor: '#fef3c7', borderRadius: '6px', border: '1px solid #fde68a', fontSize: '12px', color: '#92400e' }}>
+              ⚠️ <strong>${metrics.partyBreakdown.contractor.toLocaleString(undefined, { maximumFractionDigits: 0 })}</strong> in contractor-caused delays may be recoverable through back-charges or contract negotiations. Review detailed reports for documentation.
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Two Column Layout */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '30px' }}>
