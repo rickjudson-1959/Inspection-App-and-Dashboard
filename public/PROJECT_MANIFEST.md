@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - January 26, 2026
+## Project Manifest - January 29, 2026
 
 ---
 
@@ -100,11 +100,12 @@
 - Hire-on package completion
 
 ### Dashboards
-- **CMT Dashboard** - Cost Management Tracking with progress charts
-- **EVM Dashboard** - Earned Value Management metrics
+- **CMT Dashboard** - Cost Management Tracking with progress charts, efficiency metrics
+- **EVM Dashboard** - Earned Value Management with VAAC (Value-Adjusted Actual Cost)
+- **Efficiency Audit Dashboard** - Shadow audit analysis, inertia ratio, value lost
 - **Chief Dashboard** - Daily summaries, report approval, NDT tracking
 - **Assistant Chief Dashboard** - Support functions
-- **Admin Portal** - User/org/project management
+- **Admin Portal** - User/org/project management, data reliability metrics
 - **Inspector Invoicing** - Timesheet management
 - **NDT Auditor Dashboard** - NDT monitoring
 - **Reconciliation Dashboard** - Financial reconciliation
@@ -223,11 +224,12 @@
 ├── constants.js                # Activity types, classifications
 │
 ├── Dashboards/
-│   ├── Dashboard.jsx           # CMT Dashboard
-│   ├── EVMDashboard.jsx        # Earned Value Management
+│   ├── Dashboard.jsx           # CMT Dashboard with efficiency metrics
+│   ├── EVMDashboard.jsx        # Earned Value Management with VAAC
+│   ├── ShadowAuditDashboard.jsx # Efficiency Audit Dashboard
 │   ├── ChiefDashboard.jsx      # Chief Inspector
 │   ├── AssistantChiefDashboard.jsx
-│   ├── AdminPortal.jsx         # Administration
+│   ├── AdminPortal.jsx         # Administration with reliability metrics
 │   ├── InspectorInvoicingDashboard.jsx
 │   └── NDTAuditorDashboard.jsx
 │
@@ -262,6 +264,7 @@
 ├── Utilities/
 │   ├── auditLoggerV3.js        # Audit trail logging
 │   ├── useActivityAudit.js     # Audit React hook
+│   ├── shadowAuditUtils.js     # Efficiency calculations, reliability scoring
 │   ├── weatherService.js       # Weather API integration
 │   ├── exifUtils.js            # Photo GPS extraction
 │   ├── kpUtils.js              # KP formatting
@@ -279,6 +282,7 @@
     ├── SignaturePad.jsx
     ├── MapDashboard.jsx
     ├── OfflineStatusBar.jsx    # PWA status indicator (NEW - Jan 2026)
+    ├── MetricIntegrityInfo.jsx # Goodhart's Law educational modal (NEW - Jan 2026)
     └── [supporting components]
 
 /supabase/migrations/
@@ -293,6 +297,45 @@
 ---
 
 ## 6. RECENT UPDATES (January 2026)
+
+### Metric Integrity & Goodhart's Law Protection (January 29, 2026)
+
+**MetricIntegrityInfo.jsx - NEW Component**
+- Educational modal explaining Goodhart's Law protection
+- Explains triangulation verification method
+- Data Reliability Score legend (Green/Amber/Red)
+- Key metrics explained: Inertia Ratio, Value Lost, True Cost, VAAC
+- Located: `/src/components/MetricIntegrityInfo.jsx`
+
+**Data Reliability Score System**
+- Triangulates three independent data points:
+  1. Time Integrity (Shadow Hours vs Billed Hours)
+  2. Physical Progress (Linear Metres Achieved)
+  3. Quality Rate (Pass Rate > 90% target)
+- Reliability scoring: Green (80-100%), Amber (50-79%), Red (<50%)
+- "Activity Without Productivity" penalty detection
+- Functions in `shadowAuditUtils.js`:
+  - `calculateReliabilityScore()` - Per-block triangulation
+  - `aggregateReliabilityScore()` - Dashboard-level aggregation
+  - `aggregateEfficiencyVerification()` - Critical alerts detection
+
+**VAAC (Value-Adjusted Actual Cost) - EVM Dashboard**
+- Purple dashed line showing what project SHOULD have cost
+- Formula: `VAAC = Actual Cost - Value Lost`
+- Efficiency gap shading between AC and VAAC
+- `calculateVAAC()` function in shadowAuditUtils.js
+
+**Dashboard Integrations:**
+- CMT Dashboard: "Learn More" button in Efficiency & Reliability section
+- Admin Portal: "Learn More" button in efficiency metrics section
+- EVM Dashboard: "Metric Integrity" button on S-Curve chart
+
+**Searchable Dropdowns (ActivityBlock.jsx)**
+- Labour and equipment dropdowns now support multi-word search
+- Matches words in any order (e.g., "1 ton truck" finds "1 Ton Truck")
+- Handles hyphens by treating them as spaces
+
+---
 
 ### PWA Offline Mode & Email System (January 26, 2026)
 
@@ -532,4 +575,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: January 26, 2026*
+*Last Updated: January 29, 2026*
