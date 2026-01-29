@@ -2491,7 +2491,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
         const totalShadowHours = calculateTotalShadowHours(block)
         const inertiaRatio = totalBilledHours > 0 ? (totalShadowHours / totalBilledHours) * 100 : 0
 
-        // Calculate linear metres
+        // Calculate linear metres (KP Difference)
         let linearMetres = 0
         if (block.startKP && block.endKP) {
           const startM = parseKPToMetres(block.startKP)
@@ -2501,10 +2501,26 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           }
         }
 
-        // Truth Trigger: High efficiency (>= 80%) but low/no progress (< 50m)
-        const isTruthTrigger = inertiaRatio >= 80 && linearMetres < 50 && totalBilledHours > 0
+        // Check if any entry is marked as ACTIVE (multiplier 1.0)
+        const hasActiveEntries = [
+          ...(block.labourEntries || []),
+          ...(block.equipmentEntries || [])
+        ].some(entry => (entry.productionStatus || 'ACTIVE') === 'ACTIVE')
+
+        // Truth Trigger conditions:
+        // 1. High efficiency (>= 80%) but low/no progress (< 50m)
+        // 2. OR: Any entry marked ACTIVE but KP difference is 0
+        const highEfficiencyLowProgress = inertiaRatio >= 80 && linearMetres < 50 && totalBilledHours > 0
+        const activeButZeroProgress = hasActiveEntries && linearMetres === 0 && totalBilledHours > 0
+
+        const isTruthTrigger = highEfficiencyLowProgress || activeButZeroProgress
 
         if (!isTruthTrigger) return null
+
+        // Determine trigger reason for display
+        const triggerReason = activeButZeroProgress && linearMetres === 0
+          ? 'Production Status marked "Active" but KP difference is 0'
+          : `Inertia Ratio: ${inertiaRatio.toFixed(0)}% (high productivity) | Linear Metres: ${linearMetres}m (low progress)`
 
         return (
           <div style={{
@@ -2521,8 +2537,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                   Productivity Mismatch Detected
                 </h4>
                 <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#856404' }}>
-                  Inertia Ratio: <strong>{inertiaRatio.toFixed(0)}%</strong> (high productivity marked) |
-                  Linear Metres: <strong>{linearMetres}m</strong> (low progress)
+                  {triggerReason}
                 </p>
               </div>
             </div>

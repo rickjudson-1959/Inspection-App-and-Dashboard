@@ -433,8 +433,8 @@ function Dashboard({ onBackToReport }) {
     }
   }, [reports, dateRange])
 
-  // Extract red alert blocks with their explanations
-  const redAlertExplanations = useMemo(() => {
+  // Extract productivity mismatch alerts with their explanations
+  const productivityAlerts = useMemo(() => {
     if (reports.length === 0) return []
 
     const alerts = []
@@ -444,6 +444,7 @@ function Dashboard({ onBackToReport }) {
           // Check for Truth Trigger condition
           let totalBilled = 0
           let totalShadow = 0
+          let hasActiveEntries = false
 
           if (block.labourEntries) {
             block.labourEntries.forEach(entry => {
@@ -454,6 +455,7 @@ function Dashboard({ onBackToReport }) {
               totalBilled += billed
 
               const prodStatus = entry.productionStatus || 'ACTIVE'
+              if (prodStatus === 'ACTIVE') hasActiveEntries = true
               const multiplier = prodStatus === 'ACTIVE' ? 1.0 : prodStatus === 'SYNC_DELAY' ? 0.7 : 0.0
               totalShadow += entry.shadowEffectiveHours !== null ? parseFloat(entry.shadowEffectiveHours) : billed * multiplier
             })
@@ -464,6 +466,7 @@ function Dashboard({ onBackToReport }) {
               totalBilled += hours
 
               const prodStatus = entry.productionStatus || 'ACTIVE'
+              if (prodStatus === 'ACTIVE') hasActiveEntries = true
               const multiplier = prodStatus === 'ACTIVE' ? 1.0 : prodStatus === 'SYNC_DELAY' ? 0.7 : 0.0
               totalShadow += entry.shadowEffectiveHours !== null ? parseFloat(entry.shadowEffectiveHours) : hours * multiplier
             })
@@ -471,7 +474,7 @@ function Dashboard({ onBackToReport }) {
 
           const inertiaRatio = totalBilled > 0 ? (totalShadow / totalBilled) * 100 : 0
 
-          // Calculate linear metres
+          // Calculate linear metres (KP Difference)
           let linearMetres = 0
           if (block.startKP && block.endKP) {
             const parseKP = (kp) => {
@@ -489,8 +492,17 @@ function Dashboard({ onBackToReport }) {
             }
           }
 
-          // Truth Trigger: High efficiency but low progress
-          if (inertiaRatio >= 80 && linearMetres < 50 && totalBilled > 0) {
+          // Truth Trigger conditions:
+          // 1. High efficiency (>= 80%) but low/no progress (< 50m)
+          // 2. OR: Any entry marked ACTIVE but KP difference is 0
+          const highEfficiencyLowProgress = inertiaRatio >= 80 && linearMetres < 50 && totalBilled > 0
+          const activeButZeroProgress = hasActiveEntries && linearMetres === 0 && totalBilled > 0
+
+          if (highEfficiencyLowProgress || activeButZeroProgress) {
+            const triggerType = activeButZeroProgress && linearMetres === 0
+              ? 'Active status with zero KP progress'
+              : 'High efficiency, low progress'
+
             alerts.push({
               date: report.date,
               inspector: report.inspector_name,
@@ -500,7 +512,9 @@ function Dashboard({ onBackToReport }) {
               linearMetres,
               explanation: block.reliability_notes || null,
               startKP: block.startKP,
-              endKP: block.endKP
+              endKP: block.endKP,
+              triggerType,
+              severity: linearMetres === 0 ? 'red' : 'amber'
             })
           }
         })
@@ -758,23 +772,23 @@ function Dashboard({ onBackToReport }) {
                 }}>
                   {metrics?.reliability?.label || 'Reliable'}
                 </div>
-                {/* View Explanations button for Red Alerts */}
-                {redAlertExplanations.length > 0 && (
+                {/* View Explanations button for Amber/Red Alerts */}
+                {productivityAlerts.length > 0 && (
                   <button
                     onClick={() => setShowExplanationModal(true)}
                     style={{
                       marginTop: '8px',
                       padding: '4px 8px',
                       fontSize: '10px',
-                      backgroundColor: '#dc3545',
-                      color: 'white',
+                      backgroundColor: productivityAlerts.some(a => a.severity === 'red') ? '#dc3545' : '#ffc107',
+                      color: productivityAlerts.some(a => a.severity === 'red') ? 'white' : '#333',
                       border: 'none',
                       borderRadius: '12px',
                       cursor: 'pointer',
                       fontWeight: 'bold'
                     }}
                   >
-                    🔍 View {redAlertExplanations.length} Alert{redAlertExplanations.length > 1 ? 's' : ''}
+                    🔍 View {productivityAlerts.length} Alert{productivityAlerts.length > 1 ? 's' : ''}
                   </button>
                 )}
               </div>
@@ -1402,24 +1416,37 @@ function Dashboard({ onBackToReport }) {
 
             {/* Content */}
             <div style={{ padding: '20px' }}>
-              {redAlertExplanations.length === 0 ? (
+              {productivityAlerts.length === 0 ? (
                 <p style={{ textAlign: 'center', color: '#666' }}>No alerts to display.</p>
               ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                  {redAlertExplanations.map((alert, idx) => (
+                  {productivityAlerts.map((alert, idx) => (
                     <div
                       key={idx}
                       style={{
                         padding: '15px',
                         backgroundColor: alert.explanation ? '#f8f9fa' : '#fff5f5',
-                        border: `1px solid ${alert.explanation ? '#dee2e6' : '#f5c6cb'}`,
-                        borderRadius: '8px'
+                        border: `1px solid ${alert.severity === 'red' ? '#f5c6cb' : '#ffeeba'}`,
+                        borderRadius: '8px',
+                        borderLeft: `4px solid ${alert.severity === 'red' ? '#dc3545' : '#ffc107'}`
                       }}
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
                         <div>
-                          <div style={{ fontWeight: 'bold', color: '#333', fontSize: '14px' }}>
-                            {alert.activityType || 'Unknown Activity'}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontWeight: 'bold', color: '#333', fontSize: '14px' }}>
+                              {alert.activityType || 'Unknown Activity'}
+                            </span>
+                            <span style={{
+                              padding: '2px 6px',
+                              fontSize: '9px',
+                              fontWeight: 'bold',
+                              borderRadius: '10px',
+                              backgroundColor: alert.severity === 'red' ? '#dc3545' : '#ffc107',
+                              color: alert.severity === 'red' ? 'white' : '#333'
+                            }}>
+                              {alert.severity === 'red' ? 'RED' : 'AMBER'}
+                            </span>
                           </div>
                           <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
                             {alert.date} | {alert.inspector || 'Unknown'} | {alert.spread || 'N/A'}
@@ -1429,10 +1456,13 @@ function Dashboard({ onBackToReport }) {
                               KP: {alert.startKP} → {alert.endKP}
                             </div>
                           )}
+                          <div style={{ fontSize: '10px', color: '#856404', marginTop: '4px', fontStyle: 'italic' }}>
+                            Trigger: {alert.triggerType}
+                          </div>
                         </div>
                         <div style={{ textAlign: 'right' }}>
                           <div style={{ fontSize: '12px' }}>
-                            <span style={{ color: '#dc3545', fontWeight: 'bold' }}>
+                            <span style={{ color: alert.severity === 'red' ? '#dc3545' : '#856404', fontWeight: 'bold' }}>
                               {alert.inertiaRatio}% efficiency
                             </span>
                           </div>
@@ -1476,19 +1506,19 @@ function Dashboard({ onBackToReport }) {
               }}>
                 <div>
                   <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#dc3545' }}>
-                    {redAlertExplanations.length}
+                    {productivityAlerts.length}
                   </div>
                   <div style={{ fontSize: '11px', color: '#666' }}>Total Alerts</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#28a745' }}>
-                    {redAlertExplanations.filter(a => a.explanation).length}
+                    {productivityAlerts.filter(a => a.explanation).length}
                   </div>
                   <div style={{ fontSize: '11px', color: '#666' }}>With Explanation</div>
                 </div>
                 <div>
                   <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#ffc107' }}>
-                    {redAlertExplanations.filter(a => !a.explanation).length}
+                    {productivityAlerts.filter(a => !a.explanation).length}
                   </div>
                   <div style={{ fontSize: '11px', color: '#666' }}>Pending</div>
                 </div>
