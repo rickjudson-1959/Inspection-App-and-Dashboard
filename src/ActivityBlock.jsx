@@ -182,9 +182,25 @@ function SearchableSelect({
   return (
     <div ref={containerRef} style={{ position: 'relative', ...style }}>
       <div
+        tabIndex={0}
         onClick={() => {
           setIsOpen(true)
           setTimeout(() => inputRef.current?.focus(), 0)
+        }}
+        onFocus={() => {
+          // Open dropdown when tabbing into the component
+          if (!isOpen) {
+            setIsOpen(true)
+            setTimeout(() => inputRef.current?.focus(), 0)
+          }
+        }}
+        onKeyDown={(e) => {
+          // Handle Enter/Space when focused but closed
+          if (!isOpen && (e.key === 'Enter' || e.key === ' ')) {
+            setIsOpen(true)
+            setTimeout(() => inputRef.current?.focus(), 0)
+            e.preventDefault()
+          }
         }}
         style={{
           width: '100%',
