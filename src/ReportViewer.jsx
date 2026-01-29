@@ -1284,24 +1284,45 @@ function ReportViewer() {
 
         {/* TRACKABLE ITEMS */}
         {trackableItems.length > 0 && (
-          <div style={sectionStyle}>
+          <div style={{ ...sectionStyle, backgroundColor: '#f8f5ff', border: '1px solid #6f42c1' }}>
             <h2 style={sectionHeaderStyle('#6f42c1')}>📦 Trackable Items ({trackableItems.length})</h2>
-            <div style={{ display: 'grid', gap: '10px' }}>
-              {trackableItems.map((item, idx) => (
-                <div key={idx} style={{ backgroundColor: '#f8f9fa', padding: '12px', borderRadius: '4px', border: '1px solid #dee2e6' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                    <span style={{ fontWeight: 'bold', color: '#6f42c1' }}>{item.item_type}</span>
-                    <span style={{ fontSize: '12px', color: '#666' }}>{item.action}</span>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '8px', fontSize: '12px' }}>
-                    {item.quantity && <div><span style={{ color: '#666' }}>Qty: </span><strong>{item.quantity}</strong></div>}
-                    {item.from_kp && <div><span style={{ color: '#666' }}>From: </span><strong>{item.from_kp}</strong></div>}
-                    {item.to_kp && <div><span style={{ color: '#666' }}>To: </span><strong>{item.to_kp}</strong></div>}
-                    {item.kp_location && <div><span style={{ color: '#666' }}>KP: </span><strong>{item.kp_location}</strong></div>}
-                  </div>
-                  {item.notes && <p style={{ margin: '8px 0 0 0', fontSize: '12px', color: '#666' }}>{item.notes}</p>}
-                </div>
-              ))}
+            <div style={{ overflowX: 'auto' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', tableLayout: 'fixed' }}>
+                <thead>
+                  <tr style={{ backgroundColor: '#6f42c1', color: 'white' }}>
+                    <th style={{ padding: '10px 8px', textAlign: 'left', fontWeight: '600', width: '18%' }}>Item Type</th>
+                    <th style={{ padding: '10px 8px', textAlign: 'center', fontWeight: '600', width: '12%' }}>Action</th>
+                    <th style={{ padding: '10px 8px', textAlign: 'center', fontWeight: '600', width: '8%' }}>Qty</th>
+                    <th style={{ padding: '10px 8px', textAlign: 'center', fontWeight: '600', width: '12%' }}>From KP</th>
+                    <th style={{ padding: '10px 8px', textAlign: 'center', fontWeight: '600', width: '12%' }}>To KP</th>
+                    <th style={{ padding: '10px 8px', textAlign: 'left', fontWeight: '600', width: '38%' }}>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {trackableItems.map((item, idx) => (
+                    <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? 'white' : '#f8f5ff', borderBottom: '1px solid #e0d4f7' }}>
+                      <td style={{ padding: '10px 8px', fontWeight: '500', color: '#6f42c1' }}>{item.item_type}</td>
+                      <td style={{ padding: '10px 8px', textAlign: 'center' }}>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '3px 8px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          backgroundColor: item.action === 'Installed' ? '#d4edda' : item.action === 'Removed' ? '#f8d7da' : item.action === 'Moved' ? '#fff3cd' : '#e2e3e5',
+                          color: item.action === 'Installed' ? '#155724' : item.action === 'Removed' ? '#721c24' : item.action === 'Moved' ? '#856404' : '#383d41'
+                        }}>
+                          {item.action}
+                        </span>
+                      </td>
+                      <td style={{ padding: '10px 8px', textAlign: 'center', fontWeight: '600' }}>{item.quantity || '-'}</td>
+                      <td style={{ padding: '10px 8px', textAlign: 'center' }}>{item.from_kp || item.kp_location || '-'}</td>
+                      <td style={{ padding: '10px 8px', textAlign: 'center' }}>{item.to_kp || '-'}</td>
+                      <td style={{ padding: '10px 8px', fontSize: '12px', color: '#555', wordBreak: 'break-word' }}>{item.notes || '-'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
