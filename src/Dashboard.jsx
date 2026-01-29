@@ -268,6 +268,9 @@ function Dashboard({ onBackToReport }) {
   // Metric Integrity Info modal
   const metricInfoModal = useMetricIntegrityModal()
   const [activeTab, setActiveTab] = useState('overview')
+
+  // Red Alert Explanation modal
+  const [showExplanationModal, setShowExplanationModal] = useState(false)
   
   // Photo search state
   const [photoSearchDate, setPhotoSearchDate] = useState('')
@@ -429,6 +432,83 @@ function Dashboard({ onBackToReport }) {
       }
     }
   }, [reports, dateRange])
+
+  // Extract red alert blocks with their explanations
+  const redAlertExplanations = useMemo(() => {
+    if (reports.length === 0) return []
+
+    const alerts = []
+    reports.forEach(report => {
+      if (report.activity_blocks && Array.isArray(report.activity_blocks)) {
+        report.activity_blocks.forEach(block => {
+          // Check for Truth Trigger condition
+          let totalBilled = 0
+          let totalShadow = 0
+
+          if (block.labourEntries) {
+            block.labourEntries.forEach(entry => {
+              const rt = parseFloat(entry.rt) || 0
+              const ot = parseFloat(entry.ot) || 0
+              const count = entry.count || 1
+              const billed = (rt + ot) * count
+              totalBilled += billed
+
+              const prodStatus = entry.productionStatus || 'ACTIVE'
+              const multiplier = prodStatus === 'ACTIVE' ? 1.0 : prodStatus === 'SYNC_DELAY' ? 0.7 : 0.0
+              totalShadow += entry.shadowEffectiveHours !== null ? parseFloat(entry.shadowEffectiveHours) : billed * multiplier
+            })
+          }
+          if (block.equipmentEntries) {
+            block.equipmentEntries.forEach(entry => {
+              const hours = (parseFloat(entry.hours) || 0) * (entry.count || 1)
+              totalBilled += hours
+
+              const prodStatus = entry.productionStatus || 'ACTIVE'
+              const multiplier = prodStatus === 'ACTIVE' ? 1.0 : prodStatus === 'SYNC_DELAY' ? 0.7 : 0.0
+              totalShadow += entry.shadowEffectiveHours !== null ? parseFloat(entry.shadowEffectiveHours) : hours * multiplier
+            })
+          }
+
+          const inertiaRatio = totalBilled > 0 ? (totalShadow / totalBilled) * 100 : 0
+
+          // Calculate linear metres
+          let linearMetres = 0
+          if (block.startKP && block.endKP) {
+            const parseKP = (kp) => {
+              if (!kp) return null
+              const str = String(kp).trim()
+              const match = str.match(/^(\d+)\+(\d+)$/)
+              if (match) return parseInt(match[1]) * 1000 + parseInt(match[2])
+              const num = parseFloat(str)
+              return !isNaN(num) ? (num >= 100 ? num : num * 1000) : null
+            }
+            const startM = parseKP(block.startKP)
+            const endM = parseKP(block.endKP)
+            if (startM !== null && endM !== null) {
+              linearMetres = Math.abs(endM - startM)
+            }
+          }
+
+          // Truth Trigger: High efficiency but low progress
+          if (inertiaRatio >= 80 && linearMetres < 50 && totalBilled > 0) {
+            alerts.push({
+              date: report.date,
+              inspector: report.inspector_name,
+              spread: report.spread,
+              activityType: block.activityType,
+              inertiaRatio: inertiaRatio.toFixed(0),
+              linearMetres,
+              explanation: block.reliability_notes || null,
+              startKP: block.startKP,
+              endKP: block.endKP
+            })
+          }
+        })
+      }
+    })
+
+    return alerts.sort((a, b) => new Date(b.date) - new Date(a.date))
+  }, [reports])
 
   // Photo helper functions
   function getFilteredPhotos() {
@@ -678,6 +758,25 @@ function Dashboard({ onBackToReport }) {
                 }}>
                   {metrics?.reliability?.label || 'Reliable'}
                 </div>
+                {/* View Explanations button for Red Alerts */}
+                {redAlertExplanations.length > 0 && (
+                  <button
+                    onClick={() => setShowExplanationModal(true)}
+                    style={{
+                      marginTop: '8px',
+                      padding: '4px 8px',
+                      fontSize: '10px',
+                      backgroundColor: '#dc3545',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    🔍 View {redAlertExplanations.length} Alert{redAlertExplanations.length > 1 ? 's' : ''}
+                  </button>
+                )}
               </div>
 
               {/* Efficiency Score */}
@@ -1238,6 +1337,166 @@ function Dashboard({ onBackToReport }) {
 
       {/* Metric Integrity Info Modal */}
       <MetricIntegrityModal isOpen={metricInfoModal.isOpen} onClose={metricInfoModal.close} />
+
+      {/* Red Alert Explanations Modal */}
+      {showExplanationModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '20px'
+        }} onClick={() => setShowExplanationModal(false)}>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              maxWidth: '800px',
+              width: '100%',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+            }}
+          >
+            {/* Header */}
+            <div style={{
+              backgroundColor: '#dc3545',
+              color: 'white',
+              padding: '15px 20px',
+              borderRadius: '12px 12px 0 0',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <div>
+                <h2 style={{ margin: 0, fontSize: '18px' }}>
+                  🚨 Productivity Mismatch Alerts
+                </h2>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12px', opacity: 0.9 }}>
+                  Inspector explanations for high efficiency with low progress
+                </p>
+              </div>
+              <button
+                onClick={() => setShowExplanationModal(false)}
+                style={{
+                  background: 'rgba(255,255,255,0.2)',
+                  border: 'none',
+                  color: 'white',
+                  width: '32px',
+                  height: '32px',
+                  borderRadius: '50%',
+                  cursor: 'pointer',
+                  fontSize: '18px'
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: '20px' }}>
+              {redAlertExplanations.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#666' }}>No alerts to display.</p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+                  {redAlertExplanations.map((alert, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        padding: '15px',
+                        backgroundColor: alert.explanation ? '#f8f9fa' : '#fff5f5',
+                        border: `1px solid ${alert.explanation ? '#dee2e6' : '#f5c6cb'}`,
+                        borderRadius: '8px'
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px' }}>
+                        <div>
+                          <div style={{ fontWeight: 'bold', color: '#333', fontSize: '14px' }}>
+                            {alert.activityType || 'Unknown Activity'}
+                          </div>
+                          <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
+                            {alert.date} | {alert.inspector || 'Unknown'} | {alert.spread || 'N/A'}
+                          </div>
+                          {alert.startKP && alert.endKP && (
+                            <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>
+                              KP: {alert.startKP} → {alert.endKP}
+                            </div>
+                          )}
+                        </div>
+                        <div style={{ textAlign: 'right' }}>
+                          <div style={{ fontSize: '12px' }}>
+                            <span style={{ color: '#dc3545', fontWeight: 'bold' }}>
+                              {alert.inertiaRatio}% efficiency
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#666' }}>
+                            {alert.linearMetres}m progress
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{
+                        padding: '10px',
+                        backgroundColor: alert.explanation ? '#e8f5e9' : '#ffebee',
+                        borderRadius: '4px',
+                        borderLeft: `3px solid ${alert.explanation ? '#28a745' : '#dc3545'}`
+                      }}>
+                        <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#666', marginBottom: '4px' }}>
+                          Inspector Explanation:
+                        </div>
+                        <div style={{ fontSize: '13px', color: '#333' }}>
+                          {alert.explanation || (
+                            <span style={{ color: '#dc3545', fontStyle: 'italic' }}>
+                              No explanation provided - awaiting inspector input
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Summary */}
+              <div style={{
+                marginTop: '20px',
+                padding: '12px',
+                backgroundColor: '#f8f9fa',
+                borderRadius: '8px',
+                display: 'flex',
+                justifyContent: 'space-around',
+                textAlign: 'center'
+              }}>
+                <div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#dc3545' }}>
+                    {redAlertExplanations.length}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#666' }}>Total Alerts</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#28a745' }}>
+                    {redAlertExplanations.filter(a => a.explanation).length}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#666' }}>With Explanation</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#ffc107' }}>
+                    {redAlertExplanations.filter(a => !a.explanation).length}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#666' }}>Pending</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

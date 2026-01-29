@@ -2484,6 +2484,86 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
         )}
       </div>
 
+      {/* Truth Trigger - Productivity Mismatch Detection */}
+      {(() => {
+        // Calculate metrics for this block
+        const totalBilledHours = calculateTotalBilledHours(block)
+        const totalShadowHours = calculateTotalShadowHours(block)
+        const inertiaRatio = totalBilledHours > 0 ? (totalShadowHours / totalBilledHours) * 100 : 0
+
+        // Calculate linear metres
+        let linearMetres = 0
+        if (block.startKP && block.endKP) {
+          const startM = parseKPToMetres(block.startKP)
+          const endM = parseKPToMetres(block.endKP)
+          if (startM !== null && endM !== null) {
+            linearMetres = Math.abs(endM - startM)
+          }
+        }
+
+        // Truth Trigger: High efficiency (>= 80%) but low/no progress (< 50m)
+        const isTruthTrigger = inertiaRatio >= 80 && linearMetres < 50 && totalBilledHours > 0
+
+        if (!isTruthTrigger) return null
+
+        return (
+          <div style={{
+            padding: '15px',
+            backgroundColor: '#f8d7da',
+            borderRadius: '8px',
+            border: '2px solid #dc3545',
+            marginBottom: '15px'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' }}>
+              <span style={{ fontSize: '24px' }}>🚨</span>
+              <div>
+                <h4 style={{ margin: 0, color: '#721c24', fontSize: '14px' }}>
+                  Productivity Mismatch Detected
+                </h4>
+                <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#856404' }}>
+                  Inertia Ratio: <strong>{inertiaRatio.toFixed(0)}%</strong> (high productivity marked) |
+                  Linear Metres: <strong>{linearMetres}m</strong> (low progress)
+                </p>
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '10px' }}>
+              <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#721c24', marginBottom: '6px' }}>
+                Please explain the cause of low progress: <span style={{ color: '#dc3545' }}>*</span>
+              </label>
+              <textarea
+                value={block.reliability_notes || ''}
+                onChange={(e) => updateBlock(block.id, 'reliability_notes', e.target.value)}
+                placeholder="Examples: Setup day for new spread, equipment mobilization, safety stand-down for training, waiting for survey crew, material delivery delays..."
+                style={{
+                  width: '100%',
+                  minHeight: '80px',
+                  padding: '10px',
+                  border: block.reliability_notes?.trim() ? '1px solid #28a745' : '2px solid #dc3545',
+                  borderRadius: '4px',
+                  fontSize: '13px',
+                  resize: 'vertical',
+                  boxSizing: 'border-box',
+                  backgroundColor: block.reliability_notes?.trim() ? '#fff' : '#fff5f5'
+                }}
+                required
+              />
+              {!block.reliability_notes?.trim() && (
+                <p style={{ margin: '6px 0 0 0', fontSize: '11px', color: '#dc3545', fontWeight: 'bold' }}>
+                  This explanation is required before submitting the report.
+                </p>
+              )}
+            </div>
+
+            <div style={{ fontSize: '11px', color: '#666', padding: '8px', backgroundColor: 'rgba(255,255,255,0.5)', borderRadius: '4px' }}>
+              <strong>Why this matters:</strong> High productive time with minimal progress may indicate
+              data entry issues or legitimate circumstances (mobilization, setup, weather). Your explanation
+              helps verify data integrity and provides context for project analysis.
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Work Photos */}
       <div style={{ padding: '15px', backgroundColor: '#e9ecef', borderRadius: '8px' }}>
         <h4 style={{ margin: '0 0 15px 0', color: '#495057' }}>📷 Work Photos</h4>
