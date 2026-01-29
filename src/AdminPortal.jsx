@@ -14,6 +14,7 @@ import {
   calculateValueLost,
   aggregateEfficiencyVerification
 } from './shadowAuditUtils.js'
+import { MetricInfoIcon, MetricIntegrityModal, useMetricIntegrityModal } from './components/MetricIntegrityInfo.jsx'
 
 function AdminPortal() {
   const navigate = useNavigate()
@@ -67,6 +68,9 @@ function AdminPortal() {
 
   // Setup tab state
   const [selectedOrgForSetup, setSelectedOrgForSetup] = useState('')
+
+  // Metric Integrity Info modal
+  const metricInfoModal = useMetricIntegrityModal()
 
   // Invite User state
   const [showInviteModal, setShowInviteModal] = useState(false)
@@ -990,7 +994,27 @@ function AdminPortal() {
             </div>
 
             {/* Efficiency & Reliability Metrics */}
-            <h3 style={{ marginTop: '30px', marginBottom: '15px', color: '#333' }}>📊 Efficiency & Data Reliability (Last 30 Days)</h3>
+            <div style={{ marginTop: '30px', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <h3 style={{ margin: 0, color: '#333' }}>📊 Efficiency & Data Reliability (Last 30 Days)</h3>
+              <button
+                onClick={metricInfoModal.open}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '4px 10px',
+                  backgroundColor: '#e8eaf6',
+                  border: '1px solid #1a237e',
+                  borderRadius: '15px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  color: '#1a237e',
+                  fontWeight: '600'
+                }}
+              >
+                <span style={{ fontSize: '14px' }}>ℹ️</span> Learn More
+              </button>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px' }}>
 
               {/* Reliability Shield */}
@@ -2359,6 +2383,9 @@ function AdminPortal() {
             </div>
           </div>
         )}
+
+        {/* Metric Integrity Info Modal */}
+        <MetricIntegrityModal isOpen={metricInfoModal.isOpen} onClose={metricInfoModal.close} />
 
       </div>
     </div>
