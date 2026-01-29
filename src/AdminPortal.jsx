@@ -387,7 +387,7 @@ function AdminPortal() {
     try {
       const { data: reports } = await supabase
         .from('daily_tickets')
-        .select('id, date, inspector_name, spread, pipeline, activity_blocks')
+        .select('id, date, inspector_name, spread, pipeline, activity_blocks, pdf_hash, pdf_storage_url, pdf_document_id, pdf_generated_at')
         .order('date', { ascending: false })
         .limit(100)
 
@@ -1691,28 +1691,29 @@ function AdminPortal() {
             ) : allReports.length === 0 ? (
               <p style={{ color: '#666' }}>No reports found</p>
             ) : (
-              <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
                   <thead>
                     <tr style={{ backgroundColor: '#f8f9fa' }}>
-                      <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Date</th>
-                      <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Inspector</th>
-                      <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Spread</th>
-                      <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Activities</th>
-                      <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Status</th>
-                      <th style={{ padding: '15px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Action</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Date</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Inspector</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Spread</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Activities</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Status</th>
+                      <th style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>PDF Archive</th>
+                      <th style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Action</th>
                     </tr>
                   </thead>
                   <tbody>
                     {allReports.map(report => (
                       <tr key={report.id}>
-                        <td style={{ padding: '15px', borderBottom: '1px solid #eee' }}>{report.date}</td>
-                        <td style={{ padding: '15px', borderBottom: '1px solid #eee' }}>{report.inspector_name}</td>
-                        <td style={{ padding: '15px', borderBottom: '1px solid #eee' }}>{report.spread || '-'}</td>
-                        <td style={{ padding: '15px', borderBottom: '1px solid #eee', fontSize: '13px' }}>
+                        <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{report.date}</td>
+                        <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{report.inspector_name}</td>
+                        <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{report.spread || '-'}</td>
+                        <td style={{ padding: '12px', borderBottom: '1px solid #eee', fontSize: '13px' }}>
                           {(report.activity_blocks || []).map(b => b.activityType).filter(Boolean).join(', ') || '-'}
                         </td>
-                        <td style={{ padding: '15px', borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>
                           <span style={{
                             padding: '4px 10px',
                             borderRadius: '4px',
@@ -1727,16 +1728,52 @@ function AdminPortal() {
                             {report.status?.toUpperCase()}
                           </span>
                         </td>
-                        <td style={{ padding: '15px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
-                          <button 
-                            onClick={() => navigate(`/report?id=${report.id}`)} 
-                            style={{ padding: '8px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}
+                        <td style={{ padding: '12px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
+                          {report.pdf_storage_url ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                              <a
+                                href={report.pdf_storage_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  padding: '6px 12px',
+                                  backgroundColor: '#7c3aed',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer',
+                                  textDecoration: 'none',
+                                  fontSize: '12px',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px'
+                                }}
+                              >
+                                📄 Download PDF
+                              </a>
+                              <div style={{ fontSize: '10px', color: '#666' }}>
+                                <span title={`SHA-256: ${report.pdf_hash}`}>
+                                  🔒 Hash: {report.pdf_hash?.substring(0, 8)}...
+                                </span>
+                              </div>
+                              <div style={{ fontSize: '9px', color: '#999' }}>
+                                {report.pdf_generated_at ? new Date(report.pdf_generated_at).toLocaleDateString() : ''}
+                              </div>
+                            </div>
+                          ) : (
+                            <span style={{ color: '#999', fontSize: '12px' }}>No PDF archived</span>
+                          )}
+                        </td>
+                        <td style={{ padding: '12px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
+                          <button
+                            onClick={() => navigate(`/report?id=${report.id}`)}
+                            style={{ padding: '6px 12px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '4px', fontSize: '12px' }}
                           >
                             👁️ View
                           </button>
-                          <button 
-                            onClick={() => navigate(`/inspector?edit=${report.id}`)} 
-                            style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                          <button
+                            onClick={() => navigate(`/inspector?edit=${report.id}`)}
+                            style={{ padding: '6px 12px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
                           >
                             ✏️ Edit
                           </button>

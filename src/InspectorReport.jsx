@@ -2986,6 +2986,32 @@ Important:
     const contentWidth = pageWidth - (margin * 2)
     let y = 0
 
+    // Generate unique document ID and timestamp for legal compliance
+    const documentId = `${PROJECT_SHORT}-RPT-${currentReportId || Date.now()}-${Date.now().toString(36).toUpperCase()}`
+    const generationTimestamp = new Date().toISOString()
+    const generationTimestampLocal = new Date().toLocaleString('en-CA', {
+      timeZone: 'America/Edmonton',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    })
+
+    // Add PDF metadata for legal compliance
+    doc.setProperties({
+      title: `Daily Inspector Report - ${selectedDate}`,
+      subject: `Pipeline Inspection Report for ${PROJECT_SHORT} - ${selectedDate}`,
+      author: inspectorName || 'Unknown Inspector',
+      creator: 'Pipe-Up Inspection Management System',
+      producer: 'Pipe-Up v2.0 / jsPDF',
+      keywords: `inspection, ${PROJECT_SHORT}, ${selectedDate}, ${spread}, ${documentId}`,
+      creationDate: new Date(),
+      modDate: new Date()
+    })
+
     // PIPE-UP BRAND COLORS
     const BRAND = {
       navy: [10, 22, 40],
@@ -3056,13 +3082,17 @@ Important:
     const addFooter = (pageNum, totalPages) => {
       const footerY = pageHeight - 8
       setColor(BRAND.grayMid, 'draw')
-      doc.line(margin, footerY - 3, pageWidth - margin, footerY - 3)
+      doc.line(margin, footerY - 6, pageWidth - margin, footerY - 6)
       setColor(BRAND.gray, 'text')
-      doc.setFontSize(7)
+      doc.setFontSize(6)
       doc.setFont('helvetica', 'normal')
-      doc.text('pipe-up.ca', margin, footerY)
-      doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth / 2, footerY, { align: 'center' })
-      doc.text(`Generated: ${new Date().toLocaleDateString()}`, pageWidth - margin, footerY, { align: 'right' })
+      // First line: URLs and page
+      doc.text('pipe-up.ca', margin, footerY - 2)
+      doc.text(`Page ${pageNum} of ${totalPages}`, pageWidth / 2, footerY - 2, { align: 'center' })
+      doc.text(`Doc ID: ${documentId}`, pageWidth - margin, footerY - 2, { align: 'right' })
+      // Second line: timestamp for legal compliance
+      doc.setFontSize(5)
+      doc.text(`Generated: ${generationTimestampLocal} MST | ISO: ${generationTimestamp}`, margin, footerY + 2)
     }
 
     const addSectionHeader = (title, bgColor = BRAND.navyLight) => {
@@ -5535,6 +5565,45 @@ Important:
     y += 12
 
     // ═══════════════════════════════════════════════════════════
+    // DIGITAL CERTIFICATION / LEGAL COMPLIANCE SECTION
+    // ═══════════════════════════════════════════════════════════
+    checkPageBreak(40)
+    y += 5
+    setColor([120, 80, 160], 'fill') // Purple for certification
+    doc.roundedRect(margin, y, contentWidth, 7, 1, 1, 'F')
+    setColor(BRAND.white, 'text')
+    doc.setFont('helvetica', 'bold')
+    doc.setFontSize(9)
+    doc.text('DOCUMENT CERTIFICATION', margin + 4, y + 5)
+    y += 10
+
+    // Certification box
+    setColor([248, 245, 252], 'fill')
+    doc.roundedRect(margin, y, contentWidth, 28, 2, 2, 'F')
+    setColor([180, 160, 200], 'draw')
+    doc.roundedRect(margin, y, contentWidth, 28, 2, 2, 'S')
+
+    y += 5
+    setColor(BRAND.gray, 'text')
+    doc.setFont('helvetica', 'normal')
+    doc.setFontSize(7)
+    doc.text('This document was electronically generated and is subject to audit verification.', margin + 3, y)
+    y += 4
+    doc.text(`Document ID: ${documentId}`, margin + 3, y)
+    doc.text(`Report ID: ${currentReportId || 'DRAFT'}`, margin + 80, y)
+    y += 4
+    doc.text(`Generated: ${generationTimestampLocal} MST`, margin + 3, y)
+    doc.text(`ISO 8601: ${generationTimestamp}`, margin + 80, y)
+    y += 4
+    doc.text(`Project: ${PROJECT_SHORT}`, margin + 3, y)
+    doc.text(`Inspector: ${inspectorName || 'Unknown'}`, margin + 80, y)
+    y += 4
+    doc.setFontSize(6)
+    setColor([100, 100, 100], 'text')
+    doc.text('Integrity verification hash will be stored in system audit trail upon report submission.', margin + 3, y)
+    y += 8
+
+    // ═══════════════════════════════════════════════════════════
     // FOOTERS
     // ═══════════════════════════════════════════════════════════
     const pageCount = doc.internal.getNumberOfPages()
@@ -5552,7 +5621,98 @@ Important:
       .join('_')
     const activityPart = activityTypes ? `_${activityTypes}` : ''
     const filename = `${PROJECT_SHORT}_Report${reportId}_${selectedDate}${activityPart}.pdf`
+
+    // Generate PDF blob for hash and storage
+    const pdfBlob = doc.output('blob')
+
+    // Generate SHA-256 hash for document integrity verification
+    let pdfHash = null
+    try {
+      const arrayBuffer = await pdfBlob.arrayBuffer()
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      pdfHash = hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+    } catch (hashError) {
+      console.error('PDF hash generation error:', hashError)
+    }
+
+    // Upload PDF to Supabase storage if report has been saved
+    let pdfStorageUrl = null
+    if (currentReportId) {
+      try {
+        const storagePath = `reports/${selectedDate}/${filename}`
+        const { error: uploadError } = await supabase.storage
+          .from('report-pdfs')
+          .upload(storagePath, pdfBlob, {
+            contentType: 'application/pdf',
+            upsert: true // Allow overwrite if regenerated
+          })
+
+        if (uploadError) {
+          console.error('PDF storage upload error:', uploadError)
+        } else {
+          // Get public URL
+          const { data: urlData } = supabase.storage
+            .from('report-pdfs')
+            .getPublicUrl(storagePath)
+          pdfStorageUrl = urlData?.publicUrl
+
+          // Update report record with PDF info
+          await supabase
+            .from('daily_tickets')
+            .update({
+              pdf_hash: pdfHash,
+              pdf_storage_url: pdfStorageUrl,
+              pdf_document_id: documentId,
+              pdf_generated_at: generationTimestamp
+            })
+            .eq('id', currentReportId)
+        }
+      } catch (storageError) {
+        console.error('PDF storage error:', storageError)
+      }
+    }
+
+    // Log PDF generation to audit trail
+    try {
+      await supabase.from('report_audit_log').insert({
+        report_id: currentReportId,
+        entity_type: 'pdf_generation',
+        entity_id: documentId,
+        section: 'PDF Export',
+        field_name: 'pdf_generated',
+        old_value: null,
+        new_value: filename,
+        action_type: 'pdf_export',
+        change_type: 'create',
+        regulatory_category: 'document_control',
+        is_critical: true,
+        metadata: {
+          document_id: documentId,
+          sha256_hash: pdfHash,
+          storage_url: pdfStorageUrl,
+          timestamp_iso: generationTimestamp,
+          timestamp_local: generationTimestampLocal,
+          file_size_bytes: pdfBlob.size,
+          page_count: pageCount,
+          inspector: inspectorName,
+          project: PROJECT_SHORT,
+          spread: spread,
+          date: selectedDate
+        },
+        changed_at: generationTimestamp
+      })
+    } catch (auditError) {
+      console.error('PDF audit log error:', auditError)
+    }
+
+    // Save locally for user
     doc.save(filename)
+
+    // Show confirmation with hash for user reference
+    if (pdfHash) {
+      console.log(`PDF Generated - Document ID: ${documentId}, SHA-256: ${pdfHash.substring(0, 16)}...`)
+    }
   }
 
   // Export Master Production Spreadsheet (CLX2 Format)
