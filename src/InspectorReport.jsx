@@ -3231,25 +3231,56 @@ Important:
         y += 6
       }
 
+      // Systemic Delay (Entire Crew Impact) - if active
+      if (block.systemicDelay?.active && block.systemicDelay?.status !== 'ACTIVE') {
+        checkPageBreak(18)
+        const sysStatus = block.systemicDelay.status
+        const sysStatusLabel = sysStatus === 'SYNC_DELAY' ? 'Partial Work' : 'Standby'
+        const sysColor = sysStatus === 'SYNC_DELAY' ? [245, 158, 11] : BRAND.red
+        const sysBgColor = sysStatus === 'SYNC_DELAY' ? [255, 251, 235] : BRAND.redLight
+
+        setColor(sysBgColor, 'fill')
+        doc.roundedRect(margin, y, contentWidth, 12, 1, 1, 'F')
+        setColor(sysColor, 'draw')
+        doc.roundedRect(margin, y, contentWidth, 12, 1, 1, 'S')
+
+        y += 4
+        setColor(sysColor, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        doc.text('ENTIRE CREW IMPACT:', margin + 4, y)
+        doc.text(sysStatusLabel, margin + 50, y)
+
+        setColor(BRAND.black, 'text')
+        doc.setFont('helvetica', 'normal')
+        doc.setFontSize(7)
+        y += 5
+        doc.text(`Reason: ${(block.systemicDelay.reason || 'Not specified').substring(0, 70)}`, margin + 4, y)
+        y += 6
+      }
+
       // Manpower Table
       if (block.labourEntries?.length > 0) {
         checkPageBreak(30)
         addSubHeader('Manpower', BRAND.greenLight)
-        
-        // Table header
+
+        // Table header - includes Status and Productive Hours
         setColor(BRAND.green, 'fill')
         doc.rect(margin, y, contentWidth, 5, 'F')
         setColor(BRAND.white, 'text')
         doc.setFont('helvetica', 'bold')
-        doc.setFontSize(7)
+        doc.setFontSize(6)
         doc.text('EMPLOYEE', margin + 2, y + 3.5)
-        doc.text('CLASSIFICATION', margin + 38, y + 3.5)
-        doc.text('RT', pageWidth - margin - 36, y + 3.5)
-        doc.text('OT', pageWidth - margin - 26, y + 3.5)
-        doc.text('JH', pageWidth - margin - 16, y + 3.5)
-        doc.text('QTY', pageWidth - margin - 8, y + 3.5)
+        doc.text('CLASS', margin + 32, y + 3.5)
+        doc.text('RT', margin + 58, y + 3.5)
+        doc.text('OT', margin + 68, y + 3.5)
+        doc.text('JH', margin + 78, y + 3.5)
+        doc.text('QTY', margin + 88, y + 3.5)
+        doc.text('STATUS', margin + 100, y + 3.5)
+        doc.text('PROD', margin + 130, y + 3.5)
+        doc.text('REASON', margin + 145, y + 3.5)
         y += 6
-        
+
         // Table rows
         block.labourEntries.forEach((entry, i) => {
           checkPageBreak(8)
@@ -3259,15 +3290,32 @@ Important:
           }
           const rt = entry.rt !== undefined ? entry.rt : Math.min(entry.hours || 0, 8)
           const ot = entry.ot !== undefined ? entry.ot : Math.max(0, (entry.hours || 0) - 8)
+          const count = entry.count || 1
+          const billedHours = (rt + ot) * count
+          const status = entry.productionStatus || 'ACTIVE'
+          const multiplier = status === 'ACTIVE' ? 1.0 : status === 'SYNC_DELAY' ? 0.7 : 0.0
+          const prodHours = entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined
+            ? entry.shadowEffectiveHours
+            : billedHours * multiplier
+          const statusLabel = status === 'ACTIVE' ? 'Full' : status === 'SYNC_DELAY' ? 'Partial' : 'Standby'
+
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
-          doc.setFontSize(7)
-          doc.text((entry.employeeName || '-').substring(0, 15), margin + 2, y + 3)
-          doc.text((entry.classification || '').substring(0, 18), margin + 38, y + 3)
-          doc.text(String(rt || 0), pageWidth - margin - 36, y + 3)
-          doc.text(String(ot || 0), pageWidth - margin - 26, y + 3)
-          doc.text(String(entry.jh || 0), pageWidth - margin - 16, y + 3)
-          doc.text(String(entry.count || 1), pageWidth - margin - 8, y + 3)
+          doc.setFontSize(6)
+          doc.text((entry.employeeName || '-').substring(0, 14), margin + 2, y + 3)
+          doc.text((entry.classification || '').substring(0, 12), margin + 32, y + 3)
+          doc.text(String(rt || 0), margin + 58, y + 3)
+          doc.text(String(ot || 0), margin + 68, y + 3)
+          doc.text(String(entry.jh || 0), margin + 78, y + 3)
+          doc.text(String(count), margin + 88, y + 3)
+          // Color-code status
+          if (status === 'ACTIVE') setColor(BRAND.green, 'text')
+          else if (status === 'SYNC_DELAY') setColor([245, 158, 11], 'text')
+          else setColor(BRAND.red, 'text')
+          doc.text(statusLabel, margin + 100, y + 3)
+          setColor(BRAND.black, 'text')
+          doc.text(String(prodHours.toFixed(1)), margin + 130, y + 3)
+          doc.text((entry.dragReason || '-').substring(0, 18), margin + 145, y + 3)
           y += 5
         })
         y += 3
@@ -3277,18 +3325,21 @@ Important:
       if (block.equipmentEntries?.length > 0) {
         checkPageBreak(30)
         addSubHeader('Equipment', BRAND.blueLight)
-        
-        // Table header
+
+        // Table header - includes Status and Productive Hours
         setColor(BRAND.blue, 'fill')
         doc.rect(margin, y, contentWidth, 5, 'F')
         setColor(BRAND.white, 'text')
         doc.setFont('helvetica', 'bold')
-        doc.setFontSize(7)
+        doc.setFontSize(6)
         doc.text('EQUIPMENT TYPE', margin + 2, y + 3.5)
-        doc.text('HOURS', pageWidth - margin - 22, y + 3.5)
-        doc.text('QTY', pageWidth - margin - 8, y + 3.5)
+        doc.text('HRS', margin + 70, y + 3.5)
+        doc.text('QTY', margin + 85, y + 3.5)
+        doc.text('STATUS', margin + 100, y + 3.5)
+        doc.text('PROD', margin + 130, y + 3.5)
+        doc.text('REASON', margin + 145, y + 3.5)
         y += 6
-        
+
         // Table rows
         block.equipmentEntries.forEach((entry, i) => {
           checkPageBreak(8)
@@ -3296,15 +3347,124 @@ Important:
             setColor(BRAND.grayLight, 'fill')
             doc.rect(margin, y - 0.5, contentWidth, 5, 'F')
           }
+          const hours = entry.hours || 0
+          const count = entry.count || 1
+          const billedHours = hours * count
+          const status = entry.productionStatus || 'ACTIVE'
+          const multiplier = status === 'ACTIVE' ? 1.0 : status === 'SYNC_DELAY' ? 0.7 : 0.0
+          const prodHours = entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined
+            ? entry.shadowEffectiveHours
+            : billedHours * multiplier
+          const statusLabel = status === 'ACTIVE' ? 'Full' : status === 'SYNC_DELAY' ? 'Partial' : 'Standby'
+
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
-          doc.setFontSize(7)
-          doc.text((entry.type || '').substring(0, 40), margin + 2, y + 3)
-          doc.text(String(entry.hours || 0), pageWidth - margin - 22, y + 3)
-          doc.text(String(entry.count || 1), pageWidth - margin - 8, y + 3)
+          doc.setFontSize(6)
+          doc.text((entry.type || '').substring(0, 32), margin + 2, y + 3)
+          doc.text(String(hours), margin + 70, y + 3)
+          doc.text(String(count), margin + 85, y + 3)
+          // Color-code status
+          if (status === 'ACTIVE') setColor(BRAND.green, 'text')
+          else if (status === 'SYNC_DELAY') setColor([245, 158, 11], 'text')
+          else setColor(BRAND.red, 'text')
+          doc.text(statusLabel, margin + 100, y + 3)
+          setColor(BRAND.black, 'text')
+          doc.text(String(prodHours.toFixed(1)), margin + 130, y + 3)
+          doc.text((entry.dragReason || '-').substring(0, 18), margin + 145, y + 3)
           y += 5
         })
         y += 3
+      }
+
+      // Verification Summary - Shadow Audit Data
+      const hasLabourData = block.labourEntries?.length > 0
+      const hasEquipmentData = block.equipmentEntries?.length > 0
+      const hasAnyEntries = hasLabourData || hasEquipmentData
+
+      if (hasAnyEntries) {
+        // Calculate totals for this block
+        let totalBilled = 0
+        let totalProductive = 0
+
+        if (block.labourEntries) {
+          block.labourEntries.forEach(entry => {
+            const rt = entry.rt !== undefined ? entry.rt : Math.min(entry.hours || 0, 8)
+            const ot = entry.ot !== undefined ? entry.ot : Math.max(0, (entry.hours || 0) - 8)
+            const count = entry.count || 1
+            const billed = (rt + ot) * count
+            totalBilled += billed
+            const status = entry.productionStatus || 'ACTIVE'
+            const multiplier = status === 'ACTIVE' ? 1.0 : status === 'SYNC_DELAY' ? 0.7 : 0.0
+            const prod = entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined
+              ? entry.shadowEffectiveHours
+              : billed * multiplier
+            totalProductive += prod
+          })
+        }
+
+        if (block.equipmentEntries) {
+          block.equipmentEntries.forEach(entry => {
+            const hours = entry.hours || 0
+            const count = entry.count || 1
+            const billed = hours * count
+            totalBilled += billed
+            const status = entry.productionStatus || 'ACTIVE'
+            const multiplier = status === 'ACTIVE' ? 1.0 : status === 'SYNC_DELAY' ? 0.7 : 0.0
+            const prod = entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined
+              ? entry.shadowEffectiveHours
+              : billed * multiplier
+            totalProductive += prod
+          })
+        }
+
+        const nonWorking = totalBilled - totalProductive
+        const efficiency = totalBilled > 0 ? (totalProductive / totalBilled * 100) : 100
+
+        // Only show if there's any non-productive time
+        if (nonWorking > 0 || totalBilled !== totalProductive) {
+          checkPageBreak(20)
+          addSubHeader('Verification Summary', [243, 232, 255]) // Light purple
+
+          setColor([243, 232, 255], 'fill')
+          doc.roundedRect(margin, y, contentWidth, 12, 1, 1, 'F')
+          y += 4
+
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(8)
+
+          // Billed Hours
+          doc.text('Billed:', margin + 4, y)
+          doc.setFont('helvetica', 'bold')
+          doc.text(`${totalBilled.toFixed(1)} hrs`, margin + 22, y)
+
+          // Productive Hours
+          doc.setFont('helvetica', 'normal')
+          doc.text('Productive:', margin + 50, y)
+          setColor(BRAND.green, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.text(`${totalProductive.toFixed(1)} hrs`, margin + 75, y)
+
+          // Non-Working Hours
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.text('Non-Working:', margin + 105, y)
+          setColor(BRAND.red, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.text(`${nonWorking.toFixed(1)} hrs`, margin + 135, y)
+
+          // Efficiency
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.text('Efficiency:', margin + 160, y)
+          if (efficiency >= 90) setColor(BRAND.green, 'text')
+          else if (efficiency >= 70) setColor([245, 158, 11], 'text')
+          else setColor(BRAND.red, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.text(`${efficiency.toFixed(0)}%`, margin + 178, y)
+
+          y += 10
+        }
       }
 
       // Stringing Log - Pipe Joints
