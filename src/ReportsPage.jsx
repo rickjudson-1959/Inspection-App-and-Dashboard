@@ -164,7 +164,10 @@ function ReportsPage() {
           <div style={{ backgroundColor: 'white', borderRadius: '8px', width: '90%', maxWidth: '1000px', maxHeight: '90vh', overflow: 'auto' }}>
             <div style={{ backgroundColor: '#003366', color: 'white', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0 }}>
               <h2 style={{ margin: 0 }}>Daily Inspector Report - {selectedReport.date}</h2>
-              <button onClick={() => setSelectedReport(null)} style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Close</button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={() => navigate(`/report?id=${selectedReport.id}`)} style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>📄 Full View</button>
+                <button onClick={() => setSelectedReport(null)} style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Close</button>
+              </div>
             </div>
             <div style={{ padding: '20px' }}>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '20px', marginBottom: '20px' }}>
