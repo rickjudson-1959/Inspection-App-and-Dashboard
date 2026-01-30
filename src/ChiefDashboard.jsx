@@ -641,6 +641,68 @@ function ChiefDashboard() {
       y += 10
     }
 
+    // SECTION 5 - CREW/CONTRACTOR ACTIVITY PROGRESS
+    if (sourceReports && sourceReports.length > 0) {
+      drawSectionHeader('SECTION 5 - CREW ACTIVITY PROGRESS')
+
+      sourceReports.forEach((report, reportIdx) => {
+        checkPageBreak(20)
+
+        // Report header
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(9)
+        doc.text(`Inspector: ${report.inspector_name || 'Unknown'} | Spread: ${report.spread || 'N/A'}`, margin, y)
+        y += 5
+
+        const activities = report.activity_blocks || []
+        if (activities.length > 0) {
+          // Activity table header
+          doc.setFillColor(70, 130, 180)
+          doc.rect(margin, y - 3, pageWidth - (margin * 2), 6, 'F')
+          doc.setTextColor(255, 255, 255)
+          doc.setFontSize(7)
+          doc.setFont('helvetica', 'bold')
+
+          let x = margin + 2
+          doc.text('Contractor', x, y)
+          doc.text('Activity', x + 35, y)
+          doc.text('KP Start', x + 85, y)
+          doc.text('KP End', x + 105, y)
+          doc.text('Metres', x + 125, y)
+          doc.text('Work Description', x + 145, y)
+
+          y += 5
+          doc.setTextColor(0, 0, 0)
+          doc.setFont('helvetica', 'normal')
+
+          activities.forEach((activity, actIdx) => {
+            checkPageBreak(6)
+            if (actIdx % 2 === 0) {
+              doc.setFillColor(248, 249, 250)
+              doc.rect(margin, y - 3, pageWidth - (margin * 2), 5, 'F')
+            }
+
+            x = margin + 2
+            doc.text((activity.contractor || 'N/A').substring(0, 18), x, y)
+            doc.text((activity.activityType || 'N/A').substring(0, 25), x + 35, y)
+            doc.text(String(activity.startKP || '-'), x + 85, y)
+            doc.text(String(activity.endKP || '-'), x + 105, y)
+            doc.text(String(activity.metres || 0), x + 125, y)
+
+            const workDesc = (activity.workDescription || '').substring(0, 30)
+            doc.text(workDesc, x + 145, y)
+            y += 5
+          })
+        } else {
+          doc.setFont('helvetica', 'italic')
+          doc.setFontSize(8)
+          doc.text('No activities recorded', margin + 5, y)
+          y += 5
+        }
+        y += 5
+      })
+    }
+
     // Add footer to last page
     addFooter()
 
