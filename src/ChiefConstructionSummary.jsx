@@ -115,6 +115,7 @@ function ChiefConstructionSummary() {
 
   async function loadDataForDate() {
     setLoading(true)
+    console.log('=== Load Data clicked ===')
     console.log('Loading data for date:', reportDate)
 
     try {
@@ -178,6 +179,7 @@ function ChiefConstructionSummary() {
         setSelectedPhotos(photos.slice(0, 6))
       } else {
         // Reset data if no reports
+        console.log('No reports found for this date')
         setPersonnelData({
           primeResources: 0,
           primeSubcontractors: 0,
@@ -212,6 +214,7 @@ function ChiefConstructionSummary() {
         setAvailablePhotos([])
         setSelectedPhotos([])
         setTodaysProgress('0.00%')
+        alert(`No inspector reports found for ${reportDate}. Try a different date.`)
       }
     } catch (err) {
       console.error('Error loading data:', err)
@@ -219,6 +222,7 @@ function ChiefConstructionSummary() {
     }
 
     setLoading(false)
+    console.log('=== Load Data complete ===')
   }
 
   // =============================================
@@ -226,25 +230,35 @@ function ChiefConstructionSummary() {
   // =============================================
 
   async function generateAINarrative() {
+    console.log('Generate AI Narrative clicked')
+    console.log('Source reports:', sourceReports.length)
+
     if (sourceReports.length === 0) {
-      alert('No reports found for this date. Please load data first.')
+      alert('No reports found for this date. Please click "Load Data" first.')
       return
     }
 
     setGeneratingAI(true)
 
     try {
+      console.log('Calling generateKeyFocusWithAI...')
       const result = await generateKeyFocusWithAI(sourceReports, {
         personnel: personnelData,
         welding: weldingData,
         progressData: progressData
       })
 
-      console.log('AI generated narrative:', result)
-      setKeyFocusBullets(result.bullets || [])
+      console.log('AI generated narrative result:', result)
+
+      if (result.bullets && result.bullets.length > 0) {
+        setKeyFocusBullets(result.bullets)
+        alert(`Generated ${result.bullets.length} bullet points!`)
+      } else {
+        alert('AI returned empty response. Check console for details.')
+      }
     } catch (err) {
       console.error('Error generating AI narrative:', err)
-      alert('Error generating narrative. Please try again.')
+      alert('Error generating narrative: ' + err.message)
     }
 
     setGeneratingAI(false)

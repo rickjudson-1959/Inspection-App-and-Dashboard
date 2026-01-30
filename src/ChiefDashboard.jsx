@@ -335,7 +335,7 @@ function ChiefDashboard() {
         welding: weldingProgress,
         safety: summaryData?.safety_events || {}
       })
-      
+
       setKeyFocusNarrative(keyFocus.narrative)
       setKeyFocusBullets(keyFocus.bullets)
 
@@ -875,8 +875,8 @@ function ChiefDashboard() {
               <button onClick={loadSummaryForDate} disabled={summaryLoading} style={{ padding: '10px 25px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
                 {summaryLoading ? '⏳ Loading...' : '🔄 Load Data'}
               </button>
-              <button onClick={generateAINarrative} disabled={generatingNarrative || sourceReports.length === 0} style={{ padding: '10px 25px', backgroundColor: '#6f42c1', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                {generatingNarrative ? '🤖 Generating...' : '🤖 Generate AI Narrative'}
+              <button onClick={generateAINarrative} disabled={generatingNarrative} style={{ padding: '10px 25px', backgroundColor: '#6f42c1', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                {generatingNarrative ? '🤖 Generating...' : `🤖 Generate AI (${sourceReports.length} reports)`}
               </button>
               <div style={{ marginLeft: 'auto', display: 'flex', gap: '10px' }}>
                 <button onClick={saveSummaryReport} disabled={saving} style={{ padding: '10px 25px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
@@ -901,6 +901,23 @@ function ChiefDashboard() {
             <div style={{ textAlign: 'center', padding: '50px' }}><p style={{ fontSize: '18px', color: '#666' }}>⏳ Loading summary data...</p></div>
           ) : (
             <div style={{ padding: '20px' }}>
+              {/* Key Focus Bullets - AI Generated */}
+              {keyFocusBullets && keyFocusBullets.length > 0 && (
+                <div style={{ marginBottom: '30px', backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', borderLeft: '4px solid #6f42c1' }}>
+                  <h3 style={{ marginTop: 0, marginBottom: '15px', color: '#333', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    📝 Key Focus of the Day
+                    <span style={{ fontSize: '12px', fontWeight: 'normal', color: '#6f42c1', backgroundColor: '#f3e8ff', padding: '2px 8px', borderRadius: '12px' }}>AI Generated</span>
+                  </h3>
+                  <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                    {keyFocusBullets.map((bullet, idx) => (
+                      <li key={idx} style={{ padding: '8px 0', fontSize: '14px', color: '#333', borderBottom: idx < keyFocusBullets.length - 1 ? '1px solid #eee' : 'none' }}>
+                        {bullet}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
               {/* Welding Progress */}
               {weldingProgress && weldingProgress.length > 0 && (
                 <div style={{ marginBottom: '30px', backgroundColor: 'white', padding: '20px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
@@ -1027,15 +1044,6 @@ function ChiefDashboard() {
                 </div>
               )}
 
-              {/* Debug Info (can be removed later) */}
-              {process.env.NODE_ENV === 'development' && (
-                <div style={{ marginTop: '30px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '8px', fontSize: '12px' }}>
-                  <strong>Debug Info:</strong>
-                  <pre style={{ marginTop: '10px', fontSize: '11px', overflow: 'auto' }}>
-                    Welding Progress: {JSON.stringify(weldingProgress, null, 2)}
-                  </pre>
-                </div>
-              )}
             </div>
           )}
         </div>

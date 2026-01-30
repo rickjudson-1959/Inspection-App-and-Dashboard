@@ -831,6 +831,10 @@ export function extractSafetyEvents(reports) {
  * Generate AI narrative for "Key Focus of the Day"
  */
 export async function generateKeyFocusNarrative(reports, aggregatedData) {
+  console.log('=== generateKeyFocusNarrative called ===')
+  console.log('Reports count:', reports?.length)
+  console.log('API Key present:', !!anthropicApiKey)
+
   if (!anthropicApiKey) {
     console.warn('Anthropic API key not configured')
     return {
@@ -885,6 +889,7 @@ Respond in JSON format:
 Only output valid JSON, no other text.`
 
   try {
+    console.log('Calling Anthropic API for narrative...')
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -903,9 +908,22 @@ Only output valid JSON, no other text.`
       })
     })
 
+    console.log('API response status:', response.status)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('API Error:', response.status, errorText)
+      return {
+        narrative: `API Error: ${response.status}`,
+        bullets: [`< Error: ${errorText.substring(0, 200)}`]
+      }
+    }
+
     const data = await response.json()
+    console.log('API response data:', data)
     const text = data.content?.[0]?.text || '{}'
-    
+    console.log('Raw text from API:', text)
+
     // Parse JSON response
     const parsed = JSON.parse(text.replace(/```json|```/g, '').trim())
     

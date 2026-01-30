@@ -649,6 +649,9 @@ Respond in JSON format:
 Only output valid JSON, no other text.`
 
   try {
+    console.log('Calling Anthropic API...')
+    console.log('API Key present:', !!anthropicApiKey)
+
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
@@ -667,10 +670,25 @@ Only output valid JSON, no other text.`
       })
     })
 
+    console.log('API Response status:', response.status)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('API Error:', errorText)
+      return {
+        narrative: '',
+        bullets: [`< API Error (${response.status}): ${errorText.substring(0, 100)}`]
+      }
+    }
+
     const data = await response.json()
+    console.log('API Response data:', data)
+
     const text = data.content?.[0]?.text || '{}'
+    console.log('Raw text:', text)
 
     const parsed = JSON.parse(text.replace(/```json|```/g, '').trim())
+    console.log('Parsed response:', parsed)
 
     return {
       narrative: '',
@@ -680,7 +698,7 @@ Only output valid JSON, no other text.`
     console.error('Error generating AI narrative:', err)
     return {
       narrative: '',
-      bullets: ['< Error generating narrative. Please review reports manually.']
+      bullets: [`< Error: ${err.message}`]
     }
   }
 }
