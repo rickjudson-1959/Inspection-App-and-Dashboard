@@ -426,7 +426,41 @@ function ChiefDashboard() {
     const pageWidth = 215.9
     const margin = 15
     let y = 15
+    let pageNum = 1
 
+    function checkPageBreak(needed = 30) {
+      if (y > 260 - needed) {
+        addFooter()
+        doc.addPage()
+        pageNum++
+        y = 20
+      }
+    }
+
+    function addFooter() {
+      doc.setDrawColor(200, 200, 200)
+      doc.line(margin, 270, pageWidth - margin, 270)
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(100, 100, 100)
+      doc.text(`Generated: ${new Date().toLocaleString()}`, margin, 275)
+      doc.text(`Page ${pageNum}`, pageWidth - margin - 15, 275)
+      doc.setTextColor(0, 0, 0)
+    }
+
+    function drawSectionHeader(title) {
+      checkPageBreak(15)
+      doc.setFillColor(26, 95, 42)
+      doc.rect(margin, y - 4, pageWidth - (margin * 2), 8, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(10)
+      doc.text(title, margin + 3, y + 1)
+      doc.setTextColor(0, 0, 0)
+      y += 10
+    }
+
+    // Header
     doc.setFillColor(26, 95, 42)
     doc.rect(0, 0, pageWidth, 20, 'F')
     doc.setTextColor(255, 255, 255)
@@ -434,54 +468,183 @@ function ChiefDashboard() {
     doc.setFont('helvetica', 'bold')
     doc.text('EAGLE MOUNTAIN – WOODFIBRE GAS PIPELINE PROJECT', margin, 13)
     doc.setFontSize(8)
-    doc.text('DAILY CONSTRUCTION SUMMARY REPORT (EGP)', pageWidth - margin - 60, 13)
+    doc.text('DAILY CONSTRUCTION SUMMARY REPORT', pageWidth - margin - 50, 13)
 
     y = 28
     doc.setTextColor(0, 0, 0)
     doc.setFontSize(10)
     doc.setFont('helvetica', 'normal')
-    
+
     doc.text(`Report Date: ${formatDateForDisplay(summaryDate)}`, margin, y)
     doc.text(`Report Number: ${summaryDate.replace(/-/g, '')}DPR`, margin + 80, y)
     y += 6
     doc.text(`Contractor: SMJV`, margin, y)
     doc.text(`Reported By: ${userProfile?.full_name || 'Chief Inspector'}`, margin + 80, y)
-
     y += 12
-    doc.setFillColor(26, 95, 42)
-    doc.rect(margin, y - 4, pageWidth - (margin * 2), 8, 'F')
-    doc.setTextColor(255, 255, 255)
-    doc.setFont('helvetica', 'bold')
-    doc.text('SECTION 1 - SUMMARY', margin + 3, y + 1)
 
-    y += 12
-    doc.setTextColor(0, 0, 0)
-    doc.setFont('helvetica', 'bold')
-    doc.text('Key Focus of the Day', margin, y)
-    y += 6
+    // SECTION 1 - KEY FOCUS
+    drawSectionHeader('SECTION 1 - KEY FOCUS OF THE DAY')
     doc.setFont('helvetica', 'normal')
     doc.setFontSize(9)
 
-    keyFocusBullets.forEach(bullet => {
-      const text = bullet.replace(/^<\s*/, '• ')
-      const lines = doc.splitTextToSize(text, pageWidth - (margin * 2) - 5)
-      lines.forEach(line => {
-        if (y > 260) { doc.addPage(); y = 20 }
-        doc.text(line, margin + 3, y)
-        y += 4.5
+    if (keyFocusBullets && keyFocusBullets.length > 0) {
+      keyFocusBullets.forEach(bullet => {
+        checkPageBreak(8)
+        const text = bullet.replace(/^<\s*/, '• ')
+        const lines = doc.splitTextToSize(text, pageWidth - (margin * 2) - 5)
+        lines.forEach(line => {
+          checkPageBreak(5)
+          doc.text(line, margin + 3, y)
+          y += 4.5
+        })
       })
-    })
-
-    y = 270
-    doc.setDrawColor(200, 200, 200)
-    doc.line(margin, y, pageWidth - margin, y)
+    } else {
+      doc.text('No key focus items generated.', margin + 3, y)
+      y += 6
+    }
     y += 5
-    doc.setFontSize(8)
-    doc.setFont('helvetica', 'normal')
-    doc.text(`Generated: ${new Date().toLocaleString()}`, margin, y)
-    doc.text('Page 1 of 1', pageWidth - margin - 20, y)
 
-    doc.save(`${summaryDate}_Construction_Summary_Report.pdf`)
+    // SECTION 2 - WELDING PROGRESS
+    if (weldingProgress && weldingProgress.length > 0) {
+      drawSectionHeader('SECTION 2 - WELDING PROGRESS')
+
+      // Table header
+      doc.setFillColor(30, 58, 95)
+      doc.rect(margin, y - 4, pageWidth - (margin * 2), 7, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+
+      const colWidths = [45, 25, 25, 25, 25, 25, 25]
+      let x = margin + 2
+      doc.text('Weld Type', x, y)
+      x += colWidths[0]
+      doc.text('Today LM', x, y)
+      x += colWidths[1]
+      doc.text('Prev LM', x, y)
+      x += colWidths[2]
+      doc.text('Today #', x, y)
+      x += colWidths[3]
+      doc.text('Prev #', x, y)
+      x += colWidths[4]
+      doc.text('Rep Today', x, y)
+      x += colWidths[5]
+      doc.text('Rep Prev', x, y)
+
+      y += 5
+      doc.setTextColor(0, 0, 0)
+      doc.setFont('helvetica', 'normal')
+
+      weldingProgress.forEach((weld, idx) => {
+        checkPageBreak(6)
+        if (idx % 2 === 0) {
+          doc.setFillColor(245, 245, 245)
+          doc.rect(margin, y - 3, pageWidth - (margin * 2), 5, 'F')
+        }
+
+        x = margin + 2
+        doc.text(weld.weld_type || '', x, y)
+        x += colWidths[0]
+        doc.text((weld.today_lm || 0).toFixed(1), x, y)
+        x += colWidths[1]
+        doc.text((weld.previous_lm || 0).toFixed(1), x, y)
+        x += colWidths[2]
+        doc.text(String(weld.today_welds || 0), x, y)
+        x += colWidths[3]
+        doc.text(String(weld.previous_welds || 0), x, y)
+        x += colWidths[4]
+        doc.text(String(weld.repairs_today || 0), x, y)
+        x += colWidths[5]
+        doc.text(String(weld.repairs_previous || 0), x, y)
+        y += 5
+      })
+      y += 5
+    }
+
+    // SECTION 3 - SECTION PROGRESS
+    if (sectionProgress && sectionProgress.length > 0) {
+      drawSectionHeader('SECTION 3 - SECTION PROGRESS')
+
+      doc.setFillColor(30, 58, 95)
+      doc.rect(margin, y - 4, pageWidth - (margin * 2), 7, 'F')
+      doc.setTextColor(255, 255, 255)
+      doc.setFontSize(8)
+      doc.setFont('helvetica', 'bold')
+
+      let x = margin + 2
+      doc.text('Section', x, y)
+      doc.text('Category', x + 30, y)
+      doc.text('Activity', x + 70, y)
+      doc.text('Metres (LM)', x + 140, y)
+
+      y += 5
+      doc.setTextColor(0, 0, 0)
+      doc.setFont('helvetica', 'normal')
+
+      let rowIdx = 0
+      sectionProgress.forEach((section) => {
+        Object.entries(section).forEach(([category, data]) => {
+          if (category === 'section') return
+          const activities = data.activities || []
+          activities.forEach((activity) => {
+            checkPageBreak(6)
+            if (rowIdx % 2 === 0) {
+              doc.setFillColor(245, 245, 245)
+              doc.rect(margin, y - 3, pageWidth - (margin * 2), 5, 'F')
+            }
+
+            x = margin + 2
+            doc.text(section.section || '', x, y)
+            doc.text(category, x + 30, y)
+            doc.text(activity.type || '', x + 70, y)
+            doc.text((activity.metres || 0).toFixed(1), x + 140, y)
+            y += 5
+            rowIdx++
+          })
+        })
+      })
+      y += 5
+    }
+
+    // SECTION 4 - PERSONNEL SUMMARY
+    if (personnelData && Object.keys(personnelData).length > 0) {
+      drawSectionHeader('SECTION 4 - PERSONNEL SUMMARY')
+
+      doc.setFontSize(9)
+      doc.setFont('helvetica', 'normal')
+
+      const personnelEntries = Object.entries(personnelData).filter(([key, value]) => typeof value === 'number')
+      const colWidth = (pageWidth - (margin * 2)) / 3
+
+      personnelEntries.forEach((entry, idx) => {
+        const [key, value] = entry
+        const col = idx % 3
+        const row = Math.floor(idx / 3)
+
+        if (col === 0 && row > 0) {
+          y += 8
+          checkPageBreak(10)
+        }
+
+        const xPos = margin + (col * colWidth)
+        const label = key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
+
+        if (col === 0 && row === 0) {
+          // First row
+        }
+
+        doc.setFont('helvetica', 'normal')
+        doc.text(`${label}: `, xPos, y)
+        doc.setFont('helvetica', 'bold')
+        doc.text(String(value), xPos + doc.getTextWidth(`${label}: `), y)
+      })
+      y += 10
+    }
+
+    // Add footer to last page
+    addFooter()
+
+    doc.save(`${summaryDate}_Daily_Construction_Summary.pdf`)
   }
 
   // =============================================
