@@ -951,13 +951,16 @@ export async function generateSafetyStatus(safetyEvents, weather) {
     }
   }
 
+  const hazards = safetyEvents?.hazards || []
+  const recognitions = safetyEvents?.recognitions || []
+
   const prompt = `You are writing the "Safety Status" section for a pipeline construction daily report.
 
 Safety Events Today:
-- SWA (Stop Work Authority) Events: ${safetyEvents.swa_count}
-- Hazards Identified: ${safetyEvents.hazards.length}
-- Safety Recognitions: ${safetyEvents.recognitions.length}
-- Chain-Up Required: ${safetyEvents.chain_up_required ? 'Yes' : 'No'}
+- SWA (Stop Work Authority) Events: ${safetyEvents?.swa_count || 0}
+- Hazards Identified: ${hazards.length}
+- Safety Recognitions: ${recognitions.length}
+- Chain-Up Required: ${safetyEvents?.chain_up_required ? 'Yes' : 'No'}
 
 Weather Conditions:
 - Temperature: ${weather.temp_high_f || 'N/A'}°F high / ${weather.temp_low_f || 'N/A'}°F low
