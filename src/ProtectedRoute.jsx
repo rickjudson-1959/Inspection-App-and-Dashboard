@@ -25,22 +25,22 @@ export const ROLE_CONFIG = {
   cm: {
     landingPage: '/cmt-dashboard',
     displayName: 'Construction Manager',
-    canAccess: ['cmt-dashboard', 'evm-dashboard', 'chief-dashboard']
+    canAccess: ['cmt-dashboard', 'evm-dashboard', 'chief-dashboard', 'chief-summary']
   },
   pm: {
     landingPage: '/cmt-dashboard',
     displayName: 'Project Manager',
-    canAccess: ['cmt-dashboard', 'evm-dashboard', 'chief-dashboard']
+    canAccess: ['cmt-dashboard', 'evm-dashboard', 'chief-dashboard', 'chief-summary']
   },
   chief: {
     landingPage: '/chief-dashboard',
     displayName: 'Chief Inspector',
-    canAccess: ['chief-dashboard', 'cmt-dashboard', 'auditor-dashboard', 'ndt-auditor', 'field-entry', 'inspector-profile']
+    canAccess: ['chief-dashboard', 'cmt-dashboard', 'auditor-dashboard', 'ndt-auditor', 'field-entry', 'inspector-profile', 'chief-summary']
   },
   asst_chief: {
     landingPage: '/assistant-chief',
     displayName: 'Assistant Chief Inspector',
-    canAccess: ['assistant-chief', 'chief-dashboard', 'cmt-dashboard', 'field-entry', 'inspector-profile']
+    canAccess: ['assistant-chief', 'chief-dashboard', 'cmt-dashboard', 'field-entry', 'inspector-profile', 'chief-summary']
   },
   ndt_auditor: {
     landingPage: '/ndt-auditor',
