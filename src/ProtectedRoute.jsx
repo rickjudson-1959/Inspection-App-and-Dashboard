@@ -146,19 +146,22 @@ function ProtectedRoute({ children, requiredRoles = [], allowedRoles = [] }) {
   
   // If allowed roles are specified, check against them
   if (allowedRoles.length > 0) {
-    if (!allowedRoles.includes(userRole) && userRole !== 'admin' && userRole !== 'super_admin') {
-      const landingPage = getLandingPage(userRole)
-      return <Navigate to={landingPage} replace />
+    if (allowedRoles.includes(userRole) || userRole === 'admin' || userRole === 'super_admin') {
+      // User's role is explicitly allowed - skip canAccessRoute check
+      return children
     }
+    // User's role is not in allowedRoles
+    const landingPage = getLandingPage(userRole)
+    return <Navigate to={landingPage} replace />
   }
-  
-  // Check if user can access the current route
+
+  // No allowedRoles specified - use canAccessRoute check
   const currentPath = location.pathname
   if (!canAccessRoute(userRole, currentPath)) {
     const landingPage = getLandingPage(userRole)
     return <Navigate to={landingPage} replace />
   }
-  
+
   // User is authorized - render the children
   return children
 }
