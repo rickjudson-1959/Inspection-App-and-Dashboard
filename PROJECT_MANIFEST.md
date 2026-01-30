@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - January 27, 2026
+## Project Manifest - January 29, 2026
 
 ---
 
@@ -294,6 +294,44 @@
 
 ## 6. RECENT UPDATES (January 2026)
 
+### Chief Dashboard - Daily Summary Enhancements (January 29, 2026)
+
+**AI-Generated Narrative**
+- Anthropic Claude API integration for auto-generating Key Focus bullets
+- Analyzes inspector reports and aggregates construction activity data
+- Generates 6-10 bullet points summarizing daily progress
+- Safety status generation with weather and SWA event context
+
+**Daily Summary Tab Features**
+- Date picker to select report date
+- Load Data button to fetch approved inspector reports
+- Generate AI button to create narrative from report data
+- Save Draft to persist summaries to database
+- Publish functionality for finalizing reports
+
+**Enhanced PDF Export**
+- Section 1: Key Focus bullets (AI-generated)
+- Section 2: Welding Progress table (weld types, LM, counts, repairs)
+- Section 3: Section Progress table (by category and activity)
+- Section 4: Personnel Summary (all personnel counts)
+- Section 5: Crew Activity Progress (contractor, activity, KP range, metres, work description)
+- Automatic page breaks and footers
+
+**New Database Table: `daily_construction_summary`**
+- Stores draft and published daily summaries
+- Fields: report_date, key_focus_bullets, safety_status, personnel_data, weather_data, progress_data, welding_data
+- RLS policies for chief, admin, and manager roles
+
+**New Environment Variable**
+- `VITE_ANTHROPIC_API_KEY` - Required for AI narrative generation
+
+**Files Modified:**
+- `src/ChiefDashboard.jsx` - Daily Summary tab with PDF export
+- `src/chiefReportHelpers.js` - AI generation functions
+- `src/ProtectedRoute.jsx` - Improved allowedRoles handling
+
+---
+
 ### Searchable Dropdowns & Efficiency Audit (January 27, 2026)
 
 **SearchableSelect Component (ActivityBlock.jsx)**
@@ -501,6 +539,7 @@
 ```
 VITE_SUPABASE_URL=https://aatvckalnvojlykfgnmz.supabase.co
 VITE_SUPABASE_ANON_KEY=[anon-key]
+VITE_ANTHROPIC_API_KEY=[anthropic-api-key]  # For AI narrative generation
 ```
 
 ### Build Commands
@@ -517,6 +556,7 @@ npm run preview  # Preview production build
 | Integration | Purpose |
 |-------------|---------|
 | Supabase | Database, Auth, Storage, Edge Functions |
+| Anthropic Claude API | AI-generated report narratives |
 | Resend | Email notifications (approvals, summaries) |
 | Weather API | Field condition logging |
 | Leaflet | Pipeline route mapping |
@@ -573,4 +613,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: January 27, 2026*
+*Last Updated: January 29, 2026*
