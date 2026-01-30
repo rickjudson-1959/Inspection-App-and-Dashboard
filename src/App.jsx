@@ -22,6 +22,7 @@ import AuditorDashboard from './AuditorDashboard.jsx'
 import NDTAuditorDashboard from './NDTAuditorDashboard.jsx'
 import AdminPortal from './AdminPortal.jsx'
 import InspectorProfileView from './InspectorProfileView.jsx'
+import ChiefConstructionSummary from './ChiefConstructionSummary.jsx'
 
 // Root redirect - sends users to their role-specific landing page
 function RootRedirect() {
@@ -89,6 +90,13 @@ function App() {
           <Route path="/chief-dashboard" element={
             <ProtectedRoute allowedRoles={['chief', 'asst_chief', 'cm', 'pm', 'admin', 'super_admin']}>
               <ChiefDashboard />
+            </ProtectedRoute>
+          } />
+
+          {/* Chief Construction Summary (EGP Legacy Format) */}
+          <Route path="/chief-summary" element={
+            <ProtectedRoute allowedRoles={['chief', 'asst_chief', 'cm', 'pm', 'admin', 'super_admin']}>
+              <ChiefConstructionSummary />
             </ProtectedRoute>
           } />
           

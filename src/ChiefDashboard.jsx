@@ -743,6 +743,7 @@ function ChiefDashboard() {
           {(userProfile?.role === 'super_admin' || userProfile?.user_role === 'super_admin') && (
             <MasterSwitcher compact />
           )}
+          <button onClick={() => navigate('/chief-summary')} style={{ padding: '10px 16px', backgroundColor: '#fd7e14', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>📊 EGP Summary Report</button>
           <button onClick={() => navigate('/inspector-invoicing')} style={{ padding: '10px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>💰 Inspector Invoicing</button>
           <button onClick={() => navigate('/dashboard')} style={{ padding: '10px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>📊 View CMT Stats</button>
           <button onClick={() => navigate('/auditor-dashboard')} style={{ padding: '10px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🔬 NDT Queue</button>
