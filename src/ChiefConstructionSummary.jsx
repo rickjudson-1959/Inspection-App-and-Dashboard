@@ -5,6 +5,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 import { supabase } from './supabase'
 
 // Import helper functions
@@ -28,6 +29,7 @@ import { fetchApprovedReportsForDate } from './chiefReportHelpers.js'
 function ChiefConstructionSummary() {
   const navigate = useNavigate()
   const { signOut, userProfile } = useAuth()
+  const { orgPath } = useOrgPath()
 
   // =============================================
   // STATE
@@ -491,7 +493,7 @@ function ChiefConstructionSummary() {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => navigate('/chief-dashboard')} style={styles.button('#6c757d')}>
+          <button onClick={() => navigate(orgPath('/chief-dashboard'))} style={styles.button('#6c757d')}>
             Back to Dashboard
           </button>
           <button onClick={signOut} style={styles.button('#dc3545')}>

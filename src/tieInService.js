@@ -4,9 +4,10 @@ import { supabase } from './supabase'
  * Save tie-in data to Supabase
  * @param {Array} tieIns - Array of tie-in objects from TieInWeldData component
  * @param {number} ticketId - The daily_tickets ID to link to
+ * @param {UUID} organizationId - The organization ID for multi-tenant support
  * @returns {Object} { success: boolean, error?: string, savedIds?: string[] }
  */
-export async function saveTieInTicket(tieIns, ticketId) {
+export async function saveTieInTicket(tieIns, ticketId, organizationId = null) {
   const savedIds = []
   
   try {
@@ -33,21 +34,21 @@ export async function saveTieInTicket(tieIns, ticketId) {
         nde_type: tieIn.ndeType,
         nde_result: tieIn.ndeResult,
         construction_direction: tieIn.constructionDirection,
-        
+
         // PUP CUT
         pup_cut_length: parseDecimal(tieIn.pup?.cutLength),
         pup_cut_pipe_number: tieIn.pup?.cutPipeNumber || null,
         pup_cut_heat_number: tieIn.pup?.cutHeatNumber || null,
         pup_cut_wall_thickness: parseDecimal(tieIn.pup?.cutWallThickness),
         pup_cut_manufacturer: tieIn.pup?.cutManufacturer || null,
-        
+
         // PUP ADDED
         pup_added_length: parseDecimal(tieIn.pup?.addedLength),
         pup_added_pipe_number: tieIn.pup?.addedPipeNumber || null,
         pup_added_heat_number: tieIn.pup?.addedHeatNumber || null,
         pup_added_wall_thickness: parseDecimal(tieIn.pup?.addedWallThickness),
         pup_added_manufacturer: tieIn.pup?.addedManufacturer || null,
-        
+
         // U/S Pipe (was leftPipe)
         us_pipe_no: tieIn.pup?.leftPipeNo || null,
         us_heat_no: tieIn.pup?.leftHeatNo || null,
@@ -55,7 +56,7 @@ export async function saveTieInTicket(tieIns, ticketId) {
         us_wt: parseDecimal(tieIn.pup?.leftWt),
         us_mftr: tieIn.pup?.leftMftr || null,
         us_length: parseDecimal(tieIn.pup?.leftLength),
-        
+
         // D/S Pipe (was rightPipe)
         ds_pipe_no: tieIn.pup?.rightPipeNo || null,
         ds_heat_no: tieIn.pup?.rightHeatNo || null,
@@ -63,8 +64,9 @@ export async function saveTieInTicket(tieIns, ticketId) {
         ds_wt: parseDecimal(tieIn.pup?.rightWt),
         ds_mftr: tieIn.pup?.rightMftr || null,
         ds_length: parseDecimal(tieIn.pup?.rightLength),
-        
-        chainage: tieIn.pup?.chainage || null
+
+        chainage: tieIn.pup?.chainage || null,
+        organization_id: organizationId
       }
 
       // Insert parent tie_in record
@@ -96,7 +98,8 @@ export async function saveTieInTicket(tieIns, ticketId) {
           travel_speed: parseDecimal(weld.travelSpeed),
           heat_input: parseDecimal(weld.heatInput),
           wps_id: weld.wpsId || null,
-          meets_wps: weld.meetsWPS
+          meets_wps: weld.meetsWPS,
+          organization_id: organizationId
         }))
 
         const { error: weldsError } = await supabase

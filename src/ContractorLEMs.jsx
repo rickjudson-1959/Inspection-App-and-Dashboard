@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 import { supabase } from './supabase'
 
 const MAX_DAILY_HOURS = 16
@@ -8,6 +9,7 @@ const MAX_DAILY_HOURS = 16
 function ContractorLEMs() {
   const navigate = useNavigate()
   const { signOut, userProfile } = useAuth()
+  const { orgPath } = useOrgPath()
   const [lems, setLems] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedLem, setSelectedLem] = useState(null)
@@ -292,7 +294,7 @@ function ContractorLEMs() {
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
           <button onClick={() => navigate(-1)} style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Back</button>
-          <button onClick={() => navigate('/reconciliation')} style={{ padding: '10px 20px', backgroundColor: '#f39c12', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Reconciliation</button>
+          <button onClick={() => navigate(orgPath('/reconciliation'))} style={{ padding: '10px 20px', backgroundColor: '#f39c12', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Reconciliation</button>
           <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign Out</button>
         </div>
       </div>

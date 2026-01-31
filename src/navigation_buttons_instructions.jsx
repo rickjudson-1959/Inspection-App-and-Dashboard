@@ -8,24 +8,26 @@
 // Find the header div and add these buttons:
 // -----------------------------------------------------------------------------
 
-// Add this import at the top:
+// Add these imports at the top:
 import { useNavigate } from 'react-router-dom'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 import MasterSwitcher from './MasterSwitcher.jsx'
 
 // Inside the component, add:
 const navigate = useNavigate()
+const { orgPath } = useOrgPath()
 
 // In the header buttons area, add these:
 {/* Role Navigation Buttons */}
 <MasterSwitcher compact />
 <button
-  onClick={() => navigate('/evm-dashboard')}
+  onClick={() => navigate(orgPath('/evm-dashboard'))}
   style={{ padding: '10px 16px', backgroundColor: '#20c997', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
 >
   💰 View Financials (EVM)
 </button>
 <button
-  onClick={() => navigate('/chief-dashboard')}
+  onClick={() => navigate(orgPath('/chief-dashboard'))}
   style={{ padding: '10px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
 >
   👔 Chief Dashboard
@@ -42,26 +44,26 @@ import MasterSwitcher from './MasterSwitcher.jsx'
 // In the header buttons area, replace existing buttons with:
 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
   <MasterSwitcher compact />
-  <button 
-    onClick={() => navigate('/cmt-dashboard')} 
+  <button
+    onClick={() => navigate(orgPath('/cmt-dashboard'))}
     style={{ padding: '10px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
   >
     📊 View CMT Stats
   </button>
-  <button 
-    onClick={() => navigate('/ndt-auditor')} 
+  <button
+    onClick={() => navigate(orgPath('/ndt-auditor'))}
     style={{ padding: '10px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
   >
     🔬 NDT Queue
   </button>
-  <button 
-    onClick={() => navigate('/field-entry')} 
+  <button
+    onClick={() => navigate(orgPath('/field-entry'))}
     style={{ padding: '10px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
   >
     + New Report
   </button>
-  <button 
-    onClick={signOut} 
+  <button
+    onClick={signOut}
     style={{ padding: '10px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
   >
     Sign Out
@@ -79,20 +81,20 @@ import MasterSwitcher from './MasterSwitcher.jsx'
 // In the header buttons area:
 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
   <MasterSwitcher compact />
-  <button 
-    onClick={() => navigate('/cmt-dashboard')} 
+  <button
+    onClick={() => navigate(orgPath('/cmt-dashboard'))}
     style={{ padding: '10px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
   >
     📊 View CMT Stats
   </button>
-  <button 
-    onClick={() => navigate('/chief-dashboard')} 
+  <button
+    onClick={() => navigate(orgPath('/chief-dashboard'))}
     style={{ padding: '10px 16px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
   >
     👔 Chief Dashboard
   </button>
-  <button 
-    onClick={signOut} 
+  <button
+    onClick={signOut}
     style={{ padding: '10px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
   >
     Sign Out
@@ -104,18 +106,20 @@ import MasterSwitcher from './MasterSwitcher.jsx'
 // 4. EVMDASHBOARD.JSX - Add navigation back to CMT
 // -----------------------------------------------------------------------------
 
-// Add this import at the top:
+// Add these imports at the top:
 import { useNavigate } from 'react-router-dom'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 import MasterSwitcher from './MasterSwitcher.jsx'
 
 // Inside the component:
 const navigate = useNavigate()
+const { orgPath } = useOrgPath()
 
 // In the header, add:
 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
   <MasterSwitcher compact />
-  <button 
-    onClick={() => navigate('/cmt-dashboard')} 
+  <button
+    onClick={() => navigate(orgPath('/cmt-dashboard'))}
     style={{ padding: '10px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
   >
     📊 View Construction (CMT)

@@ -15,10 +15,15 @@ import {
   aggregateEfficiencyVerification
 } from './shadowAuditUtils.js'
 import { MetricInfoIcon, MetricIntegrityModal, useMetricIntegrityModal } from './components/MetricIntegrityInfo.jsx'
+import { useOrgQuery } from './utils/queryHelpers.js'
+import TenantSwitcher from './components/TenantSwitcher.jsx'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 function AdminPortal() {
   const navigate = useNavigate()
   const { signOut, userProfile } = useAuth()
+  const { orgPath } = useOrgPath()
+  const { addOrgFilter, organizationId, getOrgId, isReady } = useOrgQuery()
   const [organizations, setOrganizations] = useState([])
   const [users, setUsers] = useState([])
   const [inspectorProfiles, setInspectorProfiles] = useState([])
@@ -82,40 +87,58 @@ function AdminPortal() {
   const isSuperAdmin = userProfile?.role === 'super_admin'
 
   useEffect(() => {
-    fetchData()
-  }, [])
+    if (isReady()) {
+      fetchData()
+    }
+  }, [organizationId])
 
   useEffect(() => {
+    if (!isReady()) return
     if (activeTab === 'approvals') fetchPendingApprovals()
     if (activeTab === 'mats') fetchMatData()
     if (activeTab === 'audit') fetchAuditLog()
     if (activeTab === 'reports') fetchAllReports()
     if (activeTab === 'timesheets') fetchPendingTimesheets()
-  }, [activeTab])
+  }, [activeTab, organizationId])
 
   async function fetchData() {
     setLoading(true)
+    // Organizations - super admin sees all, others see their org
     const { data: orgs } = await supabase.from('organizations').select('*').order('name')
     setOrganizations(orgs || [])
 
-    const { data: usersData } = await supabase.from('user_profiles').select('*, organizations(name)').order('email')
+    // Users - filter by org membership (super admin sees all)
+    let usersQuery = supabase.from('user_profiles').select('*, organizations(name)').order('email')
+    if (!isSuperAdmin && organizationId) {
+      usersQuery = usersQuery.eq('organization_id', organizationId)
+    }
+    const { data: usersData } = await usersQuery
     setUsers(usersData || [])
 
     // Fetch inspector profiles to link with users
-    const { data: inspectorProfilesData } = await supabase.from('inspector_profiles').select('id, user_id, company_name, profile_complete, cleared_to_work')
+    let inspectorQuery = supabase.from('inspector_profiles').select('id, user_id, company_name, profile_complete, cleared_to_work')
+    inspectorQuery = addOrgFilter(inspectorQuery)
+    const { data: inspectorProfilesData } = await inspectorQuery
     setInspectorProfiles(inspectorProfilesData || [])
 
-    const { data: projectsData } = await supabase.from('projects').select('*, organizations(name)').order('name')
+    // Projects - filter by org
+    let projectsQuery = supabase.from('projects').select('*, organizations(name)').order('name')
+    if (!isSuperAdmin && organizationId) {
+      projectsQuery = projectsQuery.eq('organization_id', organizationId)
+    }
+    const { data: projectsData } = await projectsQuery
     setProjects(projectsData || [])
 
     // Fetch recent reports for efficiency metrics (last 30 days)
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
-    const { data: reportsData } = await supabase
+    let reportsQuery = supabase
       .from('daily_tickets')
       .select('id, date, spread, activity_blocks')
       .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
       .order('date', { ascending: false })
+    reportsQuery = addOrgFilter(reportsQuery)
+    const { data: reportsData } = await reportsQuery
     setRecentReports(reportsData || [])
 
     setLoading(false)
@@ -207,11 +230,13 @@ function AdminPortal() {
     setLoadingPending(true)
     try {
       // Get all submitted reports
-      const { data: statusData, error: statusError } = await supabase
+      let statusQuery = supabase
         .from('report_status')
         .select('*')
         .eq('status', 'submitted')
         .order('submitted_at', { ascending: true })
+      statusQuery = addOrgFilter(statusQuery)
+      const { data: statusData, error: statusError } = await statusQuery
 
       if (statusError) throw statusError
 
@@ -263,7 +288,8 @@ function AdminPortal() {
         changed_by: userProfile?.id,
         changed_by_name: userProfile?.full_name || userProfile?.email,
         changed_by_role: userProfile?.role,
-        change_type: 'approve'
+        change_type: 'approve',
+        organization_id: getOrgId()
       })
 
       fetchPendingApprovals()
@@ -317,10 +343,12 @@ function AdminPortal() {
     setLoadingMats(true)
     try {
       // Get all transactions to calculate inventory
-      const { data: transactions } = await supabase
+      let matQuery = supabase
         .from('mat_transactions')
         .select('*')
         .order('created_at', { ascending: false })
+      matQuery = addOrgFilter(matQuery)
+      const { data: transactions } = await matQuery
 
       if (transactions) {
         // Calculate summary
@@ -368,11 +396,13 @@ function AdminPortal() {
   async function fetchAuditLog() {
     setLoadingAudit(true)
     try {
-      const { data } = await supabase
+      let auditQuery = supabase
         .from('report_audit_log')
         .select('*')
         .order('changed_at', { ascending: false })
         .limit(100)
+      auditQuery = addOrgFilter(auditQuery)
+      const { data } = await auditQuery
 
       setAuditLog(data || [])
     } catch (err) {
@@ -385,16 +415,20 @@ function AdminPortal() {
   async function fetchAllReports() {
     setLoadingReports(true)
     try {
-      const { data: reports } = await supabase
+      let reportsQuery = supabase
         .from('daily_tickets')
         .select('id, date, inspector_name, spread, pipeline, activity_blocks, pdf_hash, pdf_storage_url, pdf_document_id, pdf_generated_at')
         .order('date', { ascending: false })
         .limit(100)
+      reportsQuery = addOrgFilter(reportsQuery)
+      const { data: reports } = await reportsQuery
 
       // Get statuses for all reports
-      const { data: statuses } = await supabase
+      let statusQuery = supabase
         .from('report_status')
         .select('report_id, status')
+      statusQuery = addOrgFilter(statusQuery)
+      const { data: statuses } = await statusQuery
 
       const statusMap = {}
       ;(statuses || []).forEach(s => { statusMap[s.report_id] = s.status })
@@ -416,7 +450,7 @@ function AdminPortal() {
     setLoadingTimesheets(true)
     try {
       // Get all submitted timesheets with inspector info
-      const { data: timesheets, error } = await supabase
+      let timesheetQuery = supabase
         .from('inspector_timesheets')
         .select(`
           *,
@@ -425,6 +459,8 @@ function AdminPortal() {
         `)
         .eq('status', 'submitted')
         .order('submitted_at', { ascending: true })
+      timesheetQuery = addOrgFilter(timesheetQuery)
+      const { data: timesheets, error } = await timesheetQuery
 
       if (error) throw error
       setPendingTimesheets(timesheets || [])
@@ -483,7 +519,8 @@ function AdminPortal() {
         action: 'approve',
         performed_by: userProfile?.id,
         performed_by_name: userProfile?.full_name || userProfile?.email,
-        details: { status_change: 'submitted → approved' }
+        details: { status_change: 'submitted → approved' },
+        organization_id: getOrgId()
       })
 
       // Send email notification
@@ -545,10 +582,11 @@ function AdminPortal() {
         action: 'revision_requested',
         performed_by: userProfile?.id,
         performed_by_name: userProfile?.full_name || userProfile?.email,
-        details: { 
+        details: {
           status_change: 'submitted → revision_requested',
-          revision_notes: rejectNotes 
-        }
+          revision_notes: rejectNotes
+        },
+        organization_id: getOrgId()
       })
 
       // Send email notification
@@ -942,13 +980,14 @@ function AdminPortal() {
           <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>{isSuperAdmin ? 'Super Admin' : 'Admin'} - {userProfile?.organizations?.name || 'All Organizations'}</p>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <TenantSwitcher compact />
           <MasterSwitcher compact />
-          <button onClick={() => navigate('/inspector-invoicing')} style={{ padding: '10px 20px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>💰 Inspector Invoicing</button>
-          <button onClick={() => navigate('/dashboard')} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>CMT Dashboard</button>
-          <button onClick={() => navigate('/evm')} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>EVM Dashboard</button>
-          <button onClick={() => navigate('/reconciliation')} style={{ padding: '10px 20px', backgroundColor: '#ffc107', color: 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Reconciliation</button>
-          <button onClick={() => navigate('/changes')} style={{ padding: '10px 20px', backgroundColor: '#6f42c1', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Change Orders</button>
-          <button onClick={() => navigate('/contractor-lems')} style={{ padding: '10px 20px', backgroundColor: '#2c3e50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Contractor LEMs</button>
+          <button onClick={() => navigate(orgPath('/inspector-invoicing'))} style={{ padding: '10px 20px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Inspector Invoicing</button>
+          <button onClick={() => navigate(orgPath('/dashboard'))} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>CMT Dashboard</button>
+          <button onClick={() => navigate(orgPath('/evm-dashboard'))} style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>EVM Dashboard</button>
+          <button onClick={() => navigate(orgPath('/reconciliation'))} style={{ padding: '10px 20px', backgroundColor: '#ffc107', color: 'black', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Reconciliation</button>
+          <button onClick={() => navigate(orgPath('/changes'))} style={{ padding: '10px 20px', backgroundColor: '#6f42c1', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Change Orders</button>
+          <button onClick={() => navigate(orgPath('/contractor-lems'))} style={{ padding: '10px 20px', backgroundColor: '#2c3e50', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Contractor LEMs</button>
           <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign Out</button>
         </div>
       </div>

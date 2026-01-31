@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 // ============================================================================
 // CHUNK 3: MASTER SWITCHER - Super Admin "God Mode"
@@ -22,6 +23,7 @@ function MasterSwitcher({ compact = true }) {
   const navigate = useNavigate()
   const location = useLocation()
   const { userProfile } = useAuth()
+  const { orgPath } = useOrgPath()
   const [isOpen, setIsOpen] = useState(false)
   
   // Only show for super_admin (God Mode restricted)
@@ -72,7 +74,7 @@ function MasterSwitcher({ compact = true }) {
               {DASHBOARDS.map(d => (
                 <button
                   key={d.path}
-                  onClick={() => { setIsOpen(false); navigate(d.path) }}
+                  onClick={() => { setIsOpen(false); navigate(orgPath(d.path)) }}
                   style={{
                     display: 'block',
                     width: '100%',
@@ -105,7 +107,7 @@ function MasterSwitcher({ compact = true }) {
       {DASHBOARDS.map(d => (
         <button
           key={d.path}
-          onClick={() => navigate(d.path)}
+          onClick={() => navigate(orgPath(d.path))}
           style={{
             padding: '5px 12px',
             backgroundColor: currentPath === d.path ? d.color : 'transparent',

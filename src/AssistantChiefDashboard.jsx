@@ -7,6 +7,9 @@ import SafetyRecognition from './SafetyRecognition.jsx'
 import WildlifeSighting from './WildlifeSighting.jsx'
 import jsPDF from 'jspdf'
 import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
+import { useOrgQuery } from './utils/queryHelpers.js'
+import TenantSwitcher from './components/TenantSwitcher.jsx'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 // Weather API Key
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
@@ -34,7 +37,9 @@ const pipelineLocations = {
 function AssistantChiefDashboard() {
   const navigate = useNavigate()
   const { signOut, userProfile } = useAuth()
-  
+  const { orgPath } = useOrgPath()
+  const { addOrgFilter, getOrgId, organizationId, isReady } = useOrgQuery()
+
   // Tab state
   const [activeTab, setActiveTab] = useState('review')
   
@@ -199,16 +204,19 @@ function AssistantChiefDashboard() {
   // LIFECYCLE
   // =============================================
   useEffect(() => {
-    fetchAllData()
-  }, [])
-  
+    if (isReady()) {
+      fetchAllData()
+    }
+  }, [organizationId])
+
   useEffect(() => {
+    if (!isReady()) return
     if (activeTab === 'review') fetchPendingReports()
     if (activeTab === 'assignments') fetchAssignments()
     if (activeTab === 'deficiencies') fetchDeficiencies()
     if (activeTab === 'compliance') fetchComplianceIssues()
     if (activeTab === 'observation') fetchExistingObservation()
-  }, [activeTab, deficiencyFilter, assignmentDate, observationDate])
+  }, [activeTab, deficiencyFilter, assignmentDate, observationDate, organizationId])
 
   async function fetchAllData() {
     await Promise.all([
@@ -225,7 +233,7 @@ function AssistantChiefDashboard() {
     setReviewLoading(true)
     try {
       // Fetch reports pending review (submitted but not yet approved by Chief)
-      const { data: pending } = await supabase
+      let pendingQuery = supabase
         .from('inspection_reports')
         .select(`
           *,
@@ -233,12 +241,14 @@ function AssistantChiefDashboard() {
         `)
         .eq('status', 'submitted')
         .order('report_date', { ascending: false })
-      
+      pendingQuery = addOrgFilter(pendingQuery)
+      const { data: pending } = await pendingQuery
+
       setPendingReports(pending || [])
-      
+
       // Fetch reports I've reviewed today
       const today = new Date().toISOString().split('T')[0]
-      const { data: reviewed } = await supabase
+      let reviewedQuery = supabase
         .from('assistant_chief_reviews')
         .select(`
           *,
@@ -246,7 +256,9 @@ function AssistantChiefDashboard() {
         `)
         .eq('reviewer_id', userProfile?.id)
         .gte('reviewed_at', today)
-      
+      reviewedQuery = addOrgFilter(reviewedQuery)
+      const { data: reviewed } = await reviewedQuery
+
       setReviewedByMe(reviewed || [])
     } catch (err) {
       console.error('Error fetching reports:', err)
@@ -256,7 +268,7 @@ function AssistantChiefDashboard() {
 
   async function submitReview() {
     if (!selectedReport) return
-    
+
     try {
       // Save review to assistant_chief_reviews table
       const { error } = await supabase
@@ -267,9 +279,10 @@ function AssistantChiefDashboard() {
           reviewer_name: userProfile?.full_name,
           status: reviewStatus,
           notes: reviewNotes,
-          reviewed_at: new Date().toISOString()
+          reviewed_at: new Date().toISOString(),
+          organization_id: getOrgId()
         })
-      
+
       if (error) throw error
       
       // If needs revision, update report status
@@ -314,7 +327,7 @@ function AssistantChiefDashboard() {
 
   async function fetchAssignments() {
     try {
-      const { data } = await supabase
+      let assignQuery = supabase
         .from('inspector_assignments')
         .select(`
           *,
@@ -322,7 +335,9 @@ function AssistantChiefDashboard() {
         `)
         .eq('assignment_date', assignmentDate)
         .order('created_at', { ascending: false })
-      
+      assignQuery = addOrgFilter(assignQuery)
+      const { data } = await assignQuery
+
       setAssignments(data || [])
     } catch (err) {
       console.error('Error fetching assignments:', err)
@@ -334,7 +349,7 @@ function AssistantChiefDashboard() {
       alert('Please select an inspector and activity')
       return
     }
-    
+
     try {
       const { error } = await supabase
         .from('inspector_assignments')
@@ -346,7 +361,8 @@ function AssistantChiefDashboard() {
           notes: newAssignment.notes,
           assignment_date: assignmentDate,
           assigned_by: userProfile?.id,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          organization_id: getOrgId()
         })
       
       if (error) throw error
@@ -370,11 +386,12 @@ function AssistantChiefDashboard() {
         .from('contractor_deficiencies')
         .select('*')
         .order('created_at', { ascending: false })
-      
+
       if (deficiencyFilter !== 'all') {
         query = query.eq('status', deficiencyFilter)
       }
-      
+
+      query = addOrgFilter(query)
       const { data } = await query.limit(50)
       setDeficiencies(data || [])
     } catch (err) {
@@ -387,7 +404,7 @@ function AssistantChiefDashboard() {
       alert('Please enter a description')
       return
     }
-    
+
     try {
       const { error } = await supabase
         .from('contractor_deficiencies')
@@ -401,7 +418,8 @@ function AssistantChiefDashboard() {
           status: 'open',
           reported_by: userProfile?.id,
           reported_by_name: userProfile?.full_name,
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          organization_id: getOrgId()
         })
       
       if (error) throw error
@@ -445,73 +463,87 @@ function AssistantChiefDashboard() {
     setComplianceLoading(true)
     try {
       // 1. Fetch contractor deficiencies (existing)
-      const { data: deficiencyData } = await supabase
+      let defQuery = supabase
         .from('contractor_deficiencies')
         .select('*')
         .in('category', ['safety', 'environmental', 'regulatory'])
         .eq('status', 'open')
-      
+      defQuery = addOrgFilter(defQuery)
+      const { data: deficiencyData } = await defQuery
+
       setComplianceIssues(deficiencyData || [])
-      
+
       // 2. Fetch hazard entries from assistant chief
-      const { data: hazards } = await supabase
+      let hazardQuery = supabase
         .from('field_hazard_entries')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50)
-      
+      hazardQuery = addOrgFilter(hazardQuery)
+      const { data: hazards } = await hazardQuery
+
       setHazardEntries(hazards || [])
-      
+
       // 3. Fetch positive recognition entries
-      const { data: recognition } = await supabase
+      let recQuery = supabase
         .from('field_recognition_entries')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50)
-      
+      recQuery = addOrgFilter(recQuery)
+      const { data: recognition } = await recQuery
+
       setRecognitionEntries(recognition || [])
-      
+
       // 4. Fetch wildlife sightings
-      const { data: wildlife } = await supabase
+      let wildlifeQuery = supabase
         .from('field_wildlife_entries')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(50)
-      
+      wildlifeQuery = addOrgFilter(wildlifeQuery)
+      const { data: wildlife } = await wildlifeQuery
+
       setWildlifeEntries(wildlife || [])
-      
+
       // 5. Fetch compliance issues logged by assistant chief
-      const { data: compIssues } = await supabase
+      let compQuery = supabase
         .from('compliance_issues')
         .select('*')
         .order('created_at', { ascending: false })
         .limit(100)
-      
+      compQuery = addOrgFilter(compQuery)
+      const { data: compIssues } = await compQuery
+
       setComplianceEntries(compIssues || [])
-      
+
       // 6. Fetch recent inspector safety notes (last 7 days)
       const weekAgo = new Date()
       weekAgo.setDate(weekAgo.getDate() - 7)
-      
-      const { data: safetyNotes } = await supabase
+
+      let safetyQuery = supabase
         .from('daily_reports')
         .select('id, report_date, safety_notes, inspector_name')
         .gte('report_date', weekAgo.toISOString().split('T')[0])
         .not('safety_notes', 'is', null)
         .neq('safety_notes', '')
         .order('report_date', { ascending: false })
-      
+      safetyQuery = addOrgFilter(safetyQuery)
+      const { data: safetyNotes } = await safetyQuery
+
       setInspectorSafetyNotes(safetyNotes || [])
-      
-      // 6. Fetch recent inspector environmental notes
-      const { data: envNotes } = await supabase
+
+      // 7. Fetch recent inspector environmental notes
+      let envQuery = supabase
         .from('daily_reports')
         .select('id, report_date, land_environment, inspector_name, wildlife_sighting')
         .gte('report_date', weekAgo.toISOString().split('T')[0])
         .order('report_date', { ascending: false })
-      
+      envQuery = addOrgFilter(envQuery)
+      const { data: envNotes } = await envQuery
+
       setInspectorEnvironmentNotes(envNotes?.filter(n => n.land_environment || n.wildlife_sighting?.sightings?.length > 0) || [])
-      
+
     } catch (err) {
       console.error('Error fetching compliance data:', err)
     }
@@ -535,7 +567,8 @@ function AssistantChiefDashboard() {
           reported_by: userProfile?.id,
           reported_by_name: userProfile?.full_name,
           entry_date: new Date().toISOString().split('T')[0],
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          organization_id: getOrgId()
         })
       
       if (error) throw error
@@ -565,7 +598,8 @@ function AssistantChiefDashboard() {
           reported_by: userProfile?.id,
           reported_by_name: userProfile?.full_name,
           entry_date: new Date().toISOString().split('T')[0],
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          organization_id: getOrgId()
         })
       
       if (error) throw error
@@ -596,7 +630,8 @@ function AssistantChiefDashboard() {
           reported_by: userProfile?.id,
           reported_by_name: userProfile?.full_name,
           entry_date: new Date().toISOString().split('T')[0],
-          created_at: new Date().toISOString()
+          created_at: new Date().toISOString(),
+          organization_id: getOrgId()
         })
       
       if (error) throw error
@@ -624,7 +659,8 @@ function AssistantChiefDashboard() {
         reported_by_name: userProfile?.full_name,
         entry_date: new Date().toISOString().split('T')[0],
         created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        organization_id: getOrgId()
       }
       
       if (selectedComplianceIssue) {
@@ -743,7 +779,8 @@ function AssistantChiefDashboard() {
             supervisor_signoff: card.supervisorSignoff,
             comments: card.comments,
             reported_by: userProfile?.id,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            organization_id: getOrgId()
           })
         
         if (error) throw error
@@ -788,7 +825,8 @@ function AssistantChiefDashboard() {
             comments: sighting.comments,
             photo_taken: sighting.photoTaken,
             reported_by: userProfile?.id,
-            created_at: new Date().toISOString()
+            created_at: new Date().toISOString(),
+            organization_id: getOrgId()
           })
         
         if (error) throw error
@@ -821,66 +859,77 @@ function AssistantChiefDashboard() {
       wildlifeSightings: [],
       inspectorReports: []
     }
-    
+
     try {
       // 1. Get observation for the date
-      const { data: obs } = await supabase
+      let obsQuery = supabase
         .from('assistant_chief_observations')
         .select('*')
         .eq('observation_date', reportDate)
         .eq('observer_id', userProfile?.id)
-        .single()
-      
+      obsQuery = addOrgFilter(obsQuery)
+      const { data: obs } = await obsQuery.single()
+
       data.observation = obs
-      
+
       // 2. Get compliance issues logged today
-      const { data: issues } = await supabase
+      let issuesQuery = supabase
         .from('compliance_issues')
         .select('*')
         .eq('entry_date', reportDate)
         .eq('reported_by', userProfile?.id)
-      
+      issuesQuery = addOrgFilter(issuesQuery)
+      const { data: issues } = await issuesQuery
+
       data.complianceIssues = issues || []
-      
+
       // 3. Get hazard entries for today
-      const { data: hazards } = await supabase
+      let hazardsQuery = supabase
         .from('field_hazard_entries')
         .select('*')
         .eq('entry_date', reportDate)
         .eq('reported_by', userProfile?.id)
-      
+      hazardsQuery = addOrgFilter(hazardsQuery)
+      const { data: hazards } = await hazardsQuery
+
       data.hazardEntries = hazards || []
-      
+
       // 4. Get safety cards for today
-      const { data: cards } = await supabase
+      let cardsQuery = supabase
         .from('assistant_chief_safety_cards')
         .select('*')
         .eq('observer_date', reportDate)
         .eq('reported_by', userProfile?.id)
-      
+      cardsQuery = addOrgFilter(cardsQuery)
+      const { data: cards } = await cardsQuery
+
       data.safetyCards = cards || []
-      
+
       // 5. Get wildlife sightings for today
-      const { data: wildlife } = await supabase
+      let wildlifeQuery = supabase
         .from('assistant_chief_wildlife')
         .select('*')
         .eq('sighting_date', reportDate)
         .eq('reported_by', userProfile?.id)
-      
+      wildlifeQuery = addOrgFilter(wildlifeQuery)
+      const { data: wildlife } = await wildlifeQuery
+
       data.wildlifeSightings = wildlife || []
-      
+
       // 6. Get inspector reports for today (summary)
-      const { data: inspReports } = await supabase
+      let inspQuery = supabase
         .from('daily_reports')
         .select('id, inspector_name, report_date, safety_notes, land_environment')
         .eq('report_date', reportDate)
-      
+      inspQuery = addOrgFilter(inspQuery)
+      const { data: inspReports } = await inspQuery
+
       data.inspectorReports = inspReports || []
-      
+
     } catch (err) {
       console.error('Error gathering report data:', err)
     }
-    
+
     return data
   }
 
@@ -1254,10 +1303,11 @@ function AssistantChiefDashboard() {
           hazard_entries_count: data.hazardEntries.length,
           safety_cards_count: data.safetyCards.length,
           wildlife_sightings_count: data.wildlifeSightings.length,
-          has_flagged_items: data.observation?.safety_flagged || data.observation?.environmental_flagged || 
+          has_flagged_items: data.observation?.safety_flagged || data.observation?.environmental_flagged ||
                             data.observation?.technical_flagged || data.observation?.progress_flagged,
           created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          updated_at: new Date().toISOString(),
+          organization_id: getOrgId()
         }, { onConflict: 'report_date,reporter_id' })
       
       if (dbError) {
@@ -1334,13 +1384,15 @@ function AssistantChiefDashboard() {
       }
       
       // Fetch observation history
-      const { data: history } = await supabase
+      let historyQuery = supabase
         .from('assistant_chief_observations')
         .select('id, observation_date, safety_flagged, environmental_flagged, technical_flagged, progress_flagged, created_at')
         .eq('observer_id', userProfile?.id)
         .order('observation_date', { ascending: false })
         .limit(10)
-      
+      historyQuery = addOrgFilter(historyQuery)
+      const { data: history } = await historyQuery
+
       setObservationHistory(history || [])
     } catch (err) {
       // No existing observation - that's fine
@@ -1366,9 +1418,10 @@ function AssistantChiefDashboard() {
         general_notes: observation.general_notes,
         weather_conditions: observation.weather_conditions,
         time_on_row: observation.time_on_row,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        organization_id: getOrgId()
       }
-      
+
       if (existingObservation) {
         // Update existing
         const { error } = await supabase
@@ -1704,32 +1757,40 @@ function AssistantChiefDashboard() {
   async function fetchStats() {
     try {
       const today = new Date().toISOString().split('T')[0]
-      
+
       // Pending reports
-      const { count: pendingCount } = await supabase
+      let pendingQuery = supabase
         .from('inspection_reports')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'submitted')
-      
+      pendingQuery = addOrgFilter(pendingQuery)
+      const { count: pendingCount } = await pendingQuery
+
       // My reviews today
-      const { count: reviewedCount } = await supabase
+      let reviewedQuery = supabase
         .from('assistant_chief_reviews')
         .select('*', { count: 'exact', head: true })
         .eq('reviewer_id', userProfile?.id)
         .gte('reviewed_at', today)
-      
+      reviewedQuery = addOrgFilter(reviewedQuery)
+      const { count: reviewedCount } = await reviewedQuery
+
       // Open deficiencies
-      const { count: deficiencyCount } = await supabase
+      let deficiencyQuery = supabase
         .from('contractor_deficiencies')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'open')
-      
+      deficiencyQuery = addOrgFilter(deficiencyQuery)
+      const { count: deficiencyCount } = await deficiencyQuery
+
       // Active inspectors (with assignments today)
-      const { count: inspectorCount } = await supabase
+      let inspectorQuery = supabase
         .from('inspector_assignments')
         .select('inspector_id', { count: 'exact', head: true })
         .eq('assignment_date', today)
-      
+      inspectorQuery = addOrgFilter(inspectorQuery)
+      const { count: inspectorCount } = await inspectorQuery
+
       setStats({
         pendingReview: pendingCount || 0,
         reviewedToday: reviewedCount || 0,
@@ -1795,17 +1856,20 @@ function AssistantChiefDashboard() {
       {/* Header */}
       <div style={{ backgroundColor: '#2c5282', color: 'white', padding: '20px' }}>
         <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: '24px' }}>👷 Assistant Chief Inspector Dashboard</h1>
-            <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>
-              {userProfile?.full_name || userProfile?.email} • Support & Oversight
-            </p>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+            <div>
+              <h1 style={{ margin: 0, fontSize: '24px' }}>Assistant Chief Inspector Dashboard</h1>
+              <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>
+                {userProfile?.full_name || userProfile?.email} • Support & Oversight
+              </p>
+            </div>
+            <TenantSwitcher compact />
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
-            <button onClick={() => navigate('/chief')} style={{ padding: '10px 20px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+            <button onClick={() => navigate(orgPath('/chief-dashboard'))} style={{ padding: '10px 20px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
               Chief Dashboard
             </button>
-            <button onClick={() => navigate('/dashboard')} style={{ padding: '10px 20px', backgroundColor: '#4a5568', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+            <button onClick={() => navigate(orgPath('/dashboard'))} style={{ padding: '10px 20px', backgroundColor: '#4a5568', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
               Main Dashboard
             </button>
             <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>

@@ -3,11 +3,15 @@ import React, { useState, useEffect } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
 import { useAuth } from './AuthContext.jsx'
+import { useOrgQuery } from './utils/queryHelpers.js'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 function ReportViewer() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { userProfile } = useAuth()
+  const { addOrgFilter, organizationId, isReady } = useOrgQuery()
+  const { orgPath } = useOrgPath()
   const reportId = searchParams.get('id')
   
   const [report, setReport] = useState(null)
@@ -22,10 +26,10 @@ function ReportViewer() {
   const [processing, setProcessing] = useState(false)
 
   useEffect(() => {
-    if (reportId) {
+    if (reportId && isReady()) {
       loadReport()
     }
-  }, [reportId])
+  }, [reportId, organizationId])
 
   const loadReport = async () => {
     setLoading(true)
@@ -33,12 +37,13 @@ function ReportViewer() {
     try {
       console.log('Loading report with ID:', reportId)
       
-      // Load main report
-      const { data: reportData, error: reportError } = await supabase
+      // Load main report (with org filter for security)
+      let reportQuery = supabase
         .from('daily_tickets')
         .select('*')
         .eq('id', reportId)
-        .single()
+      reportQuery = addOrgFilter(reportQuery)
+      const { data: reportData, error: reportError } = await reportQuery.single()
       
       if (reportError) {
         console.error('Report fetch error:', reportError)
@@ -48,23 +53,26 @@ function ReportViewer() {
       console.log('Loaded report:', reportData)
       setReport(reportData)
 
-      // Load report status
-      const { data: statusData } = await supabase
+      // Load report status (with org filter)
+      let statusQuery = supabase
         .from('report_status')
         .select('*')
         .eq('report_id', reportId)
-        .single()
-      
+      statusQuery = addOrgFilter(statusQuery)
+      const { data: statusData } = await statusQuery.single()
+
       setReportStatus(statusData)
 
-      // Load trackable items for this report date
+      // Load trackable items for this report date (with org filter)
       if (reportData?.date) {
-        const { data: trackables } = await supabase
+        let trackablesQuery = supabase
           .from('trackable_items')
           .select('*')
           .eq('report_date', reportData.date)
           .order('created_at', { ascending: true })
-        
+        trackablesQuery = addOrgFilter(trackablesQuery)
+        const { data: trackables } = await trackablesQuery
+
         setTrackableItems(trackables || [])
       }
 
@@ -79,23 +87,23 @@ function ReportViewer() {
   const goBack = () => {
     const role = userProfile?.role
     if (role === 'chief_inspector') {
-      navigate('/chief')
+      navigate(orgPath('/chief-dashboard'))
     } else if (role === 'admin' || role === 'super_admin') {
-      navigate('/admin')
+      navigate(orgPath('/admin'))
     } else if (role === 'inspector') {
-      navigate('/inspector')
+      navigate(orgPath('/field-entry'))
     } else {
-      navigate('/dashboard')
+      navigate(orgPath('/dashboard'))
     }
   }
 
   // Approve report (Chief Inspector only)
   const approveReport = async () => {
     if (!confirm('Approve this report?')) return
-    
+
     setProcessing(true)
     try {
-      const { error } = await supabase
+      let updateQuery = supabase
         .from('report_status')
         .update({
           status: 'approved',
@@ -105,16 +113,19 @@ function ReportViewer() {
           revision_notes: null
         })
         .eq('report_id', reportId)
+      updateQuery = addOrgFilter(updateQuery)
+      const { error } = await updateQuery
 
       if (error) throw error
-      
+
       alert('✅ Report approved successfully!')
-      // Reload status
-      const { data: statusData } = await supabase
+      // Reload status (with org filter)
+      let reloadQuery = supabase
         .from('report_status')
         .select('*')
         .eq('report_id', reportId)
-        .single()
+      reloadQuery = addOrgFilter(reloadQuery)
+      const { data: statusData } = await reloadQuery.single()
       setReportStatus(statusData)
     } catch (err) {
       console.error('Error approving report:', err)
@@ -129,10 +140,10 @@ function ReportViewer() {
       alert('Please provide a reason for rejection')
       return
     }
-    
+
     setProcessing(true)
     try {
-      const { error } = await supabase
+      let updateQuery = supabase
         .from('report_status')
         .update({
           status: 'revision_requested',
@@ -142,18 +153,21 @@ function ReportViewer() {
           revision_notes: rejectionReason
         })
         .eq('report_id', reportId)
+      updateQuery = addOrgFilter(updateQuery)
+      const { error } = await updateQuery
 
       if (error) throw error
-      
+
       setShowRejectModal(false)
       setRejectionReason('')
       alert('📝 Revision requested. The inspector will be notified.')
-      // Reload status
-      const { data: statusData } = await supabase
+      // Reload status (with org filter)
+      let reloadQuery = supabase
         .from('report_status')
         .select('*')
         .eq('report_id', reportId)
-        .single()
+      reloadQuery = addOrgFilter(reloadQuery)
+      const { data: statusData } = await reloadQuery.single()
       setReportStatus(statusData)
     } catch (err) {
       console.error('Error rejecting report:', err)

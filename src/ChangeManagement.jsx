@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
+import { useOrgQuery } from './utils/queryHelpers.js'
 
 const PROJECT_NAME = "Clearwater Pipeline - Demo Project"
 
@@ -25,6 +26,7 @@ const STATUS_OPTIONS = [
 
 export default function ChangeManagement() {
   const navigate = useNavigate()
+  const { addOrgFilter, getOrgId, organizationId, isReady } = useOrgQuery()
   const [changes, setChanges] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -48,14 +50,16 @@ export default function ChangeManagement() {
     linked_report_inspector: ''
   })
 
-  useEffect(() => { loadChanges() }, [])
+  useEffect(() => { if (isReady()) loadChanges() }, [organizationId])
 
   async function loadChanges() {
     setLoading(true)
-    const { data, error } = await supabase
+    let query = supabase
       .from('change_orders')
       .select('*')
       .order('created_at', { ascending: false })
+    query = addOrgFilter(query)
+    const { data, error } = await query
 
     if (error) {
       console.error('Error loading changes:', error)
@@ -75,10 +79,12 @@ export default function ChangeManagement() {
     }
 
     if (editingChange) {
-      const { error } = await supabase
+      let updateQuery = supabase
         .from('change_orders')
         .update(changeData)
         .eq('id', editingChange.id)
+      updateQuery = addOrgFilter(updateQuery)
+      const { error } = await updateQuery
 
       if (error) {
         alert('Error updating change: ' + error.message)
@@ -87,6 +93,7 @@ export default function ChangeManagement() {
     } else {
       changeData.change_id = `CO-${Date.now().toString().slice(-6)}`
       changeData.created_at = new Date().toISOString()
+      changeData.organization_id = getOrgId()
 
       const { error } = await supabase
         .from('change_orders')
@@ -143,7 +150,7 @@ export default function ChangeManagement() {
   }
 
   async function updateStatus(change, newStatus) {
-    const updateData = { 
+    const updateData = {
       status: newStatus,
       updated_at: new Date().toISOString()
     }
@@ -153,10 +160,12 @@ export default function ChangeManagement() {
       updateData.approved_by = 'Current User'
     }
 
-    const { error } = await supabase
+    let updateQuery = supabase
       .from('change_orders')
       .update(updateData)
       .eq('id', change.id)
+    updateQuery = addOrgFilter(updateQuery)
+    const { error } = await updateQuery
 
     if (error) {
       alert('Error updating status: ' + error.message)

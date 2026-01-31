@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { supabase } from './supabase'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 export default function InspectorTimesheetView() {
   const navigate = useNavigate()
   const { id } = useParams()
+  const { orgPath } = useOrgPath()
   const [loading, setLoading] = useState(true)
   const [timesheet, setTimesheet] = useState(null)
 
@@ -41,7 +43,7 @@ export default function InspectorTimesheetView() {
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <div style={{ marginBottom: '24px' }}>
         <button 
-          onClick={() => navigate('/inspector-invoicing')}
+          onClick={() => navigate(orgPath('/inspector-invoicing'))}
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}
         >
           ← Back to Inspector Invoicing
@@ -91,7 +93,7 @@ export default function InspectorTimesheetView() {
             The requested timesheet could not be found.
           </p>
           <button
-            onClick={() => navigate('/inspector-invoicing')}
+            onClick={() => navigate(orgPath('/inspector-invoicing'))}
             style={{
               padding: '10px 20px',
               backgroundColor: '#059669',

@@ -4,7 +4,7 @@ import { supabase } from './supabase'
 // MatTracker component for tracking mat movements
 // Logs transactions that feed into project-wide mat inventory
 
-function MatTracker({ projectId, reportDate, reportId, inspector, onDataChange }) {
+function MatTracker({ projectId, reportDate, reportId, inspector, onDataChange, organizationId }) {
   const [transactions, setTransactions] = useState([])
   const [matSummary, setMatSummary] = useState({ rigMats: { deployed: 0, inYard: 0 }, swampMats: { deployed: 0, inYard: 0 } })
   const [loading, setLoading] = useState(true)
@@ -13,27 +13,39 @@ function MatTracker({ projectId, reportDate, reportId, inspector, onDataChange }
   // Load existing transactions for this report and summary
   useEffect(() => {
     loadData()
-  }, [reportId])
+  }, [reportId, organizationId])
 
   const loadData = async () => {
     setLoading(true)
     try {
       // Load transactions for this report
       if (reportId) {
-        const { data: txns } = await supabase
+        let txQuery = supabase
           .from('mat_transactions')
           .select('*')
           .eq('report_id', reportId)
           .order('created_at', { ascending: true })
-        
+
+        if (organizationId) {
+          txQuery = txQuery.eq('organization_id', organizationId)
+        }
+
+        const { data: txns } = await txQuery
+
         if (txns) setTransactions(txns)
       }
 
       // Load current mat summary (project-wide)
-      const { data: summary } = await supabase
+      let summaryQuery = supabase
         .from('mat_transactions')
         .select('mat_type, action, quantity')
         .eq('project_id', projectId || 'default')
+
+      if (organizationId) {
+        summaryQuery = summaryQuery.eq('organization_id', organizationId)
+      }
+
+      const { data: summary } = await summaryQuery
 
       if (summary) {
         const calc = { rigMats: { deployed: 0 }, swampMats: { deployed: 0 } }
@@ -111,6 +123,9 @@ function MatTracker({ projectId, reportDate, reportId, inspector, onDataChange }
       crossing_id: tx.crossing_id,
       crew: tx.crew,
       notes: tx.notes
+    }
+    if (organizationId) {
+      record.organization_id = organizationId
     }
 
     try {

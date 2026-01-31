@@ -818,8 +818,10 @@ export function aggregatePhotosForLegacy(reports) {
 
 /**
  * Save EGP summary report
+ * @param {Object} summaryData - The summary data to save
+ * @param {UUID} organizationId - The organization ID for multi-tenant support
  */
-export async function saveEGPSummary(summaryData) {
+export async function saveEGPSummary(summaryData, organizationId = null) {
   try {
     const { data: existing } = await supabase
       .from('daily_construction_summary')
@@ -830,7 +832,8 @@ export async function saveEGPSummary(summaryData) {
     const payload = {
       ...summaryData,
       report_type: 'egp_legacy',
-      updated_at: new Date().toISOString()
+      updated_at: new Date().toISOString(),
+      organization_id: organizationId
     }
 
     if (existing) {

@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabase'
+import { useOrgQuery } from './utils/queryHelpers.js'
 
 function MyReports({ user, onEditReport, onBack }) {
+  const { addOrgFilter, organizationId, isReady } = useOrgQuery()
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -15,8 +17,10 @@ function MyReports({ user, onEditReport, onBack }) {
   const [sortDirection, setSortDirection] = useState('desc')
 
   useEffect(() => {
-    fetchReports()
-  }, [user])
+    if (isReady()) {
+      fetchReports()
+    }
+  }, [user, organizationId])
 
   async function fetchReports() {
     if (!user?.email) return
@@ -42,6 +46,7 @@ function MyReports({ user, onEditReport, onBack }) {
         `)
         .eq('inspector_email', user.email)
         .order('report_date', { ascending: false })
+      query = addOrgFilter(query)
 
       const { data, error: fetchError } = await query
 

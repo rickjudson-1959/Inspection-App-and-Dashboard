@@ -11,9 +11,10 @@ import { supabase } from './supabase';
  * @param {UUID} dailyReportId - The parent daily report ID
  * @param {UUID} projectId - The project ID
  * @param {UUID} activityBlockId - Optional activity block ID
+ * @param {UUID} organizationId - The organization ID for multi-tenant support
  * @returns {Object} - { data, error }
  */
-export const saveClearingInspection = async (formData, dailyReportId, projectId, activityBlockId = null) => {
+export const saveClearingInspection = async (formData, dailyReportId, projectId, activityBlockId = null, organizationId = null) => {
   try {
     // Get current user
     const { data: { user } } = await supabase.auth.getUser();
@@ -109,7 +110,8 @@ export const saveClearingInspection = async (formData, dailyReportId, projectId,
       inspector_id: user?.id || null,
       inspector_name: formData.inspectorName || user?.email || null,
       inspection_date: formData.inspectionDate || new Date().toISOString().split('T')[0],
-      status: formData.status || 'draft'
+      status: formData.status || 'draft',
+      organization_id: organizationId
     };
 
     // Check if record exists for this daily report

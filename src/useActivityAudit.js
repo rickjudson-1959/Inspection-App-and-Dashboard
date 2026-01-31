@@ -1,8 +1,9 @@
 // useActivityAudit.js - Standalone audit hook for activity Log components
-// No external dependencies - everything is self-contained
+// Updated to include organization_id for multi-tenant support
 
 import { useCallback, useRef } from 'react'
 import { supabase } from './supabase'
+import { useOrgQuery } from './utils/queryHelpers.js'
 
 /**
  * Format a value for audit trail display
@@ -23,6 +24,7 @@ function formatAuditValue(value) {
  */
 export function useActivityAudit(logId, entityType) {
   const loggingRef = useRef(false)
+  const { getOrgId } = useOrgQuery()
 
   /**
    * Get current user from Supabase auth
@@ -86,6 +88,7 @@ export function useActivityAudit(logId, entityType) {
         changed_by_email: user?.email || null,
         changed_by_role: user?.role || null,
         changed_at: new Date().toISOString(),
+        organization_id: getOrgId(),
         ...additionalData
       }
 
@@ -101,7 +104,7 @@ export function useActivityAudit(logId, entityType) {
     } finally {
       loggingRef.current = false
     }
-  }, [logId, entityType, getCurrentUser])
+  }, [logId, entityType, getCurrentUser, getOrgId])
 
   /**
    * Initialize original values ref for a field
@@ -184,14 +187,15 @@ export function useActivityAudit(logId, entityType) {
         changed_by_name: user?.name || null,
         changed_by_email: user?.email || null,
         changed_by_role: user?.role || null,
-        changed_at: new Date().toISOString()
+        changed_at: new Date().toISOString(),
+        organization_id: getOrgId()
       }
 
       await supabase.from('report_audit_log').insert(auditEntry)
     } catch (err) {
       console.error('Audit entry add logging failed:', err)
     }
-  }, [logId, entityType, getCurrentUser])
+  }, [logId, entityType, getCurrentUser, getOrgId])
 
   /**
    * Log when an entry is deleted
@@ -216,14 +220,15 @@ export function useActivityAudit(logId, entityType) {
         changed_by_name: user?.name || null,
         changed_by_email: user?.email || null,
         changed_by_role: user?.role || null,
-        changed_at: new Date().toISOString()
+        changed_at: new Date().toISOString(),
+        organization_id: getOrgId()
       }
 
       await supabase.from('report_audit_log').insert(auditEntry)
     } catch (err) {
       console.error('Audit entry delete logging failed:', err)
     }
-  }, [logId, entityType, getCurrentUser])
+  }, [logId, entityType, getCurrentUser, getOrgId])
 
   return {
     logChange,

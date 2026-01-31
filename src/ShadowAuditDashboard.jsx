@@ -6,8 +6,10 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 import { defaultRates } from './constants.js'
 import { verifyEfficiency, aggregateEfficiencyVerification, aggregateValueLostByParty } from './shadowAuditUtils.js'
+import { useOrgQuery } from './utils/queryHelpers.js'
 
 function ShadowAuditDashboard() {
+  const { addOrgFilter, organizationId, isReady } = useOrgQuery()
   const [loading, setLoading] = useState(true)
   const [reports, setReports] = useState([])
   const [dateRange, setDateRange] = useState({
@@ -45,8 +47,10 @@ function ShadowAuditDashboard() {
   })
 
   useEffect(() => {
-    fetchReports()
-  }, [dateRange, selectedSpread])
+    if (isReady()) {
+      fetchReports()
+    }
+  }, [dateRange, selectedSpread, organizationId])
 
   async function fetchReports() {
     setLoading(true)
@@ -61,6 +65,7 @@ function ShadowAuditDashboard() {
     if (selectedSpread !== 'all') {
       query = query.eq('spread', selectedSpread)
     }
+    query = addOrgFilter(query)
 
     const { data, error } = await query
 

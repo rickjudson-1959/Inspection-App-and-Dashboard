@@ -6,6 +6,8 @@ import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
 import jsPDF from 'jspdf'
+import { useOrgQuery } from './utils/queryHelpers.js'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 // Import autoTable plugin - this side-effect import should register autoTable on jsPDF
 // IMPORTANT: This must be imported before any jsPDF instances are created
 import 'jspdf-autotable'
@@ -78,6 +80,8 @@ const DATE_PRESETS = [
 
 export default function ComplianceAuditTrail() {
   const navigate = useNavigate()
+  const { addOrgFilter, organizationId, isReady } = useOrgQuery()
+  const { orgPath } = useOrgPath()
   const [auditLog, setAuditLog] = useState([])
   const [loading, setLoading] = useState(true)
   const [totalReports, setTotalReports] = useState(0)
@@ -96,18 +100,22 @@ export default function ComplianceAuditTrail() {
   const [expandedRows, setExpandedRows] = useState({})
 
   useEffect(() => {
-    fetchAuditData()
-    fetchTotalReports()
-  }, [])
+    if (isReady()) {
+      fetchAuditData()
+      fetchTotalReports()
+    }
+  }, [organizationId])
 
   async function fetchAuditData() {
     setLoading(true)
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('report_audit_log')
         .select('*')
         .order('changed_at', { ascending: false })
         .limit(500)
+      query = addOrgFilter(query)
+      const { data, error } = await query
 
       if (error) throw error
       setAuditLog(data || [])
@@ -119,9 +127,11 @@ export default function ComplianceAuditTrail() {
 
   async function fetchTotalReports() {
     try {
-      const { count } = await supabase
+      let query = supabase
         .from('daily_tickets')
         .select('*', { count: 'exact', head: true })
+      query = addOrgFilter(query)
+      const { count } = await query
       setTotalReports(count || 0)
     } catch (err) {
       console.error('Error fetching report count:', err)
@@ -193,7 +203,7 @@ export default function ComplianceAuditTrail() {
   // Navigate to report in edit mode
   const openReport = (reportId) => {
     if (reportId) {
-      navigate(`/report/${reportId}?mode=edit`)
+      navigate(orgPath(`/report/${reportId}?mode=edit`))
     }
   }
 

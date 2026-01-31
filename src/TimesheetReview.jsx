@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from './supabase'
 import { useAuth } from './AuthContext.jsx'
+import { useOrgQuery } from './utils/queryHelpers.js'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 import SignaturePad, { PinEntry } from './SignaturePad.jsx'
 import { generateInvoicePDF, downloadInvoicePDF } from './InvoicePDF.jsx'
 
@@ -9,7 +11,9 @@ export default function TimesheetReview() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { user, userProfile } = useAuth()
-  
+  const { getOrgId } = useOrgQuery()
+  const { orgPath } = useOrgPath()
+
   const timesheetId = searchParams.get('id')
   
   const [loading, setLoading] = useState(true)
@@ -32,7 +36,7 @@ export default function TimesheetReview() {
     if (timesheetId) {
       loadTimesheet()
     } else {
-      navigate('/inspector-invoicing')
+      navigate(orgPath('/inspector-invoicing'))
     }
   }, [timesheetId])
 
@@ -207,7 +211,8 @@ export default function TimesheetReview() {
             signer_name: signatureData.signerName,
             signer_title: signatureData.signerTitle,
             signature_image: signatureData.signatureImage,
-            pin_hash: pinHash
+            pin_hash: pinHash,
+            organization_id: getOrgId()
           })
           .select()
           .single()
@@ -247,7 +252,8 @@ export default function TimesheetReview() {
           signer_name: existingSignature.signer_name,
           signer_title: existingSignature.signer_title,
           signature_type: userProfile?.role === 'chief_inspector' ? 'chief_approval' : 'admin_review',
-          signed_at: new Date().toISOString()
+          signed_at: new Date().toISOString(),
+          organization_id: getOrgId()
         })
       
       if (sigError) throw sigError
@@ -280,7 +286,7 @@ export default function TimesheetReview() {
       
       setShowPinEntry(false)
       alert(newStatus === 'approved' ? 'Timesheet signed and approved!' : 'Timesheet signed and sent to Chief for approval!')
-      navigate('/inspector-invoicing')
+      navigate(orgPath('/inspector-invoicing'))
       
       return { success: true }
       
@@ -381,7 +387,7 @@ export default function TimesheetReview() {
       if (error) throw error
       
       alert(newStatus === 'approved' ? 'Timesheet approved!' : 'Timesheet sent to Chief for review!')
-      navigate('/inspector-invoicing')
+      navigate(orgPath('/inspector-invoicing'))
       
     } catch (err) {
       console.error('Error approving:', err)
@@ -413,7 +419,7 @@ export default function TimesheetReview() {
       
       alert('Timesheet rejected and sent back to inspector')
       setShowRejectModal(false)
-      navigate('/inspector-invoicing')
+      navigate(orgPath('/inspector-invoicing'))
       
     } catch (err) {
       console.error('Error rejecting:', err)
@@ -438,7 +444,7 @@ export default function TimesheetReview() {
       if (error) throw error
       
       alert('Timesheet marked as paid!')
-      navigate('/inspector-invoicing')
+      navigate(orgPath('/inspector-invoicing'))
       
     } catch (err) {
       console.error('Error:', err)
@@ -459,7 +465,7 @@ export default function TimesheetReview() {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
         <p>Timesheet not found</p>
-        <button onClick={() => navigate('/inspector-invoicing')}>Back to Dashboard</button>
+        <button onClick={() => navigate(orgPath('/inspector-invoicing'))}>Back to Dashboard</button>
       </div>
     )
   }
@@ -475,7 +481,7 @@ export default function TimesheetReview() {
       {/* Header */}
       <div style={{ backgroundColor: '#003366', color: 'white', padding: '20px 40px' }}>
         <button 
-          onClick={() => navigate('/inspector-invoicing')}
+          onClick={() => navigate(orgPath('/inspector-invoicing'))}
           style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', marginBottom: '8px', opacity: 0.8 }}
         >
           ← Back to Inspector Invoicing
@@ -695,7 +701,7 @@ export default function TimesheetReview() {
         {/* Action Buttons */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button
-            onClick={() => navigate('/inspector-invoicing')}
+            onClick={() => navigate(orgPath('/inspector-invoicing'))}
             style={{
               padding: '12px 24px',
               backgroundColor: 'white',

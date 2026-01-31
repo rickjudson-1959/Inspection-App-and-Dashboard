@@ -4,11 +4,13 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 import PipelineMap from './PipelineMap.jsx'
 
 export default function MapDashboard() {
   const { signOut, userProfile } = useAuth()
   const navigate = useNavigate()
+  const { orgPath } = useOrgPath()
   const [selectedKP, setSelectedKP] = useState(null)
   const [recentKPs, setRecentKPs] = useState([])
 
@@ -53,7 +55,7 @@ export default function MapDashboard() {
             {userProfile?.full_name || 'Inspector'}
           </span>
           <button
-            onClick={() => navigate('/inspector')}
+            onClick={() => navigate(orgPath('/inspector'))}
             style={{ 
               padding: '8px 15px', 
               backgroundColor: '#28a745', 
@@ -67,7 +69,7 @@ export default function MapDashboard() {
             📋 New Report
           </button>
           <button
-            onClick={() => navigate('/admin')}
+            onClick={() => navigate(orgPath('/admin'))}
             style={{ 
               padding: '8px 15px', 
               backgroundColor: '#17a2b8', 

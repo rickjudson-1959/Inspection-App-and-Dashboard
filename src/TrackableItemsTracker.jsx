@@ -4,6 +4,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabase'
+import { useOrgQuery } from './utils/queryHelpers.js'
 
 // Define all trackable item types with their fields
 const ITEM_TYPES = [
@@ -209,6 +210,9 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
   const [loading, setLoading] = useState(true)
   const [summary, setSummary] = useState({})
 
+  // Multi-tenant support
+  const { addOrgFilter, getOrgId } = useOrgQuery()
+
   // Load existing items for this report
   useEffect(() => {
     loadItems()
@@ -218,20 +222,24 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
     setLoading(true)
     try {
       if (reportId) {
-        const { data } = await supabase
+        let query = supabase
           .from('trackable_items')
           .select('*')
           .eq('report_id', reportId)
           .order('created_at', { ascending: true })
-        
+        query = addOrgFilter(query)
+        const { data } = await query
+
         if (data) setItems(data)
       }
 
       // Calculate summary totals for each type
-      const { data: allItems } = await supabase
+      let summaryQuery = supabase
         .from('trackable_items')
         .select('item_type, action, quantity')
         .eq('project_id', projectId || 'default')
+      summaryQuery = addOrgFilter(summaryQuery)
+      const { data: allItems } = await summaryQuery
 
       if (allItems) {
         const calc = {}
@@ -318,7 +326,8 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
       ramp_type: item.ramp_type,
       gates_qty: item.gates_qty,
       landowner: item.landowner,
-      notes: item.notes
+      notes: item.notes,
+      organization_id: getOrgId()
     }
 
     try {

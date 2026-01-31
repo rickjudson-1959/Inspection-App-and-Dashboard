@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 export default function InspectorTimesheetForm() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { orgPath } = useOrgPath()
   const [timesheetId] = useState(null) // Would be set from URL params for edit mode
 
   useEffect(() => {
@@ -14,7 +16,7 @@ export default function InspectorTimesheetForm() {
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       <div style={{ marginBottom: '24px' }}>
         <button 
-          onClick={() => navigate('/inspector-invoicing')}
+          onClick={() => navigate(orgPath('/inspector-invoicing'))}
           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', color: '#6b7280', marginBottom: '16px' }}
         >
           ← Back to Inspector Invoicing

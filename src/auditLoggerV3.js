@@ -321,7 +321,8 @@ export async function logFieldChange({
   kpEnd,
   weldNumber,
   jointNumber,
-  metadata = {}
+  metadata = {},
+  organizationId = null
 }) {
   // Skip if no reportId (unsaved report)
   if (!reportId) {
@@ -353,9 +354,10 @@ export async function logFieldChange({
       regulatory_category: getRegulatoryCategory(fieldName, section),
       is_critical: isCriticalField(fieldName),
       metadata: metadata,
-      changed_at: new Date().toISOString()
+      changed_at: new Date().toISOString(),
+      organization_id: organizationId
     }
-    
+
     const { data, error } = await supabase
       .from('report_audit_log')
       .insert(auditEntry)
@@ -383,10 +385,11 @@ export async function logEntryAdd({
   section,
   entryType,
   entryLabel,
-  metadata = {}
+  metadata = {},
+  organizationId = null
 }) {
   if (!reportId) return null
-  
+
   try {
     const auditEntry = {
       report_id: reportId,
@@ -401,9 +404,10 @@ export async function logEntryAdd({
       regulatory_category: getRegulatoryCategory(entryType, section),
       is_critical: isCriticalField(entryType),
       metadata: metadata,
-      changed_at: new Date().toISOString()
+      changed_at: new Date().toISOString(),
+      organization_id: organizationId
     }
-    
+
     const { data, error } = await supabase
       .from('report_audit_log')
       .insert(auditEntry)
@@ -429,10 +433,11 @@ export async function logEntryDelete({
   section,
   entryType,
   entryLabel,
-  metadata = {}
+  metadata = {},
+  organizationId = null
 }) {
   if (!reportId) return null
-  
+
   try {
     const auditEntry = {
       report_id: reportId,
@@ -447,9 +452,10 @@ export async function logEntryDelete({
       regulatory_category: getRegulatoryCategory(entryType, section),
       is_critical: true, // Deletions are always critical
       metadata: metadata,
-      changed_at: new Date().toISOString()
+      changed_at: new Date().toISOString(),
+      organization_id: organizationId
     }
-    
+
     const { data, error } = await supabase
       .from('report_audit_log')
       .insert(auditEntry)
@@ -475,10 +481,11 @@ export async function logStatusChange({
   oldStatus,
   newStatus,
   reason,
-  metadata = {}
+  metadata = {},
+  organizationId = null
 }) {
   if (!reportId) return null
-  
+
   try {
     const auditEntry = {
       report_id: reportId,
@@ -494,9 +501,10 @@ export async function logStatusChange({
       regulatory_category: 'general',
       is_critical: true,
       metadata: metadata,
-      changed_at: new Date().toISOString()
+      changed_at: new Date().toISOString(),
+      organization_id: organizationId
     }
-    
+
     const { data, error } = await supabase
       .from('report_audit_log')
       .insert(auditEntry)

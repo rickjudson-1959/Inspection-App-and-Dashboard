@@ -11,14 +11,21 @@ const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
 /**
  * Fetch project baselines (planned values)
+ * @param {string} organizationId - Optional organization ID for multi-tenant filtering
  */
-export async function fetchProjectBaselines() {
+export async function fetchProjectBaselines(organizationId = null) {
   try {
-    const { data, error } = await supabase
+    let query = supabase
       .from('project_baselines')
       .select('*')
       .eq('is_active', true)
       .order('activity_type')
+
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId)
+    }
+
+    const { data, error } = await query
 
     if (error) throw error
     
@@ -47,15 +54,23 @@ export async function fetchProjectBaselines() {
 
 /**
  * Calculate cumulative progress from all daily_tickets up to a given date
+ * @param {string} upToDate - Date to calculate progress up to
+ * @param {string} organizationId - Optional organization ID for multi-tenant filtering
  */
-export async function calculateCumulativeProgress(upToDate) {
+export async function calculateCumulativeProgress(upToDate, organizationId = null) {
   try {
     // Fetch all reports up to and including the date
-    const { data: reports, error } = await supabase
+    let query = supabase
       .from('daily_tickets')
       .select('id, date, activity_blocks')
       .lte('date', upToDate)
       .order('date', { ascending: true })
+
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId)
+    }
+
+    const { data: reports, error } = await query
 
     if (error) throw error
 
@@ -89,13 +104,21 @@ export async function calculateCumulativeProgress(upToDate) {
 
 /**
  * Calculate daily progress for a specific date
+ * @param {string} reportDate - Date to calculate progress for
+ * @param {string} organizationId - Optional organization ID for multi-tenant filtering
  */
-export async function calculateDailyProgress(reportDate) {
+export async function calculateDailyProgress(reportDate, organizationId = null) {
   try {
-    const { data: reports, error } = await supabase
+    let query = supabase
       .from('daily_tickets')
       .select('id, date, activity_blocks, spread')
       .eq('date', reportDate)
+
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId)
+    }
+
+    const { data: reports, error } = await query
 
     if (error) throw error
 
@@ -141,17 +164,26 @@ export async function calculateDailyProgress(reportDate) {
 
 /**
  * Get month-to-date progress for a given month
+ * @param {number} year - Year
+ * @param {number} month - Month (1-12)
+ * @param {string} organizationId - Optional organization ID for multi-tenant filtering
  */
-export async function calculateMTDProgress(year, month) {
+export async function calculateMTDProgress(year, month, organizationId = null) {
   try {
     const startOfMonth = `${year}-${String(month).padStart(2, '0')}-01`
     const endOfMonth = new Date(year, month, 0).toISOString().split('T')[0]
-    
-    const { data: reports, error } = await supabase
+
+    let query = supabase
       .from('daily_tickets')
       .select('id, date, activity_blocks')
       .gte('date', startOfMonth)
       .lte('date', endOfMonth)
+
+    if (organizationId) {
+      query = query.eq('organization_id', organizationId)
+    }
+
+    const { data: reports, error } = await query
 
     if (error) throw error
 
@@ -179,15 +211,18 @@ export async function calculateMTDProgress(year, month) {
 
 /**
  * Build complete progress data for Daily Summary Report
+ * @param {string} reportDate - Date to build progress data for
+ * @param {string} organizationId - Optional organization ID for multi-tenant filtering
  */
-export async function buildProgressData(reportDate) {
+export async function buildProgressData(reportDate, organizationId = null) {
   const [baselines, cumulative, daily, mtd] = await Promise.all([
-    fetchProjectBaselines(),
-    calculateCumulativeProgress(reportDate),
-    calculateDailyProgress(reportDate),
+    fetchProjectBaselines(organizationId),
+    calculateCumulativeProgress(reportDate, organizationId),
+    calculateDailyProgress(reportDate, organizationId),
     calculateMTDProgress(
       new Date(reportDate).getFullYear(),
-      new Date(reportDate).getMonth() + 1
+      new Date(reportDate).getMonth() + 1,
+      organizationId
     )
   ])
 
@@ -231,27 +266,41 @@ export async function buildProgressData(reportDate) {
 
 /**
  * Fetch all approved inspector reports for a given date
+ * @param {string} reportDate - Date to fetch reports for
+ * @param {string} organizationId - Optional organization ID for multi-tenant filtering
  */
-export async function fetchApprovedReportsForDate(reportDate) {
+export async function fetchApprovedReportsForDate(reportDate, organizationId = null) {
   try {
     console.log('🔍 Fetching reports for date:', reportDate)
-    
+
     // Get all reports for this date - Chief should see all reports regardless of status
     // We'll filter out only rejected reports in the UI if needed
-    const { data: allReports, error: allError } = await supabase
+    let mainQuery = supabase
       .from('daily_tickets')
       .select('*')
       .eq('date', reportDate)
       .order('created_at', { ascending: false })
-    
+
+    if (organizationId) {
+      mainQuery = mainQuery.eq('organization_id', organizationId)
+    }
+
+    const { data: allReports, error: allError } = await mainQuery
+
     if (allError) {
       console.error('❌ Error fetching daily_tickets:', allError)
       // Try a different query format in case date column type is different
-      const { data: altReports, error: altError } = await supabase
+      let altQuery = supabase
         .from('daily_tickets')
         .select('*')
         .like('date', `${reportDate}%`)
         .order('created_at', { ascending: false })
+
+      if (organizationId) {
+        altQuery = altQuery.eq('organization_id', organizationId)
+      }
+
+      const { data: altReports, error: altError } = await altQuery
       
       if (altError) {
         console.error('❌ Alt query also failed:', altError)
@@ -468,8 +517,11 @@ export function aggregateProgressBySection(reports) {
 
 /**
  * Aggregate welding data by type from activity_blocks in reports
+ * @param {string} reportDate - Date to aggregate welding data for
+ * @param {array} reports - Optional pre-fetched reports
+ * @param {string} organizationId - Optional organization ID for multi-tenant filtering
  */
-export async function aggregateWeldingProgress(reportDate, reports = null) {
+export async function aggregateWeldingProgress(reportDate, reports = null, organizationId = null) {
   const weldTypes = {
     'GMAW/FCAW Tie-Ins': { today_lm: 0, today_welds: 0, repairs_today: 0 },
     'GMAW/FCAW Stove Piping': { today_lm: 0, today_welds: 0, repairs_today: 0 },
@@ -480,7 +532,7 @@ export async function aggregateWeldingProgress(reportDate, reports = null) {
   try {
     // If reports not provided, fetch them
     if (!reports) {
-      reports = await fetchApprovedReportsForDate(reportDate)
+      reports = await fetchApprovedReportsForDate(reportDate, organizationId)
     }
 
     // Extract welding data from activity_blocks in reports
@@ -1019,14 +1071,21 @@ Only output valid JSON.`
 
 /**
  * Save or update daily construction summary
+ * @param {object} summaryData - Summary data to save
+ * @param {string} organizationId - Optional organization ID for multi-tenant filtering
  */
-export async function saveDailySummary(summaryData) {
+export async function saveDailySummary(summaryData, organizationId = null) {
   try {
-    const { data: existing } = await supabase
+    let existingQuery = supabase
       .from('daily_construction_summary')
       .select('id')
       .eq('report_date', summaryData.report_date)
-      .single()
+
+    if (organizationId) {
+      existingQuery = existingQuery.eq('organization_id', organizationId)
+    }
+
+    const { data: existing } = await existingQuery.single()
 
     if (existing) {
       // Update existing
@@ -1043,10 +1102,14 @@ export async function saveDailySummary(summaryData) {
       if (error) throw error
       return { success: true, data, isNew: false }
     } else {
-      // Insert new
+      // Insert new - include organization_id if provided
+      const insertData = organizationId
+        ? { ...summaryData, organization_id: organizationId }
+        : summaryData
+
       const { data, error } = await supabase
         .from('daily_construction_summary')
-        .insert(summaryData)
+        .insert(insertData)
         .select()
         .single()
 
@@ -1061,21 +1124,31 @@ export async function saveDailySummary(summaryData) {
 
 /**
  * Save section progress data
+ * @param {string} summaryId - Summary ID
+ * @param {string} reportDate - Report date
+ * @param {array} sections - Sections data
+ * @param {string} organizationId - Optional organization ID for multi-tenant filtering
  */
-export async function saveSectionProgress(summaryId, reportDate, sections) {
+export async function saveSectionProgress(summaryId, reportDate, sections, organizationId = null) {
   try {
     // Delete existing for this date
-    await supabase
+    let deleteQuery = supabase
       .from('section_progress')
       .delete()
       .eq('progress_date', reportDate)
+
+    if (organizationId) {
+      deleteQuery = deleteQuery.eq('organization_id', organizationId)
+    }
+
+    await deleteQuery
 
     // Insert new data
     const records = []
     sections.forEach(section => {
       ['Civil', 'Mechanical'].forEach(activityType => {
         if (section[activityType]?.daily_actual_lm > 0) {
-          records.push({
+          const record = {
             summary_id: summaryId,
             progress_date: reportDate,
             section_name: section.section_name,
@@ -1083,7 +1156,11 @@ export async function saveSectionProgress(summaryId, reportDate, sections) {
             kp_end: section.kp_end,
             activity_type: activityType,
             daily_actual_lm: section[activityType].daily_actual_lm
-          })
+          }
+          if (organizationId) {
+            record.organization_id = organizationId
+          }
+          records.push(record)
         }
       })
     })
@@ -1092,7 +1169,7 @@ export async function saveSectionProgress(summaryId, reportDate, sections) {
       const { error } = await supabase
         .from('section_progress')
         .insert(records)
-      
+
       if (error) throw error
     }
 
@@ -1105,33 +1182,49 @@ export async function saveSectionProgress(summaryId, reportDate, sections) {
 
 /**
  * Save welding progress data
+ * @param {string} summaryId - Summary ID
+ * @param {string} reportDate - Report date
+ * @param {array} weldingData - Welding data
+ * @param {string} organizationId - Optional organization ID for multi-tenant filtering
  */
-export async function saveWeldingProgress(summaryId, reportDate, weldingData) {
+export async function saveWeldingProgress(summaryId, reportDate, weldingData, organizationId = null) {
   try {
     // Delete existing for this date
-    await supabase
+    let deleteQuery = supabase
       .from('welding_progress')
       .delete()
       .eq('progress_date', reportDate)
 
+    if (organizationId) {
+      deleteQuery = deleteQuery.eq('organization_id', organizationId)
+    }
+
+    await deleteQuery
+
     // Insert new data
-    const records = weldingData.map(w => ({
-      summary_id: summaryId,
-      progress_date: reportDate,
-      weld_type: w.weld_type,
-      today_lm: w.today_lm,
-      previous_lm: w.previous_lm,
-      today_welds: w.today_welds,
-      previous_welds: w.previous_welds,
-      repairs_today: w.repairs_today,
-      repairs_previous: w.repairs_previous
-    }))
+    const records = weldingData.map(w => {
+      const record = {
+        summary_id: summaryId,
+        progress_date: reportDate,
+        weld_type: w.weld_type,
+        today_lm: w.today_lm,
+        previous_lm: w.previous_lm,
+        today_welds: w.today_welds,
+        previous_welds: w.previous_welds,
+        repairs_today: w.repairs_today,
+        repairs_previous: w.repairs_previous
+      }
+      if (organizationId) {
+        record.organization_id = organizationId
+      }
+      return record
+    })
 
     if (records.length > 0) {
       const { error } = await supabase
         .from('welding_progress')
         .insert(records)
-      
+
       if (error) throw error
     }
 
@@ -1144,37 +1237,53 @@ export async function saveWeldingProgress(summaryId, reportDate, weldingData) {
 
 /**
  * Save report photos
+ * @param {string} summaryId - Summary ID
+ * @param {string} reportDate - Report date
+ * @param {array} photos - Photos data
+ * @param {string} organizationId - Optional organization ID for multi-tenant filtering
  */
-export async function saveReportPhotos(summaryId, reportDate, photos) {
+export async function saveReportPhotos(summaryId, reportDate, photos, organizationId = null) {
   try {
     // Delete existing for this date
-    await supabase
+    let deleteQuery = supabase
       .from('report_photos')
       .delete()
       .eq('photo_date', reportDate)
 
+    if (organizationId) {
+      deleteQuery = deleteQuery.eq('organization_id', organizationId)
+    }
+
+    await deleteQuery
+
     // Insert new photos
-    const records = photos.map((photo, idx) => ({
-      summary_id: summaryId,
-      photo_date: reportDate,
-      source_report_id: photo.source_report_id,
-      kp_location: photo.kp_location,
-      location_description: photo.location_description,
-      photo_url: photo.photo_url,
-      description: photo.description,
-      latitude: photo.latitude,
-      longitude: photo.longitude,
-      direction_deg: photo.direction_deg,
-      accuracy_m: photo.accuracy_m,
-      taken_at: photo.taken_at,
-      sort_order: idx
-    }))
+    const records = photos.map((photo, idx) => {
+      const record = {
+        summary_id: summaryId,
+        photo_date: reportDate,
+        source_report_id: photo.source_report_id,
+        kp_location: photo.kp_location,
+        location_description: photo.location_description,
+        photo_url: photo.photo_url,
+        description: photo.description,
+        latitude: photo.latitude,
+        longitude: photo.longitude,
+        direction_deg: photo.direction_deg,
+        accuracy_m: photo.accuracy_m,
+        taken_at: photo.taken_at,
+        sort_order: idx
+      }
+      if (organizationId) {
+        record.organization_id = organizationId
+      }
+      return record
+    })
 
     if (records.length > 0) {
       const { error } = await supabase
         .from('report_photos')
         .insert(records)
-      
+
       if (error) throw error
     }
 
@@ -1192,14 +1301,21 @@ export async function saveReportPhotos(summaryId, reportDate, photos) {
 
 /**
  * Fetch existing daily summary with all related data
+ * @param {string} reportDate - Date to fetch summary for
+ * @param {string} organizationId - Optional organization ID for multi-tenant filtering
  */
-export async function fetchDailySummary(reportDate) {
+export async function fetchDailySummary(reportDate, organizationId = null) {
   try {
-    const { data: summary, error: summaryError } = await supabase
+    let summaryQuery = supabase
       .from('daily_construction_summary')
       .select('*')
       .eq('report_date', reportDate)
-      .single()
+
+    if (organizationId) {
+      summaryQuery = summaryQuery.eq('organization_id', organizationId)
+    }
+
+    const { data: summary, error: summaryError } = await summaryQuery.single()
 
     if (summaryError && summaryError.code !== 'PGRST116') throw summaryError
     if (!summary) return null

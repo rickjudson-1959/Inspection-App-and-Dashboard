@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
 import { supabase } from './supabase'
+import { useOrgQuery } from './utils/queryHelpers.js'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 // ============================================================================
 // AUDITOR DASHBOARD - NDT Technical Review Workspace
@@ -19,7 +21,9 @@ function AuditorDashboard() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { signOut, userProfile } = useAuth()
-  
+  const { addOrgFilter, getOrgId, organizationId, isReady } = useOrgQuery()
+  const { orgPath } = useOrgPath()
+
   // Check if read-only mode (Chief Inspector viewing)
   const isReadOnly = searchParams.get('readonly') === 'true'
   const highlightWeldId = searchParams.get('weld')
@@ -92,15 +96,17 @@ function AuditorDashboard() {
   // LIFECYCLE
   // ============================================================================
   useEffect(() => {
-    fetchReviewQueue()
-    fetchStats()
-    
+    if (isReady()) {
+      fetchReviewQueue()
+      fetchStats()
+    }
+
     // If weld ID in URL, scroll to and highlight it
     if (highlightWeldId) {
       setActiveTab('queue')
       // Will highlight after data loads
     }
-  }, [])
+  }, [organizationId])
   
   useEffect(() => {
     if (activeTab === 'disagreements') fetchDisagreements()
@@ -127,20 +133,22 @@ function AuditorDashboard() {
   async function fetchReviewQueue() {
     setQueueLoading(true)
     try {
-      // Fetch welds pending NDT
-      const { data: pending } = await supabase
+      // Fetch welds pending NDT (with org filter)
+      let pendingQuery = supabase
         .from('weld_book')
         .select('*')
         .in('nde_status', ['pending', 'repair'])
         .order('weld_date', { ascending: false })
-      
+      pendingQuery = addOrgFilter(pendingQuery)
+      const { data: pending } = await pendingQuery
+
       setPendingWelds(pending || [])
-      
-      // Fetch completed inspections (last 7 days)
+
+      // Fetch completed inspections (last 7 days) with org filter
       const weekAgo = new Date()
       weekAgo.setDate(weekAgo.getDate() - 7)
-      
-      const { data: completed } = await supabase
+
+      let completedQuery = supabase
         .from('ndt_inspections')
         .select(`
           *,
@@ -149,7 +157,9 @@ function AuditorDashboard() {
         .gte('inspection_date', weekAgo.toISOString().split('T')[0])
         .order('inspection_date', { ascending: false })
         .limit(50)
-      
+      completedQuery = addOrgFilter(completedQuery)
+      const { data: completed } = await completedQuery
+
       setCompletedInspections(completed || [])
     } catch (err) {
       console.error('Error fetching review queue:', err)
@@ -162,31 +172,39 @@ function AuditorDashboard() {
       const today = new Date().toISOString().split('T')[0]
       const weekAgo = new Date()
       weekAgo.setDate(weekAgo.getDate() - 7)
-      
-      // Pending count
-      const { count: pendingCount } = await supabase
+
+      // Pending count (with org filter)
+      let pendingQuery = supabase
         .from('weld_book')
         .select('*', { count: 'exact', head: true })
         .in('nde_status', ['pending', 'repair'])
-      
-      // Completed today
-      const { count: completedToday } = await supabase
+      pendingQuery = addOrgFilter(pendingQuery)
+      const { count: pendingCount } = await pendingQuery
+
+      // Completed today (with org filter)
+      let todayQuery = supabase
         .from('ndt_inspections')
         .select('*', { count: 'exact', head: true })
         .eq('inspection_date', today)
-      
-      // Completed this week
-      const { count: completedWeek } = await supabase
+      todayQuery = addOrgFilter(todayQuery)
+      const { count: completedToday } = await todayQuery
+
+      // Completed this week (with org filter)
+      let weekQuery = supabase
         .from('ndt_inspections')
         .select('*', { count: 'exact', head: true })
         .gte('inspection_date', weekAgo.toISOString().split('T')[0])
-      
-      // Disagreements
-      const { count: disagreementCount } = await supabase
+      weekQuery = addOrgFilter(weekQuery)
+      const { count: completedWeek } = await weekQuery
+
+      // Disagreements (with org filter)
+      let disagreementQuery = supabase
         .from('ndt_inspections')
         .select('*', { count: 'exact', head: true })
         .eq('interpretation_agree', false)
-      
+      disagreementQuery = addOrgFilter(disagreementQuery)
+      const { count: disagreementCount } = await disagreementQuery
+
       setStats({
         pendingCount: pendingCount || 0,
         completedToday: completedToday || 0,
@@ -201,7 +219,7 @@ function AuditorDashboard() {
   async function fetchDisagreements() {
     setDisagreementsLoading(true)
     try {
-      const { data } = await supabase
+      let disagreementQuery = supabase
         .from('ndt_inspections')
         .select(`
           *,
@@ -209,7 +227,9 @@ function AuditorDashboard() {
         `)
         .eq('interpretation_agree', false)
         .order('inspection_date', { ascending: false })
-      
+      disagreementQuery = addOrgFilter(disagreementQuery)
+      const { data } = await disagreementQuery
+
       setDisagreements(data || [])
     } catch (err) {
       console.error('Error fetching disagreements:', err)
@@ -262,7 +282,7 @@ function AuditorDashboard() {
     
     setSaving(true)
     try {
-      // Insert inspection record
+      // Insert inspection record (with org_id)
       const { error: inspectionError } = await supabase
         .from('ndt_inspections')
         .insert({
@@ -282,7 +302,8 @@ function AuditorDashboard() {
           defect_location: inspectionData.defect_location,
           defect_size: inspectionData.defect_size,
           comments: inspectionData.comments + (inspectionData.level3_comments ? `\n\nLevel III Notes: ${inspectionData.level3_comments}` : ''),
-          created_by: userProfile?.id
+          created_by: userProfile?.id,
+          organization_id: getOrgId()
         })
       
       if (inspectionError) throw inspectionError
@@ -397,7 +418,7 @@ function AuditorDashboard() {
                 Viewing as Chief Inspector
               </span>
             )}
-            <button onClick={() => navigate('/chief')} style={{ padding: '10px 20px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+            <button onClick={() => navigate(orgPath('/chief-dashboard'))} style={{ padding: '10px 20px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
               ← Chief Dashboard
             </button>
             <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>

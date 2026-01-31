@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { supabase } from './supabase';
 import { useActivityAudit } from './useActivityAudit';
+import { useOrgQuery } from './utils/queryHelpers.js';
 
 /**
  * TimberDeckLog Component
@@ -35,8 +36,11 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState(null);
 
+  // Multi-tenant support
+  const { addOrgFilter, getOrgId } = useOrgQuery();
+
   // Audit trail hook
-  const { 
+  const {
     initializeEntryValues,
     logEntryFieldChange,
     logEntryAdd,
@@ -55,11 +59,13 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
 
   const loadExistingDecks = async () => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('timber_decks')
         .select('*')
         .eq('daily_report_id', dailyReportId)
         .order('created_at', { ascending: true });
+      query = addOrgFilter(query);
+      const { data, error } = await query;
 
       if (error) throw error;
 
@@ -142,7 +148,8 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
         disposal_destination: deck.disposal_destination,
         volume_estimate: parseFloat(deck.volume_estimate) || null,
         volume_unit: deck.volume_unit,
-        notes: deck.notes
+        notes: deck.notes,
+        organization_id: getOrgId()
       }));
 
       const { data, error } = await supabase

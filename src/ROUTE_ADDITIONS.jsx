@@ -21,8 +21,12 @@ import InspectorInvoicingDashboard from './InspectorInvoicingDashboard'
 // (In the navigation section)
 // =====================================================
 
+// NOTE: Add these imports and hook in the component:
+// import { useOrgPath } from './contexts/OrgContext.jsx'
+// const { orgPath } = useOrgPath()
+
 <button
-  onClick={() => navigate('/inspector-invoicing')}
+  onClick={() => navigate(orgPath('/inspector-invoicing'))}
   style={{
     padding: '16px 24px',
     backgroundColor: '#059669',

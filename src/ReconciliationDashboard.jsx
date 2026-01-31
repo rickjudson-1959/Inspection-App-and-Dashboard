@@ -3,11 +3,16 @@ import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
 import { logFieldChange, logStatusChange } from './auditLoggerV3'
 import CrossingVarianceDashboard from './CrossingVarianceDashboard'
+import { useOrgQuery } from './utils/queryHelpers.js'
+import TenantSwitcher from './components/TenantSwitcher.jsx'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 const PROJECT_NAME = "Clearwater Pipeline - Demo Project"
 
 export default function ReconciliationDashboard() {
   const navigate = useNavigate()
+  const { orgPath } = useOrgPath()
+  const { addOrgFilter, getOrgId, organizationId, isReady } = useOrgQuery()
   const [contractorData, setContractorData] = useState([])
   const [inspectorData, setInspectorData] = useState([])
   const [disputes, setDisputes] = useState([])
@@ -61,7 +66,11 @@ export default function ReconciliationDashboard() {
   const [mismatchedLabour, setMismatchedLabour] = useState([]) // Array of employee names with mismatches
   const [mismatchedEquipment, setMismatchedEquipment] = useState([]) // Array of equipment IDs with mismatches
 
-  useEffect(() => { loadData() }, [dateRange, hideInvoiced, thirdPartyOnly, showArchived])
+  useEffect(() => {
+    if (isReady()) {
+      loadData()
+    }
+  }, [dateRange, hideInvoiced, thirdPartyOnly, showArchived, organizationId])
 
   async function loadData() {
     setLoading(true)
@@ -73,57 +82,74 @@ export default function ReconciliationDashboard() {
     let lemsQuery = supabase.from('contractor_lems').select('*')
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0])
-    
+
     // Apply "swipe clean" filter - hide invoiced by default
     if (hideInvoiced && !showArchived) {
       lemsQuery = lemsQuery.neq('billing_status', 'invoiced')
     }
-    
+
     // If showing archived only, filter to invoiced only
     if (showArchived) {
       lemsQuery = lemsQuery.eq('billing_status', 'invoiced')
     }
-    
+
     // Third-party filter
     if (thirdPartyOnly) {
       lemsQuery = lemsQuery.eq('is_third_party', true)
     }
-    
+
+    lemsQuery = addOrgFilter(lemsQuery)
     const { data: lems } = await lemsQuery.order('date', { ascending: false })
 
-    const { data: reports } = await supabase.from('daily_tickets').select('*')
+    let reportsQuery = supabase.from('daily_tickets').select('*')
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0])
       .order('date', { ascending: false })
+    reportsQuery = addOrgFilter(reportsQuery)
+    const { data: reports } = await reportsQuery
 
-    const { data: disputeData } = await supabase.from('disputes').select('*')
+    let disputeQuery = supabase.from('disputes').select('*')
       .order('created_at', { ascending: false })
+    disputeQuery = addOrgFilter(disputeQuery)
+    const { data: disputeData } = await disputeQuery
 
-    const { data: correctionData } = await supabase.from('reconciliation_corrections').select('*')
+    let correctionQuery = supabase.from('reconciliation_corrections').select('*')
       .order('created_at', { ascending: false })
+    correctionQuery = addOrgFilter(correctionQuery)
+    const { data: correctionData } = await correctionQuery
 
-    const { data: batchData } = await supabase.from('billing_batches').select('*')
+    let batchQuery = supabase.from('billing_batches').select('*')
       .order('created_at', { ascending: false })
+    batchQuery = addOrgFilter(batchQuery)
+    const { data: batchData } = await batchQuery
 
     // Load rate tables for cost calculations
-    const { data: labourRateData } = await supabase.from('labour_rates').select('*')
+    let labourRateQuery = supabase.from('labour_rates').select('*')
       .order('effective_date', { ascending: false })
+    labourRateQuery = addOrgFilter(labourRateQuery)
+    const { data: labourRateData } = await labourRateQuery
 
-    const { data: equipRateData } = await supabase.from('equipment_rates').select('*')
+    let equipRateQuery = supabase.from('equipment_rates').select('*')
       .order('effective_date', { ascending: false })
+    equipRateQuery = addOrgFilter(equipRateQuery)
+    const { data: equipRateData } = await equipRateQuery
 
     // Load trench logs for ditching pay items
-    const { data: trenchLogData } = await supabase.from('trench_logs').select('*')
+    let trenchQuery = supabase.from('trench_logs').select('*')
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0])
       .order('date', { ascending: false })
+    trenchQuery = addOrgFilter(trenchQuery)
+    const { data: trenchLogData } = await trenchQuery
 
     // Load crossing support items for pipe support pay items
-    const { data: crossingSupportData } = await supabase.from('trackable_items').select('*')
+    let crossingQuery = supabase.from('trackable_items').select('*')
       .eq('item_type', 'crossing_support')
       .gte('report_date', startDate.toISOString().split('T')[0])
       .lte('report_date', endDate.toISOString().split('T')[0])
       .order('created_at', { ascending: false })
+    crossingQuery = addOrgFilter(crossingQuery)
+    const { data: crossingSupportData } = await crossingQuery
 
     setContractorData(lems || [])
     setCrossingSupportItems(crossingSupportData || [])
@@ -296,7 +322,7 @@ export default function ReconciliationDashboard() {
   // Admin fixes the issue
   async function adminFix() {
     if (!selectedItem) return
-    
+
     const correctionData = {
       lem_id: selectedItem.lemId,
       lem_date: selectedItem.lemDate,
@@ -306,7 +332,8 @@ export default function ReconciliationDashboard() {
       corrected_value: correctedValue,
       corrected_by_name: adminName,
       correction_source: 'admin_fix',
-      notes: reviewNotes
+      notes: reviewNotes,
+      organization_id: getOrgId()
     }
 
     const { error } = await supabase.from('reconciliation_corrections').insert([correctionData])
@@ -328,9 +355,10 @@ export default function ReconciliationDashboard() {
         field_name: `${itemName} - Hours`,
         old_value: selectedItem.lemHours.toString(),
         new_value: correctedValue,
-        change_reason: reviewNotes || `Corrected based on Inspector Report. Variance: ${variance.toFixed(1)} hrs`
+        change_reason: reviewNotes || `Corrected based on Inspector Report. Variance: ${variance.toFixed(1)} hrs`,
+        organization_id: getOrgId()
       })
-      
+
       setShowReviewModal(false)
       loadData()
     }
@@ -353,7 +381,8 @@ export default function ReconciliationDashboard() {
       variance_cost: selectedItem.varianceCost || 0,
       status: 'open',
       notes: reviewNotes,
-      evidence_photo: ticketPhotos[0] || null
+      evidence_photo: ticketPhotos[0] || null,
+      organization_id: getOrgId()
     }
 
     const { error } = await supabase.from('disputes').insert([disputeData])
@@ -374,9 +403,10 @@ export default function ReconciliationDashboard() {
         field_name: `${itemName} - Dispute`,
         old_value: `LEM: ${selectedItem.lemHours} hrs`,
         new_value: `Inspector: ${selectedItem.timesheetHours} hrs`,
-        change_reason: reviewNotes || `Flagged for contractor review. Variance: ${selectedItem.variance} hrs ($${selectedItem.varianceCost?.toFixed(0) || 0})`
+        change_reason: reviewNotes || `Flagged for contractor review. Variance: ${selectedItem.variance} hrs ($${selectedItem.varianceCost?.toFixed(0) || 0})`,
+        organization_id: getOrgId()
       })
-      
+
       setShowReviewModal(false)
       loadData()
     }
@@ -385,7 +415,7 @@ export default function ReconciliationDashboard() {
   // Flag all issues
   async function flagAllIssues() {
     const allDisputes = []
-    
+
     labourComp.forEach(l => {
       if ((l.status === 'over' || l.status === 'not_found') && !l.itemStatus) {
         allDisputes.push({
@@ -401,7 +431,8 @@ export default function ReconciliationDashboard() {
           variance_cost: l.varianceCost || 0,
           status: 'open',
           notes: l.status === 'not_found' ? 'Worker not found on daily timesheet' : 'LEM hours exceed timesheet hours',
-          evidence_photo: ticketPhotos[0] || null
+          evidence_photo: ticketPhotos[0] || null,
+          organization_id: getOrgId()
         })
       }
     })
@@ -421,7 +452,8 @@ export default function ReconciliationDashboard() {
           variance_cost: e.varianceCost || 0,
           status: 'open',
           notes: e.status === 'not_found' ? 'Equipment not observed by inspector' : 'LEM hours exceed timesheet hours',
-          evidence_photo: ticketPhotos[0] || null
+          evidence_photo: ticketPhotos[0] || null,
+          organization_id: getOrgId()
         })
       }
     })
@@ -459,7 +491,8 @@ export default function ReconciliationDashboard() {
           field_name: `${dispute.item_name} - Status`,
           old_value: dispute.status,
           new_value: newStatus,
-          change_reason: `Dispute status updated to ${newStatus}`
+          change_reason: `Dispute status updated to ${newStatus}`,
+          organization_id: getOrgId()
         })
       }
       loadData()
@@ -535,9 +568,10 @@ This notice was generated by Pipe-Up Inspector Platform.
       field_name: `${dispute.item_name} - Email Sent`,
       old_value: 'Not Sent',
       new_value: 'Emailed to Contractor',
-      change_reason: `Dispute notice emailed. Variance: ${dispute.variance_hours} hrs ($${varianceCost})`
+      change_reason: `Dispute notice emailed. Variance: ${dispute.variance_hours} hrs ($${varianceCost})`,
+      organization_id: getOrgId()
     })
-    
+
     loadData()
   }
 
@@ -619,9 +653,10 @@ This notice was generated by Pipe-Up Inspector Platform.
       field_name: 'Batch Dispute Email',
       old_value: `${openDisputes.length} disputes`,
       new_value: 'Emailed to Contractor',
-      change_reason: `Batch dispute notice sent. Total variance: ${totalVarianceHours.toFixed(1)} hrs ($${totalVarianceCost.toFixed(2)})`
+      change_reason: `Batch dispute notice sent. Total variance: ${totalVarianceHours.toFixed(1)} hrs ($${totalVarianceCost.toFixed(2)})`,
+      organization_id: getOrgId()
     })
-    
+
     // Reload data to show updated statuses
     loadData()
   }
@@ -1098,7 +1133,8 @@ This notice was generated by Pipe-Up Inspector Platform.
           field_name: `${lem?.field_log_id} - Status`,
           old_value: lem?.billing_status || 'open',
           new_value: newStatus,
-          change_reason: `Billing status updated to ${statusLabel}`
+          change_reason: `Billing status updated to ${statusLabel}`,
+          organization_id: getOrgId()
         })
       }
 
@@ -1160,7 +1196,8 @@ This notice was generated by Pipe-Up Inspector Platform.
           total_amount: grandTotal,
           status: 'pending',
           notes: invoiceNotes,
-          is_third_party: thirdPartyOnly
+          is_third_party: thirdPartyOnly,
+          organization_id: getOrgId()
         })
         .select()
         .single()
@@ -1183,6 +1220,7 @@ This notice was generated by Pipe-Up Inspector Platform.
       if (updateError) throw updateError
 
       // STEP 3: Log audit trail for EACH ticket - "Ticket swiped clean; assigned to Invoice #[Number]"
+      const orgId = getOrgId()
       const auditLogs = pendingInvoiceLems.map(lem => ({
         changed_by_name: adminName,
         changed_by_role: 'admin',
@@ -1193,7 +1231,8 @@ This notice was generated by Pipe-Up Inspector Platform.
         new_value: 'invoiced',
         change_reason: `Ticket swiped clean; assigned to Invoice #${invoiceNum}`,
         report_date: lem.date,
-        changed_at: new Date().toISOString()
+        changed_at: new Date().toISOString(),
+        organization_id: orgId
       }))
 
       // Batch insert all audit logs
@@ -1214,7 +1253,8 @@ This notice was generated by Pipe-Up Inspector Platform.
         field_name: 'Invoice Created',
         old_value: `${pendingInvoiceLems.length} tickets`,
         new_value: `Invoice #${invoiceNum}`,
-        change_reason: `Invoice created with ${pendingInvoiceLems.length} tickets. Total: $${grandTotal.toLocaleString()}`
+        change_reason: `Invoice created with ${pendingInvoiceLems.length} tickets. Total: $${grandTotal.toLocaleString()}`,
+        organization_id: getOrgId()
       })
 
       // STEP 4: Clear state and refresh UI - this achieves the 'swipe clean' effect
@@ -1267,7 +1307,8 @@ This notice was generated by Pipe-Up Inspector Platform.
           lem_count: selectedLems.length,
           status: 'invoiced',
           notes: invoiceNotes,
-          invoiced_at: new Date().toISOString()
+          invoiced_at: new Date().toISOString(),
+          organization_id: getOrgId()
         })
         .select()
         .single()
@@ -1296,7 +1337,8 @@ This notice was generated by Pipe-Up Inspector Platform.
         field_name: 'Invoice Batch',
         old_value: `${selectedLems.length} LEMs`,
         new_value: `Invoice #${invoiceNumber}`,
-        change_reason: `Invoice batch created. Total: $${(totalLabour + totalEquip).toLocaleString()}`
+        change_reason: `Invoice batch created. Total: $${(totalLabour + totalEquip).toLocaleString()}`,
+        organization_id: getOrgId()
       })
 
       setShowInvoiceModal(false)
@@ -1328,9 +1370,12 @@ This notice was generated by Pipe-Up Inspector Platform.
     <div style={{ minHeight: '100vh', backgroundColor: '#f3f4f6', fontFamily: 'Arial, sans-serif' }}>
       {/* Header */}
       <div style={{ backgroundColor: '#1e3a5f', color: 'white', padding: '16px 24px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <div>
-          <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>{PROJECT_NAME}</h1>
-          <p style={{ fontSize: '14px', color: '#93c5fd', margin: '4px 0 0 0' }}>3-Way Reconciliation & Dispute Management</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div>
+            <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>{PROJECT_NAME}</h1>
+            <p style={{ fontSize: '14px', color: '#93c5fd', margin: '4px 0 0 0' }}>3-Way Reconciliation & Dispute Management</p>
+          </div>
+          <TenantSwitcher compact />
         </div>
         <button onClick={() => navigate(-1)} style={{ backgroundColor: '#2563eb', color: 'white', border: 'none', padding: '8px 16px', borderRadius: '6px', cursor: 'pointer' }}>← Back</button>
       </div>

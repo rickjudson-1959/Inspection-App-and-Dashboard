@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 import { supabase } from './supabase'
 import {
   PRECISION_MAP,
@@ -26,6 +27,7 @@ function NDTAuditorDashboard() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { signOut, userProfile } = useAuth()
+  const { orgPath } = useOrgPath()
   
   // Read-only mode for Chief Inspector cross-linking
   const isReadOnly = searchParams.get('readonly') === 'true'
@@ -691,9 +693,9 @@ function NDTAuditorDashboard() {
                 // Navigate to admin for super_admin, otherwise to chief
                 const userRole = userProfile?.role || userProfile?.user_role
                 if (userRole === 'super_admin') {
-                  navigate('/admin')
+                  navigate(orgPath('/admin'))
                 } else {
-                  navigate('/chief')
+                  navigate(orgPath('/chief-dashboard'))
                 }
               }}
               style={{ width: '100%', padding: '12px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginBottom: '8px' }}

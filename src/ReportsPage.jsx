@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 import { supabase } from './supabase'
 
 function ReportsPage() {
   const navigate = useNavigate()
   const { signOut, userProfile } = useAuth()
+  const { orgPath } = useOrgPath()
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState({ dateFrom: '', dateTo: '', inspector: '', spread: '' })
@@ -90,7 +92,7 @@ function ReportsPage() {
           <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>Inspector Reports | {filteredReports.length} reports found</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => navigate('/admin')} style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Back to Admin</button>
+          <button onClick={() => navigate(orgPath('/admin'))} style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Back to Admin</button>
           <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign Out</button>
         </div>
       </div>
@@ -165,7 +167,7 @@ function ReportsPage() {
             <div style={{ backgroundColor: '#003366', color: 'white', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0 }}>
               <h2 style={{ margin: 0 }}>Daily Inspector Report - {selectedReport.date}</h2>
               <div style={{ display: 'flex', gap: '10px' }}>
-                <button onClick={() => navigate(`/report?id=${selectedReport.id}`)} style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>📄 Full View</button>
+                <button onClick={() => navigate(orgPath(`/report?id=${selectedReport.id}`))} style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>📄 Full View</button>
                 <button onClick={() => setSelectedReport(null)} style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Close</button>
               </div>
             </div>

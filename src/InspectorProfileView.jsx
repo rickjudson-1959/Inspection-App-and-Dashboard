@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { supabase } from './supabase'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 export default function InspectorProfileView() {
   const navigate = useNavigate()
   const { id } = useParams()
+  const { orgPath } = useOrgPath()
   const [loading, setLoading] = useState(true)
   const [profile, setProfile] = useState(null)
   const [documents, setDocuments] = useState([])
@@ -115,7 +117,7 @@ export default function InspectorProfileView() {
         <h2>Profile Not Found</h2>
         <p style={{ color: '#6b7280' }}>Profile ID: {id}</p>
         <button 
-          onClick={() => navigate('/inspector-invoicing')}
+          onClick={() => navigate(orgPath('/inspector-invoicing'))}
           style={{
             marginTop: '16px',
             padding: '10px 20px',

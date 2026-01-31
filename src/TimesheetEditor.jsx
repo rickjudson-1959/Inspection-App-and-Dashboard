@@ -2,12 +2,16 @@ import { useState, useEffect } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { supabase } from './supabase'
 import { useAuth } from './AuthContext.jsx'
+import { useOrgQuery } from './utils/queryHelpers.js'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 export default function TimesheetEditor() {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { user, userProfile } = useAuth()
-  
+  const { addOrgFilter, getOrgId } = useOrgQuery()
+  const { orgPath } = useOrgPath()
+
   const timesheetId = searchParams.get('id')
   const inspectorProfileId = searchParams.get('inspector')
   
@@ -485,7 +489,8 @@ export default function TimesheetEditor() {
         invoice_subtotal: subtotal,
         invoice_total: invoiceTotal,
         status: status,
-        updated_at: new Date().toISOString()
+        updated_at: new Date().toISOString(),
+        organization_id: getOrgId()
       }
       
       if (tsId) {
@@ -532,7 +537,8 @@ export default function TimesheetEditor() {
         auto_populated: line.auto_populated,
         manually_adjusted: line.manually_adjusted,
         line_order: line.line_order,
-        notes: line.notes || null
+        notes: line.notes || null,
+        organization_id: getOrgId()
       }))
       
       const { error: linesError } = await supabase
@@ -543,7 +549,7 @@ export default function TimesheetEditor() {
       
       if (status === 'submitted') {
         alert('Timesheet submitted for review!')
-        navigate('/inspector-invoicing')
+        navigate(orgPath('/inspector-invoicing'))
       } else {
         alert('Timesheet saved!')
       }
@@ -610,7 +616,7 @@ export default function TimesheetEditor() {
       {/* Header */}
       <div style={{ backgroundColor: '#003366', color: 'white', padding: '20px 40px' }}>
         <button 
-          onClick={() => navigate('/inspector-invoicing')}
+          onClick={() => navigate(orgPath('/inspector-invoicing'))}
           style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', marginBottom: '8px', opacity: 0.8 }}
         >
           ← Back to Inspector Invoicing
@@ -954,7 +960,7 @@ export default function TimesheetEditor() {
         {/* Action Buttons */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <button
-            onClick={() => navigate('/inspector-invoicing')}
+            onClick={() => navigate(orgPath('/inspector-invoicing'))}
             style={{
               padding: '12px 24px',
               backgroundColor: 'white',

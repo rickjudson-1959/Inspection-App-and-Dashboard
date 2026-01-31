@@ -7,6 +7,7 @@
 
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
+import { useOrgQuery } from './utils/queryHelpers.js'
 
 // Traffic Light Status Colors
 const STATUS_COLORS = {
@@ -52,6 +53,7 @@ function getPitchStatus(bore) {
 }
 
 export default function CrossingVarianceDashboard({ dateRange = '30', onClose }) {
+  const { addOrgFilter, organizationId, isReady } = useOrgQuery()
   const [loading, setLoading] = useState(true)
   const [boreLogs, setBoreLogs] = useState([])
   const [borePathLogs, setBorePathLogs] = useState([])
@@ -64,8 +66,10 @@ export default function CrossingVarianceDashboard({ dateRange = '30', onClose })
   const [filterMethod, setFilterMethod] = useState('all')
 
   useEffect(() => {
-    loadBoreData()
-  }, [dateRange])
+    if (isReady()) {
+      loadBoreData()
+    }
+  }, [dateRange, organizationId])
 
   async function loadBoreData() {
     setLoading(true)
@@ -73,21 +77,25 @@ export default function CrossingVarianceDashboard({ dateRange = '30', onClose })
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - parseInt(dateRange))
 
-    // Load conventional bore logs
-    const { data: conventionalBores, error: boreError } = await supabase
+    // Load conventional bore logs (with org filter)
+    let conventionalQuery = supabase
       .from('conventional_bore_logs')
       .select('*')
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0])
       .order('date', { ascending: false })
+    conventionalQuery = addOrgFilter(conventionalQuery)
+    const { data: conventionalBores, error: boreError } = await conventionalQuery
 
-    // Load bore path logs (HDD steering data)
-    const { data: borePaths, error: pathError } = await supabase
+    // Load bore path logs (HDD steering data) with org filter
+    let pathQuery = supabase
       .from('bore_path_logs')
       .select('*, bore_path_stations(*)')
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0])
       .order('date', { ascending: false })
+    pathQuery = addOrgFilter(pathQuery)
+    const { data: borePaths, error: pathError } = await pathQuery
 
     if (!boreError) setBoreLogs(conventionalBores || [])
     if (!pathError) setBorePathLogs(borePaths || [])
@@ -95,13 +103,15 @@ export default function CrossingVarianceDashboard({ dateRange = '30', onClose })
     setLoading(false)
   }
 
-  // Load photos for selected bore
+  // Load photos for selected bore (with org filter)
   async function loadBorePhotos(boreId) {
-    const { data: photos } = await supabase
+    let photoQuery = supabase
       .from('conventional_bore_photos')
       .select('*')
       .eq('bore_log_id', boreId)
       .order('created_at', { ascending: false })
+    photoQuery = addOrgFilter(photoQuery)
+    const { data: photos } = await photoQuery
 
     setBorePhotos(photos || [])
   }

@@ -6,6 +6,8 @@ import { useSearchParams, useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
 import { supabase } from './supabase'
+import { useOrgQuery } from './utils/queryHelpers.js'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 // Offline mode imports
 import { syncManager, chainageCache, useOnlineStatus, useSyncStatus } from './offline'
@@ -50,6 +52,8 @@ function InspectorReport() {
   const { signOut, userProfile } = useAuth()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
+  const { orgPath } = useOrgPath()
+  const { addOrgFilter, getOrgId, isReady } = useOrgQuery()
   const [saving, setSaving] = useState(false)
 
   // Offline mode hooks
@@ -1031,12 +1035,15 @@ Important:
       let query = supabase
         .from('daily_tickets')
         .select('id, date, activity_blocks')
-      
+
+      // Add organization filter
+      query = addOrgFilter(query)
+
       // Exclude current report when editing to prevent self-overlap detection
       if (currentReportId) {
         query = query.neq('id', currentReportId)
       }
-      
+
       const { data: reports, error } = await query
       
       if (error || !reports) return
@@ -1412,7 +1419,7 @@ Important:
         if (error) throw error
         if (!report) {
           alert('Report not found')
-          navigate('/inspector')
+          navigate(orgPath('/inspector'))
           return
         }
 
@@ -1424,10 +1431,10 @@ Important:
           const reportInspector = (report.inspector_name || '').toLowerCase()
           const userName = (userProfile.full_name || '').toLowerCase()
           const userEmail = (userProfile.email || '').toLowerCase()
-          
+
           if (reportInspector !== userName && reportInspector !== userEmail) {
             alert('You can only edit your own reports.')
-            navigate('/inspector')
+            navigate(orgPath('/inspector'))
             return
           }
         }
@@ -2313,7 +2320,8 @@ Important:
           inspector_equipment: inspectorEquipment,
           unit_price_items_enabled: unitPriceItemsEnabled,
           unit_price_data: unitPriceData,
-          created_by: userProfile?.id || null
+          created_by: userProfile?.id || null,
+          organization_id: getOrgId()
         }
 
         // Add chainage reasons to blocks
@@ -2531,7 +2539,8 @@ Important:
         inspector_equipment: inspectorEquipment,
         unit_price_items_enabled: unitPriceItemsEnabled,
         unit_price_data: unitPriceData,
-        created_by: userProfile?.id || null
+        created_by: userProfile?.id || null,
+        organization_id: getOrgId()
       }
 
       // ==================== EDIT MODE ====================
@@ -2603,7 +2612,8 @@ Important:
             field_name: change.field,
             old_value: String(change.old || ''),
             new_value: String(change.new || ''),
-            change_reason: editReason
+            change_reason: editReason,
+            organization_id: getOrgId()
           })
         }
 
@@ -2616,7 +2626,8 @@ Important:
             changed_by_name: userProfile?.full_name || userProfile?.email,
             changed_by_role: currentUserRole,
             change_type: 'edit',
-            change_reason: editReason
+            change_reason: editReason,
+            organization_id: getOrgId()
           })
         }
 
@@ -2630,14 +2641,14 @@ Important:
         }).eq('report_id', currentReportId)
 
         alert(`Report updated successfully! ${changes.length} field(s) changed.\n\nThe report has been resubmitted for review.`)
-        
+
         // Return to appropriate page based on role
         if (currentUserRole === 'inspector') {
-          window.location.href = '/inspector'
+          navigate(orgPath('/inspector'))
         } else if (currentUserRole === 'chief_inspector') {
-          navigate('/chief')
+          navigate(orgPath('/chief-dashboard'))
         } else {
-          navigate('/admin')
+          navigate(orgPath('/admin'))
         }
 
       } else {
@@ -2656,7 +2667,8 @@ Important:
           changed_by: userProfile?.id,
           changed_by_name: inspectorName || userProfile?.email,
           changed_by_role: currentUserRole,
-          change_type: 'create'
+          change_type: 'create',
+          organization_id: getOrgId()
         })
 
         // Initialize report status as submitted (ready for Chief review)
@@ -2665,7 +2677,8 @@ Important:
           status: 'submitted',
           submitted_at: new Date().toISOString(),
           submitted_by: userProfile?.id,
-          submitted_by_name: inspectorName || userProfile?.email
+          submitted_by_name: inspectorName || userProfile?.email,
+          organization_id: getOrgId()
         })
 
         // Save trackable items with the new report ID
@@ -2693,9 +2706,10 @@ Important:
                 ramp_type: item.ramp_type,
                 gates_qty: item.gates_qty,
                 landowner: item.landowner,
-                notes: item.notes
+                notes: item.notes,
+                organization_id: getOrgId()
               }
-              
+
               try {
                 await supabase.from('trackable_items').insert(record)
                 console.log('Saved trackable item:', item.item_type)
@@ -2769,7 +2783,8 @@ Important:
                 depth_not_met_signoff_name: ditchData.depthNotMetSignoff || null,
                 depth_not_met_signoff_role: ditchData.depthNotMetSignoffRole || null,
                 depth_not_met_signoff_date: ditchData.depthNotMetDate || null,
-                comments: ditchData.comments || null
+                comments: ditchData.comments || null,
+                organization_id: getOrgId()
               }
 
               await supabase.from('trench_logs').insert(trenchLogRecord)
@@ -5700,7 +5715,8 @@ Important:
           spread: spread,
           date: selectedDate
         },
-        changed_at: generationTimestamp
+        changed_at: generationTimestamp,
+        organization_id: getOrgId()
       })
     } catch (auditError) {
       console.error('PDF audit log error:', auditError)
@@ -6117,13 +6133,13 @@ Important:
               onClick={() => {
                 const confirmLeave = window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')
                 if (!confirmLeave) return
-                
+
                 if (currentUserRole === 'inspector') {
-                  window.location.href = '/inspector'
+                  navigate(orgPath('/inspector'))
                 } else if (currentUserRole === 'chief_inspector') {
-                  navigate('/chief')
+                  navigate(orgPath('/chief-dashboard'))
                 } else {
-                  navigate('/admin')
+                  navigate(orgPath('/admin'))
                 }
               }}
               style={{ padding: '8px 12px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}

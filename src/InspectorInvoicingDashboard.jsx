@@ -2,10 +2,12 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
 import { useAuth } from './AuthContext.jsx'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 export default function InspectorInvoicingDashboard() {
   const navigate = useNavigate()
   const { user, userProfile } = useAuth()
+  const { orgPath } = useOrgPath()
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('timesheets')
   const [dateRange, setDateRange] = useState('30')
@@ -231,7 +233,7 @@ export default function InspectorInvoicingDashboard() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <button 
-            onClick={() => navigate('/inspector')}
+            onClick={() => navigate(orgPath('/inspector'))}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}
           >
             ← Back to Daily Inspector Report
@@ -262,7 +264,7 @@ export default function InspectorInvoicingDashboard() {
             </select>
           )}
           <button
-            onClick={() => navigate('/timesheet')}
+            onClick={() => navigate(orgPath('/timesheet'))}
             style={{
               padding: '10px 16px',
               backgroundColor: '#059669',
@@ -443,7 +445,7 @@ export default function InspectorInvoicingDashboard() {
                 Timesheets will appear here once inspectors submit them, or you can create one manually.
               </p>
               <button
-                onClick={() => navigate('/timesheet')}
+                onClick={() => navigate(orgPath('/timesheet'))}
                 style={{
                   padding: '10px 20px',
                   backgroundColor: '#059669',
@@ -488,9 +490,9 @@ export default function InspectorInvoicingDashboard() {
                         onClick={() => {
                           // Draft timesheets go to editor, others go to review
                           if (ts.status === 'draft') {
-                            navigate(`/timesheet?id=${ts.id}`)
+                            navigate(orgPath(`/timesheet?id=${ts.id}`))
                           } else {
-                            navigate(`/timesheet-review?id=${ts.id}`)
+                            navigate(orgPath(`/timesheet-review?id=${ts.id}`))
                           }
                         }}
                         style={{
@@ -521,7 +523,7 @@ export default function InspectorInvoicingDashboard() {
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <h3 style={{ margin: 0 }}>Inspector Profiles</h3>
             <button
-              onClick={() => navigate('/hire-on')}
+              onClick={() => navigate(orgPath('/hire-on'))}
               style={{
                 padding: '8px 16px',
                 backgroundColor: '#2563eb',
@@ -550,7 +552,7 @@ export default function InspectorInvoicingDashboard() {
                 Invite inspectors to complete their hire-on packages and start submitting timesheets.
               </p>
               <button
-                onClick={() => navigate('/hire-on')}
+                onClick={() => navigate(orgPath('/hire-on'))}
                 style={{
                   padding: '10px 20px',
                   backgroundColor: '#2563eb',
@@ -609,7 +611,7 @@ export default function InspectorInvoicingDashboard() {
                     </td>
                     <td style={{ padding: '12px', textAlign: 'center' }}>
                       <button
-                        onClick={() => navigate(`/inspector-invoicing/profile/${profile.id}`)}
+                        onClick={() => navigate(orgPath(`/inspector-invoicing/profile/${profile.id}`))}
                         style={{
                           padding: '6px 12px',
                           backgroundColor: '#f3f4f6',

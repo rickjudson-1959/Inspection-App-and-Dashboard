@@ -5,6 +5,9 @@ import { supabase } from './supabase'
 import jsPDF from 'jspdf'
 import MasterSwitcher from './MasterSwitcher.jsx'
 import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
+import { useOrgQuery } from './utils/queryHelpers.js'
+import TenantSwitcher from './components/TenantSwitcher.jsx'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 // Import helper functions
 import {
@@ -46,7 +49,9 @@ import {
 function ChiefDashboard() {
   const navigate = useNavigate()
   const { signOut, userProfile } = useAuth()
-  
+  const { orgPath } = useOrgPath()
+  const { addOrgFilter, organizationId, getOrgId, isReady } = useOrgQuery()
+
   // Tab state - now includes new tabs
   const [activeTab, setActiveTab] = useState('review')
   
@@ -125,15 +130,20 @@ function ChiefDashboard() {
   // =============================================
   // LIFECYCLE
   // =============================================
-  useEffect(() => { fetchAllData() }, [])
-  
+  useEffect(() => {
+    if (isReady()) {
+      fetchAllData()
+    }
+  }, [organizationId])
+
   useEffect(() => {
     // Load data when switching to new tabs
+    if (!isReady()) return
     if (activeTab === 'ndt') fetchNDTStats()
     if (activeTab === 'regulatory') fetchAuditDisagreements()
     if (activeTab === 'gallery') fetchGalleryPhotos()
     if (activeTab === 'personnel') fetchPersonnelSummary()
-  }, [activeTab])
+  }, [activeTab, organizationId])
 
   // =============================================
   // REVIEW TAB FUNCTIONS (original - preserved)
@@ -146,10 +156,13 @@ function ChiefDashboard() {
 
   async function fetchPendingReports() {
     try {
-      const { data: statusData } = await supabase.from('report_status').select('*').eq('status', 'submitted').order('submitted_at', { ascending: true })
+      let query = supabase.from('report_status').select('*').eq('status', 'submitted').order('submitted_at', { ascending: true })
+      query = addOrgFilter(query)
+      const { data: statusData } = await query
       const reportsWithData = []
       for (const status of (statusData || [])) {
-        const { data: ticket } = await supabase.from('daily_tickets').select('*').eq('id', status.report_id).single()
+        let ticketQuery = supabase.from('daily_tickets').select('*').eq('id', status.report_id).single()
+        const { data: ticket } = await ticketQuery
         if (ticket) reportsWithData.push({ ...status, ticket })
       }
       setPendingReports(reportsWithData)
@@ -158,7 +171,9 @@ function ChiefDashboard() {
 
   async function fetchApprovedReports() {
     try {
-      const { data: statusData } = await supabase.from('report_status').select('*').eq('status', 'approved').order('reviewed_at', { ascending: false }).limit(10)
+      let query = supabase.from('report_status').select('*').eq('status', 'approved').order('reviewed_at', { ascending: false }).limit(10)
+      query = addOrgFilter(query)
+      const { data: statusData } = await query
       const reportsWithData = []
       for (const status of (statusData || [])) {
         const { data: ticket } = await supabase.from('daily_tickets').select('*').eq('id', status.report_id).single()
@@ -170,7 +185,9 @@ function ChiefDashboard() {
 
   async function fetchRejectedReports() {
     try {
-      const { data: statusData } = await supabase.from('report_status').select('*').eq('status', 'revision_requested').order('reviewed_at', { ascending: false })
+      let query = supabase.from('report_status').select('*').eq('status', 'revision_requested').order('reviewed_at', { ascending: false })
+      query = addOrgFilter(query)
+      const { data: statusData } = await query
       const reportsWithData = []
       for (const status of (statusData || [])) {
         const { data: ticket } = await supabase.from('daily_tickets').select('*').eq('id', status.report_id).single()
@@ -184,7 +201,9 @@ function ChiefDashboard() {
     try {
       const oneWeekAgo = new Date()
       oneWeekAgo.setDate(oneWeekAgo.getDate() - 7)
-      const { data: auditData } = await supabase.from('report_audit_log').select('change_type').gte('changed_at', oneWeekAgo.toISOString()).in('change_type', ['approve', 'revision_request'])
+      let query = supabase.from('report_audit_log').select('change_type').gte('changed_at', oneWeekAgo.toISOString()).in('change_type', ['approve', 'revision_request'])
+      query = addOrgFilter(query)
+      const { data: auditData } = await query
       const approved = (auditData || []).filter(a => a.change_type === 'approve').length
       const rejected = (auditData || []).filter(a => a.change_type === 'revision_request').length
       setStats({ reviewedThisWeek: approved + rejected, approvedThisWeek: approved, rejectedThisWeek: rejected })
@@ -196,7 +215,7 @@ function ChiefDashboard() {
     try {
       const now = new Date().toISOString()
       await supabase.from('report_status').update({ status: 'approved', reviewed_at: now, reviewed_by: userProfile?.id, reviewed_by_name: userProfile?.full_name || userProfile?.email, review_decision: 'approved', updated_at: now }).eq('report_id', reportId)
-      await supabase.from('report_audit_log').insert({ report_id: reportId, changed_by: userProfile?.id, changed_by_name: userProfile?.full_name || userProfile?.email, changed_by_role: userProfile?.role, change_type: 'approve' })
+      await supabase.from('report_audit_log').insert({ report_id: reportId, changed_by: userProfile?.id, changed_by_name: userProfile?.full_name || userProfile?.email, changed_by_role: userProfile?.role, change_type: 'approve', organization_id: getOrgId() })
       fetchAllData()
     } catch (err) { console.error('Error:', err); alert('Error accepting report') }
   }
@@ -212,7 +231,7 @@ function ChiefDashboard() {
     try {
       const now = new Date().toISOString()
       await supabase.from('report_status').update({ status: 'revision_requested', reviewed_at: now, reviewed_by: userProfile?.id, reviewed_by_name: userProfile?.full_name || userProfile?.email, review_decision: 'revision_requested', revision_notes: rejectionReason, updated_at: now }).eq('report_id', rejectingReport.report_id)
-      await supabase.from('report_audit_log').insert({ report_id: rejectingReport.report_id, changed_by: userProfile?.id, changed_by_name: userProfile?.full_name || userProfile?.email, changed_by_role: userProfile?.role, change_type: 'revision_request', change_reason: rejectionReason })
+      await supabase.from('report_audit_log').insert({ report_id: rejectingReport.report_id, changed_by: userProfile?.id, changed_by_name: userProfile?.full_name || userProfile?.email, changed_by_role: userProfile?.role, change_type: 'revision_request', change_reason: rejectionReason, organization_id: getOrgId() })
       setShowRejectModal(false)
       setRejectingReport(null)
       setRejectionReason('')
@@ -405,10 +424,12 @@ function ChiefDashboard() {
     try {
       await saveSummaryReport()
       
-      const { error } = await supabase
+      let pubQuery = supabase
         .from('daily_construction_summary')
         .update({ status: 'published', published_at: new Date().toISOString() })
         .eq('report_date', summaryDate)
+      pubQuery = addOrgFilter(pubQuery)
+      const { error } = await pubQuery
 
       if (error) throw error
       alert('Report published successfully!')
@@ -716,9 +737,11 @@ function ChiefDashboard() {
     setNdtLoading(true)
     try {
       // Fetch from weld_book table
-      const { data: weldData } = await supabase
+      let weldQuery = supabase
         .from('weld_book')
         .select('weld_number, welder_id, welder_name, nde_status, repair_count')
+      weldQuery = addOrgFilter(weldQuery)
+      const { data: weldData } = await weldQuery
       
       const welderMap = {}
       let totalWelds = 0
@@ -755,11 +778,13 @@ function ChiefDashboard() {
   async function fetchAuditDisagreements() {
     setAuditLoading(true)
     try {
-      const { data: disagreements } = await supabase
+      let ndtQuery = supabase
         .from('ndt_inspections')
         .select('id, weld_id, inspection_number, method, inspection_date, technician_name, interpretation_result, interpretation_agree, comments')
         .eq('interpretation_agree', false)
         .order('inspection_date', { ascending: false })
+      ndtQuery = addOrgFilter(ndtQuery)
+      const { data: disagreements } = await ndtQuery
       
       const enriched = []
       for (const d of (disagreements || [])) {
@@ -788,11 +813,13 @@ function ChiefDashboard() {
   async function fetchGalleryPhotos() {
     setGalleryLoading(true)
     try {
-      const { data: tickets } = await supabase
+      let galleryQuery = supabase
         .from('daily_tickets')
         .select('id, date, inspector_name, activity_blocks, photos')
         .order('date', { ascending: false })
         .limit(50)
+      galleryQuery = addOrgFilter(galleryQuery)
+      const { data: tickets } = await galleryQuery
       
       const photos = []
       for (const ticket of (tickets || [])) {
@@ -835,10 +862,12 @@ function ChiefDashboard() {
     setPersonnelLoading(true)
     try {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-      const { data: tickets } = await supabase
+      let personnelQuery = supabase
         .from('daily_tickets')
         .select('id, date, personnel, inspector_name, spread')
         .gte('date', thirtyDaysAgo)
+      personnelQuery = addOrgFilter(personnelQuery)
+      const { data: tickets } = await personnelQuery
       
       let totalExposure = 0
       const inspectorMap = {}
@@ -964,14 +993,15 @@ function ChiefDashboard() {
           <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>{userProfile?.full_name || userProfile?.email} • Regulatory Summary Engine v2.0</p>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <TenantSwitcher compact />
           {/* Only show GOD MODE for super_admin */}
           {(userProfile?.role === 'super_admin' || userProfile?.user_role === 'super_admin') && (
             <MasterSwitcher compact />
           )}
-                    <button onClick={() => navigate('/inspector-invoicing')} style={{ padding: '10px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>💰 Inspector Invoicing</button>
-          <button onClick={() => navigate('/dashboard')} style={{ padding: '10px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>📊 View CMT Stats</button>
-          <button onClick={() => navigate('/auditor-dashboard')} style={{ padding: '10px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>🔬 NDT Queue</button>
-          <button onClick={() => { localStorage.removeItem('pipeup_inspector_draft'); navigate('/inspector') }} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>+ New Report</button>
+          <button onClick={() => navigate(orgPath('/inspector-invoicing'))} style={{ padding: '10px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Inspector Invoicing</button>
+          <button onClick={() => navigate(orgPath('/dashboard'))} style={{ padding: '10px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>View CMT Stats</button>
+          <button onClick={() => navigate(orgPath('/auditor-dashboard'))} style={{ padding: '10px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>NDT Queue</button>
+          <button onClick={() => { localStorage.removeItem('pipeup_inspector_draft'); navigate(orgPath('/field-entry')) }} style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>+ New Report</button>
           <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign Out</button>
         </div>
       </div>

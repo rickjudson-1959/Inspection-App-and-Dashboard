@@ -11,6 +11,9 @@ import MasterSwitcher from './MasterSwitcher.jsx'
 import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
 import { aggregateReliabilityScore, calculateTotalBilledHours, calculateTotalShadowHours, calculateValueLost, aggregateValueLostByParty } from './shadowAuditUtils.js'
 import { MetricInfoIcon, MetricIntegrityModal, useMetricIntegrityModal } from './components/MetricIntegrityInfo.jsx'
+import { useOrgQuery } from './utils/queryHelpers.js'
+import TenantSwitcher from './components/TenantSwitcher.jsx'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 // ============================================================================
 // CMT DASHBOARD - Eagle Mountain - Woodfibre Gas Pipeline (EGP)
@@ -259,6 +262,8 @@ const spreadData = [
 function Dashboard({ onBackToReport }) {
   const { signOut, userProfile } = useAuth()
   const navigate = useNavigate()
+  const { orgPath } = useOrgPath()
+  const { addOrgFilter, organizationId, isReady } = useOrgQuery()
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState(30)
@@ -271,27 +276,34 @@ function Dashboard({ onBackToReport }) {
 
   // Red Alert Explanation modal
   const [showExplanationModal, setShowExplanationModal] = useState(false)
-  
+
   // Photo search state
   const [photoSearchDate, setPhotoSearchDate] = useState('')
   const [photoSearchLocation, setPhotoSearchLocation] = useState('')
   const [photoSearchInspector, setPhotoSearchInspector] = useState('')
 
   useEffect(() => {
-    loadReports()
-  }, [dateRange])
+    if (isReady()) {
+      loadReports()
+    }
+  }, [dateRange, organizationId])
 
   async function loadReports() {
     setLoading(true)
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - dateRange)
-    
+
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('daily_tickets')
         .select('*')
         .gte('date', startDate.toISOString().split('T')[0])
         .order('date', { ascending: true })
+
+      // Add organization filter
+      query = addOrgFilter(query)
+
+      const { data, error } = await query
 
       if (!error && data) {
         setReports(data)
@@ -616,9 +628,10 @@ function Dashboard({ onBackToReport }) {
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <TenantSwitcher compact />
             <MasterSwitcher compact />
-            <select 
-              value={dateRange} 
+            <select
+              value={dateRange}
               onChange={(e) => setDateRange(parseInt(e.target.value))}
               style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px' }}
             >
@@ -630,16 +643,16 @@ function Dashboard({ onBackToReport }) {
               <option value={365}>All Time</option>
             </select>
             <button
-              onClick={() => navigate('/evm-dashboard')}
+              onClick={() => navigate(orgPath('/evm-dashboard'))}
               style={{ padding: '10px 16px', backgroundColor: '#20c997', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
             >
-              💰 View Financials (EVM)
+              View Financials (EVM)
             </button>
             <button
-              onClick={() => navigate('/chief-dashboard')}
+              onClick={() => navigate(orgPath('/chief-dashboard'))}
               style={{ padding: '10px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
             >
-              👔 Chief Dashboard
+              Chief Dashboard
             </button>
             <button
               onClick={signOut}

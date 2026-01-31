@@ -5,6 +5,7 @@
 import React, { useState, useRef, useEffect } from 'react'
 import { supabase } from './supabase'
 import { useActivityAudit } from './useActivityAudit'
+import { useOrgQuery } from './utils/queryHelpers.js'
 import { extractGPSFromImage, formatGPSCoordinates } from './exifUtils'
 
 // Material types with their specific field configurations
@@ -87,6 +88,9 @@ function CrossingSupport({
   const [expandedSupport, setExpandedSupport] = useState(null)
   const [processingPhoto, setProcessingPhoto] = useState(false)
   const [savingToTrackable, setSavingToTrackable] = useState(false)
+
+  // Multi-tenant support
+  const { getOrgId } = useOrgQuery()
 
   // Audit trail hook
   const {
@@ -287,6 +291,7 @@ function CrossingSupport({
         kp_location: support.kpLocation,
         from_kp: support.kpLocation,
         to_kp: support.kpLocation,
+        organization_id: getOrgId(),
         notes: JSON.stringify({
           supportType: support.type,
           typeName: support.typeName,

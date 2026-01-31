@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
 import { useAuth } from './AuthContext.jsx'
+import { useOrgQuery } from './utils/queryHelpers.js'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 const PROVINCES = [
   'Alberta', 'British Columbia', 'Saskatchewan', 'Manitoba', 'Ontario', 
@@ -12,7 +14,9 @@ const PROVINCES = [
 export default function HireOnPackage() {
   const navigate = useNavigate()
   const { user, userProfile } = useAuth()
-  
+  const { addOrgFilter, getOrgId, organizationId, isReady } = useOrgQuery()
+  const { orgPath } = useOrgPath()
+
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [activeSection, setActiveSection] = useState(1)
@@ -42,24 +46,27 @@ export default function HireOnPackage() {
   })
 
   useEffect(() => {
-    loadProfile()
-  }, [user])
+    if (user && isReady()) {
+      loadProfile()
+    }
+  }, [user, organizationId])
 
   async function loadProfile() {
     if (!user) return
     setLoading(true)
-    
+
     try {
-      const { data: profile, error } = await supabase
+      let query = supabase
         .from('inspector_profiles')
         .select('*')
         .eq('user_id', user.id)
-        .maybeSingle()
-      
+      query = addOrgFilter(query)
+      const { data: profile, error } = await query.maybeSingle()
+
       if (error) {
         console.error('Error loading profile:', error)
       }
-      
+
       if (profile) {
         setInspectorProfile(profile)
         setFormData({
@@ -82,7 +89,7 @@ export default function HireOnPackage() {
     } catch (err) {
       console.error('Error loading profile:', err)
     }
-    
+
     setLoading(false)
   }
 
@@ -92,72 +99,75 @@ export default function HireOnPackage() {
 
   async function saveSection(sectionNum) {
     setSaving(true)
-    
+
     try {
       let profileId = inspectorProfile?.id
-      
+
       const profileData = {
         ...formData,
         updated_at: new Date().toISOString()
       }
-      
+
       if (!profileId) {
-        // Create new profile
+        // Create new profile (with org_id)
         const { data: newProfile, error } = await supabase
           .from('inspector_profiles')
           .insert({
             user_id: user.id,
             ...profileData,
-            created_by: user.id
+            created_by: user.id,
+            organization_id: getOrgId()
           })
           .select()
           .single()
-        
+
         if (error) throw error
         profileId = newProfile.id
         setInspectorProfile(newProfile)
       } else {
-        // Update existing profile
-        const { error } = await supabase
+        // Update existing profile (with org filter)
+        let updateQuery = supabase
           .from('inspector_profiles')
           .update({
             ...profileData,
             updated_by: user.id
           })
           .eq('id', profileId)
-        
+        updateQuery = addOrgFilter(updateQuery)
+        const { error } = await updateQuery
+
         if (error) throw error
       }
-      
+
       // Move to next section
       if (sectionNum < 3) {
         setActiveSection(sectionNum + 1)
       }
-      
+
     } catch (err) {
       console.error('Error saving:', err)
       alert('Error saving: ' + err.message)
     }
-    
+
     setSaving(false)
   }
 
   async function submitForReview() {
     setSaving(true)
-    
+
     try {
       // Check required fields
       const requiredFields = ['company_name', 'company_city', 'primary_contact_name', 'primary_contact_phone']
       const missingFields = requiredFields.filter(f => !formData[f])
-      
+
       if (missingFields.length > 0) {
         alert('Please complete all required fields: ' + missingFields.join(', '))
         setSaving(false)
         return
       }
-      
-      // Save and mark as complete
-      const { error } = await supabase
+
+      // Save and mark as complete (with org filter)
+      let updateQuery = supabase
         .from('inspector_profiles')
         .update({
           ...formData,
@@ -166,17 +176,19 @@ export default function HireOnPackage() {
           updated_by: user.id
         })
         .eq('id', inspectorProfile.id)
-      
+      updateQuery = addOrgFilter(updateQuery)
+      const { error } = await updateQuery
+
       if (error) throw error
-      
+
       alert('Your hire-on package has been submitted for review!')
-      navigate('/inspector-invoicing')
-      
+      navigate(orgPath('/inspector-invoicing'))
+
     } catch (err) {
       console.error('Error submitting:', err)
       alert('Error submitting: ' + err.message)
     }
-    
+
     setSaving(false)
   }
 
@@ -192,8 +204,8 @@ export default function HireOnPackage() {
     <div style={{ minHeight: '100vh', backgroundColor: '#f5f7fa', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
       {/* Header */}
       <div style={{ backgroundColor: '#003366', color: 'white', padding: '20px 40px' }}>
-        <button 
-          onClick={() => navigate('/inspector-invoicing')}
+        <button
+          onClick={() => navigate(orgPath('/inspector-invoicing'))}
           style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '14px', marginBottom: '8px', opacity: 0.8 }}
         >
           ← Back to Inspector Invoicing

@@ -4,6 +4,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
 import * as XLSX from 'xlsx'
+import { useOrgQuery } from './utils/queryHelpers.js'
 
 const BRAND = {
   navy: '#003366',
@@ -30,6 +31,7 @@ const ACTIVITY_TYPES = [
 ]
 
 export default function BaselineManager() {
+  const { addOrgFilter, getOrgId, organizationId, isReady } = useOrgQuery()
   const [baselines, setBaselines] = useState([])
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(null)
@@ -52,16 +54,20 @@ export default function BaselineManager() {
   })
 
   useEffect(() => {
-    fetchBaselines()
-  }, [])
+    if (isReady()) {
+      fetchBaselines()
+    }
+  }, [organizationId])
 
   const fetchBaselines = async () => {
     setLoading(true)
-    const { data, error } = await supabase
+    let query = supabase
       .from('project_baselines')
       .select('*')
       .order('activity_type')
       .order('spread')
+    query = addOrgFilter(query)
+    const { data, error } = await query
 
     if (error) {
       console.error('Error fetching baselines:', error)
@@ -262,17 +268,19 @@ export default function BaselineManager() {
     }
 
     try {
-      // Optionally delete existing baselines
+      // Optionally delete existing baselines (with org filter)
       if (replaceExisting) {
-        const { error: deleteError } = await supabase
+        let deleteQuery = supabase
           .from('project_baselines')
           .delete()
           .neq('id', '00000000-0000-0000-0000-000000000000') // Delete all
+        deleteQuery = addOrgFilter(deleteQuery)
+        const { error: deleteError } = await deleteQuery
 
         if (deleteError) throw deleteError
       }
 
-      // Prepare data for insert (remove validation fields)
+      // Prepare data for insert (remove validation fields, add org_id)
       const insertData = validRows.map(row => ({
         spread: row.spread,
         activity_type: row.activity_type,
@@ -285,7 +293,8 @@ export default function BaselineManager() {
         labour_rate_per_hour: row.labour_rate_per_hour,
         equipment_rate_per_hour: row.equipment_rate_per_hour,
         notes: row.notes,
-        is_active: true
+        is_active: true,
+        organization_id: getOrgId()
       }))
 
       const { error: insertError } = await supabase
@@ -337,24 +346,26 @@ export default function BaselineManager() {
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    
+
     try {
       if (editing) {
-        // Update existing
-        const { error } = await supabase
+        // Update existing (with org filter)
+        let updateQuery = supabase
           .from('project_baselines')
           .update({
             ...formData,
             updated_at: new Date().toISOString()
           })
           .eq('id', editing)
+        updateQuery = addOrgFilter(updateQuery)
+        const { error } = await updateQuery
 
         if (error) throw error
       } else {
-        // Insert new
+        // Insert new (with org_id)
         const { error } = await supabase
           .from('project_baselines')
-          .insert(formData)
+          .insert({ ...formData, organization_id: getOrgId() })
 
         if (error) throw error
       }
@@ -390,10 +401,12 @@ export default function BaselineManager() {
   const handleDelete = async (id) => {
     if (!confirm('Delete this baseline?')) return
 
-    const { error } = await supabase
+    let deleteQuery = supabase
       .from('project_baselines')
       .delete()
       .eq('id', id)
+    deleteQuery = addOrgFilter(deleteQuery)
+    const { error } = await deleteQuery
 
     if (error) {
       alert('Error deleting: ' + error.message)

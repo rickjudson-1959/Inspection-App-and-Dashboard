@@ -3,13 +3,15 @@
 
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabase'
+import { useOrgQuery } from './utils/queryHelpers.js'
 
-function ReportWorkflow({ 
-  reportId, 
-  reportDate, 
-  currentUser, 
-  onStatusChange 
+function ReportWorkflow({
+  reportId,
+  reportDate,
+  currentUser,
+  onStatusChange
 }) {
+  const { addOrgFilter, getOrgId, organizationId, isReady } = useOrgQuery()
   const [status, setStatus] = useState(null)
   const [loading, setLoading] = useState(true)
   const [submitting, setSubmitting] = useState(false)
@@ -20,8 +22,10 @@ function ReportWorkflow({
 
   // Load current status
   useEffect(() => {
-    loadStatus()
-  }, [reportId])
+    if (isReady()) {
+      loadStatus()
+    }
+  }, [reportId, organizationId])
 
   const loadStatus = async () => {
     if (!reportId) {
@@ -32,11 +36,12 @@ function ReportWorkflow({
     }
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('report_status')
         .select('*')
         .eq('report_id', reportId)
-        .single()
+      query = addOrgFilter(query)
+      const { data, error } = await query.single()
 
       if (error && error.code !== 'PGRST116') {
         console.error('Error loading status:', error)
@@ -59,11 +64,13 @@ function ReportWorkflow({
     if (!reportId) return
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('report_status_history')
         .select('*')
         .eq('report_id', reportId)
         .order('changed_at', { ascending: false })
+      query = addOrgFilter(query)
+      const { data, error } = await query
 
       if (error) {
         console.error('Error loading history:', error)
@@ -85,12 +92,13 @@ function ReportWorkflow({
 
     setSubmitting(true)
     try {
-      // Check if status record exists
-      const { data: existing } = await supabase
+      // Check if status record exists (with org filter)
+      let existingQuery = supabase
         .from('report_status')
         .select('id')
         .eq('report_id', reportId)
-        .single()
+      existingQuery = addOrgFilter(existingQuery)
+      const { data: existing } = await existingQuery.single()
 
       const statusUpdate = {
         report_id: reportId,
@@ -102,23 +110,26 @@ function ReportWorkflow({
       }
 
       if (existing) {
-        await supabase
+        let updateQuery = supabase
           .from('report_status')
           .update(statusUpdate)
           .eq('report_id', reportId)
+        updateQuery = addOrgFilter(updateQuery)
+        await updateQuery
       } else {
         await supabase
           .from('report_status')
-          .insert(statusUpdate)
+          .insert({ ...statusUpdate, organization_id: getOrgId() })
       }
 
-      // Log to history
+      // Log to history (with org_id)
       await supabase.from('report_status_history').insert({
         report_id: reportId,
         status: 'submitted',
         changed_by: currentUser?.userId,
         changed_by_name: currentUser?.userName || 'Unknown',
-        notes: 'Submitted for approval'
+        notes: 'Submitted for approval',
+        organization_id: getOrgId()
       })
 
       setStatus({ ...status, ...statusUpdate })
@@ -145,18 +156,21 @@ function ReportWorkflow({
         revision_notes: null
       }
 
-      await supabase
+      let updateQuery = supabase
         .from('report_status')
         .update(statusUpdate)
         .eq('report_id', reportId)
+      updateQuery = addOrgFilter(updateQuery)
+      await updateQuery
 
-      // Log to history
+      // Log to history (with org_id)
       await supabase.from('report_status_history').insert({
         report_id: reportId,
         status: 'approved',
         changed_by: currentUser?.userId,
         changed_by_name: currentUser?.userName || 'Unknown',
-        notes: 'Report approved'
+        notes: 'Report approved',
+        organization_id: getOrgId()
       })
 
       setStatus({ ...status, ...statusUpdate })
@@ -186,18 +200,21 @@ function ReportWorkflow({
         revision_notes: revisionNotes
       }
 
-      await supabase
+      let updateQuery = supabase
         .from('report_status')
         .update(statusUpdate)
         .eq('report_id', reportId)
+      updateQuery = addOrgFilter(updateQuery)
+      await updateQuery
 
-      // Log to history
+      // Log to history (with org_id)
       await supabase.from('report_status_history').insert({
         report_id: reportId,
         status: 'revision_requested',
         changed_by: currentUser?.userId,
         changed_by_name: currentUser?.userName || 'Unknown',
-        notes: revisionNotes
+        notes: revisionNotes,
+        organization_id: getOrgId()
       })
 
       setStatus({ ...status, ...statusUpdate })

@@ -99,9 +99,9 @@
 
   function navigateToAuditorDashboard(weldId = null) {
     if (weldId) {
-      navigate(`/auditor-dashboard?readonly=true&weld=${weldId}`)
+      navigate(orgPath(`/auditor-dashboard?readonly=true&weld=${weldId}`))
     } else {
-      navigate('/auditor-dashboard?readonly=true')
+      navigate(orgPath('/auditor-dashboard?readonly=true'))
     }
   }
 

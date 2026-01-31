@@ -3,21 +3,23 @@ import { useNavigate } from 'react-router-dom'
 import InspectorReport from './InspectorReport'
 import MyReports from './MyReports'
 import { supabase } from './supabase'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 /**
  * InspectorApp - Main wrapper for the inspector interface
- * 
+ *
  * Handles:
  * - Navigation between "New Report" and "My Reports"
  * - Loading existing reports for editing
  * - Direct link support (e.g., app.pipe-up.ca/report/edit/12345)
- * 
+ *
  * Props:
  * - user: The logged-in user object
  * - onSignOut: Function to handle sign out
  */
 function InspectorApp({ user, onSignOut }) {
   const navigate = useNavigate()
+  const { orgPath } = useOrgPath()
   const [view, setView] = useState('new') // 'new', 'myreports', 'edit'
   const [editReportId, setEditReportId] = useState(null)
   const [editReportData, setEditReportData] = useState(null)
@@ -108,7 +110,7 @@ function InspectorApp({ user, onSignOut }) {
       setView('edit')
       
       // Update URL without reload
-      window.history.pushState({}, '', `/report/edit/${reportId}`)
+      window.history.pushState({}, '', orgPath(`/report/edit/${reportId}`))
       
     } catch (err) {
       console.error('Error loading report:', err)
@@ -127,14 +129,14 @@ function InspectorApp({ user, onSignOut }) {
     setView('new')
     setEditReportId(null)
     setEditReportData(null)
-    window.history.pushState({}, '', '/inspector')
+    window.history.pushState({}, '', orgPath('/inspector'))
   }
 
   function handleViewMyReports() {
     setView('myreports')
     setEditReportId(null)
     setEditReportData(null)
-    window.history.pushState({}, '', '/my-reports')
+    window.history.pushState({}, '', orgPath('/my-reports'))
   }
 
   function handleSaveComplete(savedReportId) {
@@ -249,7 +251,7 @@ function InspectorApp({ user, onSignOut }) {
             {view === 'edit' ? '✏️ Editing Report' : '📝 New Report'}
           </button>
           <button
-            onClick={() => navigate('/inspector-invoicing')}
+            onClick={() => navigate(orgPath('/inspector-invoicing'))}
             style={{
               background: '#8b5cf6',
               color: 'white',

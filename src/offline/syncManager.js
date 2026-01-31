@@ -258,7 +258,7 @@ class SyncManager {
       // Build final activity blocks with uploaded photo filenames
       const finalBlocks = await this.buildFinalBlocks(report.reportData.activity_blocks, uploadedPhotos)
 
-      // Insert report to database
+      // Insert report to database (with organization_id from saved report data)
       const { data, error } = await supabase
         .from('daily_tickets')
         .insert({
@@ -286,7 +286,8 @@ class SyncManager {
           inspector_equipment: report.reportData.inspector_equipment,
           unit_price_items_enabled: report.reportData.unit_price_items_enabled,
           unit_price_data: report.reportData.unit_price_data,
-          created_by: report.reportData.created_by
+          created_by: report.reportData.created_by,
+          organization_id: report.reportData.organization_id
         })
         .select()
         .single()
@@ -295,12 +296,13 @@ class SyncManager {
 
       console.log(`[SyncManager] Report synced successfully. DB ID: ${data.id}`)
 
-      // Create report_status entry
+      // Create report_status entry (with organization_id)
       await supabase.from('report_status').insert({
         report_id: data.id,
         status: 'submitted',
         changed_by: report.reportData.created_by,
-        reason: 'Synced from offline'
+        reason: 'Synced from offline',
+        organization_id: report.reportData.organization_id
       })
 
       // Clean up local data
@@ -321,15 +323,21 @@ class SyncManager {
     }
   }
 
-  // Check for existing report with same date/inspector/spread
+  // Check for existing report with same date/inspector/spread (within same org)
   async checkForConflict(reportData) {
-    const { data, error } = await supabase
+    let query = supabase
       .from('daily_tickets')
       .select('id, date, spread, inspector_name, created_at')
       .eq('date', reportData.date)
       .eq('spread', reportData.spread)
       .eq('inspector_name', reportData.inspector_name)
-      .maybeSingle()
+
+    // Only check within the same organization
+    if (reportData.organization_id) {
+      query = query.eq('organization_id', reportData.organization_id)
+    }
+
+    const { data, error } = await query.maybeSingle()
 
     if (error) {
       console.error('[SyncManager] Conflict check error:', error)
@@ -441,17 +449,23 @@ class SyncManager {
     if (!report) return
 
     if (resolution === 'keep_local') {
-      // Update the existing server record
-      const { data: existing } = await supabase
+      // Update the existing server record (with org filter for security)
+      let findQuery = supabase
         .from('daily_tickets')
         .select('id')
         .eq('date', report.reportData.date)
         .eq('spread', report.reportData.spread)
         .eq('inspector_name', report.reportData.inspector_name)
-        .single()
+
+      // Only match within the same organization
+      if (report.reportData.organization_id) {
+        findQuery = findQuery.eq('organization_id', report.reportData.organization_id)
+      }
+
+      const { data: existing } = await findQuery.single()
 
       if (existing) {
-        // Delete existing and insert new
+        // Delete existing and insert new (scoped to same org via the query above)
         await supabase.from('daily_tickets').delete().eq('id', existing.id)
       }
 
