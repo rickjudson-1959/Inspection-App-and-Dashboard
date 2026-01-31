@@ -4,9 +4,7 @@ import { AuthProvider, useAuth } from './AuthContext.jsx'
 import ProtectedRoute, { getLandingPage } from './ProtectedRoute.jsx'
 import { OrgProvider } from './contexts/OrgContext.jsx'
 import { supabase } from './supabase'
-console.log('[App.jsx] About to import OfflineStatusBar')
 import OfflineStatusBar from './components/OfflineStatusBar.jsx'
-console.log('[App.jsx] OfflineStatusBar imported:', OfflineStatusBar)
 
 // ============================================================================
 // Multi-Tenant App with Org-Scoped Routing
@@ -25,6 +23,17 @@ import NDTAuditorDashboard from './NDTAuditorDashboard.jsx'
 import AdminPortal from './AdminPortal.jsx'
 import InspectorProfileView from './InspectorProfileView.jsx'
 import ChiefConstructionSummary from './ChiefConstructionSummary.jsx'
+import InspectorApp from './InspectorApp.jsx'
+import ReportViewer from './ReportViewer.jsx'
+import ReconciliationDashboard from './ReconciliationDashboard.jsx'
+import ChangeManagement from './ChangeManagement.jsx'
+import ReportsPage from './ReportsPage.jsx'
+import ContractorLEMs from './ContractorLEMs.jsx'
+import ResetPassword from './ResetPassword.jsx'
+import InspectorInvoicingDashboard from './InspectorInvoicingDashboard.jsx'
+import HireOnPackage from './HireOnPackage.jsx'
+import TimesheetEditor from './TimesheetEditor.jsx'
+import TimesheetReview from './TimesheetReview.jsx'
 
 // Root redirect - sends users to their org-scoped, role-specific landing page
 function RootRedirect() {
@@ -34,9 +43,7 @@ function RootRedirect() {
 
   useEffect(() => {
     async function fetchDefaultOrg() {
-      console.log('[RootRedirect] fetchDefaultOrg - user:', user?.id, 'userProfile:', userProfile?.role)
       if (!user || !userProfile) {
-        console.log('[RootRedirect] No user or profile, setting orgLoading=false')
         setOrgLoading(false)
         return
       }
@@ -87,13 +94,10 @@ function RootRedirect() {
       fetchDefaultOrg()
     } else if (!loading && !user) {
       // Not loading and no user - definitely not logged in
-      console.log('[RootRedirect] No user and not loading, setting orgLoading=false')
       setOrgLoading(false)
     }
     // If loading is false but user exists without userProfile, wait for profile to load
   }, [user, userProfile, loading])
-
-  console.log('[RootRedirect] Render - loading:', loading, 'orgLoading:', orgLoading, 'user:', !!user, 'userProfile:', !!userProfile)
 
   // Wait for auth to finish loading
   if (loading) {
@@ -128,8 +132,6 @@ function RootRedirect() {
 
   const userRole = userProfile?.role || userProfile?.user_role || 'inspector'
   const landingPage = getLandingPage(userRole)
-
-  console.log('[RootRedirect] Redirecting to:', `/${orgSlug}${landingPage}`, 'role:', userRole, 'orgSlug:', orgSlug)
 
   // Redirect to org-scoped landing page
   return <Navigate to={`/${orgSlug}${landingPage}`} replace />
@@ -214,6 +216,90 @@ function OrgRoutes() {
         </ProtectedRoute>
       } />
 
+      {/* Reconciliation Dashboard */}
+      <Route path="reconciliation" element={
+        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+          <ReconciliationDashboard />
+        </ProtectedRoute>
+      } />
+
+      {/* Change Management */}
+      <Route path="changes" element={
+        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+          <ChangeManagement />
+        </ProtectedRoute>
+      } />
+
+      {/* Reports Page */}
+      <Route path="reports" element={
+        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+          <ReportsPage />
+        </ProtectedRoute>
+      } />
+
+      {/* Contractor LEMs */}
+      <Route path="contractor-lems" element={
+        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+          <ContractorLEMs />
+        </ProtectedRoute>
+      } />
+
+      {/* Report Viewer */}
+      <Route path="report" element={
+        <ProtectedRoute allowedRoles={['inspector', 'cm', 'pm', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+          <ReportViewer />
+        </ProtectedRoute>
+      } />
+
+      {/* Inspector App */}
+      <Route path="inspector" element={
+        <ProtectedRoute allowedRoles={['inspector', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+          <InspectorApp />
+        </ProtectedRoute>
+      } />
+
+      {/* My Reports */}
+      <Route path="my-reports" element={
+        <ProtectedRoute allowedRoles={['inspector', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+          <InspectorApp />
+        </ProtectedRoute>
+      } />
+
+      {/* Report Edit */}
+      <Route path="report/edit/:reportId" element={
+        <ProtectedRoute allowedRoles={['inspector', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+          <InspectorApp />
+        </ProtectedRoute>
+      } />
+
+      {/* Inspector Invoicing */}
+      <Route path="inspector-invoicing" element={
+        <ProtectedRoute allowedRoles={['inspector', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+          <InspectorInvoicingDashboard />
+        </ProtectedRoute>
+      } />
+
+      {/* Hire-On Package */}
+      <Route path="hire-on" element={
+        <ProtectedRoute>
+          <HireOnPackage />
+        </ProtectedRoute>
+      } />
+
+      {/* Timesheet Editor */}
+      <Route path="timesheet" element={
+        <ProtectedRoute allowedRoles={['inspector', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+          <TimesheetEditor />
+        </ProtectedRoute>
+      } />
+
+      {/* Timesheet Review */}
+      <Route path="timesheet-review" element={
+        <ProtectedRoute allowedRoles={['chief', 'asst_chief', 'admin', 'super_admin']}>
+          <TimesheetReview />
+        </ProtectedRoute>
+      } />
+
       {/* Catch-all within org scope - redirect to dashboard */}
       <Route path="*" element={<Navigate to="dashboard" replace />} />
     </Routes>
@@ -228,6 +314,7 @@ function App() {
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
+          <Route path="/reset-password" element={<ResetPassword />} />
 
           {/* Root - redirects to org-scoped landing page */}
           <Route path="/" element={<RootRedirect />} />

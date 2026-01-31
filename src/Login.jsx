@@ -36,24 +36,20 @@ function Login({ onLogin }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
-    console.log('[Login] handleSubmit called')
     setLoading(true)
     setError('')
     setSuccess('')
 
     try {
       if (mode === 'login') {
-        console.log('[Login] Attempting signInWithPassword...')
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password
         })
-        console.log('[Login] signInWithPassword result - error:', error, 'user:', data?.user?.id)
         if (error) throw error
         // AuthContext will detect the session change
         if (onLogin) onLogin(data.user)
         // Navigate to root which will redirect to user's landing page
-        console.log('[Login] Navigating to /')
         navigate('/')
       } else {
         const { data, error } = await supabase.auth.signUp({
@@ -70,10 +66,8 @@ function Login({ onLogin }) {
         }
       }
     } catch (err) {
-      console.log('[Login] Error caught:', err.message)
       setError(err.message)
     }
-    console.log('[Login] handleSubmit complete, setLoading(false)')
     setLoading(false)
   }
 

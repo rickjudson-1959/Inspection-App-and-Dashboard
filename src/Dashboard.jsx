@@ -7,12 +7,10 @@ import {
 import { useAuth } from './AuthContext.jsx'
 import EVMDashboard from './EVMDashboard'
 import { supabase } from './supabase'
-import MasterSwitcher from './MasterSwitcher.jsx'
 import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
 import { aggregateReliabilityScore, calculateTotalBilledHours, calculateTotalShadowHours, calculateValueLost, aggregateValueLostByParty } from './shadowAuditUtils.js'
 import { MetricInfoIcon, MetricIntegrityModal, useMetricIntegrityModal } from './components/MetricIntegrityInfo.jsx'
 import { useOrgQuery } from './utils/queryHelpers.js'
-import TenantSwitcher from './components/TenantSwitcher.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 
 // ============================================================================
@@ -631,8 +629,6 @@ function Dashboard({ onBackToReport }) {
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <TenantSwitcher compact />
-            <MasterSwitcher compact />
             <select
               value={dateRange}
               onChange={(e) => setDateRange(parseInt(e.target.value))}
