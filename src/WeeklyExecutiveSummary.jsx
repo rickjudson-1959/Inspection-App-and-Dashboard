@@ -3,6 +3,7 @@
 
 import React, { useState } from 'react'
 import { supabase } from './supabase'
+import { useOrgQuery } from './utils/queryHelpers.js'
 import { calculateEVM, calculateGapAnalysis, formatCurrency as evmFormatCurrency } from './evmCalculations.js'
 
 // Anthropic API key from environment
@@ -54,6 +55,7 @@ function getHealthStatus(spi, cpi) {
 }
 
 export default function WeeklyExecutiveSummary({ projectName = 'FortisBC EGP Project' }) {
+  const { addOrgFilter } = useOrgQuery()
   const [loading, setLoading] = useState(false)
   const [generating, setGenerating] = useState(false)
   const [weeklyData, setWeeklyData] = useState(null)
@@ -82,13 +84,14 @@ export default function WeeklyExecutiveSummary({ projectName = 'FortisBC EGP Pro
     try {
       const { startDate, endDate } = getDateRange()
       
-      // Fetch all reports from the last 7 days
-      const { data: reports, error: fetchError } = await supabase
-        .from('daily_tickets')
-        .select('*')
-        .gte('date', startDate)
-        .lte('date', endDate)
-        .order('date', { ascending: true })
+      // Fetch all reports from the last 7 days (org-scoped)
+      const { data: reports, error: fetchError } = await addOrgFilter(
+        supabase
+          .from('daily_tickets')
+          .select('*')
+          .gte('date', startDate)
+          .lte('date', endDate)
+      ).order('date', { ascending: true })
 
       if (fetchError) throw fetchError
 

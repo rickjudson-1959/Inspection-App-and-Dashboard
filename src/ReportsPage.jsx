@@ -2,18 +2,18 @@ import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
+import { useOrgQuery } from './utils/queryHelpers.js'
 import { supabase } from './supabase'
 
 function ReportsPage() {
   const navigate = useNavigate()
   const { signOut, userProfile } = useAuth()
   const { orgPath } = useOrgPath()
+  const { addOrgFilter } = useOrgQuery()
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState({ dateFrom: '', dateTo: '', inspector: '', spread: '' })
   const [selectedReport, setSelectedReport] = useState(null)
-
-  const isSuperAdmin = userProfile?.role === 'super_admin'
 
   useEffect(() => {
     fetchReports()
@@ -21,16 +21,11 @@ function ReportsPage() {
 
   async function fetchReports() {
     setLoading(true)
-    let query = supabase
-      .from('daily_tickets')
-      .select('*')
-      .order('date', { ascending: false })
-
-    if (!isSuperAdmin && userProfile?.organization_id) {
-      query = query.eq('organization_id', userProfile.organization_id)
-    }
-
-    const { data, error } = await query
+    const { data, error } = await addOrgFilter(
+      supabase
+        .from('daily_tickets')
+        .select('*')
+    ).order('date', { ascending: false })
     if (error) {
       console.error('Error fetching reports:', error)
     }

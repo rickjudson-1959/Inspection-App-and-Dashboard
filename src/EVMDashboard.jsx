@@ -5,6 +5,7 @@ import {
   ResponsiveContainer, BarChart, Cell, ReferenceLine, PieChart, Pie
 } from 'recharts'
 import { supabase } from './supabase'
+import { useOrgQuery } from './utils/queryHelpers.js'
 import { calculateVAAC, aggregateValueLostByParty } from './shadowAuditUtils.js'
 import { MetricInfoIcon, MetricIntegrityModal, useMetricIntegrityModal } from './components/MetricIntegrityInfo.jsx'
 
@@ -422,6 +423,7 @@ function generateHealthAssessment(metrics) {
 // ============================================================================
 function EVMDashboard() {
   const navigate = useNavigate()
+  const { addOrgFilter } = useOrgQuery()
   const [loading, setLoading] = useState(true)
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0])
   const [activeTab, setActiveTab] = useState('overview')
@@ -442,11 +444,12 @@ function EVMDashboard() {
         const thirtyDaysAgo = new Date()
         thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
 
-        const { data: reports, error } = await supabase
-          .from('daily_tickets')
-          .select('date, spread, activity_blocks')
-          .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
-          .lte('date', asOfDate)
+        const { data: reports, error } = await addOrgFilter(
+          supabase
+            .from('daily_tickets')
+            .select('date, spread, activity_blocks')
+            .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
+        ).lte('date', asOfDate)
 
         if (error) {
           console.error('Error fetching drag metrics:', error)

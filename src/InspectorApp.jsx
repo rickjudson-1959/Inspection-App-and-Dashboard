@@ -4,6 +4,7 @@ import InspectorReport from './InspectorReport'
 import MyReports from './MyReports'
 import { supabase } from './supabase'
 import { useOrgPath } from './contexts/OrgContext.jsx'
+import { useOrgQuery } from './utils/queryHelpers.js'
 
 /**
  * InspectorApp - Main wrapper for the inspector interface
@@ -20,6 +21,7 @@ import { useOrgPath } from './contexts/OrgContext.jsx'
 function InspectorApp({ user, onSignOut }) {
   const navigate = useNavigate()
   const { orgPath } = useOrgPath()
+  const { addOrgFilter } = useOrgQuery()
   const [view, setView] = useState('new') // 'new', 'myreports', 'edit'
   const [editReportId, setEditReportId] = useState(null)
   const [editReportData, setEditReportData] = useState(null)
@@ -50,12 +52,13 @@ function InspectorApp({ user, onSignOut }) {
     setError(null)
     
     try {
-      // Fetch the full report with all related data
-      const { data: report, error: fetchError } = await supabase
-        .from('daily_reports')
-        .select('*')
-        .eq('id', reportId)
-        .single()
+      // Fetch the full report with all related data (org-scoped)
+      const { data: report, error: fetchError } = await addOrgFilter(
+        supabase
+          .from('daily_reports')
+          .select('*')
+          .eq('id', reportId)
+      ).single()
 
       if (fetchError) throw fetchError
       

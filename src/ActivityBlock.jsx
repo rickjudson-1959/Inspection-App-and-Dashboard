@@ -4,6 +4,7 @@ import React, { useState, useEffect, memo } from 'react'
 import { activityTypes, qualityFieldsByActivity, labourClassifications, equipmentTypes, timeLostReasons, productionStatuses, dragReasonCategories, impactScopes, responsiblePartyConfig } from './constants.js'
 import { syncKPFromGPS } from './kpUtils.js'
 import { supabase } from './supabase'
+import { useOrgQuery } from './utils/queryHelpers.js'
 import { calculateShadowHours, calculateTotalBilledHours, calculateTotalShadowHours, calculateInertiaRatio, hasSystemicDelay, getDelayType } from './shadowAuditUtils.js'
 
 // Specialized log components
@@ -383,14 +384,17 @@ function ActivityBlock({
   setActivityBlocks,
   activityBlocks
 }) {
+  // Org-scoped query hook
+  const { addOrgFilter } = useOrgQuery()
+
   // Local state for input fields
-  const [currentLabour, setCurrentLabour] = useState({ 
-    employeeName: '', 
-    classification: '', 
-    rt: '', 
-    ot: '', 
-    jh: '', 
-    count: '1' 
+  const [currentLabour, setCurrentLabour] = useState({
+    employeeName: '',
+    classification: '',
+    rt: '',
+    ot: '',
+    jh: '',
+    count: '1'
   })
   const [currentEquipment, setCurrentEquipment] = useState({ type: '', hours: '', count: '' })
   const [ocrProcessing, setOcrProcessing] = useState(false)
@@ -494,12 +498,13 @@ function ActivityBlock({
       try {
         console.log(`Loading previous data for ${block.activityType}, date < ${selectedDate}`)
         
-        // Fetch all previous reports
-        const { data: reports, error } = await supabase
-          .from('daily_tickets')
-          .select('activity_blocks, date')
-          .lt('date', selectedDate)
-          .order('date', { ascending: false })
+        // Fetch all previous reports (org-scoped)
+        const { data: reports, error } = await addOrgFilter(
+          supabase
+            .from('daily_tickets')
+            .select('activity_blocks, date')
+            .lt('date', selectedDate)
+        ).order('date', { ascending: false })
         
         if (error) {
           console.error('Error fetching previous data:', error)
