@@ -15,10 +15,7 @@ export function AuthProvider({ children }) {
     try {
       const { data, error } = await supabase
         .from('user_profiles')
-        .select(`
-          *,
-          organizations (id, name, slug)
-        `)
+        .select('*')
         .eq('id', userId)
         .single()
 
@@ -109,8 +106,7 @@ export function AuthProvider({ children }) {
     isCM: userProfile?.role === 'cm',
     isChiefInspector: userProfile?.role === 'chief_inspector',
     isExecutive: userProfile?.role === 'executive',
-    organizationId: userProfile?.organization_id,
-    organizationName: userProfile?.organizations?.name
+    organizationId: userProfile?.organization_id
   }
 
   return (
