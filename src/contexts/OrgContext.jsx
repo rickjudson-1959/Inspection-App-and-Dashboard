@@ -72,6 +72,7 @@ export function OrgProvider({ children }) {
       } catch (err) {
         console.error('Membership fetch error:', err)
         setError('Failed to load organization data')
+        setLoading(false)
       }
     }
 
@@ -92,10 +93,8 @@ export function OrgProvider({ children }) {
         return
       }
 
-      if (memberships.length === 0 && !isSuperAdmin) {
-        // Still loading memberships, wait
-        return
-      }
+      // If no memberships after loading, allow access to 'default' org for backward compatibility
+      // This handles legacy users who haven't been assigned to an org yet
 
       try {
         // Find org by slug
@@ -119,10 +118,11 @@ export function OrgProvider({ children }) {
           return
         }
 
-        // Check if user has access (super_admin or membership)
+        // Check if user has access (super_admin, membership, or legacy user accessing default)
         const hasMembership = memberships.some(m => m.organization_id === org.id)
+        const isLegacyAccessToDefault = memberships.length === 0 && org.slug === 'default'
 
-        if (!isSuperAdmin && !hasMembership) {
+        if (!isSuperAdmin && !hasMembership && !isLegacyAccessToDefault) {
           console.warn('Access denied to organization:', orgSlug)
           setError('Access denied to this organization')
 
@@ -131,6 +131,10 @@ export function OrgProvider({ children }) {
           if (defaultMembership?.organization?.slug) {
             const pathWithoutOrg = location.pathname.replace(`/${orgSlug}`, '') || '/dashboard'
             navigate(`/${defaultMembership.organization.slug}${pathWithoutOrg}`, { replace: true })
+          } else {
+            // No memberships at all - redirect to default org
+            const pathWithoutOrg = location.pathname.replace(`/${orgSlug}`, '') || '/dashboard'
+            navigate(`/default${pathWithoutOrg}`, { replace: true })
           }
           setLoading(false)
           return

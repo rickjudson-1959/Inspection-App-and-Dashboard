@@ -70,8 +70,9 @@ function RootRedirect() {
           const defaultMembership = memberships.find(m => m.is_default) || memberships[0]
           setOrgSlug(defaultMembership.organization?.slug || 'default')
         } else {
-          // Fallback to org from user profile
-          setOrgSlug(userProfile?.organizations?.slug || 'default')
+          // No memberships - fallback to default org
+          // This handles legacy users before multi-tenant migration
+          setOrgSlug('default')
         }
       } catch (err) {
         console.error('Error fetching default org:', err)
