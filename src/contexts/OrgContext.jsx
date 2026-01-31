@@ -21,7 +21,9 @@ export function OrgProvider({ children }) {
   // Fetch user's memberships
   useEffect(() => {
     async function loadMemberships() {
+      console.log('[OrgContext] loadMemberships - user:', user?.id, 'isSuperAdmin:', isSuperAdmin)
       if (!user) {
+        console.log('[OrgContext] No user, setting loading=false')
         setLoading(false)
         return
       }
@@ -41,12 +43,18 @@ export function OrgProvider({ children }) {
             return
           }
 
-          setMemberships(data?.map(org => ({
+          console.log('[OrgContext] Super admin orgs fetched:', data?.length)
+          const mappedMemberships = data?.map(org => ({
             organization_id: org.id,
             organization: org,
             role: 'super_admin',
             is_default: false
-          })) || [])
+          })) || []
+          setMemberships(mappedMemberships)
+          // If no orgSlug in URL, we can set loading=false now
+          if (!orgSlug) {
+            setLoading(false)
+          }
         } else {
           // Regular users see their memberships
           const { data, error: membershipError } = await supabase
@@ -67,10 +75,11 @@ export function OrgProvider({ children }) {
             return
           }
 
+          console.log('[OrgContext] Regular user memberships fetched:', data?.length)
           setMemberships(data || [])
         }
       } catch (err) {
-        console.error('Membership fetch error:', err)
+        console.error('[OrgContext] Membership fetch error:', err)
         setError('Failed to load organization data')
         setLoading(false)
       }
@@ -82,19 +91,23 @@ export function OrgProvider({ children }) {
   // Validate and load current organization from slug
   useEffect(() => {
     async function loadOrganization() {
+      console.log('[OrgContext] loadOrganization - orgSlug:', orgSlug, 'memberships:', memberships.length, 'user:', user?.id)
       if (!orgSlug) {
+        console.log('[OrgContext] No orgSlug, setting loading=false')
         setLoading(false)
         return
       }
 
       // Wait for memberships to load first (unless no user)
       if (!user) {
+        console.log('[OrgContext] No user in loadOrganization, setting loading=false')
         setLoading(false)
         return
       }
 
       // If no memberships after loading, allow access to 'default' org for backward compatibility
       // This handles legacy users who haven't been assigned to an org yet
+      console.log('[OrgContext] Proceeding to load org from DB')
 
       try {
         // Find org by slug
@@ -104,8 +117,9 @@ export function OrgProvider({ children }) {
           .eq('slug', orgSlug)
           .single()
 
+        console.log('[OrgContext] Org query result - org:', org?.slug, 'error:', orgError)
         if (orgError || !org) {
-          console.error('Organization not found:', orgSlug)
+          console.error('[OrgContext] Organization not found:', orgSlug)
           setError('Organization not found')
           setLoading(false)
 
@@ -140,6 +154,7 @@ export function OrgProvider({ children }) {
           return
         }
 
+        console.log('[OrgContext] Access granted, setting currentOrganization:', org.slug)
         setCurrentOrganization(org)
         setError(null)
         setLoading(false)

@@ -1,7 +1,9 @@
 import React, { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
 
 function Login({ onLogin }) {
+  const navigate = useNavigate()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -34,18 +36,25 @@ function Login({ onLogin }) {
 
   async function handleSubmit(e) {
     e.preventDefault()
+    console.log('[Login] handleSubmit called')
     setLoading(true)
     setError('')
     setSuccess('')
 
     try {
       if (mode === 'login') {
+        console.log('[Login] Attempting signInWithPassword...')
         const { data, error } = await supabase.auth.signInWithPassword({
           email,
           password
         })
+        console.log('[Login] signInWithPassword result - error:', error, 'user:', data?.user?.id)
         if (error) throw error
-        onLogin(data.user)
+        // AuthContext will detect the session change
+        if (onLogin) onLogin(data.user)
+        // Navigate to root which will redirect to user's landing page
+        console.log('[Login] Navigating to /')
+        navigate('/')
       } else {
         const { data, error } = await supabase.auth.signUp({
           email,
@@ -53,14 +62,18 @@ function Login({ onLogin }) {
         })
         if (error) throw error
         if (data.session) {
-          onLogin(data.user)
+          // AuthContext will detect the session change
+          if (onLogin) onLogin(data.user)
+          navigate('/')
         } else if (data.user) {
           setError('Check your email for the confirmation link!')
         }
       }
     } catch (err) {
+      console.log('[Login] Error caught:', err.message)
       setError(err.message)
     }
+    console.log('[Login] handleSubmit complete, setLoading(false)')
     setLoading(false)
   }
 

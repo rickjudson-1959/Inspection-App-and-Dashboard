@@ -263,7 +263,7 @@ function Dashboard({ onBackToReport }) {
   const { signOut, userProfile } = useAuth()
   const navigate = useNavigate()
   const { orgPath } = useOrgPath()
-  const { addOrgFilter, organizationId, isReady } = useOrgQuery()
+  const { addOrgFilter, organizationId, isReady, isSuperAdmin } = useOrgQuery()
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [dateRange, setDateRange] = useState(30)
@@ -283,10 +283,13 @@ function Dashboard({ onBackToReport }) {
   const [photoSearchInspector, setPhotoSearchInspector] = useState('')
 
   useEffect(() => {
+    console.log('[Dashboard] useEffect - isReady:', isReady(), 'orgId:', organizationId, 'isSuperAdmin:', isSuperAdmin)
     if (isReady()) {
       loadReports()
+    } else {
+      console.log('[Dashboard] Not ready, skipping loadReports')
     }
-  }, [dateRange, organizationId])
+  }, [dateRange, organizationId, isSuperAdmin])
 
   async function loadReports() {
     setLoading(true)

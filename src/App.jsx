@@ -34,7 +34,9 @@ function RootRedirect() {
 
   useEffect(() => {
     async function fetchDefaultOrg() {
-      if (!user) {
+      console.log('[RootRedirect] fetchDefaultOrg - user:', user?.id, 'userProfile:', userProfile?.role)
+      if (!user || !userProfile) {
+        console.log('[RootRedirect] No user or profile, setting orgLoading=false')
         setOrgLoading(false)
         return
       }
@@ -83,13 +85,18 @@ function RootRedirect() {
 
     if (userProfile) {
       fetchDefaultOrg()
+    } else if (!loading) {
+      // No userProfile and not loading - user not logged in or profile doesn't exist
+      console.log('[RootRedirect] No userProfile and not loading, setting orgLoading=false')
+      setOrgLoading(false)
     }
-  }, [user, userProfile])
+  }, [user, userProfile, loading])
 
+  console.log('[RootRedirect] Render - loading:', loading, 'orgLoading:', orgLoading, 'user:', !!user, 'userProfile:', !!userProfile)
   if (loading || orgLoading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <p>Loading...</p>
+        <p>Loading... (auth: {String(loading)}, org: {String(orgLoading)})</p>
       </div>
     )
   }
@@ -100,6 +107,8 @@ function RootRedirect() {
 
   const userRole = userProfile?.user_role || userProfile?.role || 'inspector'
   const landingPage = getLandingPage(userRole)
+
+  console.log('[RootRedirect] Redirecting to:', `/${orgSlug}${landingPage}`, 'role:', userRole, 'orgSlug:', orgSlug)
 
   // Redirect to org-scoped landing page
   return <Navigate to={`/${orgSlug}${landingPage}`} replace />
