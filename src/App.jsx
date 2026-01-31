@@ -85,18 +85,39 @@ function RootRedirect() {
 
     if (userProfile) {
       fetchDefaultOrg()
-    } else if (!loading) {
-      // No userProfile and not loading - user not logged in or profile doesn't exist
-      console.log('[RootRedirect] No userProfile and not loading, setting orgLoading=false')
+    } else if (!loading && !user) {
+      // Not loading and no user - definitely not logged in
+      console.log('[RootRedirect] No user and not loading, setting orgLoading=false')
       setOrgLoading(false)
     }
+    // If loading is false but user exists without userProfile, wait for profile to load
   }, [user, userProfile, loading])
 
   console.log('[RootRedirect] Render - loading:', loading, 'orgLoading:', orgLoading, 'user:', !!user, 'userProfile:', !!userProfile)
-  if (loading || orgLoading) {
+
+  // Wait for auth to finish loading
+  if (loading) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
-        <p>Loading... (auth: {String(loading)}, org: {String(orgLoading)})</p>
+        <p>Loading...</p>
+      </div>
+    )
+  }
+
+  // If user exists but profile hasn't loaded yet, wait
+  if (user && !userProfile) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <p>Loading profile...</p>
+      </div>
+    )
+  }
+
+  // Wait for org to finish loading
+  if (orgLoading) {
+    return (
+      <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+        <p>Loading organization...</p>
       </div>
     )
   }
@@ -105,7 +126,7 @@ function RootRedirect() {
     return <Navigate to="/login" replace />
   }
 
-  const userRole = userProfile?.user_role || userProfile?.role || 'inspector'
+  const userRole = userProfile?.role || userProfile?.user_role || 'inspector'
   const landingPage = getLandingPage(userRole)
 
   console.log('[RootRedirect] Redirecting to:', `/${orgSlug}${landingPage}`, 'role:', userRole, 'orgSlug:', orgSlug)

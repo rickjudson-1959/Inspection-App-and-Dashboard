@@ -162,8 +162,8 @@ function ProtectedRoute({ children, requiredRoles = [], allowedRoles = [] }) {
     return <Navigate to="/login" state={{ from: location }} replace />
   }
 
-  // Get user's role
-  const userRole = userProfile?.user_role || userProfile?.role || 'inspector'
+  // Get user's role (prefer 'role' field over legacy 'user_role')
+  const userRole = userProfile?.role || userProfile?.user_role || 'inspector'
 
   // Organization error handling (not found or access denied)
   if (orgError && orgSlug) {
