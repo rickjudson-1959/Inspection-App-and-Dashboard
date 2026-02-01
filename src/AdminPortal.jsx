@@ -96,6 +96,17 @@ function AdminPortal() {
   const [projectDocuments, setProjectDocuments] = useState([])
   const [uploadingVaultDoc, setUploadingVaultDoc] = useState(null) // tracks which category is uploading
 
+  // Document Version History state
+  const [showHistoryModal, setShowHistoryModal] = useState(false)
+  const [selectedCategoryForHistory, setSelectedCategoryForHistory] = useState(null)
+
+  // ITP Revision Prompt state
+  const [showITPResetPrompt, setShowITPResetPrompt] = useState(false)
+  const [pendingITPUpload, setPendingITPUpload] = useState(null) // { file, category }
+
+  // Addendum upload state
+  const [uploadingAddendum, setUploadingAddendum] = useState(null) // parent document id
+
   // ITP Digital Signature state
   const [showSignaturePad, setShowSignaturePad] = useState(false)
   const [signingRole, setSigningRole] = useState(null) // { key, label, shortLabel }
@@ -107,11 +118,11 @@ function AdminPortal() {
     { key: 'scope_of_work', label: 'Scope of Work (SOW)', icon: '📋' },
     { key: 'ifc_drawings', label: 'IFC Drawings', icon: '📐' },
     { key: 'typical_drawings', label: 'Typical Drawings', icon: '📏' },
-    { key: 'project_specs', label: 'Project Specifications', icon: '📑' },
-    { key: 'weld_procedures', label: 'Weld Procedures (WPS)', icon: '🔧' },
+    { key: 'project_specs', label: 'Project Specifications', icon: '📑', supportsAddenda: true },
+    { key: 'weld_procedures', label: 'Weld Procedures (WPS)', icon: '🔧', supportsAddenda: true },
     { key: 'erp', label: 'Emergency Response Plan (ERP)', icon: '🚨' },
     { key: 'emp', label: 'Environmental Management Plan (EMP)', icon: '🌿' },
-    { key: 'itp', label: 'Inspection & Test Plan (ITP)', icon: '✅', requiresSignOff: true }
+    { key: 'itp', label: 'Inspection & Test Plan (ITP)', icon: '✅', requiresSignOff: true, supportsAddenda: true }
   ]
 
   // ITP Sign-off roles required for approval
@@ -696,8 +707,29 @@ function AdminPortal() {
     }
   }
 
-  // Upload document to Project Vault
-  async function uploadVaultDocument(file, category) {
+  // Check if ITP has signatures that would need reset
+  function itpHasSignatures() {
+    const itpDoc = projectDocuments.find(d => d.category === 'itp' && !d.is_addendum)
+    return itpDoc?.sign_offs && Object.keys(itpDoc.sign_offs).length > 0
+  }
+
+  // Handle file selection for vault upload (checks for ITP signature reset)
+  function handleVaultFileSelect(file, category) {
+    if (!file) return
+
+    // For ITP with existing signatures, show confirmation prompt
+    if (category === 'itp' && itpHasSignatures()) {
+      setPendingITPUpload({ file, category })
+      setShowITPResetPrompt(true)
+      return
+    }
+
+    // Otherwise proceed with normal upload
+    uploadVaultDocument(file, category, false)
+  }
+
+  // Upload document to Project Vault with version control
+  async function uploadVaultDocument(file, category, resetSignatures = false) {
     if (!selectedOrgForSetup || !file) return
 
     setUploadingVaultDoc(category)
@@ -720,27 +752,56 @@ function AdminPortal() {
         .from('documents')
         .getPublicUrl(filePath)
 
-      // Get current version number for this category
-      const existingDoc = projectDocuments.find(d => d.category === category)
-      const newVersion = existingDoc ? (existingDoc.version_number || 1) + 1 : 1
+      // Get current version number for this category (excluding addenda)
+      const existingDocs = projectDocuments.filter(d => d.category === category && !d.is_addendum)
+      const currentDoc = existingDocs.find(d => d.is_current !== false)
+      const maxVersion = Math.max(...existingDocs.map(d => d.version_number || 1), 0)
+      const newVersion = maxVersion + 1
 
-      // Insert record into project_documents
+      // Mark all previous versions as not current
+      if (currentDoc) {
+        await supabase
+          .from('project_documents')
+          .update({ is_current: false })
+          .eq('organization_id', selectedOrgForSetup)
+          .eq('category', category)
+          .eq('is_addendum', false)
+      }
+
+      // Prepare new document data
+      const newDocData = {
+        organization_id: selectedOrgForSetup,
+        category: category,
+        file_name: file.name,
+        file_url: urlData.publicUrl,
+        version_number: newVersion,
+        is_current: true,
+        is_addendum: false,
+        uploaded_by: userProfile?.id
+      }
+
+      // For ITP, handle signature reset
+      if (category === 'itp' && resetSignatures) {
+        newDocData.sign_offs = {}
+      } else if (category === 'itp' && currentDoc?.sign_offs) {
+        // Preserve signatures if not resetting
+        newDocData.sign_offs = currentDoc.sign_offs
+        newDocData.document_hash = currentDoc.document_hash
+      }
+
+      // Insert new document record
       const { error: insertError } = await supabase
         .from('project_documents')
-        .insert({
-          organization_id: selectedOrgForSetup,
-          category: category,
-          file_name: file.name,
-          file_url: urlData.publicUrl,
-          version_number: newVersion,
-          uploaded_by: userProfile?.id
-        })
+        .insert(newDocData)
 
       if (insertError) throw insertError
 
       // Refresh documents list
       fetchGovernanceData(selectedOrgForSetup)
-      setGovernanceMessage({ type: 'success', text: `Document uploaded successfully!` })
+
+      const versionMsg = newVersion > 1 ? ` (Rev ${newVersion - 1})` : ''
+      const resetMsg = resetSignatures ? ' Signatures have been reset.' : ''
+      setGovernanceMessage({ type: 'success', text: `Document uploaded successfully${versionMsg}!${resetMsg}` })
     } catch (err) {
       console.error('Error uploading vault document:', err)
       setGovernanceMessage({ type: 'error', text: 'Upload failed: ' + err.message })
@@ -749,14 +810,109 @@ function AdminPortal() {
     setUploadingVaultDoc(null)
   }
 
-  // Check if a vault category has a document
-  function hasVaultDocument(category) {
-    return projectDocuments.some(d => d.category === category)
+  // Handle ITP reset prompt response
+  function handleITPResetResponse(resetSignatures) {
+    if (pendingITPUpload) {
+      uploadVaultDocument(pendingITPUpload.file, pendingITPUpload.category, resetSignatures)
+    }
+    setShowITPResetPrompt(false)
+    setPendingITPUpload(null)
   }
 
-  // Get document for a category
+  // Upload addendum/supporting document
+  async function uploadAddendum(file, parentDoc) {
+    if (!selectedOrgForSetup || !file || !parentDoc) return
+
+    setUploadingAddendum(parentDoc.id)
+    setGovernanceMessage(null)
+
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${parentDoc.category}_addendum_${Date.now()}.${fileExt}`
+      const filePath = `project-vault/${selectedOrgForSetup}/${parentDoc.category}/addenda/${fileName}`
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file)
+
+      if (uploadError) throw uploadError
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath)
+
+      // Count existing addenda for this parent
+      const existingAddenda = projectDocuments.filter(d => d.parent_document_id === parentDoc.id)
+
+      // Insert addendum record
+      const { error: insertError } = await supabase
+        .from('project_documents')
+        .insert({
+          organization_id: selectedOrgForSetup,
+          category: parentDoc.category,
+          file_name: file.name,
+          file_url: urlData.publicUrl,
+          version_number: existingAddenda.length + 1,
+          is_current: true,
+          is_addendum: true,
+          parent_document_id: parentDoc.id,
+          uploaded_by: userProfile?.id
+        })
+
+      if (insertError) throw insertError
+
+      fetchGovernanceData(selectedOrgForSetup)
+      setGovernanceMessage({ type: 'success', text: `Supporting document added successfully!` })
+    } catch (err) {
+      console.error('Error uploading addendum:', err)
+      setGovernanceMessage({ type: 'error', text: 'Upload failed: ' + err.message })
+    }
+
+    setUploadingAddendum(null)
+  }
+
+  // Check if a vault category has a document
+  function hasVaultDocument(category) {
+    return projectDocuments.some(d => d.category === category && !d.is_addendum && d.is_current !== false)
+  }
+
+  // Get current document for a category
   function getVaultDocument(category) {
-    return projectDocuments.find(d => d.category === category)
+    // Find current version (is_current=true or most recent if is_current not set)
+    const docs = projectDocuments.filter(d => d.category === category && !d.is_addendum)
+    return docs.find(d => d.is_current !== false) || docs[0]
+  }
+
+  // Get document version history for a category
+  function getDocumentHistory(category) {
+    return projectDocuments
+      .filter(d => d.category === category && !d.is_addendum)
+      .sort((a, b) => (b.version_number || 1) - (a.version_number || 1))
+  }
+
+  // Get addenda for a document
+  function getDocumentAddenda(parentDocId) {
+    return projectDocuments
+      .filter(d => d.parent_document_id === parentDocId)
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
+  }
+
+  // Check if document was updated in last 48 hours
+  function isRecentlyUpdated(category) {
+    const doc = getVaultDocument(category)
+    if (!doc) return false
+    const uploadTime = new Date(doc.created_at)
+    const now = new Date()
+    const hoursDiff = (now - uploadTime) / (1000 * 60 * 60)
+    return hoursDiff <= 48
+  }
+
+  // Open history modal
+  function openHistoryModal(category) {
+    setSelectedCategoryForHistory(category)
+    setShowHistoryModal(true)
   }
 
   // Check if config is complete (core fields filled)
@@ -2482,6 +2638,9 @@ function AdminPortal() {
                     {documentVaultCategories.map(cat => {
                       const doc = getVaultDocument(cat.key)
                       const hasDoc = !!doc
+                      const history = getDocumentHistory(cat.key)
+                      const addenda = doc ? getDocumentAddenda(doc.id) : []
+                      const recentlyUpdated = isRecentlyUpdated(cat.key)
                       return (
                         <div
                           key={cat.key}
@@ -2504,6 +2663,24 @@ function AdminPortal() {
                             backgroundColor: hasDoc ? '#28a745' : '#dc3545',
                             boxShadow: hasDoc ? '0 0 6px #28a745' : '0 0 6px #dc3545'
                           }} title={hasDoc ? 'Document uploaded' : 'Missing document'} />
+
+                          {/* Updated Badge */}
+                          {recentlyUpdated && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '-8px',
+                              left: '10px',
+                              padding: '2px 8px',
+                              backgroundColor: '#17a2b8',
+                              color: 'white',
+                              borderRadius: '10px',
+                              fontSize: '9px',
+                              fontWeight: 'bold',
+                              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+                            }}>
+                              UPDATED
+                            </div>
+                          )}
 
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
                             <span style={{ fontSize: '20px' }}>{cat.icon}</span>
@@ -2531,27 +2708,90 @@ function AdminPortal() {
                               >
                                 📄 {doc.file_name}
                               </a>
-                              <div style={{ fontSize: '10px', color: '#666' }}>
-                                Version {doc.version_number || 1} • {new Date(doc.created_at).toLocaleDateString()}
+                              <div style={{ fontSize: '10px', color: '#666', marginBottom: '6px' }}>
+                                Rev {(doc.version_number || 1) - 1} • {new Date(doc.created_at).toLocaleDateString()}
+                                {history.length > 1 && (
+                                  <button
+                                    onClick={() => openHistoryModal(cat.key)}
+                                    style={{
+                                      marginLeft: '8px',
+                                      padding: '2px 6px',
+                                      fontSize: '9px',
+                                      backgroundColor: '#6c757d',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '3px',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    History ({history.length})
+                                  </button>
+                                )}
                               </div>
-                              <label style={{
-                                display: 'block',
-                                marginTop: '10px',
-                                fontSize: '11px',
-                                color: '#666',
-                                cursor: 'pointer'
-                              }}>
-                                <span style={{ textDecoration: 'underline' }}>Replace document</span>
-                                <input
-                                  type="file"
-                                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg"
-                                  onChange={(e) => {
-                                    if (e.target.files[0]) uploadVaultDocument(e.target.files[0], cat.key)
-                                  }}
-                                  disabled={uploadingVaultDoc === cat.key}
-                                  style={{ display: 'none' }}
-                                />
-                              </label>
+
+                              {/* Addenda List */}
+                              {addenda.length > 0 && (
+                                <div style={{ marginBottom: '8px', paddingLeft: '10px', borderLeft: '2px solid #dee2e6' }}>
+                                  <div style={{ fontSize: '10px', color: '#666', marginBottom: '4px' }}>Supporting Documents:</div>
+                                  {addenda.map((add, idx) => (
+                                    <a
+                                      key={add.id}
+                                      href={add.file_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{
+                                        display: 'block',
+                                        fontSize: '10px',
+                                        color: '#007bff',
+                                        marginBottom: '2px'
+                                      }}
+                                    >
+                                      └ {add.file_name}
+                                    </a>
+                                  ))}
+                                </div>
+                              )}
+
+                              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap' }}>
+                                <label style={{
+                                  fontSize: '11px',
+                                  color: '#666',
+                                  cursor: 'pointer'
+                                }}>
+                                  <span style={{ textDecoration: 'underline' }}>Replace</span>
+                                  <input
+                                    type="file"
+                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg"
+                                    onChange={(e) => {
+                                      if (e.target.files[0]) handleVaultFileSelect(e.target.files[0], cat.key)
+                                    }}
+                                    disabled={uploadingVaultDoc === cat.key}
+                                    style={{ display: 'none' }}
+                                  />
+                                </label>
+
+                                {/* Add Supporting Document button */}
+                                {cat.supportsAddenda && (
+                                  <label style={{
+                                    fontSize: '11px',
+                                    color: '#007bff',
+                                    cursor: uploadingAddendum === doc.id ? 'not-allowed' : 'pointer'
+                                  }}>
+                                    <span style={{ textDecoration: 'underline' }}>
+                                      {uploadingAddendum === doc.id ? '⏳...' : '+ Add Supporting Doc'}
+                                    </span>
+                                    <input
+                                      type="file"
+                                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg"
+                                      onChange={(e) => {
+                                        if (e.target.files[0]) uploadAddendum(e.target.files[0], doc)
+                                      }}
+                                      disabled={uploadingAddendum === doc.id}
+                                      style={{ display: 'none' }}
+                                    />
+                                  </label>
+                                )}
+                              </div>
                             </div>
                           ) : (
                             <div>
@@ -2575,7 +2815,7 @@ function AdminPortal() {
                                   type="file"
                                   accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg"
                                   onChange={(e) => {
-                                    if (e.target.files[0]) uploadVaultDocument(e.target.files[0], cat.key)
+                                    if (e.target.files[0]) handleVaultFileSelect(e.target.files[0], cat.key)
                                   }}
                                   disabled={uploadingVaultDoc === cat.key}
                                   style={{ display: 'none' }}
@@ -4159,6 +4399,202 @@ function AdminPortal() {
             signerName={userProfile?.full_name || userProfile?.email || 'Unknown'}
             signerRole={signingRole.label}
           />
+        )}
+
+        {/* ITP Revision Signature Reset Prompt */}
+        {showITPResetPrompt && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '30px',
+              maxWidth: '450px',
+              width: '90%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+            }}>
+              <h3 style={{ margin: '0 0 15px 0', color: '#dc3545' }}>
+                ⚠️ ITP Revision Detected
+              </h3>
+              <p style={{ margin: '0 0 20px 0', color: '#374151', fontSize: '14px', lineHeight: '1.5' }}>
+                The current ITP has existing signatures. Uploading a new revision may require collecting new approvals.
+              </p>
+              <p style={{ margin: '0 0 25px 0', color: '#6b7280', fontSize: '13px', fontWeight: 'bold' }}>
+                Does this revision require new signatures?
+              </p>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => {
+                    setShowITPResetPrompt(false)
+                    setPendingITPUpload(null)
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '13px'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handleITPResetResponse(false)}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '13px'
+                  }}
+                >
+                  No, Keep Signatures
+                </button>
+                <button
+                  onClick={() => handleITPResetResponse(true)}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  Yes, Reset Signatures
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Document Version History Modal */}
+        {showHistoryModal && selectedCategoryForHistory && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '550px',
+              width: '90%',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ margin: 0, color: '#1f2937' }}>
+                  📜 Version History
+                </h3>
+                <button
+                  onClick={() => {
+                    setShowHistoryModal(false)
+                    setSelectedCategoryForHistory(null)
+                  }}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  Close
+                </button>
+              </div>
+
+              <p style={{ margin: '0 0 15px 0', fontSize: '13px', color: '#6b7280' }}>
+                {documentVaultCategories.find(c => c.key === selectedCategoryForHistory)?.label}
+              </p>
+
+              <div style={{ borderTop: '1px solid #e5e7eb' }}>
+                {getDocumentHistory(selectedCategoryForHistory).map((doc, idx) => (
+                  <div
+                    key={doc.id}
+                    style={{
+                      padding: '12px 0',
+                      borderBottom: '1px solid #e5e7eb',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      backgroundColor: doc.is_current !== false ? '#f0fdf4' : 'transparent'
+                    }}
+                  >
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: doc.is_current !== false ? 'bold' : 'normal' }}>
+                        Rev {(doc.version_number || 1) - 1}
+                        {doc.is_current !== false && (
+                          <span style={{
+                            marginLeft: '8px',
+                            padding: '2px 6px',
+                            backgroundColor: '#22c55e',
+                            color: 'white',
+                            borderRadius: '8px',
+                            fontSize: '9px'
+                          }}>
+                            CURRENT
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '2px' }}>
+                        {doc.file_name}
+                      </div>
+                      <div style={{ fontSize: '10px', color: '#9ca3af', marginTop: '2px' }}>
+                        Uploaded: {new Date(doc.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                    <a
+                      href={doc.file_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: '#3b82f6',
+                        color: 'white',
+                        borderRadius: '4px',
+                        fontSize: '11px',
+                        textDecoration: 'none'
+                      }}
+                    >
+                      View
+                    </a>
+                  </div>
+                ))}
+              </div>
+
+              <p style={{ margin: '15px 0 0 0', fontSize: '10px', color: '#9ca3af', textAlign: 'center' }}>
+                Previous versions are retained for audit purposes and are not deleted.
+              </p>
+            </div>
+          </div>
         )}
 
       </div>
