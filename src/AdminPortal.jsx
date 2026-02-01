@@ -119,7 +119,7 @@ function AdminPortal() {
   const technicalLibraryCategories = [
     { key: 'api_1169', label: 'API 1169 - Pipeline Construction Inspection', icon: '📘', description: 'Standard for pipeline construction inspection' },
     { key: 'csa_z662', label: 'CSA Z662 - Oil & Gas Pipeline Systems', icon: '📗', description: 'Canadian standards for pipeline systems' },
-    { key: 'pipeline_authority_ref', label: 'Pipeline Authority Reference Book', icon: '📕', description: 'Proprietary company reference documentation' }
+    { key: 'pipeline_authority_ref', label: 'Practical Guide for Pipeline Construction Inspectors', icon: '📕', description: 'Comprehensive field guide for pipeline construction inspection best practices.' }
   ]
 
   // State for global library documents
