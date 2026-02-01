@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - January 29, 2026
+## Project Manifest - January 31, 2026
 
 ---
 
@@ -100,12 +100,11 @@
 - Hire-on package completion
 
 ### Dashboards
-- **CMT Dashboard** - Cost Management Tracking with progress charts, efficiency metrics
-- **EVM Dashboard** - Earned Value Management with VAAC (Value-Adjusted Actual Cost)
-- **Efficiency Audit Dashboard** - Shadow audit analysis, inertia ratio, value lost
+- **CMT Dashboard** - Cost Management Tracking with progress charts
+- **EVM Dashboard** - Earned Value Management metrics
 - **Chief Dashboard** - Daily summaries, report approval, NDT tracking
 - **Assistant Chief Dashboard** - Support functions
-- **Admin Portal** - User/org/project management, data reliability metrics
+- **Admin Portal** - User/org/project management
 - **Inspector Invoicing** - Timesheet management
 - **NDT Auditor Dashboard** - NDT monitoring
 - **Reconciliation Dashboard** - Financial reconciliation
@@ -217,19 +216,25 @@
 
 ```
 /src/
-├── main.jsx                    # App entry point
-├── App.jsx                     # Routing & role-based access
+├── main.jsx                    # App entry point (imports App.jsx)
+├── App.jsx                     # Routing & multi-tenant org-scoped access
 ├── AuthContext.jsx             # Authentication management
+├── ProtectedRoute.jsx          # Role-based route protection
 ├── supabase.js                 # Supabase client
 ├── constants.js                # Activity types, classifications
 │
+├── contexts/
+│   └── OrgContext.jsx          # Multi-tenant organization context
+│
+├── utils/
+│   └── queryHelpers.js         # Org-scoped query helpers (useOrgQuery)
+│
 ├── Dashboards/
-│   ├── Dashboard.jsx           # CMT Dashboard with efficiency metrics
-│   ├── EVMDashboard.jsx        # Earned Value Management with VAAC
-│   ├── ShadowAuditDashboard.jsx # Efficiency Audit Dashboard
+│   ├── Dashboard.jsx           # CMT Dashboard
+│   ├── EVMDashboard.jsx        # Earned Value Management
 │   ├── ChiefDashboard.jsx      # Chief Inspector
 │   ├── AssistantChiefDashboard.jsx
-│   ├── AdminPortal.jsx         # Administration with reliability metrics
+│   ├── AdminPortal.jsx         # Administration
 │   ├── InspectorInvoicingDashboard.jsx
 │   └── NDTAuditorDashboard.jsx
 │
@@ -264,7 +269,6 @@
 ├── Utilities/
 │   ├── auditLoggerV3.js        # Audit trail logging
 │   ├── useActivityAudit.js     # Audit React hook
-│   ├── shadowAuditUtils.js     # Efficiency calculations, reliability scoring
 │   ├── weatherService.js       # Weather API integration
 │   ├── exifUtils.js            # Photo GPS extraction
 │   ├── kpUtils.js              # KP formatting
@@ -282,7 +286,6 @@
     ├── SignaturePad.jsx
     ├── MapDashboard.jsx
     ├── OfflineStatusBar.jsx    # PWA status indicator (NEW - Jan 2026)
-    ├── MetricIntegrityInfo.jsx # Goodhart's Law educational modal (NEW - Jan 2026)
     └── [supporting components]
 
 /supabase/migrations/
@@ -298,42 +301,136 @@
 
 ## 6. RECENT UPDATES (January 2026)
 
-### Metric Integrity & Goodhart's Law Protection (January 29, 2026)
+### Multi-Tenant Architecture (January 31, 2026)
 
-**MetricIntegrityInfo.jsx - NEW Component**
-- Educational modal explaining Goodhart's Law protection
-- Explains triangulation verification method
-- Data Reliability Score legend (Green/Amber/Red)
-- Key metrics explained: Inertia Ratio, Value Lost, True Cost, VAAC
-- Located: `/src/components/MetricIntegrityInfo.jsx`
+**URL Structure Change**
+- All authenticated routes now use org-scoped URLs: `/:orgSlug/dashboard`, `/:orgSlug/field-entry`, etc.
+- Legacy routes (`/dashboard`, `/chief-dashboard`) redirect to org-scoped versions
+- Root path (`/`) redirects users to their default organization's landing page based on role
 
-**Data Reliability Score System**
-- Triangulates three independent data points:
-  1. Time Integrity (Shadow Hours vs Billed Hours)
-  2. Physical Progress (Linear Metres Achieved)
-  3. Quality Rate (Pass Rate > 90% target)
-- Reliability scoring: Green (80-100%), Amber (50-79%), Red (<50%)
-- "Activity Without Productivity" penalty detection
-- Functions in `shadowAuditUtils.js`:
-  - `calculateReliabilityScore()` - Per-block triangulation
-  - `aggregateReliabilityScore()` - Dashboard-level aggregation
-  - `aggregateEfficiencyVerification()` - Critical alerts detection
+**New Database Table: `memberships`**
+- Many-to-many relationship between users and organizations
+- Fields: user_id, organization_id, role, is_default
+- Supports users belonging to multiple organizations
+- Default organization preference per user
 
-**VAAC (Value-Adjusted Actual Cost) - EVM Dashboard**
-- Purple dashed line showing what project SHOULD have cost
-- Formula: `VAAC = Actual Cost - Value Lost`
-- Efficiency gap shading between AC and VAAC
-- `calculateVAAC()` function in shadowAuditUtils.js
+**New Context: OrgContext (`src/contexts/OrgContext.jsx`)**
+- Provides organization data throughout the app
+- Tracks current organization, user memberships, and super_admin status
+- Handles organization switching and validation
+- Exports `useOrg()` hook for components
 
-**Dashboard Integrations:**
-- CMT Dashboard: "Learn More" button in Efficiency & Reliability section
-- Admin Portal: "Learn More" button in efficiency metrics section
-- EVM Dashboard: "Metric Integrity" button on S-Curve chart
+**New Query Helpers (`src/utils/queryHelpers.js`)**
+- `useOrgQuery()` hook: Provides `addOrgFilter()`, `getOrgId()`, `organizationId`, `isSuperAdmin`
+- Automatically filters database queries by current organization
+- Super admins can bypass org filtering when needed
 
-**Searchable Dropdowns (ActivityBlock.jsx)**
-- Labour and equipment dropdowns now support multi-word search
-- Matches words in any order (e.g., "1 ton truck" finds "1 Ton Truck")
-- Handles hyphens by treating them as spaces
+**New Navigation Helper: `useOrgPath()`**
+- Returns `orgPath()` function to prefix paths with org slug
+- Example: `orgPath('/dashboard')` returns `/default/dashboard`
+
+**Routing Changes (App.jsx)**
+- `RootRedirect` component determines user's default org and landing page
+- `OrgRoutes` component wraps all org-scoped routes with `OrgProvider`
+- All 20+ routes moved to org-scoped structure
+
+**CMT Dashboard Cleanup**
+- Removed God Mode (MasterSwitcher) component
+- Removed organization dropdown (TenantSwitcher) component
+- Cleaner interface for regular users
+
+**Files Created:**
+```
+src/contexts/OrgContext.jsx      # Organization context provider
+src/utils/queryHelpers.js        # Org-scoped query helpers
+src/components/TenantSwitcher.jsx # Org switcher (for admin use)
+```
+
+**Files Modified:**
+- `src/App.jsx` - Complete routing overhaul for multi-tenancy
+- `src/ProtectedRoute.jsx` - Org validation and role-based redirects
+- `src/main.jsx` - Simplified to use App.jsx routing
+- `src/Dashboard.jsx` - Removed God Mode and TenantSwitcher
+- Multiple dashboard components - Added `useOrgQuery()` for data filtering
+
+---
+
+### Chief Dashboard - Daily Summary Enhancements (January 29, 2026)
+
+**AI-Generated Narrative**
+- Anthropic Claude API integration for auto-generating Key Focus bullets
+- Analyzes inspector reports and aggregates construction activity data
+- Generates 6-10 bullet points summarizing daily progress
+- Safety status generation with weather and SWA event context
+
+**Daily Summary Tab Features**
+- Date picker to select report date
+- Load Data button to fetch approved inspector reports
+- Generate AI button to create narrative from report data
+- Save Draft to persist summaries to database
+- Publish functionality for finalizing reports
+
+**Enhanced PDF Export**
+- Section 1: Key Focus bullets (AI-generated)
+- Section 2: Welding Progress table (weld types, LM, counts, repairs)
+- Section 3: Section Progress table (by category and activity)
+- Section 4: Personnel Summary (all personnel counts)
+- Section 5: Crew Activity Progress (contractor, activity, KP range, metres, work description)
+- Automatic page breaks and footers
+
+**New Database Table: `daily_construction_summary`**
+- Stores draft and published daily summaries
+- Fields: report_date, key_focus_bullets, safety_status, personnel_data, weather_data, progress_data, welding_data
+- RLS policies for chief, admin, and manager roles
+
+**New Environment Variable**
+- `VITE_ANTHROPIC_API_KEY` - Required for AI narrative generation
+
+**Files Modified:**
+- `src/ChiefDashboard.jsx` - Daily Summary tab with PDF export
+- `src/chiefReportHelpers.js` - AI generation functions
+- `src/ProtectedRoute.jsx` - Improved allowedRoles handling
+
+---
+
+### Searchable Dropdowns & Efficiency Audit (January 27, 2026)
+
+**SearchableSelect Component (ActivityBlock.jsx)**
+- Type-to-filter dropdown for Labour Classification (72 options)
+- Type-to-filter dropdown for Equipment Type (323 options)
+- Matches all words in any order (e.g., "1 ton truck" finds "1 Ton Truck")
+- Handles hyphens and variations ("1-ton" matches "1 ton")
+- Keyboard navigation: Arrow keys + Enter to select
+- Click outside to close
+
+**Efficiency Audit System**
+- Production status tracking per labour/equipment entry:
+  - ACTIVE (100%): Working efficiently
+  - SYNC_DELAY (70%): Idle due to coordination/materials
+  - MANAGEMENT_DRAG (0%): Stopped for permits/instructions
+- Shadow hours auto-calculation with manual override
+- Delay reason input with preset dropdown + custom text
+- Custom reasons saved to localStorage library
+- Crew-wide delay reporting option
+- Efficiency dashboard added to Chief and Assistant Chief dashboards
+
+**PWA Update Prompt (UpdatePrompt.jsx)**
+- Automatic detection of new app versions
+- "Update Now" / "Later" buttons
+- Checks for updates every 5 minutes
+- Dismissed prompt reappears after 30 minutes
+- Solves field user update issues without cache clearing
+
+**New Files:**
+```
+/src/components/
+├── UpdatePrompt.jsx         # PWA update notification banner
+└── OfflineStatusBar.jsx     # Mobile-friendly status indicator
+
+/src/
+├── shadowAuditUtils.js      # Efficiency audit calculations
+└── ShadowAuditDashboard.jsx # Efficiency reporting dashboard
+```
 
 ---
 
@@ -503,6 +600,7 @@
 ```
 VITE_SUPABASE_URL=https://aatvckalnvojlykfgnmz.supabase.co
 VITE_SUPABASE_ANON_KEY=[anon-key]
+VITE_ANTHROPIC_API_KEY=[anthropic-api-key]  # For AI narrative generation
 ```
 
 ### Build Commands
@@ -519,6 +617,7 @@ npm run preview  # Preview production build
 | Integration | Purpose |
 |-------------|---------|
 | Supabase | Database, Auth, Storage, Edge Functions |
+| Anthropic Claude API | AI-generated report narratives |
 | Resend | Email notifications (approvals, summaries) |
 | Weather API | Field condition logging |
 | Leaflet | Pipeline route mapping |
@@ -575,4 +674,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: January 29, 2026*
+*Last Updated: January 31, 2026*

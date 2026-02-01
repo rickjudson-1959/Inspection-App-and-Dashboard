@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - January 29, 2026
+## Project Manifest - January 31, 2026
 
 ---
 
@@ -216,11 +216,18 @@
 
 ```
 /src/
-├── main.jsx                    # App entry point
-├── App.jsx                     # Routing & role-based access
+├── main.jsx                    # App entry point (imports App.jsx)
+├── App.jsx                     # Routing & multi-tenant org-scoped access
 ├── AuthContext.jsx             # Authentication management
+├── ProtectedRoute.jsx          # Role-based route protection
 ├── supabase.js                 # Supabase client
 ├── constants.js                # Activity types, classifications
+│
+├── contexts/
+│   └── OrgContext.jsx          # Multi-tenant organization context
+│
+├── utils/
+│   └── queryHelpers.js         # Org-scoped query helpers (useOrgQuery)
 │
 ├── Dashboards/
 │   ├── Dashboard.jsx           # CMT Dashboard
@@ -293,6 +300,60 @@
 ---
 
 ## 6. RECENT UPDATES (January 2026)
+
+### Multi-Tenant Architecture (January 31, 2026)
+
+**URL Structure Change**
+- All authenticated routes now use org-scoped URLs: `/:orgSlug/dashboard`, `/:orgSlug/field-entry`, etc.
+- Legacy routes (`/dashboard`, `/chief-dashboard`) redirect to org-scoped versions
+- Root path (`/`) redirects users to their default organization's landing page based on role
+
+**New Database Table: `memberships`**
+- Many-to-many relationship between users and organizations
+- Fields: user_id, organization_id, role, is_default
+- Supports users belonging to multiple organizations
+- Default organization preference per user
+
+**New Context: OrgContext (`src/contexts/OrgContext.jsx`)**
+- Provides organization data throughout the app
+- Tracks current organization, user memberships, and super_admin status
+- Handles organization switching and validation
+- Exports `useOrg()` hook for components
+
+**New Query Helpers (`src/utils/queryHelpers.js`)**
+- `useOrgQuery()` hook: Provides `addOrgFilter()`, `getOrgId()`, `organizationId`, `isSuperAdmin`
+- Automatically filters database queries by current organization
+- Super admins can bypass org filtering when needed
+
+**New Navigation Helper: `useOrgPath()`**
+- Returns `orgPath()` function to prefix paths with org slug
+- Example: `orgPath('/dashboard')` returns `/default/dashboard`
+
+**Routing Changes (App.jsx)**
+- `RootRedirect` component determines user's default org and landing page
+- `OrgRoutes` component wraps all org-scoped routes with `OrgProvider`
+- All 20+ routes moved to org-scoped structure
+
+**CMT Dashboard Cleanup**
+- Removed God Mode (MasterSwitcher) component
+- Removed organization dropdown (TenantSwitcher) component
+- Cleaner interface for regular users
+
+**Files Created:**
+```
+src/contexts/OrgContext.jsx      # Organization context provider
+src/utils/queryHelpers.js        # Org-scoped query helpers
+src/components/TenantSwitcher.jsx # Org switcher (for admin use)
+```
+
+**Files Modified:**
+- `src/App.jsx` - Complete routing overhaul for multi-tenancy
+- `src/ProtectedRoute.jsx` - Org validation and role-based redirects
+- `src/main.jsx` - Simplified to use App.jsx routing
+- `src/Dashboard.jsx` - Removed God Mode and TenantSwitcher
+- Multiple dashboard components - Added `useOrgQuery()` for data filtering
+
+---
 
 ### Chief Dashboard - Daily Summary Enhancements (January 29, 2026)
 
@@ -613,4 +674,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: January 29, 2026*
+*Last Updated: January 31, 2026*
