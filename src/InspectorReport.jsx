@@ -53,7 +53,7 @@ function InspectorReport() {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const { orgPath } = useOrgPath()
-  const { addOrgFilter, getOrgId, isReady } = useOrgQuery()
+  const { addOrgFilter, getOrgId, isReady, organizationId } = useOrgQuery()
   const [saving, setSaving] = useState(false)
 
   // Offline mode hooks
@@ -1313,6 +1313,43 @@ Important:
       if (config.defaultSpread) setSpread(config.defaultSpread)
     }
   }, [])
+
+  // Auto-populate AFE/Contract # from contract_config for new reports
+  useEffect(() => {
+    async function fetchContractConfig() {
+      // Skip if in edit mode (AFE will be loaded from saved report)
+      if (isEditMode || editReportId) return
+
+      // Skip if AFE is already set (from draft restore)
+      if (afe) return
+
+      // Wait for org context to be ready
+      if (!organizationId) return
+
+      try {
+        const { data: config, error } = await supabase
+          .from('contract_config')
+          .select('contract_number')
+          .eq('organization_id', organizationId)
+          .single()
+
+        if (error && error.code !== 'PGRST116') {
+          // PGRST116 = no rows returned (not an error, just no config yet)
+          console.error('Error fetching contract config:', error)
+          return
+        }
+
+        if (config?.contract_number) {
+          setAfe(config.contract_number)
+          console.log('AFE auto-populated from contract_config:', config.contract_number)
+        }
+      } catch (err) {
+        console.error('Error fetching contract config for AFE:', err)
+      }
+    }
+
+    fetchContractConfig()
+  }, [organizationId, isEditMode, editReportId, afe])
 
   // Set user role from userProfile (from AuthContext)
   useEffect(() => {
