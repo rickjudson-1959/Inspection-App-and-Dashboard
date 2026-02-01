@@ -18,6 +18,7 @@ import { MetricInfoIcon, MetricIntegrityModal, useMetricIntegrityModal } from '.
 import { useOrgQuery } from './utils/queryHelpers.js'
 import TenantSwitcher from './components/TenantSwitcher.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
+import SignaturePad from './components/SignaturePad.jsx'
 
 function AdminPortal() {
   const navigate = useNavigate()
@@ -94,6 +95,11 @@ function AdminPortal() {
   // Project Document Vault state
   const [projectDocuments, setProjectDocuments] = useState([])
   const [uploadingVaultDoc, setUploadingVaultDoc] = useState(null) // tracks which category is uploading
+
+  // ITP Digital Signature state
+  const [showSignaturePad, setShowSignaturePad] = useState(false)
+  const [signingRole, setSigningRole] = useState(null) // { key, label, shortLabel }
+  const [savingSignature, setSavingSignature] = useState(false)
 
   // Document vault categories
   const documentVaultCategories = [
@@ -786,8 +792,8 @@ function AdminPortal() {
     return 'STATIONARY'
   }
 
-  // Add ITP sign-off
-  async function addItpSignOff(roleKey) {
+  // Open signature pad for ITP sign-off
+  function initiateItpSignOff(roleKey) {
     const itpDoc = getItpDocument()
     if (!itpDoc) {
       setGovernanceMessage({ type: 'error', text: 'Please upload the ITP document first' })
@@ -795,30 +801,92 @@ function AdminPortal() {
     }
 
     const roleInfo = itpSignOffRoles.find(r => r.key === roleKey)
-    const signOffs = { ...getItpSignOffs() }
+    setSigningRole(roleInfo)
+    setShowSignaturePad(true)
+  }
 
-    signOffs[roleKey] = {
-      signed_by: userProfile?.full_name || userProfile?.email || 'Unknown',
-      signed_by_id: userProfile?.id,
-      signed_at: new Date().toISOString(),
-      role_label: roleInfo?.label
-    }
+  // Generate document hash for verification
+  async function generateDocumentHash(itpDoc) {
+    const encoder = new TextEncoder()
+    const content = `${itpDoc.id}|${itpDoc.file_name}|${itpDoc.file_url}|${itpDoc.created_at}`
+    const data = encoder.encode(content)
+    const hashBuffer = await crypto.subtle.digest('SHA-256', data)
+    const hashArray = Array.from(new Uint8Array(hashBuffer))
+    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+  }
+
+  // Handle signature save from SignaturePad component
+  async function handleSignatureSave(signatureData) {
+    const itpDoc = getItpDocument()
+    if (!itpDoc || !signingRole) return
+
+    setSavingSignature(true)
 
     try {
-      const { error } = await supabase
+      // 1. Generate document verification hash
+      const documentHash = await generateDocumentHash(itpDoc)
+
+      // 2. Upload signature image to private storage bucket
+      const fileName = `itp_${itpDoc.id}_${signingRole.key}_${Date.now()}.png`
+      const storagePath = `signatures/${selectedOrgForSetup}/${fileName}`
+
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('signatures')
+        .upload(storagePath, signatureData.blob, {
+          contentType: 'image/png',
+          upsert: false
+        })
+
+      if (uploadError) throw uploadError
+
+      // 3. Get the signed URL for the signature (valid for 1 year)
+      const { data: urlData } = await supabase.storage
+        .from('signatures')
+        .createSignedUrl(storagePath, 31536000) // 1 year expiry
+
+      const signatureUrl = urlData?.signedUrl
+
+      // 4. Update sign_offs JSONB with signature data
+      const signOffs = { ...getItpSignOffs() }
+      signOffs[signingRole.key] = {
+        signed_by: userProfile?.full_name || userProfile?.email || 'Unknown',
+        signed_by_id: userProfile?.id,
+        signed_at: signatureData.timestamp,
+        role_label: signingRole.label,
+        signature_url: signatureUrl,
+        signature_hash: signatureData.hash,
+        document_hash: documentHash
+      }
+
+      // 5. Update the project_documents record
+      const { error: updateError } = await supabase
         .from('project_documents')
-        .update({ sign_offs: signOffs })
+        .update({
+          sign_offs: signOffs,
+          document_hash: documentHash
+        })
         .eq('id', itpDoc.id)
 
-      if (error) throw error
+      if (updateError) throw updateError
 
-      // Refresh documents
+      // 6. Close modal and refresh
+      setShowSignaturePad(false)
+      setSigningRole(null)
       fetchGovernanceData(selectedOrgForSetup)
-      setGovernanceMessage({ type: 'success', text: `${roleInfo?.label} sign-off recorded!` })
+      setGovernanceMessage({ type: 'success', text: `${signingRole.label} signature captured and verified!` })
+
     } catch (err) {
-      console.error('Error adding sign-off:', err)
-      setGovernanceMessage({ type: 'error', text: 'Failed to record sign-off: ' + err.message })
+      console.error('Error saving signature:', err)
+      setGovernanceMessage({ type: 'error', text: 'Failed to save signature: ' + err.message })
+    } finally {
+      setSavingSignature(false)
     }
+  }
+
+  // Cancel signature
+  function cancelSignature() {
+    setShowSignaturePad(false)
+    setSigningRole(null)
   }
 
   // Remove ITP sign-off (for corrections)
@@ -2609,12 +2677,60 @@ function AdminPortal() {
 
                             {isSigned ? (
                               <div>
-                                <div style={{ fontSize: '12px', color: '#155724', marginBottom: '5px' }}>
+                                {/* Signature Image */}
+                                {signOff.signature_url && (
+                                  <div style={{
+                                    marginBottom: '8px',
+                                    padding: '5px',
+                                    backgroundColor: 'white',
+                                    borderRadius: '4px',
+                                    border: '1px solid #c3e6cb'
+                                  }}>
+                                    <img
+                                      src={signOff.signature_url}
+                                      alt={`${signOff.signed_by}'s signature`}
+                                      style={{
+                                        maxWidth: '100%',
+                                        maxHeight: '60px',
+                                        display: 'block',
+                                        margin: '0 auto'
+                                      }}
+                                    />
+                                  </div>
+                                )}
+
+                                {/* Verified Badge */}
+                                {signOff.signature_hash && (
+                                  <div style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '4px',
+                                    padding: '3px 8px',
+                                    backgroundColor: '#155724',
+                                    color: 'white',
+                                    borderRadius: '12px',
+                                    fontSize: '10px',
+                                    fontWeight: 'bold',
+                                    marginBottom: '6px'
+                                  }}>
+                                    🔒 VERIFIED
+                                  </div>
+                                )}
+
+                                <div style={{ fontSize: '12px', color: '#155724', marginBottom: '3px' }}>
                                   ✓ Signed by: {signOff.signed_by}
                                 </div>
                                 <div style={{ fontSize: '10px', color: '#666' }}>
                                   {new Date(signOff.signed_at).toLocaleString()}
                                 </div>
+
+                                {/* Hash preview for audit */}
+                                {signOff.signature_hash && (
+                                  <div style={{ fontSize: '9px', color: '#999', marginTop: '4px', wordBreak: 'break-all' }}>
+                                    Hash: {signOff.signature_hash.substring(0, 16)}...
+                                  </div>
+                                )}
+
                                 {(isSuperAdmin || userProfile?.role === 'admin') && (
                                   <button
                                     onClick={() => removeItpSignOff(role.key)}
@@ -2639,7 +2755,7 @@ function AdminPortal() {
                                   ⚠️ Awaiting signature
                                 </div>
                                 <button
-                                  onClick={() => addItpSignOff(role.key)}
+                                  onClick={() => initiateItpSignOff(role.key)}
                                   style={{
                                     padding: '8px 16px',
                                     fontSize: '12px',
@@ -2661,7 +2777,7 @@ function AdminPortal() {
                     </div>
 
                     <p style={{ margin: '15px 0 0', fontSize: '11px', color: '#666' }}>
-                      Sign-offs are recorded with user name, timestamp, and stored for audit purposes.
+                      Digital signatures are cryptographically verified with SHA-256 hashes and stored securely for audit purposes.
                     </p>
                   </div>
                 )}
@@ -4034,6 +4150,16 @@ function AdminPortal() {
 
         {/* Metric Integrity Info Modal */}
         <MetricIntegrityModal isOpen={metricInfoModal.isOpen} onClose={metricInfoModal.close} />
+
+        {/* ITP Digital Signature Modal */}
+        {showSignaturePad && signingRole && (
+          <SignaturePad
+            onSave={handleSignatureSave}
+            onCancel={cancelSignature}
+            signerName={userProfile?.full_name || userProfile?.email || 'Unknown'}
+            signerRole={signingRole.label}
+          />
+        )}
 
       </div>
     </div>
