@@ -80,6 +80,8 @@ function AdminPortal() {
   const [generatingPackage, setGeneratingPackage] = useState(false)
   const [handoverProgress, setHandoverProgress] = useState('')
   const [handoverHistory, setHandoverHistory] = useState([])
+  const [manifestPreview, setManifestPreview] = useState(null)
+  const [generatingManifest, setGeneratingManifest] = useState(false)
 
   // Setup tab state
   const [selectedOrgForSetup, setSelectedOrgForSetup] = useState('')
@@ -1300,6 +1302,83 @@ function AdminPortal() {
     }
   }
 
+  // Compute SHA-256 hash of a blob
+  async function computeFileHash(blob) {
+    try {
+      const arrayBuffer = await blob.arrayBuffer()
+      const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer)
+      const hashArray = Array.from(new Uint8Array(hashBuffer))
+      return hashArray.map(b => b.toString(16).padStart(2, '0')).join('')
+    } catch (err) {
+      console.error('Error computing hash:', err)
+      return 'HASH_ERROR'
+    }
+  }
+
+  // Generate manifest preview data (for UI and CSV)
+  async function generateManifestPreview() {
+    if (!selectedOrgForHandover || !handoverAudit) return
+
+    setGeneratingManifest(true)
+    const manifestEntries = []
+
+    try {
+      const folderMap = {
+        governance: '01_Governance',
+        engineering: '02_Engineering',
+        compliance: '04_Compliance',
+        fieldReports: '03_Field_Reports'
+      }
+
+      const categoryLabels = {
+        itp: 'Inspection & Test Plan',
+        specifications: 'Specifications',
+        wps: 'Welding Procedure Spec',
+        compliance_matrix: 'Compliance Matrix',
+        environmental_permits: 'Environmental Permits',
+        land_access: 'Land Access',
+        safety_plans: 'Safety Plans',
+        ndt_procedures: 'NDT Procedures'
+      }
+
+      // Process all document categories
+      for (const [section, docs] of Object.entries(handoverAudit.documents)) {
+        const folder = folderMap[section] || section
+
+        for (const doc of docs) {
+          const blob = await fetchFileAsBlob(doc.file_url)
+          const hash = blob ? await computeFileHash(blob) : 'FILE_NOT_FOUND'
+
+          manifestEntries.push({
+            category: categoryLabels[doc.category] || doc.category,
+            folder: folder,
+            filename: doc.file_name,
+            rev: doc.version_number || 1,
+            uploadedAt: doc.uploaded_at ? new Date(doc.uploaded_at).toISOString().split('T')[0] : 'N/A',
+            hash: hash
+          })
+        }
+      }
+
+      setManifestPreview(manifestEntries)
+    } catch (err) {
+      console.error('Error generating manifest preview:', err)
+    } finally {
+      setGeneratingManifest(false)
+    }
+  }
+
+  // Convert manifest data to CSV string
+  function manifestToCSV(entries, orgName) {
+    const headers = 'Category,Folder,Filename,Rev,Uploaded_At,SHA256_Hash'
+    const rows = entries.map(e =>
+      `"${e.category}","${e.folder}","${e.filename}",${e.rev},${e.uploadedAt},${e.hash}`
+    )
+    const summary = `\n"SUMMARY","Total Files: ${entries.length}","Generated: ${new Date().toISOString()}","Organization: ${orgName || 'N/A'}","",""`
+
+    return headers + '\n' + rows.join('\n') + summary
+  }
+
   // Generate handover package
   async function generateHandoverPackage() {
     if (!selectedOrgForHandover) return
@@ -1398,8 +1477,61 @@ function AdminPortal() {
         }
       }
 
-      // Generate manifest
-      setHandoverProgress('Generating manifest...')
+      // Generate manifest with SHA-256 hashes
+      setHandoverProgress('Generating manifest with file hashes...')
+
+      const folderMap = {
+        governance: '01_Governance',
+        engineering: '02_Engineering',
+        compliance: '04_Compliance',
+        fieldReports: '03_Field_Reports'
+      }
+
+      const categoryLabels = {
+        itp: 'Inspection & Test Plan',
+        specifications: 'Specifications',
+        wps: 'Welding Procedure Spec',
+        compliance_matrix: 'Compliance Matrix',
+        environmental_permits: 'Environmental Permits',
+        land_access: 'Land Access',
+        safety_plans: 'Safety Plans',
+        ndt_procedures: 'NDT Procedures'
+      }
+
+      const manifestEntries = []
+      let hashIndex = 0
+      const totalForHash = audit.documents.governance.length +
+                          audit.documents.engineering.length +
+                          audit.documents.compliance.length +
+                          audit.documents.fieldReports.length
+
+      // Compute hashes for all documents
+      for (const [section, docs] of Object.entries(audit.documents)) {
+        const folder = folderMap[section] || section
+
+        for (const doc of docs) {
+          hashIndex++
+          setHandoverProgress(`Computing file hashes... (${hashIndex}/${totalForHash})`)
+
+          const blob = await fetchFileAsBlob(doc.file_url)
+          const hash = blob ? await computeFileHash(blob) : 'FILE_NOT_FOUND'
+
+          manifestEntries.push({
+            category: categoryLabels[doc.category] || doc.category,
+            folder: folder,
+            filename: doc.file_name,
+            rev: doc.version_number || 1,
+            uploadedAt: doc.uploaded_at ? new Date(doc.uploaded_at).toISOString().split('T')[0] : 'N/A',
+            hash: hash
+          })
+        }
+      }
+
+      // Generate CSV manifest
+      const csvManifest = manifestToCSV(manifestEntries, org?.name)
+      rootFolder.file('Project_Manifest.csv', csvManifest)
+
+      // Also keep JSON manifest for programmatic access
       const manifest = {
         generated: new Date().toISOString(),
         organization: org?.name,
@@ -4384,9 +4516,82 @@ function AdminPortal() {
                       &nbsp;&nbsp;├── 02_Engineering/ (IFC Drawings, Typicals, Specs)<br />
                       &nbsp;&nbsp;├── 03_Field_Reports/ (Daily Tickets, Completion Records)<br />
                       &nbsp;&nbsp;├── 04_Compliance/ (ERP, EMP)<br />
+                      &nbsp;&nbsp;├── Project_Manifest.csv (with SHA-256 hashes)<br />
                       &nbsp;&nbsp;└── MANIFEST.json
                     </div>
                   </div>
+
+                  {/* Manifest Preview Section - shows even with blockers for testing */}
+                  {handoverAudit && (
+                    <div style={{
+                      marginBottom: '15px',
+                      padding: '15px',
+                      backgroundColor: '#fefce8',
+                      borderRadius: '6px',
+                      border: '1px solid #fde68a'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                        <div style={{ fontWeight: 'bold', color: '#a16207' }}>
+                          📋 Manifest Preview
+                        </div>
+                        <button
+                          onClick={generateManifestPreview}
+                          disabled={generatingManifest}
+                          style={{
+                            padding: '6px 12px',
+                            backgroundColor: generatingManifest ? '#9ca3af' : '#d97706',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: generatingManifest ? 'not-allowed' : 'pointer',
+                            fontSize: '12px'
+                          }}
+                        >
+                          {generatingManifest ? '⏳ Computing hashes...' : '🔍 Preview Manifest'}
+                        </button>
+                      </div>
+
+                      {manifestPreview && manifestPreview.length > 0 && (
+                        <div style={{ overflowX: 'auto', maxHeight: '300px', overflowY: 'auto' }}>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                            <thead>
+                              <tr style={{ backgroundColor: '#fef9c3', position: 'sticky', top: 0 }}>
+                                <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #fde68a' }}>Category</th>
+                                <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #fde68a' }}>Folder</th>
+                                <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #fde68a' }}>Filename</th>
+                                <th style={{ padding: '8px', textAlign: 'center', borderBottom: '2px solid #fde68a' }}>Rev</th>
+                                <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #fde68a' }}>Uploaded</th>
+                                <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #fde68a' }}>SHA256 Hash</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {manifestPreview.map((entry, idx) => (
+                                <tr key={idx} style={{ backgroundColor: idx % 2 === 0 ? '#fffef0' : 'white' }}>
+                                  <td style={{ padding: '6px 8px', borderBottom: '1px solid #fde68a' }}>{entry.category}</td>
+                                  <td style={{ padding: '6px 8px', borderBottom: '1px solid #fde68a', fontFamily: 'monospace' }}>{entry.folder}</td>
+                                  <td style={{ padding: '6px 8px', borderBottom: '1px solid #fde68a', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.filename}>{entry.filename}</td>
+                                  <td style={{ padding: '6px 8px', borderBottom: '1px solid #fde68a', textAlign: 'center' }}>{entry.rev}</td>
+                                  <td style={{ padding: '6px 8px', borderBottom: '1px solid #fde68a' }}>{entry.uploadedAt}</td>
+                                  <td style={{ padding: '6px 8px', borderBottom: '1px solid #fde68a', fontFamily: 'monospace', fontSize: '9px', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={entry.hash}>{entry.hash.substring(0, 16)}...</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          <div style={{ marginTop: '10px', fontSize: '12px', color: '#a16207', fontWeight: 'bold' }}>
+                            Total Files: {manifestPreview.length}
+                          </div>
+                        </div>
+                      )}
+
+                      {!manifestPreview && !generatingManifest && (
+                        <p style={{ color: '#92400e', fontSize: '12px', margin: 0 }}>
+                          {handoverAudit.stats?.totalDocuments > 0
+                            ? 'Click "Preview Manifest" to compute SHA-256 hashes for all files before generating the package.'
+                            : 'No documents uploaded yet. Upload documents in the Project Governance tab to see them here.'}
+                        </p>
+                      )}
+                    </div>
+                  )}
 
                   {handoverProgress && (
                     <div style={{
