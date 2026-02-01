@@ -104,7 +104,15 @@ function AdminPortal() {
     { key: 'project_specs', label: 'Project Specifications', icon: '📑' },
     { key: 'weld_procedures', label: 'Weld Procedures (WPS)', icon: '🔧' },
     { key: 'erp', label: 'Emergency Response Plan (ERP)', icon: '🚨' },
-    { key: 'emp', label: 'Environmental Management Plan (EMP)', icon: '🌿' }
+    { key: 'emp', label: 'Environmental Management Plan (EMP)', icon: '🌿' },
+    { key: 'itp', label: 'Inspection & Test Plan (ITP)', icon: '✅', requiresSignOff: true }
+  ]
+
+  // ITP Sign-off roles required for approval
+  const itpSignOffRoles = [
+    { key: 'chief_welding_inspector', label: 'Chief Welding Inspector', shortLabel: 'CWI' },
+    { key: 'chief_inspector', label: 'Chief Inspector', shortLabel: 'CI' },
+    { key: 'construction_manager', label: 'Construction Manager', shortLabel: 'CM' }
   ]
 
   // Metric Integrity Info modal
@@ -727,6 +735,91 @@ function AdminPortal() {
     return governanceData.standard_workday > 0 &&
            governanceData.start_kp &&
            governanceData.end_kp
+  }
+
+  // ITP Sign-off helpers
+  function getItpDocument() {
+    return projectDocuments.find(d => d.category === 'itp')
+  }
+
+  function getItpSignOffs() {
+    const itpDoc = getItpDocument()
+    return itpDoc?.sign_offs || {}
+  }
+
+  function hasItpSignOff(roleKey) {
+    const signOffs = getItpSignOffs()
+    return !!signOffs[roleKey]?.signed_at
+  }
+
+  function isItpFullyApproved() {
+    return itpSignOffRoles.every(role => hasItpSignOff(role.key))
+  }
+
+  function getItpStatus() {
+    const itpDoc = getItpDocument()
+    if (!itpDoc) return 'NO_DOCUMENT'
+    if (isItpFullyApproved()) return 'ACTIVE'
+    return 'STATIONARY'
+  }
+
+  // Add ITP sign-off
+  async function addItpSignOff(roleKey) {
+    const itpDoc = getItpDocument()
+    if (!itpDoc) {
+      setGovernanceMessage({ type: 'error', text: 'Please upload the ITP document first' })
+      return
+    }
+
+    const roleInfo = itpSignOffRoles.find(r => r.key === roleKey)
+    const signOffs = { ...getItpSignOffs() }
+
+    signOffs[roleKey] = {
+      signed_by: userProfile?.full_name || userProfile?.email || 'Unknown',
+      signed_by_id: userProfile?.id,
+      signed_at: new Date().toISOString(),
+      role_label: roleInfo?.label
+    }
+
+    try {
+      const { error } = await supabase
+        .from('project_documents')
+        .update({ sign_offs: signOffs })
+        .eq('id', itpDoc.id)
+
+      if (error) throw error
+
+      // Refresh documents
+      fetchGovernanceData(selectedOrgForSetup)
+      setGovernanceMessage({ type: 'success', text: `${roleInfo?.label} sign-off recorded!` })
+    } catch (err) {
+      console.error('Error adding sign-off:', err)
+      setGovernanceMessage({ type: 'error', text: 'Failed to record sign-off: ' + err.message })
+    }
+  }
+
+  // Remove ITP sign-off (for corrections)
+  async function removeItpSignOff(roleKey) {
+    const itpDoc = getItpDocument()
+    if (!itpDoc) return
+
+    const signOffs = { ...getItpSignOffs() }
+    delete signOffs[roleKey]
+
+    try {
+      const { error } = await supabase
+        .from('project_documents')
+        .update({ sign_offs: signOffs })
+        .eq('id', itpDoc.id)
+
+      if (error) throw error
+
+      fetchGovernanceData(selectedOrgForSetup)
+      setGovernanceMessage({ type: 'success', text: 'Sign-off removed' })
+    } catch (err) {
+      console.error('Error removing sign-off:', err)
+      setGovernanceMessage({ type: 'error', text: 'Failed to remove sign-off: ' + err.message })
+    }
   }
 
   // Save Project Governance data (upsert to contract_config)
@@ -2302,6 +2395,166 @@ function AdminPortal() {
                     Accepted formats: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, DWG
                   </p>
                 </div>
+
+                {/* ==================== ITP APPROVAL WORKFLOW ==================== */}
+                {getItpDocument() && (
+                  <div style={{
+                    marginBottom: '20px',
+                    padding: '20px',
+                    backgroundColor: 'white',
+                    borderRadius: '8px',
+                    border: `3px solid ${isItpFullyApproved() ? '#28a745' : '#ffc107'}`,
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+                  }}>
+                    {/* Status Banner */}
+                    <div style={{
+                      padding: '15px 20px',
+                      marginBottom: '20px',
+                      borderRadius: '6px',
+                      backgroundColor: isItpFullyApproved() ? '#d4edda' : '#fff3cd',
+                      border: `2px solid ${isItpFullyApproved() ? '#28a745' : '#ffc107'}`,
+                      textAlign: 'center'
+                    }}>
+                      <div style={{
+                        fontSize: '18px',
+                        fontWeight: 'bold',
+                        color: isItpFullyApproved() ? '#155724' : '#856404',
+                        marginBottom: '5px'
+                      }}>
+                        {isItpFullyApproved() ? (
+                          <>🟢 PROJECT STATUS: ACTIVE</>
+                        ) : (
+                          <>🟡 STATIONARY - NOT READY FOR CONSTRUCTION</>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '12px', color: isItpFullyApproved() ? '#155724' : '#856404' }}>
+                        {isItpFullyApproved()
+                          ? 'All required ITP sign-offs have been captured. Construction may proceed.'
+                          : 'ITP requires sign-off from all three roles before construction can begin.'
+                        }
+                      </div>
+                    </div>
+
+                    <h4 style={{ margin: '0 0 15px 0', color: '#374151' }}>
+                      ✅ ITP Sign-off Matrix
+                    </h4>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
+                      {itpSignOffRoles.map(role => {
+                        const signOff = getItpSignOffs()[role.key]
+                        const isSigned = !!signOff?.signed_at
+                        return (
+                          <div
+                            key={role.key}
+                            style={{
+                              padding: '15px',
+                              borderRadius: '8px',
+                              backgroundColor: isSigned ? '#d4edda' : '#fff3cd',
+                              border: `2px solid ${isSigned ? '#28a745' : '#ffc107'}`
+                            }}
+                          >
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              marginBottom: '10px'
+                            }}>
+                              <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#374151' }}>
+                                {role.label}
+                              </span>
+                              <span style={{
+                                display: 'inline-block',
+                                width: '20px',
+                                height: '20px',
+                                borderRadius: '50%',
+                                backgroundColor: isSigned ? '#28a745' : '#ffc107',
+                                color: 'white',
+                                fontSize: '12px',
+                                textAlign: 'center',
+                                lineHeight: '20px',
+                                fontWeight: 'bold'
+                              }}>
+                                {isSigned ? '✓' : '!'}
+                              </span>
+                            </div>
+
+                            {isSigned ? (
+                              <div>
+                                <div style={{ fontSize: '12px', color: '#155724', marginBottom: '5px' }}>
+                                  ✓ Signed by: {signOff.signed_by}
+                                </div>
+                                <div style={{ fontSize: '10px', color: '#666' }}>
+                                  {new Date(signOff.signed_at).toLocaleString()}
+                                </div>
+                                {(isSuperAdmin || userProfile?.role === 'admin') && (
+                                  <button
+                                    onClick={() => removeItpSignOff(role.key)}
+                                    style={{
+                                      marginTop: '8px',
+                                      padding: '4px 10px',
+                                      fontSize: '10px',
+                                      backgroundColor: '#dc3545',
+                                      color: 'white',
+                                      border: 'none',
+                                      borderRadius: '4px',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    Remove Sign-off
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <div>
+                                <div style={{ fontSize: '12px', color: '#856404', marginBottom: '10px' }}>
+                                  ⚠️ Awaiting signature
+                                </div>
+                                <button
+                                  onClick={() => addItpSignOff(role.key)}
+                                  style={{
+                                    padding: '8px 16px',
+                                    fontSize: '12px',
+                                    backgroundColor: '#28a745',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    cursor: 'pointer',
+                                    fontWeight: 'bold'
+                                  }}
+                                >
+                                  Sign as {role.shortLabel}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+
+                    <p style={{ margin: '15px 0 0', fontSize: '11px', color: '#666' }}>
+                      Sign-offs are recorded with user name, timestamp, and stored for audit purposes.
+                    </p>
+                  </div>
+                )}
+
+                {/* ITP Upload Prompt if no document */}
+                {!getItpDocument() && (
+                  <div style={{
+                    marginBottom: '20px',
+                    padding: '20px',
+                    backgroundColor: '#f8d7da',
+                    borderRadius: '8px',
+                    border: '2px solid #dc3545',
+                    textAlign: 'center'
+                  }}>
+                    <div style={{ fontSize: '16px', fontWeight: 'bold', color: '#721c24', marginBottom: '10px' }}>
+                      🚨 No Inspection & Test Plan (ITP) Uploaded
+                    </div>
+                    <div style={{ fontSize: '13px', color: '#721c24' }}>
+                      Upload the ITP document in the Project Document Vault above to enable the approval workflow.
+                    </div>
+                  </div>
+                )}
 
                 {/* Save Button */}
                 <button
