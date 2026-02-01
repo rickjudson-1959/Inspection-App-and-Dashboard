@@ -19,6 +19,8 @@ import { useOrgQuery } from './utils/queryHelpers.js'
 import TenantSwitcher from './components/TenantSwitcher.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 import SignaturePad from './components/SignaturePad.jsx'
+import JSZip from 'jszip'
+import { saveAs } from 'file-saver'
 
 function AdminPortal() {
   const navigate = useNavigate()
@@ -71,6 +73,13 @@ function AdminPortal() {
   const [selectedProfile, setSelectedProfile] = useState(null)
   const [profileDocuments, setProfileDocuments] = useState([])
   const [loadingProfile, setLoadingProfile] = useState(false)
+
+  // Handover/Closeout state
+  const [selectedOrgForHandover, setSelectedOrgForHandover] = useState('')
+  const [handoverAudit, setHandoverAudit] = useState(null)
+  const [generatingPackage, setGeneratingPackage] = useState(false)
+  const [handoverProgress, setHandoverProgress] = useState('')
+  const [handoverHistory, setHandoverHistory] = useState([])
 
   // Setup tab state
   const [selectedOrgForSetup, setSelectedOrgForSetup] = useState('')
@@ -1175,6 +1184,302 @@ function AdminPortal() {
     }
   }
 
+  // ==================== HANDOVER & CLOSEOUT FUNCTIONS ====================
+
+  // Run handover readiness audit
+  async function runHandoverAudit(orgId) {
+    if (!orgId) return null
+
+    const audit = {
+      blockers: [],
+      warnings: [],
+      ready: true,
+      documents: { governance: [], engineering: [], fieldReports: [], compliance: [] },
+      stats: { totalDocuments: 0, totalReports: 0 }
+    }
+
+    try {
+      // Fetch project documents
+      const { data: docs } = await supabase
+        .from('project_documents')
+        .select('*')
+        .eq('organization_id', orgId)
+        .eq('is_current', true)
+        .is('is_addendum', false)
+
+      const projectDocs = docs || []
+
+      // Check critical documents
+      const criticalDocs = ['prime_contract', 'scope_of_work', 'itp']
+      const engineeringDocs = ['ifc_drawings', 'typical_drawings', 'project_specs', 'weld_procedures']
+      const complianceDocs = ['erp', 'emp']
+
+      // Check for critical documents
+      for (const cat of criticalDocs) {
+        const doc = projectDocs.find(d => d.category === cat)
+        if (!doc) {
+          audit.blockers.push(`Missing: ${cat.replace(/_/g, ' ').toUpperCase()}`)
+          audit.ready = false
+        } else {
+          audit.documents.governance.push(doc)
+        }
+      }
+
+      // Check ITP approval status
+      const itpDoc = projectDocs.find(d => d.category === 'itp')
+      if (itpDoc) {
+        const signOffs = itpDoc.sign_offs || {}
+        const requiredRoles = ['chief_welding_inspector', 'chief_inspector', 'construction_manager']
+        const missingSignOffs = requiredRoles.filter(role => !signOffs[role]?.signed_at)
+        if (missingSignOffs.length > 0) {
+          audit.blockers.push(`ITP missing signatures: ${missingSignOffs.length} of 3`)
+          audit.ready = false
+        }
+      }
+
+      // Check engineering documents
+      for (const cat of engineeringDocs) {
+        const doc = projectDocs.find(d => d.category === cat)
+        if (!doc) {
+          audit.warnings.push(`Missing optional: ${cat.replace(/_/g, ' ')}`)
+        } else {
+          audit.documents.engineering.push(doc)
+        }
+      }
+
+      // Check compliance documents
+      for (const cat of complianceDocs) {
+        const doc = projectDocs.find(d => d.category === cat)
+        if (!doc) {
+          audit.warnings.push(`Missing compliance: ${cat.replace(/_/g, ' ').toUpperCase()}`)
+        } else {
+          audit.documents.compliance.push(doc)
+        }
+      }
+
+      // Fetch daily tickets count
+      const { count: ticketCount } = await supabase
+        .from('daily_tickets')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', orgId)
+
+      audit.stats.totalReports = ticketCount || 0
+      audit.stats.totalDocuments = projectDocs.length
+
+      if (ticketCount === 0) {
+        audit.warnings.push('No daily field reports found')
+      }
+
+      // Fetch addenda for field reports section
+      const { data: addenda } = await supabase
+        .from('project_documents')
+        .select('*')
+        .eq('organization_id', orgId)
+        .eq('is_addendum', true)
+
+      audit.documents.fieldReports = addenda || []
+
+    } catch (err) {
+      console.error('Error running handover audit:', err)
+      audit.blockers.push('Error running audit: ' + err.message)
+      audit.ready = false
+    }
+
+    return audit
+  }
+
+  // Fetch file as blob from URL
+  async function fetchFileAsBlob(url) {
+    try {
+      const response = await fetch(url)
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      return await response.blob()
+    } catch (err) {
+      console.error('Error fetching file:', url, err)
+      return null
+    }
+  }
+
+  // Generate handover package
+  async function generateHandoverPackage() {
+    if (!selectedOrgForHandover) return
+
+    setGeneratingPackage(true)
+    setHandoverProgress('Running handover audit...')
+
+    try {
+      // Run audit first
+      const audit = await runHandoverAudit(selectedOrgForHandover)
+      setHandoverAudit(audit)
+
+      if (!audit.ready) {
+        setHandoverProgress('')
+        setGeneratingPackage(false)
+        return
+      }
+
+      // Get organization name
+      const org = organizations.find(o => o.id === selectedOrgForHandover)
+      const orgName = org?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'Project'
+      const timestamp = new Date().toISOString().split('T')[0]
+
+      const zip = new JSZip()
+      const rootFolder = zip.folder(`Handover_Package_${orgName}_${timestamp}`)
+
+      // Create folder structure
+      const governanceFolder = rootFolder.folder('01_Governance')
+      const engineeringFolder = rootFolder.folder('02_Engineering')
+      const fieldReportsFolder = rootFolder.folder('03_Field_Reports')
+      const complianceFolder = rootFolder.folder('04_Compliance')
+
+      let filesAdded = 0
+      const totalFiles = audit.documents.governance.length +
+                        audit.documents.engineering.length +
+                        audit.documents.compliance.length
+
+      // Add governance documents
+      setHandoverProgress('Adding governance documents...')
+      for (const doc of audit.documents.governance) {
+        const blob = await fetchFileAsBlob(doc.file_url)
+        if (blob) {
+          const fileName = `${doc.category}_v${doc.version_number || 1}_${doc.file_name}`
+          governanceFolder.file(fileName, blob)
+          filesAdded++
+          setHandoverProgress(`Adding files... (${filesAdded}/${totalFiles})`)
+        }
+      }
+
+      // Add engineering documents
+      setHandoverProgress('Adding engineering documents...')
+      for (const doc of audit.documents.engineering) {
+        const blob = await fetchFileAsBlob(doc.file_url)
+        if (blob) {
+          const fileName = `${doc.category}_v${doc.version_number || 1}_${doc.file_name}`
+          engineeringFolder.file(fileName, blob)
+          filesAdded++
+          setHandoverProgress(`Adding files... (${filesAdded}/${totalFiles})`)
+        }
+      }
+
+      // Add compliance documents
+      setHandoverProgress('Adding compliance documents...')
+      for (const doc of audit.documents.compliance) {
+        const blob = await fetchFileAsBlob(doc.file_url)
+        if (blob) {
+          const fileName = `${doc.category}_v${doc.version_number || 1}_${doc.file_name}`
+          complianceFolder.file(fileName, blob)
+          filesAdded++
+          setHandoverProgress(`Adding files... (${filesAdded}/${totalFiles})`)
+        }
+      }
+
+      // Fetch and add daily tickets
+      setHandoverProgress('Fetching field reports...')
+      const { data: tickets } = await supabase
+        .from('daily_tickets')
+        .select('*')
+        .eq('organization_id', selectedOrgForHandover)
+        .order('date', { ascending: true })
+
+      if (tickets && tickets.length > 0) {
+        // Create a summary CSV of all tickets
+        const csvHeader = 'ID,Date,Inspector,Spread,Pipeline,Activities,Status\n'
+        const csvRows = tickets.map(t =>
+          `${t.id},"${t.date}","${t.inspector_name || ''}","${t.spread || ''}","${t.pipeline || ''}","${(t.activity_blocks || []).map(b => b.activityType).join('; ')}","${t.status || 'draft'}"`
+        ).join('\n')
+        fieldReportsFolder.file('Daily_Tickets_Summary.csv', csvHeader + csvRows)
+      }
+
+      // Add addenda/completion records
+      for (const doc of audit.documents.fieldReports) {
+        const blob = await fetchFileAsBlob(doc.file_url)
+        if (blob) {
+          fieldReportsFolder.file(`Addendum_${doc.file_name}`, blob)
+        }
+      }
+
+      // Generate manifest
+      setHandoverProgress('Generating manifest...')
+      const manifest = {
+        generated: new Date().toISOString(),
+        organization: org?.name,
+        organizationId: selectedOrgForHandover,
+        statistics: audit.stats,
+        documents: {
+          governance: audit.documents.governance.map(d => d.file_name),
+          engineering: audit.documents.engineering.map(d => d.file_name),
+          compliance: audit.documents.compliance.map(d => d.file_name),
+          fieldReports: audit.documents.fieldReports.map(d => d.file_name)
+        },
+        auditResults: {
+          blockers: audit.blockers,
+          warnings: audit.warnings
+        }
+      }
+      rootFolder.file('MANIFEST.json', JSON.stringify(manifest, null, 2))
+
+      // Generate ZIP
+      setHandoverProgress('Generating ZIP archive...')
+      const zipBlob = await zip.generateAsync({
+        type: 'blob',
+        compression: 'DEFLATE',
+        compressionOptions: { level: 6 }
+      })
+
+      // Save to browser
+      const zipFileName = `Handover_Package_${orgName}_${timestamp}.zip`
+      saveAs(zipBlob, zipFileName)
+
+      // Upload to Supabase Storage for permanent record
+      setHandoverProgress('Archiving to storage...')
+      const storagePath = `handovers/${selectedOrgForHandover}/${zipFileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('handovers')
+        .upload(storagePath, zipBlob, {
+          contentType: 'application/zip',
+          upsert: false
+        })
+
+      if (uploadError) {
+        console.warn('Could not archive to storage:', uploadError.message)
+      }
+
+      // Refresh handover history
+      fetchHandoverHistory(selectedOrgForHandover)
+
+      setHandoverProgress('Complete! Package downloaded.')
+
+    } catch (err) {
+      console.error('Error generating handover package:', err)
+      setHandoverProgress('Error: ' + err.message)
+    } finally {
+      setGeneratingPackage(false)
+    }
+  }
+
+  // Fetch handover history
+  async function fetchHandoverHistory(orgId) {
+    if (!orgId) return
+
+    try {
+      const { data, error } = await supabase.storage
+        .from('handovers')
+        .list(`handovers/${orgId}`, {
+          limit: 20,
+          sortBy: { column: 'created_at', order: 'desc' }
+        })
+
+      if (error) throw error
+      setHandoverHistory(data || [])
+    } catch (err) {
+      console.error('Error fetching handover history:', err)
+      setHandoverHistory([])
+    }
+  }
+
+  // ==================== END HANDOVER FUNCTIONS ====================
+
   // Save Project Governance data (upsert to contract_config)
   async function saveGovernanceData() {
     if (!selectedOrgForSetup) {
@@ -1880,12 +2185,13 @@ function AdminPortal() {
         <div style={{ display: 'flex', gap: '0', flexWrap: 'wrap' }}>
           {[
             'overview', 'approvals', 'efficiency', 'mats', 'audit', 'setup', 'projects', 'users', 'reports',
-            ...(isSuperAdmin ? ['fleet', 'stats'] : [])
+            ...(isSuperAdmin ? ['fleet', 'stats', 'handover'] : [])
           ].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '15px 25px', border: 'none', backgroundColor: activeTab === tab ? '#003366' : 'transparent', color: activeTab === tab ? 'white' : '#333', cursor: 'pointer', fontSize: '14px', fontWeight: activeTab === tab ? 'bold' : 'normal', position: 'relative' }}>
               {tab === 'approvals' ? `Approvals ${pendingReports.length > 0 ? `(${pendingReports.length})` : ''}` :
                tab === 'fleet' ? '🚀 Fleet Onboarding' :
                tab === 'stats' ? '📊 Usage Statistics' :
+               tab === 'handover' ? '📦 Project Handover' :
                tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
@@ -3887,6 +4193,298 @@ function AdminPortal() {
                   </tfoot>
                 </table>
               </div>
+            )}
+          </div>
+        )}
+
+        {/* Project Handover & Closeout Tab - Super Admin Only */}
+        {activeTab === 'handover' && isSuperAdmin && (
+          <div>
+            <div style={{ marginBottom: '20px' }}>
+              <h2>📦 Project Handover & Closeout</h2>
+              <p style={{ color: '#666', margin: 0 }}>Generate final handover packages for project completion.</p>
+            </div>
+
+            {/* Organization Selector */}
+            <div style={{
+              backgroundColor: 'white',
+              padding: '20px',
+              borderRadius: '8px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              marginBottom: '20px'
+            }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold', color: '#374151' }}>
+                Select Project / Organization
+              </label>
+              <select
+                value={selectedOrgForHandover}
+                onChange={(e) => {
+                  setSelectedOrgForHandover(e.target.value)
+                  setHandoverAudit(null)
+                  setHandoverProgress('')
+                  if (e.target.value) {
+                    runHandoverAudit(e.target.value).then(setHandoverAudit)
+                    fetchHandoverHistory(e.target.value)
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  maxWidth: '400px',
+                  padding: '12px',
+                  borderRadius: '6px',
+                  border: '1px solid #d1d5db',
+                  fontSize: '14px'
+                }}
+              >
+                <option value="">-- Select Organization --</option>
+                {organizations.map(org => (
+                  <option key={org.id} value={org.id}>{org.name}</option>
+                ))}
+              </select>
+            </div>
+
+            {selectedOrgForHandover && (
+              <>
+                {/* Handover Readiness Audit */}
+                <div style={{
+                  backgroundColor: 'white',
+                  padding: '20px',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  marginBottom: '20px'
+                }}>
+                  <h3 style={{ margin: '0 0 15px 0', color: '#374151' }}>
+                    🔍 Handover Readiness Audit
+                  </h3>
+
+                  {!handoverAudit ? (
+                    <p style={{ color: '#666' }}>Loading audit...</p>
+                  ) : (
+                    <>
+                      {/* Status Banner */}
+                      <div style={{
+                        padding: '15px 20px',
+                        borderRadius: '6px',
+                        backgroundColor: handoverAudit.ready ? '#d4edda' : '#f8d7da',
+                        border: `2px solid ${handoverAudit.ready ? '#28a745' : '#dc3545'}`,
+                        marginBottom: '20px'
+                      }}>
+                        <div style={{
+                          fontSize: '18px',
+                          fontWeight: 'bold',
+                          color: handoverAudit.ready ? '#155724' : '#721c24'
+                        }}>
+                          {handoverAudit.ready ? '✅ READY FOR HANDOVER' : '❌ NOT READY - BLOCKERS FOUND'}
+                        </div>
+                        <div style={{ fontSize: '12px', color: handoverAudit.ready ? '#155724' : '#721c24', marginTop: '5px' }}>
+                          {handoverAudit.stats.totalDocuments} documents • {handoverAudit.stats.totalReports} field reports
+                        </div>
+                      </div>
+
+                      {/* Blockers */}
+                      {handoverAudit.blockers.length > 0 && (
+                        <div style={{
+                          marginBottom: '15px',
+                          padding: '15px',
+                          backgroundColor: '#fef2f2',
+                          borderRadius: '6px',
+                          border: '1px solid #fecaca'
+                        }}>
+                          <div style={{ fontWeight: 'bold', color: '#dc2626', marginBottom: '8px' }}>
+                            🚫 Blockers ({handoverAudit.blockers.length})
+                          </div>
+                          <ul style={{ margin: 0, paddingLeft: '20px', color: '#991b1b' }}>
+                            {handoverAudit.blockers.map((b, i) => (
+                              <li key={i} style={{ marginBottom: '4px', fontSize: '13px' }}>{b}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Warnings */}
+                      {handoverAudit.warnings.length > 0 && (
+                        <div style={{
+                          marginBottom: '15px',
+                          padding: '15px',
+                          backgroundColor: '#fffbeb',
+                          borderRadius: '6px',
+                          border: '1px solid #fde68a'
+                        }}>
+                          <div style={{ fontWeight: 'bold', color: '#d97706', marginBottom: '8px' }}>
+                            ⚠️ Warnings ({handoverAudit.warnings.length})
+                          </div>
+                          <ul style={{ margin: 0, paddingLeft: '20px', color: '#92400e' }}>
+                            {handoverAudit.warnings.map((w, i) => (
+                              <li key={i} style={{ marginBottom: '4px', fontSize: '13px' }}>{w}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Documents Summary */}
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px' }}>
+                        <div style={{ padding: '12px', backgroundColor: '#f0fdf4', borderRadius: '6px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#16a34a' }}>
+                            {handoverAudit.documents.governance.length}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#166534' }}>Governance Docs</div>
+                        </div>
+                        <div style={{ padding: '12px', backgroundColor: '#eff6ff', borderRadius: '6px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#2563eb' }}>
+                            {handoverAudit.documents.engineering.length}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#1e40af' }}>Engineering Docs</div>
+                        </div>
+                        <div style={{ padding: '12px', backgroundColor: '#fdf4ff', borderRadius: '6px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#a855f7' }}>
+                            {handoverAudit.documents.compliance.length}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#7e22ce' }}>Compliance Docs</div>
+                        </div>
+                        <div style={{ padding: '12px', backgroundColor: '#fefce8', borderRadius: '6px', textAlign: 'center' }}>
+                          <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#ca8a04' }}>
+                            {handoverAudit.stats.totalReports}
+                          </div>
+                          <div style={{ fontSize: '11px', color: '#a16207' }}>Field Reports</div>
+                        </div>
+                      </div>
+                    </>
+                  )}
+                </div>
+
+                {/* Generate Package Button */}
+                <div style={{
+                  backgroundColor: 'white',
+                  padding: '20px',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  marginBottom: '20px'
+                }}>
+                  <h3 style={{ margin: '0 0 15px 0', color: '#374151' }}>
+                    📁 Generate Final Package
+                  </h3>
+
+                  <p style={{ color: '#666', fontSize: '13px', marginBottom: '15px' }}>
+                    This will bundle all project documents and field reports into a single ZIP archive
+                    organized by category. A copy will be saved to permanent storage for legal records.
+                  </p>
+
+                  <div style={{
+                    padding: '15px',
+                    backgroundColor: '#f3f4f6',
+                    borderRadius: '6px',
+                    marginBottom: '15px',
+                    fontSize: '12px',
+                    fontFamily: 'monospace'
+                  }}>
+                    <div style={{ color: '#374151', marginBottom: '8px', fontWeight: 'bold' }}>Folder Structure:</div>
+                    <div style={{ color: '#6b7280' }}>
+                      /Handover_Package_[OrgName]<br />
+                      &nbsp;&nbsp;├── 01_Governance/ (Contract, SOW, Signed ITP)<br />
+                      &nbsp;&nbsp;├── 02_Engineering/ (IFC Drawings, Typicals, Specs)<br />
+                      &nbsp;&nbsp;├── 03_Field_Reports/ (Daily Tickets, Completion Records)<br />
+                      &nbsp;&nbsp;├── 04_Compliance/ (ERP, EMP)<br />
+                      &nbsp;&nbsp;└── MANIFEST.json
+                    </div>
+                  </div>
+
+                  {handoverProgress && (
+                    <div style={{
+                      padding: '10px 15px',
+                      backgroundColor: generatingPackage ? '#eff6ff' : (handoverProgress.includes('Error') ? '#fef2f2' : '#f0fdf4'),
+                      borderRadius: '4px',
+                      marginBottom: '15px',
+                      fontSize: '13px',
+                      color: generatingPackage ? '#1e40af' : (handoverProgress.includes('Error') ? '#dc2626' : '#16a34a')
+                    }}>
+                      {generatingPackage && '⏳ '}{handoverProgress}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={generateHandoverPackage}
+                    disabled={generatingPackage || !handoverAudit?.ready}
+                    style={{
+                      padding: '14px 28px',
+                      backgroundColor: generatingPackage ? '#9ca3af' : (!handoverAudit?.ready ? '#d1d5db' : '#10b981'),
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: generatingPackage || !handoverAudit?.ready ? 'not-allowed' : 'pointer',
+                      fontWeight: 'bold',
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    {generatingPackage ? '⏳ Generating...' : '📦 Generate Final Package'}
+                  </button>
+
+                  {!handoverAudit?.ready && handoverAudit && (
+                    <p style={{ margin: '10px 0 0', fontSize: '12px', color: '#dc2626' }}>
+                      Resolve all blockers before generating the handover package.
+                    </p>
+                  )}
+                </div>
+
+                {/* Handover History */}
+                {handoverHistory.length > 0 && (
+                  <div style={{
+                    backgroundColor: 'white',
+                    padding: '20px',
+                    borderRadius: '8px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                  }}>
+                    <h3 style={{ margin: '0 0 15px 0', color: '#374151' }}>
+                      📜 Previous Handover Packages
+                    </h3>
+
+                    <div style={{ overflowX: 'auto' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                        <thead>
+                          <tr style={{ backgroundColor: '#f8f9fa' }}>
+                            <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>File</th>
+                            <th style={{ padding: '10px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Created</th>
+                            <th style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #e5e7eb' }}>Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {handoverHistory.map(file => (
+                            <tr key={file.name} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                              <td style={{ padding: '10px', fontSize: '13px' }}>{file.name}</td>
+                              <td style={{ padding: '10px', fontSize: '12px', color: '#666' }}>
+                                {file.created_at ? new Date(file.created_at).toLocaleString() : '—'}
+                              </td>
+                              <td style={{ padding: '10px', textAlign: 'right' }}>
+                                <button
+                                  onClick={async () => {
+                                    const { data } = await supabase.storage
+                                      .from('handovers')
+                                      .download(`handovers/${selectedOrgForHandover}/${file.name}`)
+                                    if (data) saveAs(data, file.name)
+                                  }}
+                                  style={{
+                                    padding: '6px 12px',
+                                    backgroundColor: '#3b82f6',
+                                    color: 'white',
+                                    border: 'none',
+                                    borderRadius: '4px',
+                                    fontSize: '11px',
+                                    cursor: 'pointer'
+                                  }}
+                                >
+                                  Download
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}
