@@ -1160,7 +1160,7 @@ function AdminPortal() {
       <div style={{ backgroundColor: 'white', borderBottom: '1px solid #ddd', padding: '0 20px' }}>
         <div style={{ display: 'flex', gap: '0', flexWrap: 'wrap' }}>
           {[
-            'overview', 'approvals', 'efficiency', 'mats', 'audit', 'setup', 'organizations', 'projects', 'users', 'reports',
+            'overview', 'approvals', 'efficiency', 'mats', 'audit', 'setup', 'projects', 'users', 'reports',
             ...(isSuperAdmin ? ['fleet', 'stats'] : [])
           ].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '15px 25px', border: 'none', backgroundColor: activeTab === tab ? '#003366' : 'transparent', color: activeTab === tab ? 'white' : '#333', cursor: 'pointer', fontSize: '14px', fontWeight: activeTab === tab ? 'bold' : 'normal', position: 'relative' }}>
@@ -1692,40 +1692,6 @@ function AdminPortal() {
                 alert(`Successfully imported ${count} rates!`)
               }}
             />
-          </div>
-        )}
-
-        {activeTab === 'organizations' && isSuperAdmin && (
-          <div>
-            <h2>Organizations</h2>
-            <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', marginBottom: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-              <h3 style={{ margin: '0 0 15px 0' }}>Add New Organization</h3>
-              <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                <input type="text" placeholder="Organization Name" value={newOrg.name} onChange={(e) => setNewOrg({ ...newOrg, name: e.target.value })} style={{ padding: '10px', border: '1px solid #ddd', borderRadius: '4px', flex: 1, minWidth: '200px' }} />
-                <input type="text" placeholder="Slug (e.g., fortis-bc)" value={newOrg.slug} onChange={(e) => setNewOrg({ ...newOrg, slug: e.target.value })} style={{ padding: '10px', border: '1px solid #ddd', borderRadius: '4px', flex: 1, minWidth: '200px' }} />
-                <button onClick={createOrganization} style={{ padding: '10px 25px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Add Organization</button>
-              </div>
-            </div>
-            <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#f8f9fa' }}>
-                    <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Name</th>
-                    <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Slug</th>
-                    <th style={{ padding: '15px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Created</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {organizations.map(org => (
-                    <tr key={org.id}>
-                      <td style={{ padding: '15px', borderBottom: '1px solid #eee' }}>{org.name}</td>
-                      <td style={{ padding: '15px', borderBottom: '1px solid #eee' }}>{org.slug}</td>
-                      <td style={{ padding: '15px', borderBottom: '1px solid #eee' }}>{new Date(org.created_at).toLocaleDateString()}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
           </div>
         )}
 
