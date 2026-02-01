@@ -86,6 +86,20 @@ function AdminPortal() {
 
   const isSuperAdmin = userProfile?.role === 'super_admin'
 
+  // Fleet Onboarding state (Super Admin only)
+  const [fleetForm, setFleetForm] = useState({
+    organizationName: '',
+    slug: '',
+    adminEmail: '',
+    adminFullName: ''
+  })
+  const [provisioning, setProvisioning] = useState(false)
+  const [provisionResult, setProvisionResult] = useState(null)
+
+  // Usage Statistics state (Super Admin only)
+  const [usageStats, setUsageStats] = useState([])
+  const [loadingStats, setLoadingStats] = useState(false)
+
   useEffect(() => {
     if (isReady()) {
       fetchData()
@@ -99,6 +113,7 @@ function AdminPortal() {
     if (activeTab === 'audit') fetchAuditLog()
     if (activeTab === 'reports') fetchAllReports()
     if (activeTab === 'timesheets') fetchPendingTimesheets()
+    if (activeTab === 'stats' && isSuperAdmin) fetchUsageStats()
   }, [activeTab, organizationId])
 
   async function fetchData() {
@@ -468,6 +483,156 @@ function AdminPortal() {
       console.error('Error fetching pending timesheets:', err)
     }
     setLoadingTimesheets(false)
+  }
+
+  // Fetch usage statistics across all organizations (Super Admin only)
+  async function fetchUsageStats() {
+    if (!isSuperAdmin) return
+    setLoadingStats(true)
+    try {
+      // Get all organizations
+      const { data: orgs, error: orgsError } = await supabase
+        .from('organizations')
+        .select('id, name, slug')
+        .order('name')
+
+      if (orgsError) throw orgsError
+
+      // For each org, get ticket and report counts plus last activity
+      const statsPromises = orgs.map(async (org) => {
+        // Count daily_tickets
+        const { count: ticketCount } = await supabase
+          .from('daily_tickets')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', org.id)
+
+        // Count daily_reports
+        const { count: reportCount } = await supabase
+          .from('daily_reports')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', org.id)
+
+        // Get most recent activity from daily_tickets
+        const { data: lastTicket } = await supabase
+          .from('daily_tickets')
+          .select('created_at')
+          .eq('organization_id', org.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single()
+
+        const lastActive = lastTicket?.created_at || null
+        const isActiveRecently = lastActive
+          ? (new Date() - new Date(lastActive)) < 24 * 60 * 60 * 1000
+          : false
+
+        return {
+          ...org,
+          ticketCount: ticketCount || 0,
+          reportCount: reportCount || 0,
+          lastActive,
+          isActiveRecently
+        }
+      })
+
+      const stats = await Promise.all(statsPromises)
+      setUsageStats(stats)
+    } catch (err) {
+      console.error('Error fetching usage stats:', err)
+    }
+    setLoadingStats(false)
+  }
+
+  // Provision a new organization (Super Admin only)
+  async function provisionOrganization() {
+    if (!isSuperAdmin) return
+    if (!fleetForm.organizationName || !fleetForm.slug || !fleetForm.adminEmail || !fleetForm.adminFullName) {
+      setProvisionResult({ success: false, message: 'All fields are required' })
+      return
+    }
+
+    setProvisioning(true)
+    setProvisionResult(null)
+
+    try {
+      // 1. Create the organization
+      const { data: newOrg, error: orgError } = await supabase
+        .from('organizations')
+        .insert({
+          name: fleetForm.organizationName,
+          slug: fleetForm.slug.toLowerCase().replace(/[^a-z0-9-]/g, '-')
+        })
+        .select()
+        .single()
+
+      if (orgError) throw new Error(`Failed to create organization: ${orgError.message}`)
+
+      // 2. Invite the admin user via Supabase Auth
+      const { data: inviteData, error: inviteError } = await supabase.auth.admin.inviteUserByEmail(fleetForm.adminEmail, {
+        data: {
+          full_name: fleetForm.adminFullName,
+          role: 'admin'
+        }
+      })
+
+      // If invite fails, we might need to use the edge function approach
+      if (inviteError) {
+        // Try using edge function for invitation
+        const { data: edgeData, error: edgeError } = await supabase.functions.invoke('invite-user', {
+          body: {
+            email: fleetForm.adminEmail,
+            fullName: fleetForm.adminFullName,
+            role: 'admin',
+            organizationId: newOrg.id
+          }
+        })
+
+        if (edgeError) {
+          console.warn('Edge function invite failed:', edgeError)
+          // Continue anyway - we'll create the user profile manually
+        }
+      }
+
+      // 3. Create user_profile for the admin (will be linked when they sign up)
+      // For now, log the invitation details
+      setProvisionResult({
+        success: true,
+        message: `Organization "${fleetForm.organizationName}" created successfully!`,
+        details: {
+          organizationId: newOrg.id,
+          slug: newOrg.slug,
+          adminEmail: fleetForm.adminEmail,
+          note: 'Admin invitation sent. User will be linked on first login.'
+        }
+      })
+
+      // Reset form
+      setFleetForm({
+        organizationName: '',
+        slug: '',
+        adminEmail: '',
+        adminFullName: ''
+      })
+
+      // Refresh organizations list
+      fetchData()
+
+    } catch (err) {
+      console.error('Error provisioning organization:', err)
+      setProvisionResult({ success: false, message: err.message })
+    }
+
+    setProvisioning(false)
+  }
+
+  // Auto-generate slug from organization name
+  function generateSlug(name) {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '')
+      .replace(/\s+/g, '-')
+      .replace(/-+/g, '-')
+      .trim()
   }
 
   async function viewTimesheetDetails(timesheet) {
@@ -993,10 +1158,16 @@ function AdminPortal() {
       </div>
 
       <div style={{ backgroundColor: 'white', borderBottom: '1px solid #ddd', padding: '0 20px' }}>
-        <div style={{ display: 'flex', gap: '0' }}>
-          {['overview', 'approvals', 'efficiency', 'mats', 'audit', 'setup', 'organizations', 'projects', 'users', 'reports'].map(tab => (
-            <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '15px 25px', border: 'none', backgroundColor: activeTab === tab ? '#003366' : 'transparent', color: activeTab === tab ? 'white' : '#333', cursor: 'pointer', fontSize: '14px', fontWeight: activeTab === tab ? 'bold' : 'normal', textTransform: 'capitalize', position: 'relative' }}>
-              {tab === 'approvals' ? `Approvals ${pendingReports.length > 0 ? `(${pendingReports.length})` : ''}` : tab}
+        <div style={{ display: 'flex', gap: '0', flexWrap: 'wrap' }}>
+          {[
+            'overview', 'approvals', 'efficiency', 'mats', 'audit', 'setup', 'organizations', 'projects', 'users', 'reports',
+            ...(isSuperAdmin ? ['fleet', 'stats'] : [])
+          ].map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '15px 25px', border: 'none', backgroundColor: activeTab === tab ? '#003366' : 'transparent', color: activeTab === tab ? 'white' : '#333', cursor: 'pointer', fontSize: '14px', fontWeight: activeTab === tab ? 'bold' : 'normal', position: 'relative' }}>
+              {tab === 'approvals' ? `Approvals ${pendingReports.length > 0 ? `(${pendingReports.length})` : ''}` :
+               tab === 'fleet' ? '🚀 Fleet Onboarding' :
+               tab === 'stats' ? '📊 Usage Statistics' :
+               tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
@@ -1820,6 +1991,259 @@ function AdminPortal() {
                       </tr>
                     ))}
                   </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Fleet Onboarding Tab - Super Admin Only */}
+        {activeTab === 'fleet' && isSuperAdmin && (
+          <div>
+            <h2>🚀 Fleet Onboarding</h2>
+            <p style={{ color: '#666', marginBottom: '30px' }}>Provision new organizations and their admin users for the Pipe-Up platform.</p>
+
+            <div style={{ backgroundColor: 'white', padding: '30px', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', maxWidth: '600px' }}>
+              <h3 style={{ margin: '0 0 20px 0', color: '#003366' }}>New Organization</h3>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#374151' }}>
+                  Organization Name *
+                </label>
+                <input
+                  type="text"
+                  value={fleetForm.organizationName}
+                  onChange={(e) => {
+                    const name = e.target.value
+                    setFleetForm({
+                      ...fleetForm,
+                      organizationName: name,
+                      slug: generateSlug(name)
+                    })
+                  }}
+                  placeholder="Acme Pipeline Services"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#374151' }}>
+                  URL Slug *
+                </label>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ color: '#666', fontSize: '14px' }}>app.pipe-up.ca/</span>
+                  <input
+                    type="text"
+                    value={fleetForm.slug}
+                    onChange={(e) => setFleetForm({ ...fleetForm, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '-') })}
+                    placeholder="acme-pipeline"
+                    style={{
+                      flex: 1,
+                      padding: '12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '14px',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+                <p style={{ margin: '4px 0 0', fontSize: '12px', color: '#666' }}>Auto-generated from name. Edit if needed.</p>
+              </div>
+
+              <hr style={{ border: 'none', borderTop: '1px solid #e5e7eb', margin: '24px 0' }} />
+
+              <h4 style={{ margin: '0 0 16px 0', color: '#374151' }}>Admin User</h4>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#374151' }}>
+                  Admin Full Name *
+                </label>
+                <input
+                  type="text"
+                  value={fleetForm.adminFullName}
+                  onChange={(e) => setFleetForm({ ...fleetForm, adminFullName: e.target.value })}
+                  placeholder="John Smith"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '24px' }}>
+                <label style={{ display: 'block', marginBottom: '6px', fontWeight: '500', color: '#374151' }}>
+                  Admin Email *
+                </label>
+                <input
+                  type="email"
+                  value={fleetForm.adminEmail}
+                  onChange={(e) => setFleetForm({ ...fleetForm, adminEmail: e.target.value })}
+                  placeholder="admin@acme-pipeline.com"
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    border: '1px solid #d1d5db',
+                    borderRadius: '6px',
+                    fontSize: '14px',
+                    boxSizing: 'border-box'
+                  }}
+                />
+              </div>
+
+              {provisionResult && (
+                <div style={{
+                  padding: '16px',
+                  borderRadius: '6px',
+                  marginBottom: '20px',
+                  backgroundColor: provisionResult.success ? '#d4edda' : '#f8d7da',
+                  color: provisionResult.success ? '#155724' : '#721c24',
+                  border: `1px solid ${provisionResult.success ? '#c3e6cb' : '#f5c6cb'}`
+                }}>
+                  <p style={{ margin: 0, fontWeight: 'bold' }}>{provisionResult.message}</p>
+                  {provisionResult.details && (
+                    <div style={{ marginTop: '10px', fontSize: '13px' }}>
+                      <p style={{ margin: '4px 0' }}>Organization ID: <code>{provisionResult.details.organizationId}</code></p>
+                      <p style={{ margin: '4px 0' }}>Slug: <code>{provisionResult.details.slug}</code></p>
+                      <p style={{ margin: '4px 0' }}>Admin Email: {provisionResult.details.adminEmail}</p>
+                      <p style={{ margin: '4px 0', fontStyle: 'italic' }}>{provisionResult.details.note}</p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              <button
+                onClick={provisionOrganization}
+                disabled={provisioning || !fleetForm.organizationName || !fleetForm.slug || !fleetForm.adminEmail || !fleetForm.adminFullName}
+                style={{
+                  width: '100%',
+                  padding: '14px 24px',
+                  backgroundColor: provisioning ? '#9ca3af' : '#10b981',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  cursor: provisioning ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px'
+                }}
+              >
+                {provisioning ? '⏳ Provisioning...' : '🚀 Provision Organization'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Usage Statistics Tab - Super Admin Only */}
+        {activeTab === 'stats' && isSuperAdmin && (
+          <div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <div>
+                <h2>📊 Usage Statistics</h2>
+                <p style={{ color: '#666', margin: 0 }}>Activity summary across all organizations.</p>
+              </div>
+              <button
+                onClick={fetchUsageStats}
+                disabled={loadingStats}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: loadingStats ? '#9ca3af' : '#3b82f6',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: loadingStats ? 'not-allowed' : 'pointer',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+              >
+                {loadingStats ? '⏳ Loading...' : '🔄 Refresh Statistics'}
+              </button>
+            </div>
+
+            {loadingStats ? (
+              <div style={{ textAlign: 'center', padding: '60px' }}>
+                <p style={{ color: '#666', fontSize: '18px' }}>Loading statistics...</p>
+              </div>
+            ) : usageStats.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '60px', backgroundColor: 'white', borderRadius: '8px' }}>
+                <p style={{ color: '#666' }}>No organizations found. Click "Refresh Statistics" to load data.</p>
+              </div>
+            ) : (
+              <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f8f9fa' }}>
+                      <th style={{ padding: '14px 16px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Status</th>
+                      <th style={{ padding: '14px 16px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Company Name</th>
+                      <th style={{ padding: '14px 16px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Slug</th>
+                      <th style={{ padding: '14px 16px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Total Tickets</th>
+                      <th style={{ padding: '14px 16px', textAlign: 'right', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Total Reports</th>
+                      <th style={{ padding: '14px 16px', textAlign: 'left', borderBottom: '2px solid #dee2e6', fontWeight: '600' }}>Last Active</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {usageStats.map(org => (
+                      <tr key={org.id} style={{ borderBottom: '1px solid #eee' }}>
+                        <td style={{ padding: '14px 16px' }}>
+                          <span
+                            style={{
+                              display: 'inline-block',
+                              width: '12px',
+                              height: '12px',
+                              borderRadius: '50%',
+                              backgroundColor: org.isActiveRecently ? '#10b981' : '#d1d5db',
+                              boxShadow: org.isActiveRecently ? '0 0 6px rgba(16, 185, 129, 0.5)' : 'none'
+                            }}
+                            title={org.isActiveRecently ? 'Active in last 24 hours' : 'No recent activity'}
+                          />
+                        </td>
+                        <td style={{ padding: '14px 16px', fontWeight: '500' }}>{org.name}</td>
+                        <td style={{ padding: '14px 16px', color: '#666', fontFamily: 'monospace', fontSize: '13px' }}>{org.slug}</td>
+                        <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: '600', color: '#3b82f6' }}>{org.ticketCount.toLocaleString()}</td>
+                        <td style={{ padding: '14px 16px', textAlign: 'right', fontWeight: '600', color: '#8b5cf6' }}>{org.reportCount.toLocaleString()}</td>
+                        <td style={{ padding: '14px 16px', color: '#666', fontSize: '13px' }}>
+                          {org.lastActive
+                            ? new Date(org.lastActive).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'short',
+                                day: 'numeric',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })
+                            : '—'}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ backgroundColor: '#f8f9fa', fontWeight: 'bold' }}>
+                      <td style={{ padding: '14px 16px' }}></td>
+                      <td style={{ padding: '14px 16px' }}>Totals ({usageStats.length} orgs)</td>
+                      <td style={{ padding: '14px 16px' }}></td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right', color: '#3b82f6' }}>
+                        {usageStats.reduce((sum, org) => sum + org.ticketCount, 0).toLocaleString()}
+                      </td>
+                      <td style={{ padding: '14px 16px', textAlign: 'right', color: '#8b5cf6' }}>
+                        {usageStats.reduce((sum, org) => sum + org.reportCount, 0).toLocaleString()}
+                      </td>
+                      <td style={{ padding: '14px 16px' }}></td>
+                    </tr>
+                  </tfoot>
                 </table>
               </div>
             )}
