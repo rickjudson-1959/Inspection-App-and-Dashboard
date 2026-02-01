@@ -1314,6 +1314,20 @@ Important:
     }
   }, [])
 
+  // Auto-populate inspector name from user profile
+  useEffect(() => {
+    // Skip if in edit mode (name will be loaded from saved report)
+    if (isEditMode || editReportId) return
+
+    // Skip if name is already set (from draft restore or localStorage)
+    if (inspectorName) return
+
+    // Set from user profile
+    if (userProfile?.full_name) {
+      setInspectorName(userProfile.full_name)
+    }
+  }, [userProfile, isEditMode, editReportId, inspectorName])
+
   // Auto-populate AFE/Contract # from contract_config for new reports
   useEffect(() => {
     async function fetchContractConfig() {
