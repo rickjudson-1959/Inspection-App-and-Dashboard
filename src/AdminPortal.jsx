@@ -2833,7 +2833,7 @@ function AdminPortal() {
                   </p>
                 </div>
 
-                {/* ==================== ITP APPROVAL WORKFLOW ==================== */}
+                {/* ==================== ITP BLUEPRINT & COMPLETION ==================== */}
                 {getItpDocument() && (
                   <div style={{
                     marginBottom: '20px',
@@ -2843,38 +2843,57 @@ function AdminPortal() {
                     border: `3px solid ${isItpFullyApproved() ? '#28a745' : '#ffc107'}`,
                     boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
                   }}>
-                    {/* Status Banner */}
-                    <div style={{
-                      padding: '15px 20px',
-                      marginBottom: '20px',
-                      borderRadius: '6px',
-                      backgroundColor: isItpFullyApproved() ? '#d4edda' : '#fff3cd',
-                      border: `2px solid ${isItpFullyApproved() ? '#28a745' : '#ffc107'}`,
-                      textAlign: 'center'
-                    }}>
+                    {/* ===== ITP BLUEPRINT (THE PLAN) ===== */}
+                    <div style={{ marginBottom: '25px' }}>
                       <div style={{
-                        fontSize: '18px',
-                        fontWeight: 'bold',
-                        color: isItpFullyApproved() ? '#155724' : '#856404',
-                        marginBottom: '5px'
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        marginBottom: '15px'
                       }}>
-                        {isItpFullyApproved() ? (
-                          <>🟢 PROJECT STATUS: ACTIVE</>
-                        ) : (
-                          <>🟡 STATIONARY - NOT READY FOR CONSTRUCTION</>
-                        )}
+                        <span style={{ fontSize: '24px' }}>📋</span>
+                        <div>
+                          <h3 style={{ margin: 0, color: '#1f2937', fontSize: '18px' }}>
+                            ITP Blueprint
+                          </h3>
+                          <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#6b7280' }}>
+                            The Inspection & Test Plan - requires Pre-Construction Approval
+                          </p>
+                        </div>
                       </div>
-                      <div style={{ fontSize: '12px', color: isItpFullyApproved() ? '#155724' : '#856404' }}>
-                        {isItpFullyApproved()
-                          ? 'All required ITP sign-offs have been captured. Construction may proceed.'
-                          : 'ITP requires sign-off from all three roles before construction can begin.'
-                        }
-                      </div>
-                    </div>
 
-                    <h4 style={{ margin: '0 0 15px 0', color: '#374151' }}>
-                      ✅ ITP Sign-off Matrix
-                    </h4>
+                      {/* Approval Status Banner */}
+                      <div style={{
+                        padding: '15px 20px',
+                        marginBottom: '20px',
+                        borderRadius: '6px',
+                        backgroundColor: isItpFullyApproved() ? '#d4edda' : '#fff3cd',
+                        border: `2px solid ${isItpFullyApproved() ? '#28a745' : '#ffc107'}`,
+                        textAlign: 'center'
+                      }}>
+                        <div style={{
+                          fontSize: '18px',
+                          fontWeight: 'bold',
+                          color: isItpFullyApproved() ? '#155724' : '#856404',
+                          marginBottom: '5px'
+                        }}>
+                          {isItpFullyApproved() ? (
+                            <>🟢 APPROVED FOR CONSTRUCTION</>
+                          ) : (
+                            <>🟡 PENDING APPROVAL - NOT READY FOR CONSTRUCTION</>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '12px', color: isItpFullyApproved() ? '#155724' : '#856404' }}>
+                          {isItpFullyApproved()
+                            ? 'All required pre-construction approvals have been captured. Construction may proceed.'
+                            : 'ITP Blueprint requires approval from all three roles before construction can begin.'
+                          }
+                        </div>
+                      </div>
+
+                      <h4 style={{ margin: '0 0 15px 0', color: '#374151' }}>
+                        ✅ Pre-Construction Approval Matrix
+                      </h4>
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
                       {itpSignOffRoles.map(role => {
@@ -3019,6 +3038,124 @@ function AdminPortal() {
                     <p style={{ margin: '15px 0 0', fontSize: '11px', color: '#666' }}>
                       Digital signatures are cryptographically verified with SHA-256 hashes and stored securely for audit purposes.
                     </p>
+                    </div>
+                    {/* ===== END ITP BLUEPRINT ===== */}
+
+                    {/* ===== ITP COMPLETION RECORDS ===== */}
+                    <div style={{
+                      marginTop: '25px',
+                      paddingTop: '20px',
+                      borderTop: '2px dashed #dee2e6'
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        marginBottom: '15px'
+                      }}>
+                        <span style={{ fontSize: '24px' }}>📁</span>
+                        <div>
+                          <h3 style={{ margin: 0, color: '#1f2937', fontSize: '18px' }}>
+                            ITP Completion Records
+                          </h3>
+                          <p style={{ margin: '2px 0 0', fontSize: '12px', color: '#6b7280' }}>
+                            Supporting documents and completion records - do not affect Blueprint approval
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Addenda List */}
+                      {(() => {
+                        const itpDoc = getItpDocument()
+                        const addenda = itpDoc ? getDocumentAddenda(itpDoc.id) : []
+                        return (
+                          <div style={{
+                            backgroundColor: '#f8f9fa',
+                            borderRadius: '6px',
+                            padding: '15px'
+                          }}>
+                            {addenda.length > 0 ? (
+                              <div style={{ marginBottom: '15px' }}>
+                                <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#374151', marginBottom: '10px' }}>
+                                  Supporting Documents ({addenda.length})
+                                </div>
+                                {addenda.map((add, idx) => (
+                                  <div key={add.id} style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'space-between',
+                                    padding: '8px 12px',
+                                    backgroundColor: 'white',
+                                    borderRadius: '4px',
+                                    marginBottom: '6px',
+                                    border: '1px solid #e5e7eb'
+                                  }}>
+                                    <div>
+                                      <div style={{ fontSize: '12px', fontWeight: '500' }}>{add.file_name}</div>
+                                      <div style={{ fontSize: '10px', color: '#6b7280' }}>
+                                        Added: {new Date(add.created_at).toLocaleDateString()}
+                                      </div>
+                                    </div>
+                                    <a
+                                      href={add.file_url}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      style={{
+                                        padding: '4px 10px',
+                                        backgroundColor: '#3b82f6',
+                                        color: 'white',
+                                        borderRadius: '4px',
+                                        fontSize: '11px',
+                                        textDecoration: 'none'
+                                      }}
+                                    >
+                                      View
+                                    </a>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p style={{ fontSize: '12px', color: '#6b7280', margin: '0 0 15px 0' }}>
+                                No supporting documents added yet.
+                              </p>
+                            )}
+
+                            {/* Add Supporting Document Button */}
+                            {itpDoc && (
+                              <label style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '8px 14px',
+                                backgroundColor: '#6366f1',
+                                color: 'white',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: uploadingAddendum === itpDoc.id ? 'not-allowed' : 'pointer',
+                                opacity: uploadingAddendum === itpDoc.id ? 0.6 : 1
+                              }}>
+                                {uploadingAddendum === itpDoc.id ? '⏳ Uploading...' : '➕ Add Completion Record'}
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png"
+                                  onChange={(e) => {
+                                    if (e.target.files[0]) uploadAddendum(e.target.files[0], itpDoc)
+                                  }}
+                                  disabled={uploadingAddendum === itpDoc.id}
+                                  style={{ display: 'none' }}
+                                />
+                              </label>
+                            )}
+
+                            <p style={{ margin: '10px 0 0', fontSize: '10px', color: '#9ca3af' }}>
+                              Add test results, inspection records, and other completion documentation here.
+                              These do not reset the Blueprint approval status.
+                            </p>
+                          </div>
+                        )
+                      })()}
+                    </div>
+                    {/* ===== END ITP COMPLETION RECORDS ===== */}
                   </div>
                 )}
 
