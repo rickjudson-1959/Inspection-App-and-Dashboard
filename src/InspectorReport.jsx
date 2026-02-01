@@ -1341,7 +1341,6 @@ Important:
 
         if (config?.contract_number) {
           setAfe(config.contract_number)
-          console.log('AFE auto-populated from contract_config:', config.contract_number)
         }
       } catch (err) {
         console.error('Error fetching contract config for AFE:', err)
@@ -6418,6 +6417,16 @@ Important:
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>AFE / Contract #</label>
+            <input
+              type="text"
+              value={afe}
+              onChange={(e) => setAfe(e.target.value)}
+              placeholder="Auto-filled from config"
+              style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box', backgroundColor: afe ? '#e8f5e9' : 'white' }}
+            />
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Start Time</label>

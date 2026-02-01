@@ -133,6 +133,13 @@ function AdminPortal() {
     if (activeTab === 'setup' && selectedOrgForSetup) fetchGovernanceData(selectedOrgForSetup)
   }, [activeTab, organizationId, selectedOrgForSetup])
 
+  // Auto-select current organization for Setup tab
+  useEffect(() => {
+    if (organizationId && !selectedOrgForSetup) {
+      setSelectedOrgForSetup(organizationId)
+    }
+  }, [organizationId])
+
   async function fetchData() {
     setLoading(true)
     // Organizations - super admin sees all, others see their org
