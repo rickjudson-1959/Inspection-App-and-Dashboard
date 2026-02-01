@@ -74,6 +74,19 @@ function AdminPortal() {
   // Setup tab state
   const [selectedOrgForSetup, setSelectedOrgForSetup] = useState('')
 
+  // Project Governance state
+  const [governanceData, setGovernanceData] = useState({
+    standard_workday_hours: 10,
+    contract_number: '',
+    ap_email: '',
+    start_kp: '',
+    end_kp: ''
+  })
+  const [savingGovernance, setSavingGovernance] = useState(false)
+  const [governanceMessage, setGovernanceMessage] = useState(null)
+  const [uploadingDoc, setUploadingDoc] = useState(false)
+  const [orgDocuments, setOrgDocuments] = useState([])
+
   // Metric Integrity Info modal
   const metricInfoModal = useMetricIntegrityModal()
 
@@ -114,7 +127,8 @@ function AdminPortal() {
     if (activeTab === 'reports') fetchAllReports()
     if (activeTab === 'timesheets') fetchPendingTimesheets()
     if (activeTab === 'stats' && isSuperAdmin) fetchUsageStats()
-  }, [activeTab, organizationId])
+    if (activeTab === 'setup' && selectedOrgForSetup) fetchGovernanceData(selectedOrgForSetup)
+  }, [activeTab, organizationId, selectedOrgForSetup])
 
   async function fetchData() {
     setLoading(true)
@@ -541,6 +555,130 @@ function AdminPortal() {
       console.error('Error fetching usage stats:', err)
     }
     setLoadingStats(false)
+  }
+
+  // Fetch Project Governance data for selected organization
+  async function fetchGovernanceData(orgId) {
+    if (!orgId) return
+
+    try {
+      // Fetch org config data
+      const { data: org, error } = await supabase
+        .from('organizations')
+        .select('standard_workday_hours, contract_number, ap_email, start_kp, end_kp')
+        .eq('id', orgId)
+        .single()
+
+      if (error) throw error
+
+      setGovernanceData({
+        standard_workday_hours: org?.standard_workday_hours || 10,
+        contract_number: org?.contract_number || '',
+        ap_email: org?.ap_email || '',
+        start_kp: org?.start_kp || '',
+        end_kp: org?.end_kp || ''
+      })
+
+      // Fetch organization documents
+      const { data: docs } = await supabase
+        .from('organization_documents')
+        .select('*')
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false })
+
+      setOrgDocuments(docs || [])
+    } catch (err) {
+      console.error('Error fetching governance data:', err)
+      // Reset to defaults if columns don't exist yet
+      setGovernanceData({
+        standard_workday_hours: 10,
+        contract_number: '',
+        ap_email: '',
+        start_kp: '',
+        end_kp: ''
+      })
+      setOrgDocuments([])
+    }
+  }
+
+  // Save Project Governance data
+  async function saveGovernanceData() {
+    if (!selectedOrgForSetup) {
+      setGovernanceMessage({ type: 'error', text: 'Please select a client first' })
+      return
+    }
+
+    setSavingGovernance(true)
+    setGovernanceMessage(null)
+
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .update({
+          standard_workday_hours: governanceData.standard_workday_hours,
+          contract_number: governanceData.contract_number,
+          ap_email: governanceData.ap_email,
+          start_kp: governanceData.start_kp,
+          end_kp: governanceData.end_kp
+        })
+        .eq('id', selectedOrgForSetup)
+
+      if (error) throw error
+
+      setGovernanceMessage({ type: 'success', text: 'Project governance settings saved successfully!' })
+    } catch (err) {
+      console.error('Error saving governance data:', err)
+      setGovernanceMessage({ type: 'error', text: 'Error saving: ' + err.message })
+    }
+
+    setSavingGovernance(false)
+  }
+
+  // Upload organization document (Insurance/WCB)
+  async function uploadOrgDocument(file, docType) {
+    if (!selectedOrgForSetup || !file) return
+
+    setUploadingDoc(true)
+
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${selectedOrgForSetup}/${docType}_${Date.now()}.${fileExt}`
+
+      // Upload to Supabase Storage
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('organization-documents')
+        .upload(fileName, file)
+
+      if (uploadError) throw uploadError
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('organization-documents')
+        .getPublicUrl(fileName)
+
+      // Save document record
+      const { error: insertError } = await supabase
+        .from('organization_documents')
+        .insert({
+          organization_id: selectedOrgForSetup,
+          document_type: docType,
+          file_name: file.name,
+          file_path: fileName,
+          file_url: urlData.publicUrl,
+          uploaded_by: userProfile?.id
+        })
+
+      if (insertError) throw insertError
+
+      // Refresh documents list
+      fetchGovernanceData(selectedOrgForSetup)
+      setGovernanceMessage({ type: 'success', text: `${docType} certificate uploaded successfully!` })
+    } catch (err) {
+      console.error('Error uploading document:', err)
+      setGovernanceMessage({ type: 'error', text: 'Upload failed: ' + err.message })
+    }
+
+    setUploadingDoc(false)
   }
 
   // Provision a new organization (Super Admin only)
@@ -1679,10 +1817,190 @@ function AdminPortal() {
               </select>
               {!selectedOrgForSetup && (
                 <p style={{ color: '#dc3545', marginTop: '10px', fontSize: '14px' }}>
-                  ⚠️ Please select a client before importing rates
+                  ⚠️ Please select a client before configuring settings
                 </p>
               )}
             </div>
+
+            {/* Project Governance Section */}
+            {selectedOrgForSetup && (
+              <div style={{
+                backgroundColor: 'white',
+                padding: '20px',
+                borderRadius: '8px',
+                marginBottom: '20px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                border: '2px solid #28a745'
+              }}>
+                <h3 style={{ margin: '0 0 20px 0', color: '#28a745' }}>📋 Project Governance</h3>
+
+                {governanceMessage && (
+                  <div style={{
+                    padding: '12px',
+                    borderRadius: '4px',
+                    marginBottom: '20px',
+                    backgroundColor: governanceMessage.type === 'success' ? '#d4edda' : '#f8d7da',
+                    color: governanceMessage.type === 'success' ? '#155724' : '#721c24',
+                    border: `1px solid ${governanceMessage.type === 'success' ? '#c3e6cb' : '#f5c6cb'}`
+                  }}>
+                    {governanceMessage.text}
+                  </div>
+                )}
+
+                {/* Contract Details Row */}
+                <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                  <div style={{ flex: 1, minWidth: '150px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#374151' }}>
+                      Standard Workday Hours
+                    </label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="24"
+                      value={governanceData.standard_workday_hours}
+                      onChange={(e) => setGovernanceData({ ...governanceData, standard_workday_hours: parseInt(e.target.value) || 10 })}
+                      style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+                    />
+                  </div>
+                  <div style={{ flex: 2, minWidth: '200px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#374151' }}>
+                      Contract Number
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., CON-2026-001"
+                      value={governanceData.contract_number}
+                      onChange={(e) => setGovernanceData({ ...governanceData, contract_number: e.target.value })}
+                      style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+                    />
+                  </div>
+                  <div style={{ flex: 2, minWidth: '250px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#374151' }}>
+                      AP Email (Accounts Payable)
+                    </label>
+                    <input
+                      type="email"
+                      placeholder="ap@client.com"
+                      value={governanceData.ap_email}
+                      onChange={(e) => setGovernanceData({ ...governanceData, ap_email: e.target.value })}
+                      style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+                    />
+                  </div>
+                </div>
+
+                {/* Project Boundaries Row */}
+                <div style={{ marginBottom: '20px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '10px', color: '#374151' }}>
+                    📍 Project Boundaries (KP Range)
+                  </label>
+                  <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
+                    <div style={{ minWidth: '150px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', color: '#666', marginBottom: '4px' }}>Start KP</label>
+                      <input
+                        type="text"
+                        placeholder="0+000"
+                        value={governanceData.start_kp}
+                        onChange={(e) => setGovernanceData({ ...governanceData, start_kp: e.target.value })}
+                        style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </div>
+                    <span style={{ color: '#666', fontWeight: 'bold' }}>to</span>
+                    <div style={{ minWidth: '150px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', color: '#666', marginBottom: '4px' }}>End KP</label>
+                      <input
+                        type="text"
+                        placeholder="47+000"
+                        value={governanceData.end_kp}
+                        onChange={(e) => setGovernanceData({ ...governanceData, end_kp: e.target.value })}
+                        style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Document Upload Section */}
+                <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '6px' }}>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '15px', color: '#374151' }}>
+                    📄 Document Upload (Insurance & WCB Certificates)
+                  </label>
+                  <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
+                    <div style={{ flex: 1, minWidth: '200px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', color: '#666', marginBottom: '6px' }}>Insurance Certificate</label>
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => {
+                          if (e.target.files[0]) uploadOrgDocument(e.target.files[0], 'Insurance')
+                        }}
+                        disabled={uploadingDoc}
+                        style={{ fontSize: '13px' }}
+                      />
+                    </div>
+                    <div style={{ flex: 1, minWidth: '200px' }}>
+                      <label style={{ display: 'block', fontSize: '11px', color: '#666', marginBottom: '6px' }}>WCB Certificate</label>
+                      <input
+                        type="file"
+                        accept=".pdf,.jpg,.jpeg,.png"
+                        onChange={(e) => {
+                          if (e.target.files[0]) uploadOrgDocument(e.target.files[0], 'WCB')
+                        }}
+                        disabled={uploadingDoc}
+                        style={{ fontSize: '13px' }}
+                      />
+                    </div>
+                  </div>
+                  {uploadingDoc && <p style={{ margin: '10px 0 0', fontSize: '13px', color: '#666' }}>⏳ Uploading...</p>}
+
+                  {/* Existing Documents */}
+                  {orgDocuments.length > 0 && (
+                    <div style={{ marginTop: '15px' }}>
+                      <p style={{ fontSize: '11px', color: '#666', marginBottom: '8px' }}>Uploaded Documents:</p>
+                      <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                        {orgDocuments.map(doc => (
+                          <a
+                            key={doc.id}
+                            href={doc.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '6px 12px',
+                              backgroundColor: doc.document_type === 'Insurance' ? '#17a2b8' : '#28a745',
+                              color: 'white',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              textDecoration: 'none'
+                            }}
+                          >
+                            📄 {doc.document_type} - {doc.file_name}
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Save Button */}
+                <button
+                  onClick={saveGovernanceData}
+                  disabled={savingGovernance}
+                  style={{
+                    padding: '12px 30px',
+                    backgroundColor: savingGovernance ? '#9ca3af' : '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: savingGovernance ? 'not-allowed' : 'pointer',
+                    fontWeight: 'bold',
+                    fontSize: '14px'
+                  }}
+                >
+                  {savingGovernance ? '⏳ Saving...' : '💾 Save Governance Settings'}
+                </button>
+              </div>
+            )}
 
             {/* Rate Import Component */}
             <RateImport 
