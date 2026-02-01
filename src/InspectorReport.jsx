@@ -6255,19 +6255,34 @@ Important:
           
           <button
             onClick={() => setShowMap(!showMap)}
-            style={{ 
-              padding: '8px 12px', 
-              backgroundColor: showMap ? '#28a745' : '#17a2b8', 
-              color: 'white', 
-              border: 'none', 
-              borderRadius: '4px', 
-              cursor: 'pointer', 
-              fontSize: '12px' 
+            style={{
+              padding: '8px 12px',
+              backgroundColor: showMap ? '#28a745' : '#17a2b8',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px'
             }}
           >
             🗺️ {showMap ? 'Hide Map' : 'Map'}
           </button>
-          
+
+          <button
+            onClick={() => navigate(orgPath('/reference-library'))}
+            style={{
+              padding: '8px 12px',
+              backgroundColor: '#6366f1',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px'
+            }}
+          >
+            📚 Reference
+          </button>
+
           <button
             onClick={signOut}
             style={{ padding: '8px 12px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}

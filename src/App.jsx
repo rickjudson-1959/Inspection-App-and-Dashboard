@@ -34,6 +34,7 @@ import InspectorInvoicingDashboard from './InspectorInvoicingDashboard.jsx'
 import HireOnPackage from './HireOnPackage.jsx'
 import TimesheetEditor from './TimesheetEditor.jsx'
 import TimesheetReview from './TimesheetReview.jsx'
+import ReferenceLibrary from './ReferenceLibrary.jsx'
 
 // Root redirect - sends users to their org-scoped, role-specific landing page
 function RootRedirect() {
@@ -297,6 +298,13 @@ function OrgRoutes() {
       <Route path="timesheet-review" element={
         <ProtectedRoute allowedRoles={['chief', 'asst_chief', 'admin', 'super_admin']}>
           <TimesheetReview />
+        </ProtectedRoute>
+      } />
+
+      {/* Reference Library */}
+      <Route path="reference-library" element={
+        <ProtectedRoute allowedRoles={['inspector', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+          <ReferenceLibrary />
         </ProtectedRoute>
       } />
 

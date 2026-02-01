@@ -115,6 +115,16 @@ function AdminPortal() {
     { key: 'construction_manager', label: 'Construction Manager', shortLabel: 'CM' }
   ]
 
+  // Technical Resource Library categories (super_admin only for management)
+  const technicalLibraryCategories = [
+    { key: 'api_1169', label: 'API 1169 - Pipeline Construction Inspection', icon: '📘', description: 'Standard for pipeline construction inspection' },
+    { key: 'csa_z662', label: 'CSA Z662 - Oil & Gas Pipeline Systems', icon: '📗', description: 'Canadian standards for pipeline systems' },
+    { key: 'pipeline_authority_ref', label: 'Pipeline Authority Reference Book', icon: '📕', description: 'Proprietary company reference documentation' }
+  ]
+
+  // State for global library documents
+  const [globalLibraryDocs, setGlobalLibraryDocs] = useState([])
+
   // Metric Integrity Info modal
   const metricInfoModal = useMetricIntegrityModal()
 
@@ -649,6 +659,16 @@ function AdminPortal() {
         .order('created_at', { ascending: false })
 
       setProjectDocuments(vaultDocs || [])
+
+      // Fetch global library documents (technical resources)
+      const { data: globalDocs } = await supabase
+        .from('project_documents')
+        .select('*')
+        .eq('is_global', true)
+        .in('category', ['api_1169', 'csa_z662', 'pipeline_authority_ref'])
+        .order('created_at', { ascending: false })
+
+      setGlobalLibraryDocs(globalDocs || [])
     } catch (err) {
       console.error('Error fetching governance data:', err)
       setConfigExists(false)
@@ -664,6 +684,7 @@ function AdminPortal() {
       })
       setOrgDocuments([])
       setProjectDocuments([])
+      setGlobalLibraryDocs([])
     }
   }
 
@@ -819,6 +840,112 @@ function AdminPortal() {
     } catch (err) {
       console.error('Error removing sign-off:', err)
       setGovernanceMessage({ type: 'error', text: 'Failed to remove sign-off: ' + err.message })
+    }
+  }
+
+  // Technical Library helpers
+  function getLibraryDocument(category) {
+    return globalLibraryDocs.find(d => d.category === category)
+  }
+
+  function hasLibraryDocument(category) {
+    return globalLibraryDocs.some(d => d.category === category)
+  }
+
+  // Upload global library document (super_admin only)
+  async function uploadLibraryDocument(file, category) {
+    if (!isSuperAdmin) {
+      setGovernanceMessage({ type: 'error', text: 'Only Super Admins can manage the Technical Library' })
+      return
+    }
+
+    setUploadingVaultDoc(category)
+    setGovernanceMessage(null)
+
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${category}_${Date.now()}.${fileExt}`
+      const filePath = `technical-library/${category}/${fileName}`
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file)
+
+      if (uploadError) throw uploadError
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath)
+
+      // Get current version number for this category
+      const existingDoc = getLibraryDocument(category)
+      const newVersion = existingDoc ? (existingDoc.version_number || 1) + 1 : 1
+
+      // If existing doc, update it; otherwise insert new
+      if (existingDoc) {
+        const { error: updateError } = await supabase
+          .from('project_documents')
+          .update({
+            file_name: file.name,
+            file_url: urlData.publicUrl,
+            version_number: newVersion,
+            uploaded_by: userProfile?.id
+          })
+          .eq('id', existingDoc.id)
+
+        if (updateError) throw updateError
+      } else {
+        // Insert as global document (null org_id for global, or use a system org)
+        const { error: insertError } = await supabase
+          .from('project_documents')
+          .insert({
+            organization_id: selectedOrgForSetup || organizationId, // Use current org as owner but mark global
+            category: category,
+            file_name: file.name,
+            file_url: urlData.publicUrl,
+            version_number: newVersion,
+            is_global: true,
+            uploaded_by: userProfile?.id
+          })
+
+        if (insertError) throw insertError
+      }
+
+      // Refresh documents
+      fetchGovernanceData(selectedOrgForSetup)
+      setGovernanceMessage({ type: 'success', text: 'Technical resource uploaded successfully!' })
+    } catch (err) {
+      console.error('Error uploading library document:', err)
+      setGovernanceMessage({ type: 'error', text: 'Upload failed: ' + err.message })
+    }
+
+    setUploadingVaultDoc(null)
+  }
+
+  // Delete library document (super_admin only)
+  async function deleteLibraryDocument(category) {
+    if (!isSuperAdmin) return
+
+    const doc = getLibraryDocument(category)
+    if (!doc) return
+
+    if (!confirm(`Are you sure you want to remove "${doc.file_name}" from the Technical Library?`)) return
+
+    try {
+      const { error } = await supabase
+        .from('project_documents')
+        .delete()
+        .eq('id', doc.id)
+
+      if (error) throw error
+
+      fetchGovernanceData(selectedOrgForSetup)
+      setGovernanceMessage({ type: 'success', text: 'Document removed from library' })
+    } catch (err) {
+      console.error('Error deleting library document:', err)
+      setGovernanceMessage({ type: 'error', text: 'Failed to remove document: ' + err.message })
     }
   }
 
@@ -2575,6 +2702,176 @@ function AdminPortal() {
                 </button>
               </div>
             )}
+
+            {/* ==================== TECHNICAL RESOURCE LIBRARY ==================== */}
+            <div style={{
+              marginTop: '30px',
+              padding: '20px',
+              backgroundColor: 'white',
+              borderRadius: '8px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+              border: '2px solid #6366f1'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ margin: 0, color: '#6366f1' }}>📚 Technical Resource Library</h3>
+                <span style={{
+                  padding: '4px 10px',
+                  borderRadius: '12px',
+                  fontSize: '11px',
+                  fontWeight: 'bold',
+                  backgroundColor: '#e0e7ff',
+                  color: '#4338ca'
+                }}>
+                  {isSuperAdmin ? 'Super Admin - Full Access' : 'Read Only'}
+                </span>
+              </div>
+
+              <p style={{ fontSize: '13px', color: '#666', marginBottom: '20px' }}>
+                Industry standards and reference materials available to all inspectors across projects.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
+                {technicalLibraryCategories.map(cat => {
+                  const doc = getLibraryDocument(cat.key)
+                  const hasDoc = !!doc
+                  return (
+                    <div
+                      key={cat.key}
+                      style={{
+                        padding: '15px',
+                        backgroundColor: hasDoc ? '#f0fdf4' : '#fef2f2',
+                        borderRadius: '8px',
+                        border: `2px solid ${hasDoc ? '#22c55e' : '#ef4444'}`,
+                        position: 'relative'
+                      }}
+                    >
+                      {/* Status Light */}
+                      <div style={{
+                        position: 'absolute',
+                        top: '12px',
+                        right: '12px',
+                        width: '14px',
+                        height: '14px',
+                        borderRadius: '50%',
+                        backgroundColor: hasDoc ? '#22c55e' : '#ef4444',
+                        boxShadow: hasDoc ? '0 0 6px #22c55e' : '0 0 6px #ef4444'
+                      }} />
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                        <span style={{ fontSize: '24px' }}>{cat.icon}</span>
+                        <div>
+                          <div style={{ fontWeight: 'bold', fontSize: '14px', color: '#374151' }}>{cat.label}</div>
+                          <div style={{ fontSize: '11px', color: '#666' }}>{cat.description}</div>
+                        </div>
+                      </div>
+
+                      {hasDoc ? (
+                        <div>
+                          <a
+                            href={doc.file_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '8px 14px',
+                              backgroundColor: '#6366f1',
+                              color: 'white',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              textDecoration: 'none',
+                              marginBottom: '8px'
+                            }}
+                          >
+                            📄 View Document
+                          </a>
+                          <div style={{ fontSize: '10px', color: '#666', marginTop: '5px' }}>
+                            {doc.file_name} • v{doc.version_number || 1} • {new Date(doc.created_at).toLocaleDateString()}
+                          </div>
+                          {isSuperAdmin && (
+                            <div style={{ marginTop: '10px', display: 'flex', gap: '8px' }}>
+                              <label style={{
+                                padding: '4px 10px',
+                                fontSize: '11px',
+                                backgroundColor: '#3b82f6',
+                                color: 'white',
+                                borderRadius: '4px',
+                                cursor: 'pointer'
+                              }}>
+                                Replace
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx"
+                                  onChange={(e) => {
+                                    if (e.target.files[0]) uploadLibraryDocument(e.target.files[0], cat.key)
+                                  }}
+                                  disabled={uploadingVaultDoc === cat.key}
+                                  style={{ display: 'none' }}
+                                />
+                              </label>
+                              <button
+                                onClick={() => deleteLibraryDocument(cat.key)}
+                                style={{
+                                  padding: '4px 10px',
+                                  fontSize: '11px',
+                                  backgroundColor: '#dc3545',
+                                  color: 'white',
+                                  border: 'none',
+                                  borderRadius: '4px',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div>
+                          <p style={{ fontSize: '12px', color: '#dc2626', margin: '0 0 10px 0' }}>
+                            ⚠️ Not uploaded
+                          </p>
+                          {isSuperAdmin ? (
+                            <label style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
+                              padding: '8px 14px',
+                              backgroundColor: '#6366f1',
+                              color: 'white',
+                              borderRadius: '4px',
+                              fontSize: '12px',
+                              cursor: uploadingVaultDoc === cat.key ? 'not-allowed' : 'pointer',
+                              opacity: uploadingVaultDoc === cat.key ? 0.6 : 1
+                            }}>
+                              {uploadingVaultDoc === cat.key ? '⏳ Uploading...' : '📤 Upload Document'}
+                              <input
+                                type="file"
+                                accept=".pdf,.doc,.docx"
+                                onChange={(e) => {
+                                  if (e.target.files[0]) uploadLibraryDocument(e.target.files[0], cat.key)
+                                }}
+                                disabled={uploadingVaultDoc === cat.key}
+                                style={{ display: 'none' }}
+                              />
+                            </label>
+                          ) : (
+                            <p style={{ fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
+                              Contact Super Admin to upload this resource
+                            </p>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+
+              <p style={{ margin: '15px 0 0', fontSize: '11px', color: '#666' }}>
+                📖 These resources are marked as Global and accessible to all field inspectors via the Reference Library.
+              </p>
+            </div>
           </div>
         )}
 
