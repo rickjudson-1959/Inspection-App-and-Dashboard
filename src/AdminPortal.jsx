@@ -74,14 +74,17 @@ function AdminPortal() {
   // Setup tab state
   const [selectedOrgForSetup, setSelectedOrgForSetup] = useState('')
 
-  // Project Governance state
+  // Project Governance state (uses contract_config table)
   const [governanceData, setGovernanceData] = useState({
-    standard_workday_hours: 10,
     contract_number: '',
+    standard_workday: 10,
     ap_email: '',
     start_kp: '',
-    end_kp: ''
+    end_kp: '',
+    default_diameter: '',
+    per_diem_rate: 0
   })
+  const [configExists, setConfigExists] = useState(false)
   const [savingGovernance, setSavingGovernance] = useState(false)
   const [governanceMessage, setGovernanceMessage] = useState(null)
   const [uploadingDoc, setUploadingDoc] = useState(false)
@@ -557,27 +560,43 @@ function AdminPortal() {
     setLoadingStats(false)
   }
 
-  // Fetch Project Governance data for selected organization
+  // Fetch Project Governance data from contract_config table
   async function fetchGovernanceData(orgId) {
     if (!orgId) return
 
     try {
-      // Fetch org config data
-      const { data: org, error } = await supabase
-        .from('organizations')
-        .select('standard_workday_hours, contract_number, ap_email, start_kp, end_kp')
-        .eq('id', orgId)
+      // Fetch from contract_config table
+      const { data: config, error } = await supabase
+        .from('contract_config')
+        .select('*')
+        .eq('organization_id', orgId)
         .single()
 
-      if (error) throw error
+      if (error && error.code !== 'PGRST116') throw error // PGRST116 = no rows returned
 
-      setGovernanceData({
-        standard_workday_hours: org?.standard_workday_hours || 10,
-        contract_number: org?.contract_number || '',
-        ap_email: org?.ap_email || '',
-        start_kp: org?.start_kp || '',
-        end_kp: org?.end_kp || ''
-      })
+      if (config) {
+        setConfigExists(true)
+        setGovernanceData({
+          contract_number: config.contract_number || '',
+          standard_workday: config.standard_workday || 10,
+          ap_email: config.ap_email || '',
+          start_kp: config.start_kp || '',
+          end_kp: config.end_kp || '',
+          default_diameter: config.default_diameter || '',
+          per_diem_rate: config.per_diem_rate || 0
+        })
+      } else {
+        setConfigExists(false)
+        setGovernanceData({
+          contract_number: '',
+          standard_workday: 10,
+          ap_email: '',
+          start_kp: '',
+          end_kp: '',
+          default_diameter: '',
+          per_diem_rate: 0
+        })
+      }
 
       // Fetch organization documents
       const { data: docs } = await supabase
@@ -589,19 +608,28 @@ function AdminPortal() {
       setOrgDocuments(docs || [])
     } catch (err) {
       console.error('Error fetching governance data:', err)
-      // Reset to defaults if columns don't exist yet
+      setConfigExists(false)
       setGovernanceData({
-        standard_workday_hours: 10,
         contract_number: '',
+        standard_workday: 10,
         ap_email: '',
         start_kp: '',
-        end_kp: ''
+        end_kp: '',
+        default_diameter: '',
+        per_diem_rate: 0
       })
       setOrgDocuments([])
     }
   }
 
-  // Save Project Governance data
+  // Check if config is complete (core fields filled)
+  function isConfigComplete() {
+    return governanceData.standard_workday > 0 &&
+           governanceData.start_kp &&
+           governanceData.end_kp
+  }
+
+  // Save Project Governance data (upsert to contract_config)
   async function saveGovernanceData() {
     if (!selectedOrgForSetup) {
       setGovernanceMessage({ type: 'error', text: 'Please select a client first' })
@@ -612,20 +640,26 @@ function AdminPortal() {
     setGovernanceMessage(null)
 
     try {
+      const configData = {
+        organization_id: selectedOrgForSetup,
+        contract_number: governanceData.contract_number,
+        standard_workday: governanceData.standard_workday,
+        ap_email: governanceData.ap_email,
+        start_kp: governanceData.start_kp,
+        end_kp: governanceData.end_kp,
+        default_diameter: governanceData.default_diameter,
+        per_diem_rate: governanceData.per_diem_rate
+      }
+
+      // Upsert: insert or update based on organization_id
       const { error } = await supabase
-        .from('organizations')
-        .update({
-          standard_workday_hours: governanceData.standard_workday_hours,
-          contract_number: governanceData.contract_number,
-          ap_email: governanceData.ap_email,
-          start_kp: governanceData.start_kp,
-          end_kp: governanceData.end_kp
-        })
-        .eq('id', selectedOrgForSetup)
+        .from('contract_config')
+        .upsert(configData, { onConflict: 'organization_id' })
 
       if (error) throw error
 
-      setGovernanceMessage({ type: 'success', text: 'Project governance settings saved successfully!' })
+      setConfigExists(true)
+      setGovernanceMessage({ type: 'success', text: 'Project configuration saved successfully!' })
     } catch (err) {
       console.error('Error saving governance data:', err)
       setGovernanceMessage({ type: 'error', text: 'Error saving: ' + err.message })
@@ -1822,17 +1856,40 @@ function AdminPortal() {
               )}
             </div>
 
-            {/* Project Governance Section */}
+            {/* Rate Import Component */}
+            <RateImport
+              organizationId={selectedOrgForSetup}
+              organizationName={organizations.find(o => o.id === selectedOrgForSetup)?.name || ''}
+              onComplete={(count) => {
+                alert(`Successfully imported ${count} rates!`)
+              }}
+            />
+
+            {/* Project Governance Section - Below Rate Import */}
             {selectedOrgForSetup && (
               <div style={{
                 backgroundColor: 'white',
                 padding: '20px',
                 borderRadius: '8px',
-                marginBottom: '20px',
+                marginTop: '20px',
                 boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
                 border: '2px solid #28a745'
               }}>
-                <h3 style={{ margin: '0 0 20px 0', color: '#28a745' }}>📋 Project Governance</h3>
+                {/* Header with Status Indicator */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                  <h3 style={{ margin: 0, color: '#28a745' }}>📋 Project Governance</h3>
+                  <span style={{
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    backgroundColor: isConfigComplete() ? '#d4edda' : '#fff3cd',
+                    color: isConfigComplete() ? '#155724' : '#856404',
+                    border: `1px solid ${isConfigComplete() ? '#c3e6cb' : '#ffeeba'}`
+                  }}>
+                    {isConfigComplete() ? '✓ Config Complete' : '⚠ Config Incomplete'}
+                  </span>
+                </div>
 
                 {governanceMessage && (
                   <div style={{
@@ -1849,20 +1906,21 @@ function AdminPortal() {
 
                 {/* Contract Details Row */}
                 <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginBottom: '20px' }}>
-                  <div style={{ flex: 1, minWidth: '150px' }}>
+                  <div style={{ flex: 1, minWidth: '120px' }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#374151' }}>
-                      Standard Workday Hours
+                      Standard Workday *
                     </label>
                     <input
                       type="number"
                       min="1"
                       max="24"
-                      value={governanceData.standard_workday_hours}
-                      onChange={(e) => setGovernanceData({ ...governanceData, standard_workday_hours: parseInt(e.target.value) || 10 })}
+                      value={governanceData.standard_workday}
+                      onChange={(e) => setGovernanceData({ ...governanceData, standard_workday: parseFloat(e.target.value) || 10 })}
                       style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
                     />
+                    <span style={{ fontSize: '10px', color: '#666' }}>hours</span>
                   </div>
-                  <div style={{ flex: 2, minWidth: '200px' }}>
+                  <div style={{ flex: 2, minWidth: '180px' }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#374151' }}>
                       Contract Number
                     </label>
@@ -1874,7 +1932,7 @@ function AdminPortal() {
                       style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
                     />
                   </div>
-                  <div style={{ flex: 2, minWidth: '250px' }}>
+                  <div style={{ flex: 2, minWidth: '200px' }}>
                     <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#374151' }}>
                       AP Email (Accounts Payable)
                     </label>
@@ -1888,33 +1946,58 @@ function AdminPortal() {
                   </div>
                 </div>
 
-                {/* Project Boundaries Row */}
-                <div style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '10px', color: '#374151' }}>
-                    📍 Project Boundaries (KP Range)
-                  </label>
-                  <div style={{ display: 'flex', gap: '15px', alignItems: 'center', flexWrap: 'wrap' }}>
-                    <div style={{ minWidth: '150px' }}>
-                      <label style={{ display: 'block', fontSize: '11px', color: '#666', marginBottom: '4px' }}>Start KP</label>
-                      <input
-                        type="text"
-                        placeholder="0+000"
-                        value={governanceData.start_kp}
-                        onChange={(e) => setGovernanceData({ ...governanceData, start_kp: e.target.value })}
-                        style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
-                      />
-                    </div>
-                    <span style={{ color: '#666', fontWeight: 'bold' }}>to</span>
-                    <div style={{ minWidth: '150px' }}>
-                      <label style={{ display: 'block', fontSize: '11px', color: '#666', marginBottom: '4px' }}>End KP</label>
-                      <input
-                        type="text"
-                        placeholder="47+000"
-                        value={governanceData.end_kp}
-                        onChange={(e) => setGovernanceData({ ...governanceData, end_kp: e.target.value })}
-                        style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
-                      />
-                    </div>
+                {/* Project Boundaries & Specs Row */}
+                <div style={{ display: 'flex', gap: '15px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                  <div style={{ minWidth: '130px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#374151' }}>
+                      Start KP *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="0+000"
+                      value={governanceData.start_kp}
+                      onChange={(e) => setGovernanceData({ ...governanceData, start_kp: e.target.value })}
+                      style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+                    />
+                  </div>
+                  <div style={{ minWidth: '130px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#374151' }}>
+                      End KP *
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="47+000"
+                      value={governanceData.end_kp}
+                      onChange={(e) => setGovernanceData({ ...governanceData, end_kp: e.target.value })}
+                      style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+                    />
+                  </div>
+                  <div style={{ minWidth: '150px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#374151' }}>
+                      Default Diameter
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., NPS 24"
+                      value={governanceData.default_diameter}
+                      onChange={(e) => setGovernanceData({ ...governanceData, default_diameter: e.target.value })}
+                      style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+                    />
+                  </div>
+                  <div style={{ minWidth: '140px' }}>
+                    <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px', color: '#374151' }}>
+                      Per Diem Rate
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      placeholder="0.00"
+                      value={governanceData.per_diem_rate}
+                      onChange={(e) => setGovernanceData({ ...governanceData, per_diem_rate: parseFloat(e.target.value) || 0 })}
+                      style={{ width: '100%', padding: '10px', border: '1px solid #ddd', borderRadius: '4px' }}
+                    />
+                    <span style={{ fontSize: '10px', color: '#666' }}>$/day</span>
                   </div>
                 </div>
 
@@ -1997,19 +2080,10 @@ function AdminPortal() {
                     fontSize: '14px'
                   }}
                 >
-                  {savingGovernance ? '⏳ Saving...' : '💾 Save Governance Settings'}
+                  {savingGovernance ? '⏳ Saving...' : '💾 Save Configuration'}
                 </button>
               </div>
             )}
-
-            {/* Rate Import Component */}
-            <RateImport 
-              organizationId={selectedOrgForSetup}
-              organizationName={organizations.find(o => o.id === selectedOrgForSetup)?.name || ''}
-              onComplete={(count) => {
-                alert(`Successfully imported ${count} rates!`)
-              }}
-            />
           </div>
         )}
 
