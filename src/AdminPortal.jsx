@@ -82,13 +82,30 @@ function AdminPortal() {
     start_kp: '',
     end_kp: '',
     default_diameter: '',
-    per_diem_rate: 0
+    per_diem_rate: 0,
+    default_pipe_specs: {}
   })
   const [configExists, setConfigExists] = useState(false)
   const [savingGovernance, setSavingGovernance] = useState(false)
   const [governanceMessage, setGovernanceMessage] = useState(null)
   const [uploadingDoc, setUploadingDoc] = useState(false)
   const [orgDocuments, setOrgDocuments] = useState([])
+
+  // Project Document Vault state
+  const [projectDocuments, setProjectDocuments] = useState([])
+  const [uploadingVaultDoc, setUploadingVaultDoc] = useState(null) // tracks which category is uploading
+
+  // Document vault categories
+  const documentVaultCategories = [
+    { key: 'prime_contract', label: 'Prime Contract', icon: '📜' },
+    { key: 'scope_of_work', label: 'Scope of Work (SOW)', icon: '📋' },
+    { key: 'ifc_drawings', label: 'IFC Drawings', icon: '📐' },
+    { key: 'typical_drawings', label: 'Typical Drawings', icon: '📏' },
+    { key: 'project_specs', label: 'Project Specifications', icon: '📑' },
+    { key: 'weld_procedures', label: 'Weld Procedures (WPS)', icon: '🔧' },
+    { key: 'erp', label: 'Emergency Response Plan (ERP)', icon: '🚨' },
+    { key: 'emp', label: 'Environmental Management Plan (EMP)', icon: '🌿' }
+  ]
 
   // Metric Integrity Info modal
   const metricInfoModal = useMetricIntegrityModal()
@@ -543,7 +560,7 @@ function AdminPortal() {
           .eq('organization_id', org.id)
           .order('created_at', { ascending: false })
           .limit(1)
-          .single()
+          .maybeSingle()
 
         const lastActive = lastTicket?.created_at || null
         const isActiveRecently = lastActive
@@ -590,7 +607,8 @@ function AdminPortal() {
           start_kp: config.start_kp || '',
           end_kp: config.end_kp || '',
           default_diameter: config.default_diameter || '',
-          per_diem_rate: config.per_diem_rate || 0
+          per_diem_rate: config.per_diem_rate || 0,
+          default_pipe_specs: config.default_pipe_specs || {}
         })
       } else {
         setConfigExists(false)
@@ -601,11 +619,12 @@ function AdminPortal() {
           start_kp: '',
           end_kp: '',
           default_diameter: '',
-          per_diem_rate: 0
+          per_diem_rate: 0,
+          default_pipe_specs: {}
         })
       }
 
-      // Fetch organization documents
+      // Fetch organization documents (Insurance/WCB)
       const { data: docs } = await supabase
         .from('organization_documents')
         .select('*')
@@ -613,6 +632,15 @@ function AdminPortal() {
         .order('created_at', { ascending: false })
 
       setOrgDocuments(docs || [])
+
+      // Fetch project vault documents
+      const { data: vaultDocs } = await supabase
+        .from('project_documents')
+        .select('*')
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false })
+
+      setProjectDocuments(vaultDocs || [])
     } catch (err) {
       console.error('Error fetching governance data:', err)
       setConfigExists(false)
@@ -623,10 +651,75 @@ function AdminPortal() {
         start_kp: '',
         end_kp: '',
         default_diameter: '',
-        per_diem_rate: 0
+        per_diem_rate: 0,
+        default_pipe_specs: {}
       })
       setOrgDocuments([])
+      setProjectDocuments([])
     }
+  }
+
+  // Upload document to Project Vault
+  async function uploadVaultDocument(file, category) {
+    if (!selectedOrgForSetup || !file) return
+
+    setUploadingVaultDoc(category)
+    setGovernanceMessage(null)
+
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${category}_${Date.now()}.${fileExt}`
+      const filePath = `project-vault/${selectedOrgForSetup}/${category}/${fileName}`
+
+      // Upload to Supabase Storage
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file)
+
+      if (uploadError) throw uploadError
+
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath)
+
+      // Get current version number for this category
+      const existingDoc = projectDocuments.find(d => d.category === category)
+      const newVersion = existingDoc ? (existingDoc.version_number || 1) + 1 : 1
+
+      // Insert record into project_documents
+      const { error: insertError } = await supabase
+        .from('project_documents')
+        .insert({
+          organization_id: selectedOrgForSetup,
+          category: category,
+          file_name: file.name,
+          file_url: urlData.publicUrl,
+          version_number: newVersion,
+          uploaded_by: userProfile?.id
+        })
+
+      if (insertError) throw insertError
+
+      // Refresh documents list
+      fetchGovernanceData(selectedOrgForSetup)
+      setGovernanceMessage({ type: 'success', text: `Document uploaded successfully!` })
+    } catch (err) {
+      console.error('Error uploading vault document:', err)
+      setGovernanceMessage({ type: 'error', text: 'Upload failed: ' + err.message })
+    }
+
+    setUploadingVaultDoc(null)
+  }
+
+  // Check if a vault category has a document
+  function hasVaultDocument(category) {
+    return projectDocuments.some(d => d.category === category)
+  }
+
+  // Get document for a category
+  function getVaultDocument(category) {
+    return projectDocuments.find(d => d.category === category)
   }
 
   // Check if config is complete (core fields filled)
@@ -655,7 +748,8 @@ function AdminPortal() {
         start_kp: governanceData.start_kp,
         end_kp: governanceData.end_kp,
         default_diameter: governanceData.default_diameter,
-        per_diem_rate: governanceData.per_diem_rate
+        per_diem_rate: governanceData.per_diem_rate,
+        default_pipe_specs: governanceData.default_pipe_specs
       }
 
       // Upsert: insert or update based on organization_id
@@ -2070,6 +2164,143 @@ function AdminPortal() {
                       </div>
                     </div>
                   )}
+                </div>
+
+                {/* ==================== PROJECT DOCUMENT VAULT ==================== */}
+                <div style={{
+                  marginBottom: '20px',
+                  padding: '20px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '6px',
+                  border: '2px solid #28a745'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h4 style={{ margin: 0, color: '#28a745' }}>📚 Project Document Vault</h4>
+                    <span style={{
+                      padding: '4px 10px',
+                      borderRadius: '12px',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      backgroundColor: documentVaultCategories.every(cat => hasVaultDocument(cat.key)) ? '#d4edda' : '#fff3cd',
+                      color: documentVaultCategories.every(cat => hasVaultDocument(cat.key)) ? '#155724' : '#856404'
+                    }}>
+                      {projectDocuments.length} / {documentVaultCategories.length} Documents
+                    </span>
+                  </div>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
+                    {documentVaultCategories.map(cat => {
+                      const doc = getVaultDocument(cat.key)
+                      const hasDoc = !!doc
+                      return (
+                        <div
+                          key={cat.key}
+                          style={{
+                            padding: '15px',
+                            backgroundColor: 'white',
+                            borderRadius: '8px',
+                            border: `2px solid ${hasDoc ? '#28a745' : '#dc3545'}`,
+                            position: 'relative'
+                          }}
+                        >
+                          {/* Traffic Light Status */}
+                          <div style={{
+                            position: 'absolute',
+                            top: '10px',
+                            right: '10px',
+                            width: '16px',
+                            height: '16px',
+                            borderRadius: '50%',
+                            backgroundColor: hasDoc ? '#28a745' : '#dc3545',
+                            boxShadow: hasDoc ? '0 0 6px #28a745' : '0 0 6px #dc3545'
+                          }} title={hasDoc ? 'Document uploaded' : 'Missing document'} />
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                            <span style={{ fontSize: '20px' }}>{cat.icon}</span>
+                            <span style={{ fontWeight: 'bold', fontSize: '13px', color: '#374151' }}>{cat.label}</span>
+                          </div>
+
+                          {hasDoc ? (
+                            <div>
+                              <a
+                                href={doc.file_url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                  padding: '6px 12px',
+                                  backgroundColor: '#28a745',
+                                  color: 'white',
+                                  borderRadius: '4px',
+                                  fontSize: '11px',
+                                  textDecoration: 'none',
+                                  marginBottom: '8px'
+                                }}
+                              >
+                                📄 {doc.file_name}
+                              </a>
+                              <div style={{ fontSize: '10px', color: '#666' }}>
+                                Version {doc.version_number || 1} • {new Date(doc.created_at).toLocaleDateString()}
+                              </div>
+                              <label style={{
+                                display: 'block',
+                                marginTop: '10px',
+                                fontSize: '11px',
+                                color: '#666',
+                                cursor: 'pointer'
+                              }}>
+                                <span style={{ textDecoration: 'underline' }}>Replace document</span>
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg"
+                                  onChange={(e) => {
+                                    if (e.target.files[0]) uploadVaultDocument(e.target.files[0], cat.key)
+                                  }}
+                                  disabled={uploadingVaultDoc === cat.key}
+                                  style={{ display: 'none' }}
+                                />
+                              </label>
+                            </div>
+                          ) : (
+                            <div>
+                              <p style={{ fontSize: '11px', color: '#dc3545', margin: '0 0 10px 0' }}>
+                                ⚠️ No document uploaded
+                              </p>
+                              <label style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                padding: '8px 14px',
+                                backgroundColor: '#007bff',
+                                color: 'white',
+                                borderRadius: '4px',
+                                fontSize: '12px',
+                                cursor: uploadingVaultDoc === cat.key ? 'not-allowed' : 'pointer',
+                                opacity: uploadingVaultDoc === cat.key ? 0.6 : 1
+                              }}>
+                                {uploadingVaultDoc === cat.key ? '⏳ Uploading...' : '📤 Upload Document'}
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg"
+                                  onChange={(e) => {
+                                    if (e.target.files[0]) uploadVaultDocument(e.target.files[0], cat.key)
+                                  }}
+                                  disabled={uploadingVaultDoc === cat.key}
+                                  style={{ display: 'none' }}
+                                />
+                              </label>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+
+                  <p style={{ margin: '15px 0 0', fontSize: '11px', color: '#666' }}>
+                    Accepted formats: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG, DWG
+                  </p>
                 </div>
 
                 {/* Save Button */}
