@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - January 31, 2026
+## Project Manifest - February 1, 2026
 
 ---
 
@@ -299,7 +299,47 @@
 
 ---
 
-## 6. RECENT UPDATES (January 2026)
+## 6. RECENT UPDATES (January/February 2026)
+
+### Project Governance & Auto-Populate Features (February 1, 2026)
+
+**New Database Table: `contract_config`**
+- Per-organization project configuration settings
+- Fields: contract_number, standard_workday, ap_email, start_kp, end_kp, default_diameter, per_diem_rate
+- One config per organization (unique constraint)
+- RLS policies for authenticated users
+
+**Project Governance Section (Admin Portal → Setup)**
+- Contract Number / AFE configuration
+- Standard Workday Hours setting
+- AP Email for invoice routing
+- Project Boundaries (Start KP / End KP)
+- Default Diameter setting
+- Per Diem Rate configuration
+- Config Status indicator (Complete/Incomplete based on required fields)
+
+**Inspector Report Auto-Populate Features**
+- AFE/Contract # field added to report header (after Pipeline)
+- Auto-fills from organization's contract_config.contract_number
+- Light green background when auto-filled
+- Inspector Name auto-fills from user profile (full_name)
+- Both skip auto-populate when editing existing reports or restoring drafts
+
+**Super Admin Features (Admin Portal)**
+- Fleet Onboarding tab: Provision new organizations with admin users
+- Usage Statistics tab: Cross-organization activity summary (reports, tickets, last activity)
+- Both tabs only visible to super_admin role
+
+**Files Created:**
+```
+supabase/migrations/20260131_create_contract_config.sql
+```
+
+**Files Modified:**
+- `src/AdminPortal.jsx` - Project Governance section, Fleet Onboarding, Usage Statistics
+- `src/InspectorReport.jsx` - AFE field UI, auto-populate for AFE and inspector name
+
+---
 
 ### Multi-Tenant Architecture (January 31, 2026)
 
@@ -674,4 +714,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: January 31, 2026*
+*Last Updated: February 1, 2026*
