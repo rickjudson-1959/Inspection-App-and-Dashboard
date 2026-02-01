@@ -95,8 +95,26 @@ function AdminPortal() {
     end_kp: '',
     default_diameter: '',
     per_diem_rate: 0,
-    default_pipe_specs: {}
+    default_pipe_specs: {},
+    custom_document_fields: [] // Owner DC custom metadata fields
   })
+
+  // Transmittal state
+  const [transmittals, setTransmittals] = useState([])
+  const [showTransmittalModal, setShowTransmittalModal] = useState(false)
+  const [transmittalForm, setTransmittalForm] = useState({
+    from_name: '',
+    from_title: 'Construction Manager',
+    to_name: '',
+    to_company: '',
+    subject: '',
+    notes: '',
+    selectedDocIds: []
+  })
+  const [generatingTransmittal, setGeneratingTransmittal] = useState(false)
+
+  // Document metadata state (for uploads with custom fields)
+  const [uploadMetadata, setUploadMetadata] = useState({})
   const [configExists, setConfigExists] = useState(false)
   const [savingGovernance, setSavingGovernance] = useState(false)
   const [governanceMessage, setGovernanceMessage] = useState(null)
@@ -656,7 +674,8 @@ function AdminPortal() {
           end_kp: config.end_kp || '',
           default_diameter: config.default_diameter || '',
           per_diem_rate: config.per_diem_rate || 0,
-          default_pipe_specs: config.default_pipe_specs || {}
+          default_pipe_specs: config.default_pipe_specs || {},
+          custom_document_fields: config.custom_document_fields || []
         })
       } else {
         setConfigExists(false)
@@ -668,9 +687,19 @@ function AdminPortal() {
           end_kp: '',
           default_diameter: '',
           per_diem_rate: 0,
-          default_pipe_specs: {}
+          default_pipe_specs: {},
+          custom_document_fields: []
         })
       }
+
+      // Fetch transmittals for this organization
+      const { data: transmittalData } = await supabase
+        .from('transmittals')
+        .select('*')
+        .eq('organization_id', orgId)
+        .order('created_at', { ascending: false })
+
+      setTransmittals(transmittalData || [])
 
       // Fetch organization documents (Insurance/WCB)
       const { data: docs } = await supabase
@@ -779,7 +808,7 @@ function AdminPortal() {
           .eq('is_addendum', false)
       }
 
-      // Prepare new document data
+      // Prepare new document data (include custom metadata if provided)
       const newDocData = {
         organization_id: selectedOrgForSetup,
         category: category,
@@ -788,8 +817,16 @@ function AdminPortal() {
         version_number: newVersion,
         is_current: true,
         is_addendum: false,
-        uploaded_by: userProfile?.id
+        uploaded_by: userProfile?.id,
+        metadata: uploadMetadata[category] || {}
       }
+
+      // Clear metadata for this category after use
+      setUploadMetadata(prev => {
+        const updated = { ...prev }
+        delete updated[category]
+        return updated
+      })
 
       // For ITP, handle signature reset
       if (category === 'itp' && resetSignatures) {
@@ -1186,6 +1223,260 @@ function AdminPortal() {
     }
   }
 
+  // ==================== CUSTOM DOCUMENT FIELDS (Owner DC) ====================
+
+  // Add a custom field definition
+  function addCustomField() {
+    const newField = {
+      key: `custom_${Date.now()}`,
+      label: '',
+      required: false
+    }
+    setGovernanceData(prev => ({
+      ...prev,
+      custom_document_fields: [...(prev.custom_document_fields || []), newField]
+    }))
+  }
+
+  // Update a custom field definition
+  function updateCustomField(index, updates) {
+    setGovernanceData(prev => ({
+      ...prev,
+      custom_document_fields: prev.custom_document_fields.map((f, i) =>
+        i === index ? { ...f, ...updates } : f
+      )
+    }))
+  }
+
+  // Remove a custom field definition
+  function removeCustomField(index) {
+    setGovernanceData(prev => ({
+      ...prev,
+      custom_document_fields: prev.custom_document_fields.filter((_, i) => i !== index)
+    }))
+  }
+
+  // ==================== TRANSMITTAL FUNCTIONS ====================
+
+  // Generate next transmittal number
+  function getNextTransmittalNumber() {
+    const org = organizations.find(o => o.id === selectedOrgForSetup)
+    const prefix = org?.slug?.toUpperCase()?.substring(0, 3) || 'TRN'
+    const count = transmittals.length + 1
+    return `${prefix}-TR-${String(count).padStart(4, '0')}`
+  }
+
+  // Open transmittal modal
+  function openTransmittalModal() {
+    setTransmittalForm({
+      from_name: userProfile?.full_name || '',
+      from_title: 'Construction Manager',
+      to_name: '',
+      to_company: '',
+      subject: `Document Transmittal - ${governanceData.contract_number || 'Project Documents'}`,
+      notes: '',
+      selectedDocIds: []
+    })
+    setShowTransmittalModal(true)
+  }
+
+  // Toggle document selection for transmittal
+  function toggleDocForTransmittal(docId) {
+    setTransmittalForm(prev => ({
+      ...prev,
+      selectedDocIds: prev.selectedDocIds.includes(docId)
+        ? prev.selectedDocIds.filter(id => id !== docId)
+        : [...prev.selectedDocIds, docId]
+    }))
+  }
+
+  // Generate transmittal PDF and save
+  async function generateTransmittal() {
+    if (!selectedOrgForSetup || transmittalForm.selectedDocIds.length === 0) {
+      setGovernanceMessage({ type: 'error', text: 'Please select at least one document' })
+      return
+    }
+
+    setGeneratingTransmittal(true)
+    setGovernanceMessage(null)
+
+    try {
+      const transmittalNumber = getNextTransmittalNumber()
+      const org = organizations.find(o => o.id === selectedOrgForSetup)
+      const selectedDocs = projectDocuments.filter(d => transmittalForm.selectedDocIds.includes(d.id))
+
+      // Build PDF using jsPDF
+      const { jsPDF } = await import('jspdf')
+      const doc = new jsPDF()
+
+      // Header
+      doc.setFontSize(18)
+      doc.setFont('helvetica', 'bold')
+      doc.text('DOCUMENT TRANSMITTAL', 105, 20, { align: 'center' })
+
+      doc.setFontSize(14)
+      doc.text(transmittalNumber, 105, 28, { align: 'center' })
+
+      // Transmittal details
+      doc.setFontSize(10)
+      doc.setFont('helvetica', 'normal')
+
+      const startY = 45
+      let y = startY
+
+      doc.setFont('helvetica', 'bold')
+      doc.text('Date:', 20, y)
+      doc.setFont('helvetica', 'normal')
+      doc.text(new Date().toLocaleDateString(), 50, y)
+
+      y += 8
+      doc.setFont('helvetica', 'bold')
+      doc.text('Project:', 20, y)
+      doc.setFont('helvetica', 'normal')
+      doc.text(org?.name || 'N/A', 50, y)
+
+      y += 8
+      doc.setFont('helvetica', 'bold')
+      doc.text('Contract:', 20, y)
+      doc.setFont('helvetica', 'normal')
+      doc.text(governanceData.contract_number || 'N/A', 50, y)
+
+      y += 12
+      doc.setFont('helvetica', 'bold')
+      doc.text('From:', 20, y)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`${transmittalForm.from_name}`, 50, y)
+      y += 5
+      doc.text(`${transmittalForm.from_title}`, 50, y)
+
+      y += 10
+      doc.setFont('helvetica', 'bold')
+      doc.text('To:', 20, y)
+      doc.setFont('helvetica', 'normal')
+      doc.text(`${transmittalForm.to_name}`, 50, y)
+      if (transmittalForm.to_company) {
+        y += 5
+        doc.text(`${transmittalForm.to_company}`, 50, y)
+      }
+
+      y += 10
+      doc.setFont('helvetica', 'bold')
+      doc.text('Subject:', 20, y)
+      doc.setFont('helvetica', 'normal')
+      doc.text(transmittalForm.subject, 50, y)
+
+      // Document manifest table
+      y += 15
+      doc.setFont('helvetica', 'bold')
+      doc.text('DOCUMENTS INCLUDED:', 20, y)
+
+      y += 8
+      doc.setFontSize(9)
+
+      // Table header
+      doc.setFillColor(240, 240, 240)
+      doc.rect(20, y - 4, 170, 7, 'F')
+      doc.setFont('helvetica', 'bold')
+      doc.text('#', 22, y)
+      doc.text('Document', 32, y)
+      doc.text('Rev', 130, y)
+      doc.text('Date', 145, y)
+      doc.text('Owner Doc #', 165, y)
+
+      y += 8
+      doc.setFont('helvetica', 'normal')
+
+      selectedDocs.forEach((docItem, idx) => {
+        const metadata = docItem.metadata || {}
+        const ownerDocNum = metadata.owner_doc_num || metadata.owner_doc_number || '—'
+
+        doc.text(String(idx + 1), 22, y)
+        doc.text(docItem.file_name?.substring(0, 50) || 'Unknown', 32, y)
+        doc.text(String(docItem.version_number || 1), 130, y)
+        doc.text(docItem.uploaded_at ? new Date(docItem.uploaded_at).toLocaleDateString() : '—', 145, y)
+        doc.text(String(ownerDocNum).substring(0, 15), 165, y)
+        y += 6
+
+        if (y > 270) {
+          doc.addPage()
+          y = 20
+        }
+      })
+
+      // Notes
+      if (transmittalForm.notes) {
+        y += 10
+        doc.setFont('helvetica', 'bold')
+        doc.text('Notes:', 20, y)
+        y += 6
+        doc.setFont('helvetica', 'normal')
+        const splitNotes = doc.splitTextToSize(transmittalForm.notes, 170)
+        doc.text(splitNotes, 20, y)
+      }
+
+      // Footer
+      y = 280
+      doc.setFontSize(8)
+      doc.setTextColor(128)
+      doc.text(`Generated: ${new Date().toISOString()}`, 20, y)
+      doc.text(`Total Documents: ${selectedDocs.length}`, 105, y, { align: 'center' })
+
+      // Convert to blob
+      const pdfBlob = doc.output('blob')
+
+      // Upload to storage
+      const fileName = `${transmittalNumber}_${new Date().toISOString().split('T')[0]}.pdf`
+      const storagePath = `transmittals/${selectedOrgForSetup}/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(storagePath, pdfBlob, { contentType: 'application/pdf' })
+
+      if (uploadError) throw uploadError
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('documents')
+        .getPublicUrl(storagePath)
+
+      // Save transmittal record
+      const { error: insertError } = await supabase
+        .from('transmittals')
+        .insert({
+          organization_id: selectedOrgForSetup,
+          transmittal_number: transmittalNumber,
+          from_name: transmittalForm.from_name,
+          from_title: transmittalForm.from_title,
+          to_name: transmittalForm.to_name,
+          to_company: transmittalForm.to_company,
+          subject: transmittalForm.subject,
+          notes: transmittalForm.notes,
+          document_ids: transmittalForm.selectedDocIds,
+          pdf_url: publicUrl,
+          created_by: user?.id
+        })
+
+      if (insertError) throw insertError
+
+      // Download PDF
+      const link = document.createElement('a')
+      link.href = URL.createObjectURL(pdfBlob)
+      link.download = fileName
+      link.click()
+
+      // Refresh transmittals
+      fetchGovernanceData(selectedOrgForSetup)
+
+      setShowTransmittalModal(false)
+      setGovernanceMessage({ type: 'success', text: `Transmittal ${transmittalNumber} generated and saved!` })
+
+    } catch (err) {
+      console.error('Error generating transmittal:', err)
+      setGovernanceMessage({ type: 'error', text: 'Failed to generate transmittal: ' + err.message })
+    } finally {
+      setGeneratingTransmittal(false)
+    }
+  }
+
   // ==================== HANDOVER & CLOSEOUT FUNCTIONS ====================
 
   // Run handover readiness audit
@@ -1355,7 +1646,8 @@ function AdminPortal() {
             filename: doc.file_name,
             rev: doc.version_number || 1,
             uploadedAt: doc.uploaded_at ? new Date(doc.uploaded_at).toISOString().split('T')[0] : 'N/A',
-            hash: hash
+            hash: hash,
+            metadata: doc.metadata || {}
           })
         }
       }
@@ -1369,12 +1661,26 @@ function AdminPortal() {
   }
 
   // Convert manifest data to CSV string
-  function manifestToCSV(entries, orgName) {
-    const headers = 'Category,Folder,Filename,Rev,Uploaded_At,SHA256_Hash'
-    const rows = entries.map(e =>
-      `"${e.category}","${e.folder}","${e.filename}",${e.rev},${e.uploadedAt},${e.hash}`
-    )
-    const summary = `\n"SUMMARY","Total Files: ${entries.length}","Generated: ${new Date().toISOString()}","Organization: ${orgName || 'N/A'}","",""`
+  function manifestToCSV(entries, orgName, customFields = []) {
+    // Build dynamic headers based on custom fields
+    let headers = 'Category,Folder,Filename,Rev,Uploaded_At,SHA256_Hash'
+    customFields.forEach(field => {
+      headers += `,"${field.label.replace(/"/g, '""')}"`
+    })
+
+    const rows = entries.map(e => {
+      let row = `"${e.category}","${e.folder}","${e.filename}",${e.rev},${e.uploadedAt},${e.hash}`
+      // Add custom metadata values
+      customFields.forEach(field => {
+        const value = (e.metadata || {})[field.key] || ''
+        row += `,"${String(value).replace(/"/g, '""')}"`
+      })
+      return row
+    })
+
+    // Build summary row with matching column count
+    let summary = `\n"SUMMARY","Total Files: ${entries.length}","Generated: ${new Date().toISOString()}","Organization: ${orgName || 'N/A'}","",""`
+    customFields.forEach(() => { summary += ',""' })
 
     return headers + '\n' + rows.join('\n') + summary
   }
@@ -1397,10 +1703,19 @@ function AdminPortal() {
         return
       }
 
-      // Get organization name
+      // Get organization name and custom fields
       const org = organizations.find(o => o.id === selectedOrgForHandover)
       const orgName = org?.name?.replace(/[^a-zA-Z0-9]/g, '_') || 'Project'
       const timestamp = new Date().toISOString().split('T')[0]
+
+      // Fetch custom document fields for this org
+      const { data: orgConfig } = await supabase
+        .from('contract_config')
+        .select('custom_document_fields')
+        .eq('organization_id', selectedOrgForHandover)
+        .single()
+
+      const customFields = orgConfig?.custom_document_fields || []
 
       const zip = new JSZip()
       const rootFolder = zip.folder(`Handover_Package_${orgName}_${timestamp}`)
@@ -1522,13 +1837,14 @@ function AdminPortal() {
             filename: doc.file_name,
             rev: doc.version_number || 1,
             uploadedAt: doc.uploaded_at ? new Date(doc.uploaded_at).toISOString().split('T')[0] : 'N/A',
-            hash: hash
+            hash: hash,
+            metadata: doc.metadata || {}
           })
         }
       }
 
-      // Generate CSV manifest
-      const csvManifest = manifestToCSV(manifestEntries, org?.name)
+      // Generate CSV manifest with custom metadata fields
+      const csvManifest = manifestToCSV(manifestEntries, org?.name, customFields)
       rootFolder.file('Project_Manifest.csv', csvManifest)
 
       // Also keep JSON manifest for programmatic access
@@ -1632,7 +1948,8 @@ function AdminPortal() {
         end_kp: governanceData.end_kp,
         default_diameter: governanceData.default_diameter,
         per_diem_rate: governanceData.per_diem_rate,
-        default_pipe_specs: governanceData.default_pipe_specs
+        default_pipe_specs: governanceData.default_pipe_specs,
+        custom_document_fields: governanceData.custom_document_fields
       }
 
       // Upsert: insert or update based on organization_id
@@ -3148,6 +3465,11 @@ function AdminPortal() {
                               </a>
                               <div style={{ fontSize: '10px', color: '#666', marginBottom: '6px' }}>
                                 Rev {(doc.version_number || 1) - 1} • {new Date(doc.created_at).toLocaleDateString()}
+                                {doc.metadata && Object.keys(doc.metadata).length > 0 && (
+                                  <span style={{ marginLeft: '8px', color: '#d97706' }}>
+                                    {Object.entries(doc.metadata).map(([k, v]) => v ? `${k}: ${v}` : null).filter(Boolean).join(' | ')}
+                                  </span>
+                                )}
                                 {history.length > 1 && (
                                   <button
                                     onClick={() => openHistoryModal(cat.key)}
@@ -3187,6 +3509,34 @@ function AdminPortal() {
                                       └ {add.file_name}
                                     </a>
                                   ))}
+                                </div>
+                              )}
+
+                              {/* Custom metadata fields for replacement uploads */}
+                              {(governanceData.custom_document_fields || []).length > 0 && (
+                                <div style={{ marginBottom: '8px', padding: '6px', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fde68a' }}>
+                                  <div style={{ fontSize: '9px', fontWeight: 'bold', color: '#d97706', marginBottom: '4px' }}>Update DC Metadata:</div>
+                                  <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                                    {governanceData.custom_document_fields.map(field => (
+                                      <input
+                                        key={field.key}
+                                        type="text"
+                                        placeholder={field.label}
+                                        value={(uploadMetadata[cat.key] || {})[field.key] || ''}
+                                        onChange={(e) => setUploadMetadata(prev => ({
+                                          ...prev,
+                                          [cat.key]: { ...(prev[cat.key] || {}), [field.key]: e.target.value }
+                                        }))}
+                                        style={{
+                                          padding: '3px 6px',
+                                          borderRadius: '3px',
+                                          border: '1px solid #d1d5db',
+                                          fontSize: '10px',
+                                          width: '120px'
+                                        }}
+                                      />
+                                    ))}
+                                  </div>
                                 </div>
                               )}
 
@@ -3236,6 +3586,34 @@ function AdminPortal() {
                               <p style={{ fontSize: '11px', color: '#dc3545', margin: '0 0 10px 0' }}>
                                 ⚠️ No document uploaded
                               </p>
+
+                              {/* Custom metadata fields for Owner DC */}
+                              {(governanceData.custom_document_fields || []).length > 0 && (
+                                <div style={{ marginBottom: '10px', padding: '8px', backgroundColor: '#fffbeb', borderRadius: '4px', border: '1px solid #fde68a' }}>
+                                  <div style={{ fontSize: '10px', fontWeight: 'bold', color: '#d97706', marginBottom: '6px' }}>Owner DC Metadata:</div>
+                                  {governanceData.custom_document_fields.map(field => (
+                                    <div key={field.key} style={{ marginBottom: '4px' }}>
+                                      <input
+                                        type="text"
+                                        placeholder={field.label + (field.required ? ' *' : '')}
+                                        value={(uploadMetadata[cat.key] || {})[field.key] || ''}
+                                        onChange={(e) => setUploadMetadata(prev => ({
+                                          ...prev,
+                                          [cat.key]: { ...(prev[cat.key] || {}), [field.key]: e.target.value }
+                                        }))}
+                                        style={{
+                                          width: '100%',
+                                          padding: '4px 8px',
+                                          borderRadius: '3px',
+                                          border: '1px solid #d1d5db',
+                                          fontSize: '11px'
+                                        }}
+                                      />
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+
                               <label style={{
                                 display: 'inline-flex',
                                 alignItems: 'center',
@@ -3633,6 +4011,183 @@ function AdminPortal() {
                 >
                   {savingGovernance ? '⏳ Saving...' : '💾 Save Configuration'}
                 </button>
+              </div>
+            )}
+
+            {/* ==================== OWNER DOCUMENT CONTROL (DC) FIELDS ==================== */}
+            {selectedOrgForSetup && (
+              <div style={{
+                marginTop: '30px',
+                padding: '20px',
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                border: '2px solid #f59e0b'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <h3 style={{ margin: 0, color: '#d97706' }}>🏷️ Owner Document Control Fields</h3>
+                  <button
+                    onClick={addCustomField}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: '#f59e0b',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px'
+                    }}
+                  >
+                    + Add Field
+                  </button>
+                </div>
+
+                <p style={{ color: '#666', fontSize: '12px', margin: '0 0 15px 0' }}>
+                  Define custom metadata fields that the Owner's Document Control system requires.
+                  These fields will appear on every document upload so you can tag files with the Owner's specific IDs.
+                </p>
+
+                {(governanceData.custom_document_fields || []).length === 0 ? (
+                  <p style={{ color: '#9ca3af', fontSize: '13px', fontStyle: 'italic' }}>
+                    No custom fields defined. Click "+ Add Field" to create fields like "Owner Doc Number" or "WBS Code".
+                  </p>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {governanceData.custom_document_fields.map((field, idx) => (
+                      <div key={field.key} style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '10px',
+                        padding: '10px',
+                        backgroundColor: '#fffbeb',
+                        borderRadius: '6px',
+                        border: '1px solid #fde68a'
+                      }}>
+                        <input
+                          type="text"
+                          value={field.label}
+                          onChange={(e) => updateCustomField(idx, { label: e.target.value })}
+                          placeholder="Field Label (e.g., Owner Doc Number)"
+                          style={{
+                            flex: 1,
+                            padding: '8px',
+                            borderRadius: '4px',
+                            border: '1px solid #d1d5db',
+                            fontSize: '13px'
+                          }}
+                        />
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', color: '#666' }}>
+                          <input
+                            type="checkbox"
+                            checked={field.required}
+                            onChange={(e) => updateCustomField(idx, { required: e.target.checked })}
+                          />
+                          Required
+                        </label>
+                        <button
+                          onClick={() => removeCustomField(idx)}
+                          style={{
+                            padding: '4px 8px',
+                            backgroundColor: '#ef4444',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '4px',
+                            cursor: 'pointer',
+                            fontSize: '11px'
+                          }}
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <p style={{ color: '#92400e', fontSize: '11px', marginTop: '10px' }}>
+                  💡 Remember to click "Save Configuration" to save your custom fields.
+                </p>
+              </div>
+            )}
+
+            {/* ==================== TRANSMITTAL GENERATOR ==================== */}
+            {selectedOrgForSetup && projectDocuments.length > 0 && (
+              <div style={{
+                marginTop: '30px',
+                padding: '20px',
+                backgroundColor: 'white',
+                borderRadius: '8px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                border: '2px solid #8b5cf6'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <h3 style={{ margin: 0, color: '#7c3aed' }}>📨 Document Transmittals</h3>
+                  <button
+                    onClick={openTransmittalModal}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#8b5cf6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    📄 Create Transmittal
+                  </button>
+                </div>
+
+                <p style={{ color: '#666', fontSize: '12px', margin: '0 0 15px 0' }}>
+                  Generate formal PDF cover letters for batches of files to send to the Owner's Document Control.
+                </p>
+
+                {transmittals.length > 0 ? (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+                      <thead>
+                        <tr style={{ backgroundColor: '#f5f3ff' }}>
+                          <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #ddd6fe' }}>Transmittal #</th>
+                          <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #ddd6fe' }}>Date</th>
+                          <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #ddd6fe' }}>To</th>
+                          <th style={{ padding: '8px', textAlign: 'center', borderBottom: '2px solid #ddd6fe' }}>Docs</th>
+                          <th style={{ padding: '8px', textAlign: 'right', borderBottom: '2px solid #ddd6fe' }}>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {transmittals.slice(0, 5).map(t => (
+                          <tr key={t.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                            <td style={{ padding: '8px', fontFamily: 'monospace', fontWeight: 'bold' }}>{t.transmittal_number}</td>
+                            <td style={{ padding: '8px' }}>{t.date_sent ? new Date(t.date_sent).toLocaleDateString() : '—'}</td>
+                            <td style={{ padding: '8px' }}>{t.to_name} {t.to_company && `(${t.to_company})`}</td>
+                            <td style={{ padding: '8px', textAlign: 'center' }}>{t.document_ids?.length || 0}</td>
+                            <td style={{ padding: '8px', textAlign: 'right' }}>
+                              {t.pdf_url && (
+                                <a
+                                  href={t.pdf_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{ color: '#7c3aed', textDecoration: 'none', fontWeight: 'bold' }}
+                                >
+                                  📥 Download
+                                </a>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                    {transmittals.length > 5 && (
+                      <p style={{ fontSize: '11px', color: '#666', marginTop: '10px' }}>
+                        Showing 5 of {transmittals.length} transmittals
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <p style={{ color: '#9ca3af', fontSize: '13px', fontStyle: 'italic' }}>
+                    No transmittals generated yet. Click "Create Transmittal" to generate a formal document package.
+                  </p>
+                )}
               </div>
             )}
 
@@ -4561,6 +5116,7 @@ function AdminPortal() {
                                 <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #fde68a' }}>Filename</th>
                                 <th style={{ padding: '8px', textAlign: 'center', borderBottom: '2px solid #fde68a' }}>Rev</th>
                                 <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #fde68a' }}>Uploaded</th>
+                                <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #fde68a' }}>Owner Metadata</th>
                                 <th style={{ padding: '8px', textAlign: 'left', borderBottom: '2px solid #fde68a' }}>SHA256 Hash</th>
                               </tr>
                             </thead>
@@ -4572,7 +5128,12 @@ function AdminPortal() {
                                   <td style={{ padding: '6px 8px', borderBottom: '1px solid #fde68a', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }} title={entry.filename}>{entry.filename}</td>
                                   <td style={{ padding: '6px 8px', borderBottom: '1px solid #fde68a', textAlign: 'center' }}>{entry.rev}</td>
                                   <td style={{ padding: '6px 8px', borderBottom: '1px solid #fde68a' }}>{entry.uploadedAt}</td>
-                                  <td style={{ padding: '6px 8px', borderBottom: '1px solid #fde68a', fontFamily: 'monospace', fontSize: '9px', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={entry.hash}>{entry.hash.substring(0, 16)}...</td>
+                                  <td style={{ padding: '6px 8px', borderBottom: '1px solid #fde68a', fontSize: '9px', color: '#d97706' }}>
+                                    {entry.metadata && Object.keys(entry.metadata).length > 0
+                                      ? Object.entries(entry.metadata).map(([k, v]) => v ? `${v}` : null).filter(Boolean).join(', ')
+                                      : '—'}
+                                  </td>
+                                  <td style={{ padding: '6px 8px', borderBottom: '1px solid #fde68a', fontFamily: 'monospace', fontSize: '9px', maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis' }} title={entry.hash}>{entry.hash.substring(0, 12)}...</td>
                                 </tr>
                               ))}
                             </tbody>
@@ -5533,6 +6094,190 @@ function AdminPortal() {
               <p style={{ margin: '15px 0 0 0', fontSize: '10px', color: '#9ca3af', textAlign: 'center' }}>
                 Previous versions are retained for audit purposes and are not deleted.
               </p>
+            </div>
+          </div>
+        )}
+
+        {/* Transmittal Modal */}
+        {showTransmittalModal && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '700px',
+              width: '95%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ margin: 0, color: '#7c3aed' }}>
+                  📨 Create Document Transmittal
+                </h3>
+                <button
+                  onClick={() => setShowTransmittalModal(false)}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>From Name</label>
+                  <input
+                    type="text"
+                    value={transmittalForm.from_name}
+                    onChange={(e) => setTransmittalForm(f => ({ ...f, from_name: e.target.value }))}
+                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>From Title</label>
+                  <input
+                    type="text"
+                    value={transmittalForm.from_title}
+                    onChange={(e) => setTransmittalForm(f => ({ ...f, from_title: e.target.value }))}
+                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>To (Recipient Name)</label>
+                  <input
+                    type="text"
+                    value={transmittalForm.to_name}
+                    onChange={(e) => setTransmittalForm(f => ({ ...f, to_name: e.target.value }))}
+                    placeholder="e.g., Document Control Manager"
+                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>To (Company)</label>
+                  <input
+                    type="text"
+                    value={transmittalForm.to_company}
+                    onChange={(e) => setTransmittalForm(f => ({ ...f, to_company: e.target.value }))}
+                    placeholder="e.g., Pipeline Owner Inc."
+                    style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Subject</label>
+                <input
+                  type="text"
+                  value={transmittalForm.subject}
+                  onChange={(e) => setTransmittalForm(f => ({ ...f, subject: e.target.value }))}
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>Notes (optional)</label>
+                <textarea
+                  value={transmittalForm.notes}
+                  onChange={(e) => setTransmittalForm(f => ({ ...f, notes: e.target.value }))}
+                  rows={3}
+                  placeholder="Any additional notes for the transmittal..."
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px', resize: 'vertical' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '8px', color: '#374151' }}>
+                  Select Documents to Include ({transmittalForm.selectedDocIds.length} selected)
+                </label>
+                <div style={{
+                  maxHeight: '200px',
+                  overflowY: 'auto',
+                  border: '1px solid #e5e7eb',
+                  borderRadius: '6px',
+                  padding: '10px'
+                }}>
+                  {projectDocuments.filter(d => d.is_current !== false && !d.is_addendum).map(doc => (
+                    <label
+                      key={doc.id}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '8px',
+                        cursor: 'pointer',
+                        backgroundColor: transmittalForm.selectedDocIds.includes(doc.id) ? '#f5f3ff' : 'transparent',
+                        borderRadius: '4px',
+                        marginBottom: '4px'
+                      }}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={transmittalForm.selectedDocIds.includes(doc.id)}
+                        onChange={() => toggleDocForTransmittal(doc.id)}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ fontSize: '13px', fontWeight: '500' }}>{doc.file_name}</div>
+                        <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                          {doc.category} • Rev {doc.version_number || 1}
+                          {doc.metadata?.owner_doc_num && ` • Owner: ${doc.metadata.owner_doc_num}`}
+                        </div>
+                      </div>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  onClick={() => setShowTransmittalModal(false)}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#e5e7eb',
+                    color: '#374151',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '13px'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={generateTransmittal}
+                  disabled={generatingTransmittal || transmittalForm.selectedDocIds.length === 0 || !transmittalForm.to_name}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: generatingTransmittal || transmittalForm.selectedDocIds.length === 0 ? '#9ca3af' : '#8b5cf6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: generatingTransmittal || transmittalForm.selectedDocIds.length === 0 ? 'not-allowed' : 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {generatingTransmittal ? '⏳ Generating...' : `📄 Generate Transmittal (${transmittalForm.selectedDocIds.length} docs)`}
+                </button>
+              </div>
             </div>
           </div>
         )}
