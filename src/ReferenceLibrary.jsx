@@ -16,7 +16,9 @@ function ReferenceLibrary() {
   const technicalLibraryCategories = [
     { key: 'api_1169', label: 'API 1169 - Pipeline Construction Inspection', icon: '📘', description: 'Standard practice for pipeline construction inspection covering welding, coating, and testing requirements.' },
     { key: 'csa_z662', label: 'CSA Z662 - Oil & Gas Pipeline Systems', icon: '📗', description: 'Canadian standards for design, construction, operation, and maintenance of oil and gas pipeline systems.' },
-    { key: 'pipeline_authority_ref', label: 'Practical Guide for Pipeline Construction Inspectors', icon: '📕', description: 'Comprehensive field guide for pipeline construction inspection best practices.' }
+    { key: 'pipeline_authority_ref', label: 'Practical Guide for Pipeline Construction Inspectors', icon: '📕', description: 'Comprehensive field guide for pipeline construction inspection best practices.' },
+    { key: 'inspector_playbook', label: "Pipeline Inspector's Playbook", icon: '📙', description: 'Essential playbook for pipeline inspection procedures and techniques.' },
+    { key: 'rules_of_thumb', label: 'Pipeline Rules of Thumb', icon: '📓', description: 'Quick reference guide with practical rules and calculations for pipeline work.' }
   ]
 
   useEffect(() => {
@@ -30,7 +32,7 @@ function ReferenceLibrary() {
         .from('project_documents')
         .select('*')
         .eq('is_global', true)
-        .in('category', ['api_1169', 'csa_z662', 'pipeline_authority_ref'])
+        .in('category', ['api_1169', 'csa_z662', 'pipeline_authority_ref', 'inspector_playbook', 'rules_of_thumb'])
         .order('created_at', { ascending: false })
 
       if (error) throw error
