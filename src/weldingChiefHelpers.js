@@ -127,7 +127,8 @@ async function aggregateWelderStatsFromTickets(supabaseClient, orgId, dateRange 
           }
         }
 
-        welderMap[crewType].totalWelds += weldData.weldsToday || weldEntries.length || 0
+        // Use weldsToday for actual weld count (weldEntries contains passes, not welds)
+        welderMap[crewType].totalWelds += weldData.weldsToday || 0
         welderMap[crewType].repairs += repairs.length || 0
       }
     }
@@ -233,8 +234,9 @@ export function aggregateDailyWeldProduction(reports) {
       }
 
       // Count welds
+      // Use weldsToday for actual weld count (weldEntries contains passes, not welds)
+      // For tie-ins, count transitions as welds
       const weldsToday = weldData.weldsToday ||
-                         weldData.weldEntries?.length ||
                          counterboreData.transitions?.length ||
                          0
       byCrewType[crewType].weldsCompleted += weldsToday
@@ -542,7 +544,8 @@ async function getCumulativeWeldStatsFromTickets(supabaseClient, orgId) {
         if (!block.activityType?.toLowerCase().includes('weld')) continue
 
         const weldData = block.weldData || {}
-        totalWelds += weldData.weldsToday || weldData.weldEntries?.length || 0
+        // Use weldsToday for actual weld count (weldEntries contains passes, not welds)
+        totalWelds += weldData.weldsToday || 0
         totalRepairs += weldData.repairs?.length || 0
       }
     }
