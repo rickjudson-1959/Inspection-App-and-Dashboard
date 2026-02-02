@@ -995,7 +995,7 @@ function ChiefDashboard() {
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <TenantSwitcher compact />
-          <AIAgentStatusIcon />
+          <AIAgentStatusIcon organizationId={organizationId} />
           {/* Only show GOD MODE for super_admin */}
           {(userProfile?.role === 'super_admin' || userProfile?.user_role === 'super_admin') && (
             <MasterSwitcher compact />

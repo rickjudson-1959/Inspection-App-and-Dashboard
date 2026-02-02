@@ -1865,7 +1865,7 @@ function AssistantChiefDashboard() {
               </p>
             </div>
             <TenantSwitcher compact />
-            <AIAgentStatusIcon />
+            <AIAgentStatusIcon organizationId={organizationId} />
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={() => navigate(orgPath('/chief-dashboard'))} style={{ padding: '10px 20px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
