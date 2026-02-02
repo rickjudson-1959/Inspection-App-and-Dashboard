@@ -16,67 +16,8 @@ const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
  * @returns {Array} Array of welder stats: { welderId, welderName, totalWelds, repairs, repairRate }
  */
 export async function aggregateWelderStats(supabaseClient, orgId, dateRange = null) {
-  try {
-    // Build query for weld_book
-    let query = supabaseClient
-      .from('weld_book')
-      .select('welder_id, welder_name, acceptance_status, repair_count, weld_date')
-
-    if (orgId) {
-      query = query.eq('organization_id', orgId)
-    }
-
-    if (dateRange?.startDate) {
-      query = query.gte('weld_date', dateRange.startDate)
-    }
-    if (dateRange?.endDate) {
-      query = query.lte('weld_date', dateRange.endDate)
-    }
-
-    const { data: weldData, error } = await query
-
-    if (error) {
-      console.error('Error fetching weld_book data:', error)
-      // Fallback to daily_tickets if weld_book doesn't exist
-      return await aggregateWelderStatsFromTickets(supabaseClient, orgId, dateRange)
-    }
-
-    // Aggregate by welder
-    const welderMap = {}
-
-    for (const weld of (weldData || [])) {
-      const welderKey = weld.welder_id || weld.welder_name || 'Unknown'
-      const welderName = weld.welder_name || welderKey
-
-      if (!welderMap[welderKey]) {
-        welderMap[welderKey] = {
-          welderId: welderKey,
-          welderName: welderName,
-          totalWelds: 0,
-          repairs: 0
-        }
-      }
-
-      welderMap[welderKey].totalWelds++
-
-      // Count repairs
-      const repairs = weld.repair_count || (weld.acceptance_status === 'repair' ? 1 : 0)
-      welderMap[welderKey].repairs += repairs
-    }
-
-    // Calculate repair rates and sort by rate descending
-    const stats = Object.values(welderMap)
-      .map(w => ({
-        ...w,
-        repairRate: w.totalWelds > 0 ? (w.repairs / w.totalWelds * 100) : 0
-      }))
-      .sort((a, b) => b.repairRate - a.repairRate)
-
-    return stats
-  } catch (err) {
-    console.error('Error aggregating welder stats:', err)
-    return []
-  }
+  // Use daily_tickets directly (weld_book table may not exist)
+  return await aggregateWelderStatsFromTickets(supabaseClient, orgId, dateRange)
 }
 
 /**
@@ -487,37 +428,8 @@ export async function getDailyWeldSummary(supabaseClient, orgId, date) {
  * @returns {Object} Cumulative stats
  */
 export async function getCumulativeWeldStats(supabaseClient, orgId) {
-  try {
-    // Try weld_book first
-    let query = supabaseClient
-      .from('weld_book')
-      .select('id, acceptance_status, repair_count', { count: 'exact' })
-
-    if (orgId) {
-      query = query.eq('organization_id', orgId)
-    }
-
-    const { count: totalWelds, data, error } = await query
-
-    if (error) {
-      // Fallback to daily_tickets
-      return await getCumulativeWeldStatsFromTickets(supabaseClient, orgId)
-    }
-
-    let totalRepairs = 0
-    for (const weld of (data || [])) {
-      totalRepairs += weld.repair_count || (weld.acceptance_status === 'repair' ? 1 : 0)
-    }
-
-    return {
-      totalWelds: totalWelds || 0,
-      totalRepairs,
-      repairRate: totalWelds > 0 ? (totalRepairs / totalWelds * 100) : 0
-    }
-  } catch (err) {
-    console.error('Error getting cumulative weld stats:', err)
-    return { totalWelds: 0, totalRepairs: 0, repairRate: 0 }
-  }
+  // Use daily_tickets directly (weld_book table may not exist)
+  return await getCumulativeWeldStatsFromTickets(supabaseClient, orgId)
 }
 
 async function getCumulativeWeldStatsFromTickets(supabaseClient, orgId) {
@@ -583,7 +495,7 @@ export async function fetchWeldingAILogs(supabaseClient, orgId, limit = 50) {
     const { data, error } = await query
 
     if (error) {
-      console.error('Error fetching AI logs:', error)
+      // ai_agent_logs table may not exist - silently return empty
       return []
     }
 
