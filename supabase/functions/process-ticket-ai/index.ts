@@ -31,6 +31,10 @@ type FlagType =
   | 'SPEC_VIOLATION'           // RAG-based spec violations
   | 'COATING_VIOLATION'        // Coating thickness out of spec
   | 'PROCEDURE_VIOLATION'      // Procedure not followed per docs
+  | 'ITP_HOLD_POINT_MISSED'    // Quality hold point bypassed
+  | 'WALL_THICKNESS_MISMATCH'  // Wall thickness doesn't match drawings
+  | 'COVER_DEPTH_VIOLATION'    // Backfill cover depth out of spec
+  | 'PREHEAT_VIOLATION'        // Preheat temp not per WPS
 
 type Severity = 'critical' | 'warning' | 'info'
 
@@ -1046,6 +1050,7 @@ async function logAnalysis(supabase: any, params: LogParams): Promise<void> {
 
 // =============================================================================
 // RAG (RETRIEVAL AUGMENTED GENERATION) FUNCTIONS
+// Enhanced Vector Search for Activity-Specific Spec Compliance
 // =============================================================================
 
 /**
@@ -1066,7 +1071,7 @@ async function generateEmbedding(text: string): Promise<number[] | null> {
       },
       body: JSON.stringify({
         model: 'text-embedding-ada-002',
-        input: text.slice(0, 8000) // Truncate to model limit
+        input: text.slice(0, 8000)
       })
     })
 
@@ -1095,7 +1100,6 @@ async function searchDocuments(
   matchCount: number = 5,
   matchThreshold: number = 0.7
 ): Promise<DocumentMatch[]> {
-  // Generate embedding for query
   const embedding = await generateEmbedding(queryText)
 
   if (!embedding) {
@@ -1104,7 +1108,6 @@ async function searchDocuments(
   }
 
   try {
-    // Use the match_documents function
     const { data, error } = await supabase.rpc('match_documents', {
       query_embedding: embedding,
       match_threshold: matchThreshold,
@@ -1126,120 +1129,325 @@ async function searchDocuments(
 }
 
 /**
- * Extract measurable values from ticket for spec validation
+ * Activity-specific measurable field interface
  */
-function extractMeasurableFields(ticket: any): { field: string, value: any, unit: string, context: string }[] {
-  const measurables: { field: string, value: any, unit: string, context: string }[] = []
-  const blocks = ticket.activity_blocks || []
+interface MeasurableField {
+  field: string
+  value: any
+  unit: string
+  context: string
+  activityType: string
+  blockIndex: number
+  searchTerms: string[] // Terms to search in documents
+}
 
-  for (const block of blocks) {
-    // Coating data
-    if (block.coatingData) {
-      const cd = block.coatingData
-      if (cd.dftReadings && Array.isArray(cd.dftReadings)) {
-        for (const reading of cd.dftReadings) {
-          if (reading.thickness !== undefined && reading.thickness !== null) {
-            measurables.push({
-              field: 'coating_thickness',
-              value: parseFloat(reading.thickness),
-              unit: 'mils',
-              context: `Coating DFT reading at ${reading.location || 'unspecified location'}, coating type: ${cd.coatingType || 'unknown'}`
-            })
-          }
-        }
-      }
-      if (cd.thickness !== undefined) {
-        measurables.push({
-          field: 'coating_thickness',
-          value: parseFloat(cd.thickness),
-          unit: 'mils',
-          context: `Coating thickness for ${cd.coatingType || 'coating'} application`
-        })
-      }
-      if (cd.minThickness !== undefined) {
-        measurables.push({
-          field: 'coating_min_thickness',
-          value: parseFloat(cd.minThickness),
-          unit: 'mils',
-          context: `Minimum coating thickness recorded`
-        })
-      }
-    }
+/**
+ * Extract measurable values from a SINGLE activity block
+ */
+function extractBlockMeasurables(block: any, blockIndex: number): MeasurableField[] {
+  const measurables: MeasurableField[] = []
+  const activityType = block.activityType || 'unknown'
 
-    // Weld data
-    if (block.weldData) {
-      const wd = block.weldData
-      if (wd.pipeGrade) {
-        measurables.push({
-          field: 'pipe_grade',
-          value: wd.pipeGrade,
-          unit: '',
-          context: `Pipe grade used for welding activity`
-        })
-      }
-      if (wd.pipeDiameter) {
-        measurables.push({
-          field: 'pipe_diameter',
-          value: parseFloat(wd.pipeDiameter),
-          unit: 'inches',
-          context: `Pipe diameter for weld`
-        })
-      }
-      if (wd.wallThickness) {
-        measurables.push({
-          field: 'wall_thickness',
-          value: parseFloat(wd.wallThickness),
-          unit: 'inches',
-          context: `Pipe wall thickness`
-        })
-      }
-    }
+  // ==========================================================================
+  // COATING DATA - DFT readings, coating type, application method
+  // ==========================================================================
+  if (block.coatingData) {
+    const cd = block.coatingData
 
-    // Backfill data
-    if (block.backfillData) {
-      const bf = block.backfillData
-      if (bf.coverDepth !== undefined) {
-        measurables.push({
-          field: 'cover_depth',
-          value: parseFloat(bf.coverDepth),
-          unit: 'meters',
-          context: `Backfill cover depth over pipe`
-        })
-      }
-      if (bf.padding_thickness !== undefined) {
-        measurables.push({
-          field: 'padding_thickness',
-          value: parseFloat(bf.padding_thickness),
-          unit: 'mm',
-          context: `Padding thickness for pipe protection`
-        })
-      }
-    }
-
-    // NDT data
-    if (block.ndtData) {
-      const ndt = block.ndtData
-      if (ndt.repairRate !== undefined) {
-        measurables.push({
-          field: 'repair_rate',
-          value: parseFloat(ndt.repairRate),
-          unit: '%',
-          context: `NDT repair rate for welds inspected`
-        })
-      }
-    }
-
-    // Generic inspection values
-    if (block.inspectionValues && typeof block.inspectionValues === 'object') {
-      for (const [key, val] of Object.entries(block.inspectionValues)) {
-        if (typeof val === 'number' || (typeof val === 'string' && !isNaN(parseFloat(val)))) {
+    // DFT Readings array
+    if (cd.dftReadings && Array.isArray(cd.dftReadings)) {
+      for (const reading of cd.dftReadings) {
+        if (reading.thickness !== undefined && reading.thickness !== null) {
           measurables.push({
-            field: key,
-            value: parseFloat(val as string),
-            unit: '',
-            context: `Inspection value: ${key}`
+            field: 'coating_thickness_dft',
+            value: parseFloat(reading.thickness),
+            unit: 'mils',
+            context: `DFT reading at ${reading.location || reading.station || 'station'}: ${reading.thickness} mils`,
+            activityType,
+            blockIndex,
+            searchTerms: ['coating thickness', 'DFT', 'dry film thickness', 'mils', 'minimum thickness', 'coating specification']
           })
         }
+      }
+    }
+
+    // Single thickness value
+    if (cd.thickness !== undefined) {
+      measurables.push({
+        field: 'coating_thickness',
+        value: parseFloat(cd.thickness),
+        unit: 'mils',
+        context: `Coating thickness: ${cd.thickness} mils, type: ${cd.coatingType || 'unspecified'}`,
+        activityType,
+        blockIndex,
+        searchTerms: ['coating thickness', 'DFT', 'mils', cd.coatingType || 'coating'].filter(Boolean)
+      })
+    }
+
+    // Min/Max thickness
+    if (cd.minThickness !== undefined) {
+      measurables.push({
+        field: 'coating_min_thickness',
+        value: parseFloat(cd.minThickness),
+        unit: 'mils',
+        context: `Minimum coating thickness recorded: ${cd.minThickness} mils`,
+        activityType,
+        blockIndex,
+        searchTerms: ['minimum coating', 'coating thickness', 'DFT minimum']
+      })
+    }
+
+    // Coating type itself is a spec check
+    if (cd.coatingType) {
+      measurables.push({
+        field: 'coating_type',
+        value: cd.coatingType,
+        unit: '',
+        context: `Coating material used: ${cd.coatingType}`,
+        activityType,
+        blockIndex,
+        searchTerms: ['approved coating', 'coating material', 'field joint coating', cd.coatingType]
+      })
+    }
+
+    // Surface prep
+    if (cd.surfacePrep) {
+      measurables.push({
+        field: 'surface_preparation',
+        value: cd.surfacePrep,
+        unit: '',
+        context: `Surface preparation method: ${cd.surfacePrep}`,
+        activityType,
+        blockIndex,
+        searchTerms: ['surface preparation', 'surface prep', 'abrasive blast', 'anchor profile']
+      })
+    }
+  }
+
+  // ==========================================================================
+  // WELD DATA - WPS, pipe grade, wall thickness, diameter, preheat
+  // ==========================================================================
+  if (block.weldData) {
+    const wd = block.weldData
+
+    if (wd.pipeGrade) {
+      measurables.push({
+        field: 'pipe_grade',
+        value: wd.pipeGrade,
+        unit: '',
+        context: `Pipe grade/material: ${wd.pipeGrade}`,
+        activityType,
+        blockIndex,
+        searchTerms: ['pipe grade', 'material', 'base metal', 'WPS', wd.pipeGrade]
+      })
+    }
+
+    if (wd.pipeDiameter) {
+      measurables.push({
+        field: 'pipe_diameter',
+        value: parseFloat(wd.pipeDiameter),
+        unit: 'inches',
+        context: `Pipe diameter: ${wd.pipeDiameter} inches`,
+        activityType,
+        blockIndex,
+        searchTerms: ['pipe diameter', 'NPS', 'nominal pipe size', 'diameter']
+      })
+    }
+
+    if (wd.wallThickness) {
+      measurables.push({
+        field: 'wall_thickness',
+        value: parseFloat(wd.wallThickness),
+        unit: 'inches',
+        context: `Pipe wall thickness: ${wd.wallThickness} inches`,
+        activityType,
+        blockIndex,
+        searchTerms: ['wall thickness', 'pipe wall', 'thickness', 'schedule']
+      })
+    }
+
+    if (wd.preheatTemp !== undefined) {
+      measurables.push({
+        field: 'preheat_temperature',
+        value: parseFloat(wd.preheatTemp),
+        unit: '°C',
+        context: `Preheat temperature: ${wd.preheatTemp}°C`,
+        activityType,
+        blockIndex,
+        searchTerms: ['preheat', 'preheat temperature', 'minimum preheat', 'WPS preheat']
+      })
+    }
+
+    if (wd.interpassTemp !== undefined) {
+      measurables.push({
+        field: 'interpass_temperature',
+        value: parseFloat(wd.interpassTemp),
+        unit: '°C',
+        context: `Interpass temperature: ${wd.interpassTemp}°C`,
+        activityType,
+        blockIndex,
+        searchTerms: ['interpass', 'interpass temperature', 'maximum interpass']
+      })
+    }
+
+    // Weld entries with individual WPS checks
+    if (wd.weldEntries && Array.isArray(wd.weldEntries)) {
+      for (const weld of wd.weldEntries) {
+        if (weld.wpsId) {
+          measurables.push({
+            field: 'wps_used',
+            value: weld.wpsId,
+            unit: '',
+            context: `WPS ${weld.wpsId} used for weld ${weld.weldNumber || weld.id || 'unknown'}`,
+            activityType,
+            blockIndex,
+            searchTerms: ['WPS', 'weld procedure', weld.wpsId, 'qualified procedure']
+          })
+        }
+      }
+    }
+  }
+
+  // ==========================================================================
+  // BACKFILL DATA - Cover depth, padding, bedding material
+  // ==========================================================================
+  if (block.backfillData) {
+    const bf = block.backfillData
+
+    if (bf.coverDepth !== undefined) {
+      measurables.push({
+        field: 'cover_depth',
+        value: parseFloat(bf.coverDepth),
+        unit: 'meters',
+        context: `Backfill cover depth: ${bf.coverDepth} meters`,
+        activityType,
+        blockIndex,
+        searchTerms: ['cover depth', 'depth of cover', 'minimum cover', 'backfill depth', 'burial depth']
+      })
+    }
+
+    if (bf.paddingThickness !== undefined || bf.padding_thickness !== undefined) {
+      const padding = bf.paddingThickness || bf.padding_thickness
+      measurables.push({
+        field: 'padding_thickness',
+        value: parseFloat(padding),
+        unit: 'mm',
+        context: `Padding thickness: ${padding} mm`,
+        activityType,
+        blockIndex,
+        searchTerms: ['padding', 'padding thickness', 'bedding', 'pipe bedding']
+      })
+    }
+
+    if (bf.beddingMaterial) {
+      measurables.push({
+        field: 'bedding_material',
+        value: bf.beddingMaterial,
+        unit: '',
+        context: `Bedding material: ${bf.beddingMaterial}`,
+        activityType,
+        blockIndex,
+        searchTerms: ['bedding material', 'padding material', 'sand', 'select fill']
+      })
+    }
+  }
+
+  // ==========================================================================
+  // NDT DATA - Repair rate, test method
+  // ==========================================================================
+  if (block.ndtData) {
+    const ndt = block.ndtData
+
+    if (ndt.repairRate !== undefined) {
+      measurables.push({
+        field: 'repair_rate',
+        value: parseFloat(ndt.repairRate),
+        unit: '%',
+        context: `NDT repair rate: ${ndt.repairRate}%`,
+        activityType,
+        blockIndex,
+        searchTerms: ['repair rate', 'NDT', 'radiography', 'acceptance criteria', 'rejection rate']
+      })
+    }
+
+    if (ndt.testMethod) {
+      measurables.push({
+        field: 'ndt_method',
+        value: ndt.testMethod,
+        unit: '',
+        context: `NDT method used: ${ndt.testMethod}`,
+        activityType,
+        blockIndex,
+        searchTerms: ['NDT method', 'radiography', 'ultrasonic', 'examination method']
+      })
+    }
+  }
+
+  // ==========================================================================
+  // LOWERING/STRINGING DATA
+  // ==========================================================================
+  if (block.loweringData) {
+    const ld = block.loweringData
+
+    if (ld.sideBoomCount !== undefined) {
+      measurables.push({
+        field: 'sideboom_count',
+        value: parseInt(ld.sideBoomCount),
+        unit: '',
+        context: `Sidebooms used for lowering: ${ld.sideBoomCount}`,
+        activityType,
+        blockIndex,
+        searchTerms: ['sideboom', 'lowering in', 'pipe handling', 'lifting']
+      })
+    }
+  }
+
+  // ==========================================================================
+  // HYDROSTATIC TEST DATA
+  // ==========================================================================
+  if (block.hydroData || block.hydrotestData) {
+    const hd = block.hydroData || block.hydrotestData
+
+    if (hd.testPressure !== undefined) {
+      measurables.push({
+        field: 'test_pressure',
+        value: parseFloat(hd.testPressure),
+        unit: 'kPa',
+        context: `Hydrostatic test pressure: ${hd.testPressure} kPa`,
+        activityType,
+        blockIndex,
+        searchTerms: ['test pressure', 'hydrostatic', 'pressure test', 'SMYS']
+      })
+    }
+
+    if (hd.holdTime !== undefined) {
+      measurables.push({
+        field: 'hold_time',
+        value: parseFloat(hd.holdTime),
+        unit: 'hours',
+        context: `Pressure hold time: ${hd.holdTime} hours`,
+        activityType,
+        blockIndex,
+        searchTerms: ['hold time', 'test duration', 'pressure hold']
+      })
+    }
+  }
+
+  // ==========================================================================
+  // GENERIC INSPECTION VALUES
+  // ==========================================================================
+  if (block.inspectionValues && typeof block.inspectionValues === 'object') {
+    for (const [key, val] of Object.entries(block.inspectionValues)) {
+      if (typeof val === 'number' || (typeof val === 'string' && !isNaN(parseFloat(val)))) {
+        measurables.push({
+          field: key,
+          value: parseFloat(val as string),
+          unit: '',
+          context: `Inspection value ${key}: ${val}`,
+          activityType,
+          blockIndex,
+          searchTerms: [key.replace(/_/g, ' '), 'inspection', 'requirement']
+        })
       }
     }
   }
@@ -1248,7 +1456,99 @@ function extractMeasurableFields(ticket: any): { field: string, value: any, unit
 }
 
 /**
- * Perform RAG-based spec compliance analysis
+ * Extract all measurable fields from ticket (for backward compatibility)
+ */
+function extractMeasurableFields(ticket: any): { field: string, value: any, unit: string, context: string }[] {
+  const blocks = ticket.activity_blocks || []
+  const allMeasurables: { field: string, value: any, unit: string, context: string }[] = []
+
+  for (let i = 0; i < blocks.length; i++) {
+    const blockMeasurables = extractBlockMeasurables(blocks[i], i)
+    allMeasurables.push(...blockMeasurables.map(m => ({
+      field: m.field,
+      value: m.value,
+      unit: m.unit,
+      context: m.context
+    })))
+  }
+
+  return allMeasurables
+}
+
+/**
+ * Get activity-specific search queries
+ */
+function getActivitySearchQueries(activityType: string): string[] {
+  const baseQueries = [
+    'specification requirements acceptance criteria',
+    'project specification section'
+  ]
+
+  const activityQueries: Record<string, string[]> = {
+    'mainline_welding': [
+      'WPS weld procedure specification qualified',
+      'welding parameters preheat interpass',
+      'weld acceptance criteria CSA Z662',
+      'base material pipe grade'
+    ],
+    'tie_in_welding': [
+      'tie-in weld procedure',
+      'WPS tie-in requirements',
+      'welding acceptance criteria'
+    ],
+    'coating': [
+      'coating thickness DFT specification',
+      'field joint coating requirements',
+      'coating application procedure',
+      'surface preparation anchor profile'
+    ],
+    'field_coating': [
+      'field joint coating DFT mils',
+      'coating thickness minimum maximum',
+      'surface preparation requirements'
+    ],
+    'ndt': [
+      'NDT radiography acceptance criteria',
+      'weld examination requirements',
+      'repair rate limits'
+    ],
+    'lowering': [
+      'lowering in procedure requirements',
+      'sideboom lifting requirements',
+      'pipe handling'
+    ],
+    'backfill': [
+      'backfill cover depth requirements',
+      'padding bedding thickness',
+      'trench backfill specification'
+    ],
+    'trenching': [
+      'trench depth width requirements',
+      'excavation specification'
+    ],
+    'hydrotest': [
+      'hydrostatic test pressure requirements',
+      'hold time duration acceptance',
+      'pressure test SMYS'
+    ]
+  }
+
+  // Normalize activity type
+  const normalizedType = activityType.toLowerCase().replace(/\s+/g, '_')
+
+  // Find matching queries
+  for (const [key, queries] of Object.entries(activityQueries)) {
+    if (normalizedType.includes(key) || key.includes(normalizedType)) {
+      return [...baseQueries, ...queries]
+    }
+  }
+
+  return baseQueries
+}
+
+/**
+ * Perform RAG-based spec compliance analysis - ENHANCED
+ * Analyzes EACH activity block against relevant project documents
  */
 async function analyzeWithRAG(
   supabase: any,
@@ -1256,166 +1556,211 @@ async function analyzeWithRAG(
   organizationId: string
 ): Promise<AnalysisFlag[]> {
   const flags: AnalysisFlag[] = []
+  const blocks = ticket.activity_blocks || []
 
-  // Extract measurable values from ticket
-  const measurables = extractMeasurableFields(ticket)
-
-  if (measurables.length === 0) {
-    console.log(`[AI Agent] No measurable fields found in ticket ${ticket.id}`)
+  if (blocks.length === 0) {
+    console.log(`[AI Agent] No activity blocks in ticket ${ticket.id}`)
     return flags
   }
 
-  console.log(`[AI Agent] Found ${measurables.length} measurable fields for RAG analysis`)
+  console.log(`[AI Agent] Starting RAG analysis for ${blocks.length} activity blocks`)
 
-  // Build query for document search based on measurable fields
-  const uniqueFields = [...new Set(measurables.map(m => m.field))]
-  const queryTerms = [
-    'specification requirements',
-    'acceptable range',
-    'minimum maximum',
-    ...uniqueFields.map(f => f.replace(/_/g, ' '))
-  ]
+  // Process each activity block separately for targeted spec matching
+  for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
+    const block = blocks[blockIndex]
+    const activityType = block.activityType || 'general'
 
-  // Search for relevant specifications
-  const searchQuery = `${queryTerms.join(' ')} thickness tolerance limits requirements`
-  const relevantDocs = await searchDocuments(
-    supabase,
-    searchQuery,
-    organizationId,
-    undefined, // Search all categories
-    10,        // Get more documents for context
-    0.65       // Lower threshold to get more matches
-  )
+    // Extract measurable values from this specific block
+    const blockMeasurables = extractBlockMeasurables(block, blockIndex)
 
-  if (relevantDocs.length === 0) {
-    console.log('[AI Agent] No relevant documents found for RAG analysis')
-    return flags
-  }
+    if (blockMeasurables.length === 0) {
+      continue
+    }
 
-  console.log(`[AI Agent] Found ${relevantDocs.length} relevant document chunks`)
+    console.log(`[AI Agent] Block ${blockIndex} (${activityType}): ${blockMeasurables.length} measurable fields`)
 
-  // Build context from retrieved documents
-  const documentContext = relevantDocs.map(doc =>
-    `[${doc.document_name} - ${doc.document_category}]:\n${doc.chunk_text}`
-  ).join('\n\n---\n\n')
+    // Build activity-specific search queries
+    const activityQueries = getActivitySearchQueries(activityType)
 
-  // Build measurables summary
-  const measurablesSummary = measurables.map(m =>
-    `- ${m.field}: ${m.value} ${m.unit} (${m.context})`
-  ).join('\n')
+    // Collect unique search terms from all measurables
+    const allSearchTerms = new Set<string>()
+    blockMeasurables.forEach(m => m.searchTerms.forEach(t => allSearchTerms.add(t)))
 
-  // Use Claude to analyze compliance
-  if (!ANTHROPIC_API_KEY) {
-    console.log('[AI Agent] Anthropic API key not configured - skipping RAG compliance check')
-    return flags
-  }
+    // Build comprehensive search query
+    const searchQuery = [
+      ...activityQueries,
+      ...Array.from(allSearchTerms).slice(0, 10)
+    ].join(' ')
 
-  const ragPrompt = `You are a Pipeline Construction Quality Inspector AI. Your task is to check if the recorded field values comply with the project specifications.
+    // Search for relevant specifications
+    const relevantDocs = await searchDocuments(
+      supabase,
+      searchQuery,
+      organizationId,
+      undefined,
+      12,    // Get more documents for comprehensive coverage
+      0.60   // Lower threshold to catch more potentially relevant specs
+    )
 
-## RECORDED VALUES FROM DAILY TICKET
+    if (relevantDocs.length === 0) {
+      console.log(`[AI Agent] No relevant documents found for ${activityType} activity`)
+      continue
+    }
+
+    console.log(`[AI Agent] Found ${relevantDocs.length} relevant documents for ${activityType}`)
+
+    // Build context from retrieved documents with source tracking
+    const documentContext = relevantDocs.map(doc =>
+      `[SOURCE: ${doc.document_name}] [CATEGORY: ${doc.document_category}] [SIMILARITY: ${(doc.similarity * 100).toFixed(1)}%]\n${doc.chunk_text}`
+    ).join('\n\n---\n\n')
+
+    // Build detailed measurables summary
+    const measurablesSummary = blockMeasurables.map(m =>
+      `• ${m.field}: ${m.value} ${m.unit}\n  Context: ${m.context}`
+    ).join('\n\n')
+
+    // Use Claude to analyze compliance for this activity block
+    if (!ANTHROPIC_API_KEY) {
+      continue
+    }
+
+    const ragPrompt = `You are an expert Pipeline Construction Quality Inspector analyzing field data against project specifications.
+
+## ACTIVITY BEING INSPECTED
+Activity Type: ${activityType}
 Ticket ID: ${ticket.id}
 Date: ${ticket.date}
 Spread: ${ticket.spread || 'Not specified'}
+Contractor: ${block.contractor || 'Not specified'}
+Station/KP: ${block.startKP || 'Not specified'} to ${block.endKP || 'Not specified'}
 
+## RECORDED FIELD VALUES
 ${measurablesSummary}
 
-## RELEVANT PROJECT SPECIFICATIONS
-The following excerpts are from the project's specification documents (API 1169, Project Specs, Procedures):
+## PROJECT SPECIFICATION DOCUMENTS
+The following excerpts are from your project's WPS, ITP, Engineering Specs, and Procedures. Use these as the source of truth:
 
 ${documentContext}
 
-## YOUR TASK
-Compare each recorded value against the specifications. For each value:
-1. Find the applicable specification requirement
-2. Determine if the value is within acceptable limits
-3. If out of spec, identify the violation
+## YOUR CRITICAL TASK
+For EACH recorded value, answer: "Does this match the requirements in the uploaded WPS, ITP, or Specs?"
 
-Return a JSON array of violations found. Each violation should have:
-- field: the field name that's out of spec
-- recorded_value: the value that was recorded
-- spec_requirement: what the spec says (e.g., "20-25 mils per Project Spec Section 5.2")
-- violation_type: "BELOW_MIN" | "ABOVE_MAX" | "NOT_ALLOWED" | "MISSING_REQUIREMENT"
-- severity: "critical" | "warning"
-- message: A clear explanation of the violation
+If a value does NOT match the engineering specifications:
+1. Identify the specific violation
+2. Cite the exact source document and section
+3. Flag as CRITICAL if it's a safety/quality issue
 
-If ALL values are within spec, return an empty array: []
+CHECK THESE SPECIFICALLY:
+1. COATING THICKNESS: Is the DFT reading within the specified min/max range? (Common spec: 20-25 mils)
+2. PIPE GRADE/MATERIAL: Is this material listed in the approved WPS?
+3. WALL THICKNESS: Does it match the engineering drawings?
+4. PREHEAT TEMPERATURE: Does it meet WPS minimum requirements?
+5. COVER DEPTH: Does it meet the minimum depth of cover requirement?
+6. WPS: Is the WPS number used valid and qualified for this application?
 
-IMPORTANT:
-- Only flag clear violations where the spec explicitly states a requirement
-- Coating thickness is particularly important - flag any readings outside the specified range
-- For welding, check material compatibility and procedure compliance
-- Be specific about which document/section the requirement comes from
+## RESPONSE FORMAT
+Return a JSON array of violations. Each violation must have:
+{
+  "field": "the field name",
+  "recorded_value": "what was recorded",
+  "spec_requirement": "what the spec requires (include document name and section)",
+  "source_document": "exact document name from the specifications above",
+  "source_section": "section or page reference if available",
+  "violation_type": "BELOW_MIN" | "ABOVE_MAX" | "NOT_APPROVED" | "PROCEDURE_VIOLATION" | "MISSING_DATA",
+  "severity": "critical" | "warning",
+  "message": "Clear explanation of why this is a violation and what needs to happen"
+}
 
-Return ONLY valid JSON, no other text.`
+RULES:
+- CRITICAL severity for: coating thickness out of spec, unapproved materials, safety violations
+- WARNING severity for: values close to limits, minor procedural issues
+- Only flag violations where the spec CLEARLY states a requirement
+- Always cite the specific source document
+- If coating thickness is recorded as below minimum spec, that is ALWAYS critical
 
-  try {
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 1500,
-        messages: [{
-          role: 'user',
-          content: ragPrompt
-        }]
-      })
-    })
+Return ONLY valid JSON array, no other text. Return [] if all values are compliant.`
 
-    if (!response.ok) {
-      const errorText = await response.text()
-      console.error('[AI Agent] RAG analysis API error:', errorText)
-      return flags
-    }
-
-    const data = await response.json()
-    const responseText = data.content?.[0]?.text || '[]'
-
-    // Parse the JSON response
-    let violations: any[] = []
     try {
-      const cleanedText = responseText.replace(/```json|```/g, '').trim()
-      violations = JSON.parse(cleanedText)
-    } catch (parseErr) {
-      console.error('[AI Agent] Failed to parse RAG response:', parseErr)
-      return flags
-    }
-
-    // Convert violations to flags
-    for (const v of violations) {
-      const flagType: FlagType = v.field?.toLowerCase().includes('coating')
-        ? 'COATING_VIOLATION'
-        : v.field?.toLowerCase().includes('procedure') || v.field?.toLowerCase().includes('wps')
-          ? 'PROCEDURE_VIOLATION'
-          : 'SPEC_VIOLATION'
-
-      flags.push({
-        type: flagType,
-        severity: v.severity === 'critical' ? 'critical' : 'warning',
-        ticket_id: ticket.id,
-        ticket_date: ticket.date,
-        activity_type: ticket.activity_blocks?.[0]?.activityType,
-        contractor: ticket.activity_blocks?.[0]?.contractor,
-        message: v.message || `${v.field} violation: recorded ${v.recorded_value}, spec requires ${v.spec_requirement}`,
-        details: {
-          field: v.field,
-          recorded_value: v.recorded_value,
-          spec_requirement: v.spec_requirement,
-          violation_type: v.violation_type,
-          source_documents: relevantDocs.map(d => d.document_name).slice(0, 3)
-        }
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2000,
+          messages: [{
+            role: 'user',
+            content: ragPrompt
+          }]
+        })
       })
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        console.error('[AI Agent] RAG analysis API error:', errorText)
+        continue
+      }
+
+      const data = await response.json()
+      const responseText = data.content?.[0]?.text || '[]'
+
+      // Parse the JSON response
+      let violations: any[] = []
+      try {
+        const cleanedText = responseText.replace(/```json|```/g, '').trim()
+        violations = JSON.parse(cleanedText)
+        if (!Array.isArray(violations)) violations = []
+      } catch (parseErr) {
+        console.error('[AI Agent] Failed to parse RAG response:', parseErr)
+        continue
+      }
+
+      // Convert violations to flags with source citations
+      for (const v of violations) {
+        // Determine flag type based on field
+        let flagType: FlagType = 'SPEC_VIOLATION'
+        const fieldLower = (v.field || '').toLowerCase()
+
+        if (fieldLower.includes('coating') || fieldLower.includes('dft') || fieldLower.includes('thickness')) {
+          flagType = 'COATING_VIOLATION'
+        } else if (fieldLower.includes('wps') || fieldLower.includes('procedure') || fieldLower.includes('preheat')) {
+          flagType = 'PROCEDURE_VIOLATION'
+        } else if (fieldLower.includes('material') || fieldLower.includes('grade')) {
+          flagType = 'WPS_MATERIAL_MISMATCH'
+        }
+
+        flags.push({
+          type: flagType,
+          severity: v.severity === 'critical' ? 'critical' : 'warning',
+          ticket_id: ticket.id,
+          ticket_date: ticket.date,
+          activity_block_index: blockIndex,
+          activity_type: activityType,
+          contractor: block.contractor,
+          message: v.message || `${v.field} violation: recorded ${v.recorded_value}, spec requires ${v.spec_requirement}`,
+          details: {
+            field: v.field,
+            recorded_value: v.recorded_value,
+            spec_requirement: v.spec_requirement,
+            source_document: v.source_document || relevantDocs[0]?.document_name,
+            source_section: v.source_section,
+            violation_type: v.violation_type,
+            station: block.startKP || block.endKP,
+            reference_documents: relevantDocs.map(d => d.document_name).slice(0, 3)
+          }
+        })
+      }
+
+      console.log(`[AI Agent] Block ${blockIndex} (${activityType}): ${violations.length} violations found`)
+
+    } catch (err) {
+      console.error(`[AI Agent] RAG analysis error for block ${blockIndex}:`, err)
     }
-
-    console.log(`[AI Agent] RAG analysis found ${flags.length} spec violations`)
-    return flags
-
-  } catch (err) {
-    console.error('[AI Agent] RAG analysis error:', err)
-    return flags
   }
+
+  console.log(`[AI Agent] RAG analysis complete: ${flags.length} total spec violations`)
+  return flags
 }
