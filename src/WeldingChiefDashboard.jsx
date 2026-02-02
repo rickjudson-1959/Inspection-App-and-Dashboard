@@ -30,6 +30,12 @@ import {
   fetchWeldingChiefReport
 } from './weldingChiefHelpers.js'
 
+// Import PDF generator
+import { downloadWeldingChiefPDF } from './weldingChiefPDF.js'
+
+// Import SignaturePad for digital signatures
+import SignaturePad from './components/SignaturePad.jsx'
+
 // ============================================================================
 // WELDING CHIEF DASHBOARD
 // February 2026 - Pipe-Up Pipeline Inspector SaaS
@@ -97,6 +103,10 @@ function WeldingChiefDashboard() {
   // AI Agent Audit Panel state
   const [auditPanelData, setAuditPanelData] = useState(null)
   const [loadingAuditPanel, setLoadingAuditPanel] = useState(false)
+
+  // Digital signature state
+  const [showSignaturePad, setShowSignaturePad] = useState(false)
+  const [pendingSignatureAction, setPendingSignatureAction] = useState(null) // 'download' when signing for PDF
 
   // Repair rate thresholds
   const REPAIR_RATE_THRESHOLDS = {
@@ -312,6 +322,38 @@ function WeldingChiefDashboard() {
     if (!dateStr) return ''
     const d = new Date(dateStr + 'T00:00:00')
     return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })
+  }
+
+  // Handle signature for PDF download
+  function handleSignAndDownload() {
+    setPendingSignatureAction('download')
+    setShowSignaturePad(true)
+  }
+
+  function handleSignatureSave(signatureData) {
+    setShowSignaturePad(false)
+
+    if (pendingSignatureAction === 'download' && dailyReport) {
+      // Download PDF with signature
+      downloadWeldingChiefPDF(dailyReport, {
+        reportDate: reportDate,
+        preparedBy: userProfile?.full_name || 'Welding Chief',
+        projectName: 'Pipeline Construction Project',
+        signatureData: {
+          imageData: signatureData.imageData,
+          signerName: userProfile?.full_name || 'Welding Chief',
+          signerTitle: 'Welding Chief Inspector',
+          timestamp: signatureData.timestamp
+        }
+      })
+    }
+
+    setPendingSignatureAction(null)
+  }
+
+  function handleSignatureCancel() {
+    setShowSignaturePad(false)
+    setPendingSignatureAction(null)
   }
 
   // =============================================
@@ -1462,20 +1504,54 @@ function WeldingChiefDashboard() {
               {reportGenerating ? '⏳ Generating Report...' : '🤖 Generate AI Report'}
             </button>
             {dailyReport && (
-              <button
-                onClick={() => window.print()}
-                style={{
-                  padding: '12px 24px',
-                  backgroundColor: '#28a745',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontWeight: 'bold'
-                }}
-              >
-                🖨️ Print Report
-              </button>
+              <>
+                <button
+                  onClick={handleSignAndDownload}
+                  style={{
+                    padding: '12px 24px',
+                    backgroundColor: '#28a745',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  ✍️ Sign & Download PDF
+                </button>
+                <button
+                  onClick={() => downloadWeldingChiefPDF(dailyReport, {
+                    reportDate: reportDate,
+                    preparedBy: userProfile?.full_name || 'Welding Chief',
+                    projectName: 'Pipeline Construction Project'
+                  })}
+                  style={{
+                    padding: '12px 24px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  📥 Download (Unsigned)
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  style={{
+                    padding: '12px 24px',
+                    backgroundColor: '#495057',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  🖨️ Print
+                </button>
+              </>
             )}
           </div>
 
@@ -1673,6 +1749,16 @@ function WeldingChiefDashboard() {
         ticket={auditPanelData?.ticket}
         flag={auditPanelData?.flag}
       />
+
+      {/* Digital Signature Pad Modal */}
+      {showSignaturePad && (
+        <SignaturePad
+          onSave={handleSignatureSave}
+          onCancel={handleSignatureCancel}
+          signerName={userProfile?.full_name || 'Welding Chief'}
+          signerRole="Welding Chief Inspector"
+        />
+      )}
     </div>
   )
 }
