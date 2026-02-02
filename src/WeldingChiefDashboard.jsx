@@ -6,7 +6,6 @@ import { useOrgQuery } from './utils/queryHelpers.js'
 import TenantSwitcher from './components/TenantSwitcher.jsx'
 import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 import AgentAuditFindingsPanel from './components/AgentAuditFindingsPanel.jsx'
-import MasterSwitcher from './MasterSwitcher.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 import { getFlagTypeConfig, SEVERITY_COLORS } from './utils/flagTypeConfig.js'
 
@@ -352,12 +351,6 @@ function WeldingChiefDashboard() {
               }
             }}
           />
-          {(userProfile?.role === 'super_admin' || userProfile?.user_role === 'super_admin') && (
-            <MasterSwitcher compact />
-          )}
-          <button onClick={() => navigate(orgPath('/chief-dashboard'))} style={{ padding: '10px 16px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
-            Chief Dashboard
-          </button>
           <button onClick={() => navigate(orgPath('/auditor-dashboard?readonly=true&from=welding-chief'))} style={{ padding: '10px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
             NDT Queue
           </button>
