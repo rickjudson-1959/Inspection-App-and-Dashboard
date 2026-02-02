@@ -10,12 +10,12 @@ import { useOrgPath } from './contexts/OrgContext.jsx'
 // ============================================================================
 
 const DASHBOARDS = [
-  { path: '/inspector', label: '📝 Field Entry', color: '#28a745' },
+  { path: '/field-entry', label: '📝 Field Entry', color: '#28a745' },
   { path: '/auditor-dashboard', label: '🔬 NDT Auditor', color: '#17a2b8' },
   { path: '/assistant-chief', label: '👷 Asst Chief', color: '#fd7e14' },
-  { path: '/chief', label: '👔 Chief', color: '#dc3545' },
+  { path: '/chief-dashboard', label: '👔 Chief', color: '#dc3545' },
   { path: '/dashboard', label: '📊 CMT', color: '#007bff' },
-  { path: '/evm', label: '💰 EVM', color: '#20c997' },
+  { path: '/evm-dashboard', label: '💰 EVM', color: '#20c997' },
   { path: '/admin', label: '⚙️ Admin', color: '#343a40' }
 ]
 

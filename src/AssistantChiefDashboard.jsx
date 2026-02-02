@@ -9,6 +9,7 @@ import jsPDF from 'jspdf'
 import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
 import { useOrgQuery } from './utils/queryHelpers.js'
 import TenantSwitcher from './components/TenantSwitcher.jsx'
+import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 
 // Weather API Key
@@ -1864,6 +1865,7 @@ function AssistantChiefDashboard() {
               </p>
             </div>
             <TenantSwitcher compact />
+            <AIAgentStatusIcon />
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={() => navigate(orgPath('/chief-dashboard'))} style={{ padding: '10px 20px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>

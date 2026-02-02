@@ -7,6 +7,7 @@ import MasterSwitcher from './MasterSwitcher.jsx'
 import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
 import { useOrgQuery } from './utils/queryHelpers.js'
 import TenantSwitcher from './components/TenantSwitcher.jsx'
+import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 
 // Import helper functions
@@ -994,6 +995,7 @@ function ChiefDashboard() {
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <TenantSwitcher compact />
+          <AIAgentStatusIcon />
           {/* Only show GOD MODE for super_admin */}
           {(userProfile?.role === 'super_admin' || userProfile?.user_role === 'super_admin') && (
             <MasterSwitcher compact />
