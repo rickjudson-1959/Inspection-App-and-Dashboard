@@ -246,24 +246,31 @@ serve(async (req: Request) => {
     // 3.5 RUN RAG-BASED SPEC COMPLIANCE ANALYSIS
     // Searches document_embeddings for project specs and validates ticket values
     // =========================================================================
+    let ragDebug: any = { ran: false, reason: '', errors: [] }
+
     if (OPENAI_API_KEY) {
+      ragDebug.ran = true
       console.log('[AI Agent] Starting RAG-based spec compliance analysis...')
 
       for (const ticket of tickets) {
         try {
           const ragFlags = await analyzeWithRAG(supabase, ticket, organization_id)
           allFlags.push(...ragFlags)
-        } catch (ragErr) {
+          ragDebug.flags_from_rag = ragFlags.length
+        } catch (ragErr: any) {
           console.error(`[AI Agent] RAG analysis error for ticket ${ticket.id}:`, ragErr)
+          ragDebug.errors.push(ragErr.message || String(ragErr))
         }
       }
 
       const specViolations = allFlags.filter(f =>
-        ['SPEC_VIOLATION', 'COATING_VIOLATION', 'PROCEDURE_VIOLATION'].includes(f.type)
+        ['SPEC_VIOLATION', 'COATING_VIOLATION', 'PROCEDURE_VIOLATION', 'WPS_MATERIAL_MISMATCH'].includes(f.type)
       ).length
 
+      ragDebug.spec_violations = specViolations
       console.log(`[AI Agent] RAG analysis complete: ${specViolations} spec violations found`)
     } else {
+      ragDebug.reason = 'OPENAI_API_KEY not configured'
       console.log('[AI Agent] Skipping RAG analysis - OPENAI_API_KEY not configured')
     }
 
@@ -324,7 +331,7 @@ serve(async (req: Request) => {
     console.log(`[AI Agent] Analysis logged. Processing time: ${processingMs}ms`)
 
     // =========================================================================
-    // 6. RETURN RESPONSE
+    // 6. RETURN RESPONSE (with debug info)
     // =========================================================================
     return new Response(
       JSON.stringify({
@@ -333,7 +340,15 @@ serve(async (req: Request) => {
         flags: allFlags,
         summary: aiSummary,
         metrics: result.metrics,
-        processing_ms: processingMs
+        processing_ms: processingMs,
+        debug: {
+          openai_key_configured: !!OPENAI_API_KEY,
+          anthropic_key_configured: !!ANTHROPIC_API_KEY,
+          tickets_count: tickets.length,
+          total_flags: allFlags.length,
+          flag_types: allFlags.map(f => f.type),
+          rag: ragDebug
+        }
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
@@ -1460,6 +1475,95 @@ function extractBlockMeasurables(block: any, blockIndex: number): MeasurableFiel
     }
   }
 
+  // ==========================================================================
+  // BLOCK-LEVEL FIELDS (snake_case fallbacks for different data schemas)
+  // These capture WPS, preheat, material data when stored directly on the block
+  // ==========================================================================
+
+  // WPS Number (direct on block)
+  if (block.wps_number || block.wpsNumber || block.wps) {
+    const wpsNum = block.wps_number || block.wpsNumber || block.wps
+    measurables.push({
+      field: 'wps_number',
+      value: wpsNum,
+      unit: '',
+      context: `Weld Procedure Specification: ${wpsNum}`,
+      activityType,
+      blockIndex,
+      searchTerms: ['WPS', 'weld procedure', wpsNum, 'qualified procedure', 'low hydrogen']
+    })
+  }
+
+  // Preheat (direct on block)
+  if (block.preheat_temp || block.preheatTemp) {
+    const preheat = block.preheat_temp || block.preheatTemp
+    measurables.push({
+      field: 'preheat_temperature',
+      value: parseFloat(preheat),
+      unit: block.preheat_temp_unit || '°C',
+      context: `Preheat temperature: ${preheat}${block.preheat_temp_unit || '°C'}`,
+      activityType,
+      blockIndex,
+      searchTerms: ['preheat', 'preheat temperature', 'minimum preheat', 'WPS preheat']
+    })
+  }
+
+  // Filler material (direct on block)
+  if (block.filler_material || block.fillerMaterial) {
+    const filler = block.filler_material || block.fillerMaterial
+    measurables.push({
+      field: 'filler_material',
+      value: filler,
+      unit: '',
+      context: `Filler electrode: ${filler}`,
+      activityType,
+      blockIndex,
+      searchTerms: ['filler', 'electrode', filler, 'consumable', 'filler metal']
+    })
+  }
+
+  // Joint type
+  if (block.joint_type || block.jointType) {
+    const jointType = block.joint_type || block.jointType
+    measurables.push({
+      field: 'joint_type',
+      value: jointType,
+      unit: '',
+      context: `Joint type: ${jointType}`,
+      activityType,
+      blockIndex,
+      searchTerms: ['joint', jointType, 'tie-in', 'weld joint']
+    })
+  }
+
+  // Pipe diameter (direct on block)
+  if (block.pipe_diameter || block.pipeDiameter) {
+    const diameter = block.pipe_diameter || block.pipeDiameter
+    measurables.push({
+      field: 'pipe_diameter',
+      value: diameter,
+      unit: 'inches',
+      context: `Pipe diameter: ${diameter}`,
+      activityType,
+      blockIndex,
+      searchTerms: ['diameter', 'NPS', 'pipe size']
+    })
+  }
+
+  // Wall thickness (direct on block)
+  if (block.wall_thickness || block.wallThickness) {
+    const thickness = block.wall_thickness || block.wallThickness
+    measurables.push({
+      field: 'wall_thickness',
+      value: thickness,
+      unit: 'inches',
+      context: `Wall thickness: ${thickness}`,
+      activityType,
+      blockIndex,
+      searchTerms: ['wall thickness', 'pipe wall', 'thickness']
+    })
+  }
+
   return measurables
 }
 
@@ -1485,12 +1589,44 @@ function extractMeasurableFields(ticket: any): { field: string, value: any, unit
 
 /**
  * Get activity-specific search queries
+ * Now includes location/description context for targeted spec matching
  */
-function getActivitySearchQueries(activityType: string): string[] {
+function getActivitySearchQueries(activityType: string, description?: string, locationNotes?: string): string[] {
   const baseQueries = [
     'specification requirements acceptance criteria',
     'project specification section'
   ]
+
+  // Extract location context keywords from description
+  const contextText = `${description || ''} ${locationNotes || ''}`.toLowerCase()
+  const locationQueries: string[] = []
+
+  // Check for water body / creek crossing context
+  if (contextText.includes('creek') || contextText.includes('water') || contextText.includes('river') ||
+      contextText.includes('crossing') || contextText.includes('wetland') || contextText.includes('waterbody')) {
+    locationQueries.push(
+      'water body creek crossing welding requirements',
+      'low hydrogen WPS mandatory creek',
+      'water crossing procedure specification'
+    )
+  }
+
+  // Check for road/railway crossing context
+  if (contextText.includes('road') || contextText.includes('highway') || contextText.includes('railway') ||
+      contextText.includes('rail') || contextText.includes('crossing')) {
+    locationQueries.push(
+      'road crossing depth cover requirements',
+      'casing requirements bore crossing'
+    )
+  }
+
+  // Check for tie-in context
+  if (contextText.includes('tie-in') || contextText.includes('tie in') || contextText.includes('tiein')) {
+    locationQueries.push(
+      'tie-in weld procedure requirements',
+      'tie-in welding specification'
+    )
+  }
 
   const activityQueries: Record<string, string[]> = {
     'mainline_welding': [
@@ -1547,11 +1683,11 @@ function getActivitySearchQueries(activityType: string): string[] {
   // Find matching queries
   for (const [key, queries] of Object.entries(activityQueries)) {
     if (normalizedType.includes(key) || key.includes(normalizedType)) {
-      return [...baseQueries, ...queries]
+      return [...baseQueries, ...locationQueries, ...queries]
     }
   }
 
-  return baseQueries
+  return [...baseQueries, ...locationQueries]
 }
 
 /**
@@ -1573,22 +1709,42 @@ async function analyzeWithRAG(
 
   console.log(`[AI Agent] Starting RAG analysis for ${blocks.length} activity blocks`)
 
+  // Track debug info for this RAG run
+  const ragRunInfo: any[] = []
+
   // Process each activity block separately for targeted spec matching
   for (let blockIndex = 0; blockIndex < blocks.length; blockIndex++) {
     const block = blocks[blockIndex]
-    const activityType = block.activityType || 'general'
+    const activityType = block.activityType || block.activity_type || 'general'
+    const blockDebug: any = { blockIndex, activityType, steps: [] }
+
+    console.log(`[AI Agent] Block ${blockIndex} raw data: ${JSON.stringify(block).substring(0, 500)}`)
+    blockDebug.steps.push('started')
 
     // Extract measurable values from this specific block
     const blockMeasurables = extractBlockMeasurables(block, blockIndex)
 
+    console.log(`[AI Agent] Block ${blockIndex} extracted ${blockMeasurables.length} measurables:`, blockMeasurables.map(m => m.field).join(', '))
+    blockDebug.measurables_count = blockMeasurables.length
+    blockDebug.measurable_fields = blockMeasurables.map(m => m.field)
+    blockDebug.steps.push(`extracted ${blockMeasurables.length} measurables`)
+
     if (blockMeasurables.length === 0) {
+      console.log(`[AI Agent] Block ${blockIndex} - no measurables, skipping RAG`)
+      blockDebug.steps.push('skipped - no measurables')
+      ragRunInfo.push(blockDebug)
       continue
     }
 
     console.log(`[AI Agent] Block ${blockIndex} (${activityType}): ${blockMeasurables.length} measurable fields`)
 
-    // Build activity-specific search queries
-    const activityQueries = getActivitySearchQueries(activityType)
+    // Build activity-specific search queries including location/description context
+    const description = block.description || block.notes || ''
+    const locationNotes = block.locationNotes || block.location_notes || ''
+    const activityQueries = getActivitySearchQueries(activityType, description, locationNotes)
+    blockDebug.description = description
+    blockDebug.locationNotes = locationNotes
+    blockDebug.search_queries = activityQueries.slice(0, 3) // Just first 3 for brevity
 
     // Collect unique search terms from all measurables
     const allSearchTerms = new Set<string>()
@@ -1612,10 +1768,15 @@ async function analyzeWithRAG(
 
     if (relevantDocs.length === 0) {
       console.log(`[AI Agent] No relevant documents found for ${activityType} activity`)
+      blockDebug.steps.push('skipped - no documents found')
+      ragRunInfo.push(blockDebug)
       continue
     }
 
     console.log(`[AI Agent] Found ${relevantDocs.length} relevant documents for ${activityType}`)
+    blockDebug.docs_found = relevantDocs.length
+    blockDebug.doc_names = relevantDocs.map(d => d.document_name).slice(0, 3)
+    blockDebug.steps.push(`found ${relevantDocs.length} docs`)
 
     // Build context from retrieved documents with source tracking
     const documentContext = relevantDocs.map(doc =>
@@ -1626,6 +1787,16 @@ async function analyzeWithRAG(
     const measurablesSummary = blockMeasurables.map(m =>
       `• ${m.field}: ${m.value} ${m.unit}\n  Context: ${m.context}`
     ).join('\n\n')
+
+    // Add location context as a pseudo-measurable for compliance checking
+    const locationContext = `
+IMPORTANT LOCATION CONTEXT (check for location-specific requirements):
+• Activity Description: ${description || 'Not specified'}
+• Location Notes: ${locationNotes || 'Not specified'}
+• Station: KP ${block.startKP || block.start_kp || 'N/A'} to KP ${block.endKP || block.end_kp || 'N/A'}
+
+If this location indicates a creek crossing, water body, road crossing, or other special condition,
+CHECK THE DOCUMENTS for location-specific WPS or procedure requirements.`
 
     // Use Claude to analyze compliance for this activity block
     if (!ANTHROPIC_API_KEY) {
@@ -1640,10 +1811,14 @@ Ticket ID: ${ticket.id}
 Date: ${ticket.date}
 Spread: ${ticket.spread || 'Not specified'}
 Contractor: ${block.contractor || 'Not specified'}
-Right-of-Way Station: KP ${block.startKP || 'N/A'} to KP ${block.endKP || 'N/A'}
+Right-of-Way Station: KP ${block.startKP || block.start_kp || 'N/A'} to KP ${block.endKP || block.end_kp || 'N/A'}
+Activity Description: ${description || 'Not specified'}
+Location Notes: ${locationNotes || 'Not specified'}
 
 ## RECORDED FIELD VALUES FROM DAILY INSPECTION
 ${measurablesSummary}
+
+${locationContext}
 
 ## PROJECT SPECIFICATION DOCUMENTS (Source of Truth)
 The following excerpts are from the project's WPS, ITP, Engineering Specifications, and Approved Procedures:
@@ -1666,6 +1841,10 @@ If a value is NON-COMPLIANT, you must:
 4. **PREHEAT TEMPERATURE**: Does it meet WPS essential variable minimums? Insufficient preheat increases hydrogen cracking risk.
 5. **DEPTH OF COVER**: Does burial depth meet CSA Z662 minimums? Insufficient cover exposes pipeline to third-party damage.
 6. **WPS COMPLIANCE**: Is the WPS number valid and qualified for this base material and process?
+7. **LOCATION-SPECIFIC WPS**: CRITICAL - Check if the location (Activity Description, Location Notes) indicates a special requirement:
+   - Creek crossings, water bodies, wetlands → Often require LOW-HYDROGEN WPS (e.g., WPS-02)
+   - Road/railway crossings → May require specific bore/casing procedures
+   - If documents specify a different WPS is required for this location type, FLAG IT as CRITICAL
 
 ## RESPONSE FORMAT
 Return a JSON array of non-compliances. Each finding must include:
@@ -1761,12 +1940,19 @@ Return ONLY a valid JSON array. Return [] if all values are compliant with speci
       }
 
       console.log(`[AI Agent] Block ${blockIndex} (${activityType}): ${violations.length} violations found`)
+      blockDebug.violations_found = violations.length
+      blockDebug.steps.push(`claude returned ${violations.length} violations`)
+      ragRunInfo.push(blockDebug)
 
-    } catch (err) {
+    } catch (err: any) {
       console.error(`[AI Agent] RAG analysis error for block ${blockIndex}:`, err)
+      blockDebug.error = err.message || String(err)
+      blockDebug.steps.push(`error: ${err.message}`)
+      ragRunInfo.push(blockDebug)
     }
   }
 
   console.log(`[AI Agent] RAG analysis complete: ${flags.length} total spec violations`)
+  console.log(`[AI Agent] RAG debug info:`, JSON.stringify(ragRunInfo))
   return flags
 }
