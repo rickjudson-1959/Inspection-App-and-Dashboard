@@ -141,6 +141,16 @@ function AdminPortal() {
   const [signingRole, setSigningRole] = useState(null) // { key, label, shortLabel }
   const [savingSignature, setSavingSignature] = useState(false)
 
+  // Document Sync Status state (Owner DC Tracking)
+  const [showSyncModal, setShowSyncModal] = useState(false)
+  const [selectedDocForSync, setSelectedDocForSync] = useState(null)
+  const [syncForm, setSyncForm] = useState({
+    sync_status: 'transmitted',
+    owner_transmittal_id: '',
+    owner_comments: ''
+  })
+  const [updatingSyncStatus, setUpdatingSyncStatus] = useState(false)
+
   // Document vault categories
   const documentVaultCategories = [
     { key: 'prime_contract', label: 'Prime Contract', icon: '📜' },
@@ -1115,6 +1125,122 @@ function AdminPortal() {
       console.error('Error removing sign-off:', err)
       setGovernanceMessage({ type: 'error', text: 'Failed to remove sign-off: ' + err.message })
     }
+  }
+
+  // ==================== DOCUMENT SYNC STATUS FUNCTIONS ====================
+
+  // Get sync status badge color and label
+  function getSyncStatusBadge(status) {
+    switch (status) {
+      case 'transmitted':
+        return { color: '#3b82f6', bg: '#dbeafe', label: 'Transmitted' }
+      case 'acknowledged':
+        return { color: '#16a34a', bg: '#dcfce7', label: 'Acknowledged' }
+      case 'rejected':
+        return { color: '#dc2626', bg: '#fee2e2', label: 'Rejected' }
+      default:
+        return { color: '#6b7280', bg: '#f3f4f6', label: 'Internal' }
+    }
+  }
+
+  // Open sync status modal
+  function openSyncModal(doc, initialStatus = 'transmitted') {
+    setSelectedDocForSync(doc)
+    setSyncForm({
+      sync_status: initialStatus,
+      owner_transmittal_id: doc.owner_transmittal_id || '',
+      owner_comments: doc.owner_comments || ''
+    })
+    setShowSyncModal(true)
+  }
+
+  // Update document sync status
+  async function updateSyncStatus() {
+    if (!selectedDocForSync) return
+
+    setUpdatingSyncStatus(true)
+    setGovernanceMessage(null)
+
+    try {
+      const updateData = {
+        sync_status: syncForm.sync_status,
+        owner_transmittal_id: syncForm.owner_transmittal_id || null,
+        owner_comments: syncForm.owner_comments || null
+      }
+
+      // Add timestamps based on status
+      if (syncForm.sync_status === 'transmitted' && !selectedDocForSync.transmitted_at) {
+        updateData.transmitted_at = new Date().toISOString()
+      }
+      if (syncForm.sync_status === 'acknowledged') {
+        updateData.acknowledged_at = new Date().toISOString()
+      }
+
+      const { error } = await supabase
+        .from('project_documents')
+        .update(updateData)
+        .eq('id', selectedDocForSync.id)
+
+      if (error) throw error
+
+      fetchGovernanceData(selectedOrgForSetup)
+      setShowSyncModal(false)
+      setSelectedDocForSync(null)
+
+      const statusLabel = getSyncStatusBadge(syncForm.sync_status).label
+      setGovernanceMessage({ type: 'success', text: `Document status updated to "${statusLabel}"` })
+
+    } catch (err) {
+      console.error('Error updating sync status:', err)
+      setGovernanceMessage({ type: 'error', text: 'Failed to update status: ' + err.message })
+    } finally {
+      setUpdatingSyncStatus(false)
+    }
+  }
+
+  // Export DC Status Report as CSV
+  function exportDCStatusReport() {
+    const vaultDocs = projectDocuments.filter(d => !d.is_global && d.is_current !== false && !d.is_addendum)
+
+    if (vaultDocs.length === 0) {
+      setGovernanceMessage({ type: 'error', text: 'No documents to export' })
+      return
+    }
+
+    const headers = 'Category,Filename,Rev,Uploaded_At,Sync_Status,Owner_Transmittal_ID,Transmitted_At,Acknowledged_At,Owner_Comments'
+    const rows = vaultDocs.map(doc => {
+      const cat = documentVaultCategories.find(c => c.key === doc.category)
+      return [
+        `"${cat?.label || doc.category}"`,
+        `"${doc.file_name}"`,
+        doc.version_number || 1,
+        doc.uploaded_at ? new Date(doc.uploaded_at).toISOString().split('T')[0] : '',
+        doc.sync_status || 'internal',
+        `"${doc.owner_transmittal_id || ''}"`,
+        doc.transmitted_at ? new Date(doc.transmitted_at).toISOString().split('T')[0] : '',
+        doc.acknowledged_at ? new Date(doc.acknowledged_at).toISOString().split('T')[0] : '',
+        `"${(doc.owner_comments || '').replace(/"/g, '""')}"`
+      ].join(',')
+    })
+
+    const org = organizations.find(o => o.id === selectedOrgForSetup)
+    const summary = `\n"Report Generated","${new Date().toISOString()}","Organization: ${org?.name || 'N/A'}"`
+
+    const csv = headers + '\n' + rows.join('\n') + summary
+    const blob = new Blob([csv], { type: 'text/csv' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `DC_Status_Report_${org?.slug || 'project'}_${new Date().toISOString().split('T')[0]}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+
+    setGovernanceMessage({ type: 'success', text: 'DC Status Report exported!' })
+  }
+
+  // Check if any documents are rejected (need revision)
+  function hasRejectedDocuments() {
+    return projectDocuments.some(d => !d.is_global && d.is_current !== false && d.sync_status === 'rejected')
   }
 
   // Technical Library helpers
@@ -3376,17 +3502,49 @@ function AdminPortal() {
                   border: '2px solid #28a745'
                 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-                    <h4 style={{ margin: 0, color: '#28a745' }}>📚 Project Document Vault</h4>
-                    <span style={{
-                      padding: '4px 10px',
-                      borderRadius: '12px',
-                      fontSize: '11px',
-                      fontWeight: 'bold',
-                      backgroundColor: documentVaultCategories.every(cat => hasVaultDocument(cat.key)) ? '#d4edda' : '#fff3cd',
-                      color: documentVaultCategories.every(cat => hasVaultDocument(cat.key)) ? '#155724' : '#856404'
-                    }}>
-                      {projectDocuments.length} / {documentVaultCategories.length} Documents
-                    </span>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <h4 style={{ margin: 0, color: '#28a745' }}>📚 Project Document Vault</h4>
+                      {hasRejectedDocuments() && (
+                        <span style={{
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          fontSize: '10px',
+                          fontWeight: 'bold',
+                          backgroundColor: '#fee2e2',
+                          color: '#dc2626',
+                          animation: 'pulse 2s infinite'
+                        }}>
+                          ⚠️ REVISION REQUIRED
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                      <button
+                        onClick={exportDCStatusReport}
+                        style={{
+                          padding: '4px 10px',
+                          backgroundColor: '#8b5cf6',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          cursor: 'pointer'
+                        }}
+                        title="Export DC Status Report"
+                      >
+                        📊 DC Report
+                      </button>
+                      <span style={{
+                        padding: '4px 10px',
+                        borderRadius: '12px',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        backgroundColor: documentVaultCategories.every(cat => hasVaultDocument(cat.key)) ? '#d4edda' : '#fff3cd',
+                        color: documentVaultCategories.every(cat => hasVaultDocument(cat.key)) ? '#155724' : '#856404'
+                      }}>
+                        {projectDocuments.filter(d => !d.is_global && d.is_current !== false).length} / {documentVaultCategories.length} Documents
+                      </span>
+                    </div>
                   </div>
 
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
@@ -3444,25 +3602,50 @@ function AdminPortal() {
 
                           {hasDoc ? (
                             <div>
-                              <a
-                                href={doc.file_url}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '6px',
-                                  padding: '6px 12px',
-                                  backgroundColor: '#28a745',
-                                  color: 'white',
-                                  borderRadius: '4px',
-                                  fontSize: '11px',
-                                  textDecoration: 'none',
-                                  marginBottom: '8px'
-                                }}
-                              >
-                                📄 {doc.file_name}
-                              </a>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '8px' }}>
+                                <a
+                                  href={doc.file_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  style={{
+                                    display: 'inline-flex',
+                                    alignItems: 'center',
+                                    gap: '6px',
+                                    padding: '6px 12px',
+                                    backgroundColor: doc.sync_status === 'rejected' ? '#dc2626' : '#28a745',
+                                    color: 'white',
+                                    borderRadius: '4px',
+                                    fontSize: '11px',
+                                    textDecoration: 'none'
+                                  }}
+                                >
+                                  📄 {doc.file_name}
+                                </a>
+
+                                {/* Sync Status Badge */}
+                                <span
+                                  onClick={() => openSyncModal(doc, doc.sync_status || 'internal')}
+                                  style={{
+                                    padding: '3px 8px',
+                                    borderRadius: '4px',
+                                    fontSize: '9px',
+                                    fontWeight: 'bold',
+                                    backgroundColor: getSyncStatusBadge(doc.sync_status).bg,
+                                    color: getSyncStatusBadge(doc.sync_status).color,
+                                    cursor: 'pointer',
+                                    border: `1px solid ${getSyncStatusBadge(doc.sync_status).color}`
+                                  }}
+                                  title="Click to update sync status"
+                                >
+                                  {getSyncStatusBadge(doc.sync_status).label}
+                                </span>
+
+                                {doc.owner_transmittal_id && (
+                                  <span style={{ fontSize: '9px', color: '#6b7280' }}>
+                                    TR# {doc.owner_transmittal_id}
+                                  </span>
+                                )}
+                              </div>
                               <div style={{ fontSize: '10px', color: '#666', marginBottom: '6px' }}>
                                 Rev {(doc.version_number || 1) - 1} • {new Date(doc.created_at).toLocaleDateString()}
                                 {doc.metadata && Object.keys(doc.metadata).length > 0 && (
@@ -6276,6 +6459,161 @@ function AdminPortal() {
                   }}
                 >
                   {generatingTransmittal ? '⏳ Generating...' : `📄 Generate Transmittal (${transmittalForm.selectedDocIds.length} docs)`}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Sync Status Modal */}
+        {showSyncModal && selectedDocForSync && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '500px',
+              width: '90%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                <h3 style={{ margin: 0, color: '#374151' }}>
+                  🔄 Update Sync Status
+                </h3>
+                <button
+                  onClick={() => { setShowSyncModal(false); setSelectedDocForSync(null) }}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+
+              <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f3f4f6', borderRadius: '6px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#374151' }}>{selectedDocForSync.file_name}</div>
+                <div style={{ fontSize: '11px', color: '#6b7280' }}>
+                  {documentVaultCategories.find(c => c.key === selectedDocForSync.category)?.label} • Rev {selectedDocForSync.version_number || 1}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px', color: '#374151' }}>Status</label>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {['internal', 'transmitted', 'acknowledged', 'rejected'].map(status => {
+                    const badge = getSyncStatusBadge(status)
+                    return (
+                      <button
+                        key={status}
+                        onClick={() => setSyncForm(f => ({ ...f, sync_status: status }))}
+                        style={{
+                          padding: '8px 14px',
+                          backgroundColor: syncForm.sync_status === status ? badge.color : badge.bg,
+                          color: syncForm.sync_status === status ? 'white' : badge.color,
+                          border: `2px solid ${badge.color}`,
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '12px',
+                          fontWeight: 'bold'
+                        }}
+                      >
+                        {badge.label}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '15px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>
+                  Owner's Transmittal/Receipt #
+                </label>
+                <input
+                  type="text"
+                  value={syncForm.owner_transmittal_id}
+                  onChange={(e) => setSyncForm(f => ({ ...f, owner_transmittal_id: e.target.value }))}
+                  placeholder="e.g., OWN-TR-0042"
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px' }}
+                />
+              </div>
+
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px', color: '#374151' }}>
+                  Owner Comments/Feedback
+                </label>
+                <textarea
+                  value={syncForm.owner_comments}
+                  onChange={(e) => setSyncForm(f => ({ ...f, owner_comments: e.target.value }))}
+                  rows={3}
+                  placeholder="Any feedback from the Owner's Document Control..."
+                  style={{ width: '100%', padding: '8px', borderRadius: '4px', border: '1px solid #d1d5db', fontSize: '13px', resize: 'vertical' }}
+                />
+              </div>
+
+              {syncForm.sync_status === 'rejected' && (
+                <div style={{
+                  marginBottom: '15px',
+                  padding: '10px',
+                  backgroundColor: '#fee2e2',
+                  borderRadius: '6px',
+                  border: '1px solid #fecaca'
+                }}>
+                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#dc2626' }}>
+                    ⚠️ Marking as Rejected
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#991b1b', marginTop: '4px' }}>
+                    This will flag the document category in red, indicating a new revision is required immediately.
+                  </div>
+                </div>
+              )}
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px' }}>
+                <button
+                  onClick={() => { setShowSyncModal(false); setSelectedDocForSync(null) }}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#e5e7eb',
+                    color: '#374151',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '13px'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={updateSyncStatus}
+                  disabled={updatingSyncStatus}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: updatingSyncStatus ? '#9ca3af' : getSyncStatusBadge(syncForm.sync_status).color,
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: updatingSyncStatus ? 'not-allowed' : 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  {updatingSyncStatus ? '⏳ Updating...' : '✓ Update Status'}
                 </button>
               </div>
             </div>
