@@ -10,6 +10,7 @@ import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
 import { useOrgQuery } from './utils/queryHelpers.js'
 import TenantSwitcher from './components/TenantSwitcher.jsx'
 import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
+import AgentAuditFindingsPanel from './components/AgentAuditFindingsPanel.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 
 // Weather API Key
@@ -53,7 +54,11 @@ function AssistantChiefDashboard() {
   const [selectedReport, setSelectedReport] = useState(null)
   const [reviewNotes, setReviewNotes] = useState('')
   const [reviewStatus, setReviewStatus] = useState('reviewed') // reviewed, needs_revision, recommended
-  
+
+  // AI Agent Audit Panel state
+  const [auditPanelData, setAuditPanelData] = useState(null)
+  const [loadingAuditPanel, setLoadingAuditPanel] = useState(false)
+
   // =============================================
   // STAFF ASSIGNMENTS STATE
   // =============================================
@@ -1865,7 +1870,31 @@ function AssistantChiefDashboard() {
               </p>
             </div>
             <TenantSwitcher compact />
-            <AIAgentStatusIcon organizationId={organizationId} />
+            <AIAgentStatusIcon
+              organizationId={organizationId}
+              onFlagClick={async (ticketId, flagData) => {
+                setLoadingAuditPanel(true)
+                try {
+                  const { data: ticket, error } = await supabase
+                    .from('daily_tickets')
+                    .select('*')
+                    .eq('id', ticketId)
+                    .single()
+
+                  if (error) throw error
+
+                  setAuditPanelData({
+                    ticket,
+                    flag: flagData
+                  })
+                } catch (err) {
+                  console.error('Error fetching flagged ticket:', err)
+                  alert(`Error loading ticket #${ticketId}`)
+                } finally {
+                  setLoadingAuditPanel(false)
+                }
+              }}
+            />
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             <button onClick={() => navigate(orgPath('/chief-dashboard'))} style={{ padding: '10px 20px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
@@ -3548,6 +3577,14 @@ function AssistantChiefDashboard() {
           </div>
         </div>
       )}
+
+      {/* AI Agent Audit Findings Panel */}
+      <AgentAuditFindingsPanel
+        isOpen={!!auditPanelData}
+        onClose={() => setAuditPanelData(null)}
+        ticket={auditPanelData?.ticket}
+        flag={auditPanelData?.flag}
+      />
     </div>
   )
 }

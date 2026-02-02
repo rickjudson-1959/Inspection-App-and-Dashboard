@@ -8,6 +8,7 @@ import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
 import { useOrgQuery } from './utils/queryHelpers.js'
 import TenantSwitcher from './components/TenantSwitcher.jsx'
 import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
+import AgentAuditFindingsPanel from './components/AgentAuditFindingsPanel.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 
 // Import helper functions
@@ -67,6 +68,10 @@ function ChiefDashboard() {
   const [rejectingReport, setRejectingReport] = useState(null)
   const [rejectionReason, setRejectionReason] = useState('')
   const [stats, setStats] = useState({ reviewedThisWeek: 0, approvedThisWeek: 0, rejectedThisWeek: 0 })
+
+  // AI Agent Audit Panel state
+  const [auditPanelData, setAuditPanelData] = useState(null)
+  const [loadingAuditPanel, setLoadingAuditPanel] = useState(false)
 
   // =============================================
   // DAILY SUMMARY TAB STATE (original)
@@ -995,7 +1000,31 @@ function ChiefDashboard() {
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <TenantSwitcher compact />
-          <AIAgentStatusIcon organizationId={organizationId} />
+          <AIAgentStatusIcon
+            organizationId={organizationId}
+            onFlagClick={async (ticketId, flagData) => {
+              setLoadingAuditPanel(true)
+              try {
+                const { data: ticket, error } = await supabase
+                  .from('daily_tickets')
+                  .select('*')
+                  .eq('id', ticketId)
+                  .single()
+
+                if (error) throw error
+
+                setAuditPanelData({
+                  ticket,
+                  flag: flagData
+                })
+              } catch (err) {
+                console.error('Error fetching flagged ticket:', err)
+                alert(`Error loading ticket #${ticketId}`)
+              } finally {
+                setLoadingAuditPanel(false)
+              }
+            }}
+          />
           {/* Only show GOD MODE for super_admin */}
           {(userProfile?.role === 'super_admin' || userProfile?.user_role === 'super_admin') && (
             <MasterSwitcher compact />
@@ -1537,6 +1566,14 @@ function ChiefDashboard() {
           </div>
         </div>
       )}
+
+      {/* AI Agent Audit Findings Panel */}
+      <AgentAuditFindingsPanel
+        isOpen={!!auditPanelData}
+        onClose={() => setAuditPanelData(null)}
+        ticket={auditPanelData?.ticket}
+        flag={auditPanelData?.flag}
+      />
     </div>
   )
 }
