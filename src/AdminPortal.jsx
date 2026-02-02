@@ -19,6 +19,7 @@ import { useOrgQuery } from './utils/queryHelpers.js'
 import TenantSwitcher from './components/TenantSwitcher.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 import SignaturePad from './components/SignaturePad.jsx'
+import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 
@@ -2844,6 +2845,7 @@ function AdminPortal() {
           <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>{isSuperAdmin ? 'Super Admin' : 'Admin'} - {userProfile?.organizations?.name || 'All Organizations'}</p>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <AIAgentStatusIcon organizationId={organizationId} />
           <TenantSwitcher compact />
           <MasterSwitcher compact />
           <button onClick={() => navigate(orgPath('/inspector-invoicing'))} style={{ padding: '10px 20px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Inspector Invoicing</button>
