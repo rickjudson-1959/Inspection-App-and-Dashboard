@@ -3359,7 +3359,7 @@ function AdminPortal() {
                           {formatDate(report.submitted_at)}
                         </td>
                         <td style={{ padding: '15px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
-                          <button onClick={() => navigate(`/report?id=${report.report_id}`)} style={{ padding: '8px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '10px' }}>
+                          <button onClick={() => navigate(orgPath(`/report?id=${report.report_id}`))} style={{ padding: '8px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '10px' }}>
                             👁️ View
                           </button>
                           <button onClick={() => approveReport(report.report_id)} style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '10px' }}>
@@ -5102,13 +5102,13 @@ function AdminPortal() {
                         </td>
                         <td style={{ padding: '12px', borderBottom: '1px solid #eee', textAlign: 'center' }}>
                           <button
-                            onClick={() => navigate(`/report?id=${report.id}`)}
+                            onClick={() => navigate(orgPath(`/report?id=${report.id}`))}
                             style={{ padding: '6px 12px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '4px', fontSize: '12px' }}
                           >
                             👁️ View
                           </button>
                           <button
-                            onClick={() => navigate(`/inspector?edit=${report.id}`)}
+                            onClick={() => navigate(orgPath(`/field-entry?edit=${report.id}`))}
                             style={{ padding: '6px 12px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
                           >
                             ✏️ Edit
