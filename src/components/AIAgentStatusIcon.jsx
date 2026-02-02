@@ -7,7 +7,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-export default function AIAgentStatusIcon({ organizationId }) {
+export default function AIAgentStatusIcon({ organizationId, onFlagClick }) {
   const [status, setStatus] = useState('idle') // 'idle' | 'analyzing' | 'clear' | 'warning' | 'flagged'
   const [lastAnalysis, setLastAnalysis] = useState(null)
   const [showTooltip, setShowTooltip] = useState(false)
@@ -149,11 +149,10 @@ export default function AIAgentStatusIcon({ organizationId }) {
   return (
     <div
       style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}
-      onMouseEnter={() => setShowTooltip(true)}
-      onMouseLeave={() => setShowTooltip(false)}
     >
       {/* Status Icon Container */}
       <div
+        onClick={() => setShowTooltip(!showTooltip)}
         style={{
           width: '38px',
           height: '38px',
@@ -192,6 +191,21 @@ export default function AIAgentStatusIcon({ organizationId }) {
         )}
       </div>
 
+      {/* Tooltip Backdrop - click to close */}
+      {showTooltip && (
+        <div
+          onClick={() => setShowTooltip(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 999
+          }}
+        />
+      )}
+
       {/* Tooltip */}
       {showTooltip && (
         <div style={{
@@ -205,31 +219,47 @@ export default function AIAgentStatusIcon({ organizationId }) {
           padding: '14px 18px',
           boxShadow: '0 10px 25px -5px rgba(0,0,0,0.15)',
           zIndex: 1000,
-          minWidth: '260px',
-          maxWidth: '320px'
+          minWidth: '280px',
+          maxWidth: '340px'
         }}>
           {/* Header */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '10px',
+            justifyContent: 'space-between',
             marginBottom: '12px',
             paddingBottom: '10px',
             borderBottom: '1px solid #f3f4f6'
           }}>
-            <span style={{ fontSize: '24px' }}>{config.icon}</span>
-            <div>
-              <div style={{
-                fontWeight: 'bold',
-                fontSize: '14px',
-                color: config.color
-              }}>
-                {config.label}
-              </div>
-              <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                {config.description}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '24px' }}>{config.icon}</span>
+              <div>
+                <div style={{
+                  fontWeight: 'bold',
+                  fontSize: '14px',
+                  color: config.color
+                }}>
+                  {config.label}
+                </div>
+                <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                  {config.description}
+                </div>
               </div>
             </div>
+            <button
+              onClick={() => setShowTooltip(false)}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '18px',
+                cursor: 'pointer',
+                color: '#9ca3af',
+                padding: '0',
+                lineHeight: '1'
+              }}
+            >
+              ×
+            </button>
           </div>
 
           {/* Last Analysis Details */}
@@ -267,7 +297,7 @@ export default function AIAgentStatusIcon({ organizationId }) {
                 </div>
               </div>
 
-              {/* Flags Breakdown */}
+              {/* Flags Breakdown Summary */}
               {lastAnalysis.flags_raised > 0 && (
                 <div style={{
                   display: 'flex',
@@ -310,6 +340,98 @@ export default function AIAgentStatusIcon({ organizationId }) {
                       {lastAnalysis.flags_by_severity.info} Info
                     </span>
                   )}
+                </div>
+              )}
+
+              {/* Individual Flag Details - Clickable */}
+              {lastAnalysis.analysis_result?.flags?.length > 0 && (
+                <div style={{
+                  marginBottom: '10px',
+                  maxHeight: '150px',
+                  overflowY: 'auto'
+                }}>
+                  {lastAnalysis.analysis_result.flags.map((flag, idx) => {
+                    const severityColors = {
+                      critical: { bg: '#fee2e2', border: '#fca5a5', text: '#dc2626' },
+                      warning: { bg: '#fef9c3', border: '#fde047', text: '#ca8a04' },
+                      info: { bg: '#f3f4f6', border: '#d1d5db', text: '#6b7280' }
+                    }
+                    const colors = severityColors[flag.severity] || severityColors.info
+
+                    return (
+                      <div
+                        key={idx}
+                        onClick={() => {
+                          if (onFlagClick) {
+                            setShowTooltip(false)
+                            onFlagClick(flag.ticket_id, flag)
+                          }
+                        }}
+                        style={{
+                          padding: '8px 10px',
+                          marginBottom: '6px',
+                          backgroundColor: colors.bg,
+                          border: `1px solid ${colors.border}`,
+                          borderRadius: '6px',
+                          cursor: onFlagClick ? 'pointer' : 'default',
+                          transition: 'transform 0.1s ease'
+                        }}
+                        onMouseEnter={(e) => onFlagClick && (e.currentTarget.style.transform = 'scale(1.02)')}
+                        onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                      >
+                        <div style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          marginBottom: '4px'
+                        }}>
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: '700',
+                            color: colors.text,
+                            textTransform: 'uppercase'
+                          }}>
+                            {flag.type.replace(/_/g, ' ')}
+                          </span>
+                          <span style={{
+                            fontSize: '10px',
+                            color: '#6b7280',
+                            backgroundColor: 'white',
+                            padding: '2px 6px',
+                            borderRadius: '4px'
+                          }}>
+                            Ticket #{flag.ticket_id}
+                          </span>
+                        </div>
+                        <div style={{
+                          fontSize: '11px',
+                          color: '#374151',
+                          lineHeight: '1.4'
+                        }}>
+                          {flag.message}
+                        </div>
+                        {flag.ticket_date && (
+                          <div style={{
+                            fontSize: '10px',
+                            color: '#9ca3af',
+                            marginTop: '4px'
+                          }}>
+                            {flag.ticket_date} • {flag.activity_type || 'Activity'} • {flag.contractor || 'Unknown'}
+                          </div>
+                        )}
+                        {onFlagClick && (
+                          <div style={{
+                            fontSize: '10px',
+                            color: colors.text,
+                            marginTop: '4px',
+                            fontWeight: '500'
+                          }}>
+                            Click to view ticket →
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
                 </div>
               )}
 

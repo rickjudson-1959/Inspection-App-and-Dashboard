@@ -59,7 +59,7 @@ export function useOrgQuery() {
      * Check if org context is ready for queries
      * @returns {boolean}
      */
-    isReady: () => !!organizationId || isSuperAdmin
+    isReady: () => !!organizationId
   }
 }
 

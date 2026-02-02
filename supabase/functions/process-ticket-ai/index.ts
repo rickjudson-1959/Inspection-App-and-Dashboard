@@ -24,6 +24,7 @@ type FlagType =
   | 'CHAINAGE_GAP'
   | 'LABOUR_ANOMALY'
   | 'EQUIPMENT_MISMATCH'
+  | 'WPS_MATERIAL_MISMATCH'
   | 'MANAGEMENT_DRAG_SPIKE'
 
 type Severity = 'critical' | 'warning' | 'info'
@@ -180,6 +181,27 @@ serve(async (req: Request) => {
     console.log(`[AI Agent] Analyzing ${tickets.length} tickets`)
 
     // =========================================================================
+    // 2.5 FETCH WPS MATERIAL SPECS FOR VALIDATION
+    // =========================================================================
+    const { data: wpsSpecs } = await supabase
+      .from('wps_material_specs')
+      .select('wps_number, allowed_base_materials, allowed_filler_materials, wps_name')
+      .eq('organization_id', organization_id)
+      .eq('is_active', true)
+
+    // Build WPS lookup map for fast validation
+    const wpsLookup: Record<string, { allowedMaterials: string[], allowedFillers: string[], name: string }> = {}
+    for (const spec of (wpsSpecs || [])) {
+      wpsLookup[spec.wps_number.toUpperCase()] = {
+        allowedMaterials: (spec.allowed_base_materials || []).map((m: string) => m.toUpperCase()),
+        allowedFillers: (spec.allowed_filler_materials || []).map((m: string) => m.toUpperCase()),
+        name: spec.wps_name || spec.wps_number
+      }
+    }
+
+    console.log(`[AI Agent] Loaded ${Object.keys(wpsLookup).length} WPS specifications for validation`)
+
+    // =========================================================================
     // 3. RUN ANALYSIS ON EACH TICKET
     // =========================================================================
     const allFlags: AnalysisFlag[] = []
@@ -187,7 +209,7 @@ serve(async (req: Request) => {
     let totalShadowHours = 0
 
     for (const ticket of tickets) {
-      const ticketFlags = analyzeTicket(ticket, contractConfig)
+      const ticketFlags = analyzeTicket(ticket, contractConfig, wpsLookup)
       allFlags.push(...ticketFlags)
 
       // Calculate efficiency metrics
@@ -308,10 +330,23 @@ serve(async (req: Request) => {
 // ANALYSIS FUNCTIONS
 // =============================================================================
 
+// WPS lookup type
+interface WPSLookup {
+  [key: string]: {
+    allowedMaterials: string[]
+    allowedFillers: string[]
+    name: string
+  }
+}
+
 /**
  * Analyze a single ticket against contract config rules
  */
-function analyzeTicket(ticket: any, config: ContractConfig): AnalysisFlag[] {
+function analyzeTicket(
+  ticket: any,
+  config: ContractConfig,
+  wpsLookup: WPSLookup = {}
+): AnalysisFlag[] {
   const flags: AnalysisFlag[] = []
   const blocks = ticket.activity_blocks || []
 
@@ -511,6 +546,157 @@ function analyzeTicket(ticket: any, config: ContractConfig): AnalysisFlag[] {
         }
       })
     }
+
+    // -------------------------------------------------------------------------
+    // CHECK 6: WPS_MATERIAL_MISMATCH
+    // Flag if material used is not approved for the specified WPS
+    // Supports both block-level (block.wps, block.material) and
+    // weldData-level (block.weldData.weldEntries[].wpsId, block.weldData.pipeGrade)
+    // -------------------------------------------------------------------------
+
+    // First check block-level wps/material (direct fields)
+    if (block.wps && block.material && Object.keys(wpsLookup).length > 0) {
+      const wpsNumber = String(block.wps).toUpperCase().trim()
+      const material = String(block.material).toUpperCase().trim()
+      const wpsSpec = wpsLookup[wpsNumber]
+
+      if (wpsSpec) {
+        const materialMatches = wpsSpec.allowedMaterials.some(allowed =>
+          material.includes(allowed) || allowed.includes(material)
+        )
+
+        if (!materialMatches) {
+          flags.push({
+            type: 'WPS_MATERIAL_MISMATCH',
+            severity: 'critical',
+            ticket_id: ticket.id,
+            ticket_date: ticket.date,
+            activity_block_index: index,
+            activity_type: block.activityType,
+            contractor: block.contractor,
+            message: `Critical: Material "${block.material}" is NOT approved for ${block.wps} (${wpsSpec.name})`,
+            details: {
+              wps_used: block.wps,
+              wps_name: wpsSpec.name,
+              material_reported: block.material,
+              allowed_materials: wpsSpec.allowedMaterials,
+              validation_result: 'MATERIAL_NOT_IN_APPROVED_LIST'
+            }
+          })
+        }
+      } else if (Object.keys(wpsLookup).length > 0) {
+        flags.push({
+          type: 'EQUIPMENT_MISMATCH',
+          severity: 'warning',
+          ticket_id: ticket.id,
+          ticket_date: ticket.date,
+          activity_block_index: index,
+          activity_type: block.activityType,
+          contractor: block.contractor,
+          message: `Warning: WPS "${block.wps}" not found in approved specifications`,
+          details: {
+            wps_used: block.wps,
+            material_reported: block.material,
+            available_wps: Object.keys(wpsLookup),
+            validation_result: 'WPS_NOT_FOUND'
+          }
+        })
+      }
+    }
+
+    // Also check weldData.weldEntries for WPS usage (mainline welding data structure)
+    if (block.weldData?.weldEntries && Array.isArray(block.weldData.weldEntries)) {
+      const pipeGrade = block.weldData.pipeGrade || block.pipeGrade // Check both locations
+
+      for (const weldEntry of block.weldData.weldEntries) {
+        if (weldEntry.wpsId && Object.keys(wpsLookup).length > 0) {
+          const wpsNumber = String(weldEntry.wpsId).toUpperCase().trim()
+          const wpsSpec = wpsLookup[wpsNumber]
+
+          // If we have both WPS and pipe grade, validate the combination
+          if (wpsSpec && pipeGrade) {
+            const material = String(pipeGrade).toUpperCase().trim()
+            const materialMatches = wpsSpec.allowedMaterials.some(allowed =>
+              material.includes(allowed) || allowed.includes(material)
+            )
+
+            if (!materialMatches) {
+              flags.push({
+                type: 'WPS_MATERIAL_MISMATCH',
+                severity: 'critical',
+                ticket_id: ticket.id,
+                ticket_date: ticket.date,
+                activity_block_index: index,
+                activity_type: block.activityType,
+                contractor: block.contractor,
+                message: `Critical: Pipe grade "${pipeGrade}" is NOT approved for ${weldEntry.wpsId} (${wpsSpec.name})`,
+                details: {
+                  wps_used: weldEntry.wpsId,
+                  wps_name: wpsSpec.name,
+                  weld_number: weldEntry.weldNumber || weldEntry.id,
+                  pipe_grade: pipeGrade,
+                  allowed_materials: wpsSpec.allowedMaterials,
+                  validation_result: 'MATERIAL_NOT_IN_APPROVED_LIST'
+                }
+              })
+            }
+          } else if (!wpsSpec && Object.keys(wpsLookup).length > 0) {
+            // WPS not found in our specs
+            flags.push({
+              type: 'EQUIPMENT_MISMATCH',
+              severity: 'warning',
+              ticket_id: ticket.id,
+              ticket_date: ticket.date,
+              activity_block_index: index,
+              activity_type: block.activityType,
+              contractor: block.contractor,
+              message: `Warning: WPS "${weldEntry.wpsId}" not found in approved specifications`,
+              details: {
+                wps_used: weldEntry.wpsId,
+                weld_number: weldEntry.weldNumber || weldEntry.id,
+                available_wps: Object.keys(wpsLookup),
+                validation_result: 'WPS_NOT_FOUND'
+              }
+            })
+          }
+        }
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // CHECK 7: FILLER_MATERIAL_MISMATCH (if filler electrode is specified)
+    // -------------------------------------------------------------------------
+    if (block.wps && block.fillerMaterial && Object.keys(wpsLookup).length > 0) {
+      const wpsNumber = String(block.wps).toUpperCase().trim()
+      const filler = String(block.fillerMaterial).toUpperCase().trim()
+      const wpsSpec = wpsLookup[wpsNumber]
+
+      if (wpsSpec && wpsSpec.allowedFillers.length > 0) {
+        const fillerMatches = wpsSpec.allowedFillers.some(allowed =>
+          filler.includes(allowed) || allowed.includes(filler)
+        )
+
+        if (!fillerMatches) {
+          flags.push({
+            type: 'EQUIPMENT_MISMATCH',
+            severity: 'critical',
+            ticket_id: ticket.id,
+            ticket_date: ticket.date,
+            activity_block_index: index,
+            activity_type: block.activityType,
+            contractor: block.contractor,
+            message: `Critical: Filler material "${block.fillerMaterial}" is NOT approved for ${block.wps}`,
+            details: {
+              wps_used: block.wps,
+              wps_name: wpsSpec.name,
+              filler_reported: block.fillerMaterial,
+              allowed_fillers: wpsSpec.allowedFillers,
+              validation_result: 'FILLER_NOT_IN_APPROVED_LIST'
+            }
+          })
+        }
+      }
+    }
   })
 
   return flags
@@ -706,6 +892,16 @@ function buildAnalysisPrompt(flags: AnalysisFlag[], tickets: any[], config: Cont
     byContractor[contractor].push(flag)
   }
 
+  // Group flags by type for summary
+  const byType: Record<string, number> = {}
+  for (const flag of flags) {
+    byType[flag.type] = (byType[flag.type] || 0) + 1
+  }
+
+  // Check for WPS-related issues specifically
+  const wpsMaterialFlags = flags.filter(f => f.type === 'WPS_MATERIAL_MISMATCH')
+  const equipmentFlags = flags.filter(f => f.type === 'EQUIPMENT_MISMATCH')
+
   return `You are a Pipeline Construction Inspector AI analyzing daily field reports. Provide a brief executive summary (2-3 sentences) of the analysis results.
 
 PROJECT CONFIGURATION:
@@ -716,6 +912,8 @@ ANALYSIS RESULTS:
 - Tickets Analyzed: ${tickets.length}
 - Critical Issues: ${criticalFlags.length}
 - Warnings: ${warningFlags.length}
+- WPS/Material Violations: ${wpsMaterialFlags.length}
+- Equipment/Procedure Issues: ${equipmentFlags.length}
 
 FLAGS DETECTED:
 ${flags.slice(0, 10).map(f => `- [${f.severity.toUpperCase()}] ${f.type}: ${f.message}`).join('\n')}
@@ -725,9 +923,12 @@ CONTRACTORS WITH ISSUES:
 ${Object.entries(byContractor).map(([c, f]) => `- ${c}: ${f.length} flag(s)`).join('\n')}
 
 Provide a concise summary focusing on:
-1. Most critical issues requiring immediate attention
-2. Which contractors need investigation
-3. Overall data quality assessment
+1. WPS/Material violations (CRITICAL - stop work may be required if wrong materials used)
+2. Hours/efficiency anomalies requiring investigation
+3. Which contractors need follow-up
+4. Overall compliance assessment
+
+IMPORTANT: WPS_MATERIAL_MISMATCH flags indicate potential weld quality issues - highlight these prominently.
 
 Keep response under 100 words. Be specific and actionable.`
 }
