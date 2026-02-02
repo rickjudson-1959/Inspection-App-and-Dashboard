@@ -9,9 +9,18 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { getFlagTypeConfig, interpolateTemplate, SEVERITY_COLORS } from '../utils/flagTypeConfig'
 
+const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
+
 export default function AgentAuditFindingsPanel({ isOpen, onClose, ticket, flag }) {
   const [wpsDetails, setWpsDetails] = useState(null)
   const [loadingWps, setLoadingWps] = useState(false)
+
+  // Clarification request state
+  const [showClarificationModal, setShowClarificationModal] = useState(false)
+  const [clarificationDraft, setClarificationDraft] = useState('')
+  const [generatingClarification, setGeneratingClarification] = useState(false)
+  const [inspectorInfo, setInspectorInfo] = useState(null)
+  const [clarificationCopied, setClarificationCopied] = useState(false)
 
   // Fetch WPS details for WPS-related flags
   useEffect(() => {
@@ -55,6 +64,151 @@ export default function AgentAuditFindingsPanel({ isOpen, onClose, ticket, flag 
 
     fetchWpsDetails()
   }, [isOpen, flag])
+
+  // Fetch inspector info when panel opens
+  useEffect(() => {
+    if (!isOpen || !ticket?.user_id) {
+      setInspectorInfo(null)
+      return
+    }
+
+    const fetchInspectorInfo = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('user_profiles')
+          .select('id, display_name, email')
+          .eq('id', ticket.user_id)
+          .single()
+
+        if (!error && data) {
+          setInspectorInfo(data)
+        }
+      } catch (err) {
+        console.error('Error fetching inspector info:', err)
+      }
+    }
+
+    fetchInspectorInfo()
+  }, [isOpen, ticket?.user_id])
+
+  // Generate AI clarification request
+  const generateClarificationRequest = async () => {
+    setGeneratingClarification(true)
+    setClarificationDraft('')
+    setShowClarificationModal(true)
+
+    const config = getFlagTypeConfig(flag.type)
+    const inspectorName = inspectorInfo?.display_name ||
+                          ticket?.inspector_name ||
+                          ticket?.user_profiles?.display_name ||
+                          'Inspector'
+    const ticketDate = ticket?.date || flag.ticket_date || 'the recent ticket'
+
+    const prompt = `You are a senior pipeline construction manager writing a professional, mentor-toned message to an inspector about a discrepancy found in their daily ticket.
+
+CONTEXT:
+- Inspector Name: ${inspectorName}
+- Ticket Date: ${ticketDate}
+- Ticket ID: ${ticket?.id || flag.ticket_id}
+- Spread: ${ticket?.spread || 'Not specified'}
+
+DISCREPANCY DETAILS:
+- Type: ${config.violationTitle}
+- Severity: ${flag.severity || config.severity}
+- Description: ${flag.message}
+${flag.details ? `- Additional Details: ${JSON.stringify(flag.details)}` : ''}
+
+REFERENCE:
+${config.referenceTemplate}
+
+Write a brief, professional email/notification that:
+1. Opens with a friendly, supportive greeting
+2. Clearly identifies the specific ticket and date
+3. Explains the discrepancy that was detected (be specific but not accusatory)
+4. References the relevant standard or specification
+5. Asks them to review and correct the entry before finalization
+6. Offers to help if they have questions
+7. Closes warmly
+
+Keep the tone mentor-like: supportive, educational, not punitive. The goal is to help them improve and correct the record, not to discipline. Keep it concise (under 200 words).
+
+Output ONLY the email text, no subject line or additional formatting.`
+
+    try {
+      if (!anthropicApiKey) {
+        setClarificationDraft(`Hi ${inspectorName},
+
+I hope you're doing well. I wanted to reach out regarding your daily ticket from ${ticketDate}.
+
+Our automated review system flagged a potential discrepancy: ${config.violationTitle}
+
+Specifically: ${flag.message}
+
+Could you please take a moment to review this entry? If there's additional context or if a correction is needed, please update the ticket before it's finalized.
+
+I'm happy to discuss if you have any questions or need clarification on the requirements.
+
+Thanks for your attention to detail!
+
+Best regards`)
+        return
+      }
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': anthropicApiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 500,
+          messages: [{
+            role: 'user',
+            content: prompt
+          }]
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`)
+      }
+
+      const data = await response.json()
+      const emailText = data.content?.[0]?.text || ''
+      setClarificationDraft(emailText.trim())
+    } catch (err) {
+      console.error('Error generating clarification:', err)
+      // Fallback to template
+      setClarificationDraft(`Hi ${inspectorName},
+
+I hope you're doing well. I wanted to reach out regarding your daily ticket from ${ticketDate}.
+
+Our automated review system flagged a potential discrepancy: ${config.violationTitle}
+
+Specifically: ${flag.message}
+
+Could you please take a moment to review this entry? If there's additional context or if a correction is needed, please update the ticket before it's finalized.
+
+I'm happy to discuss if you have any questions or need clarification on the requirements.
+
+Thanks for your attention to detail!
+
+Best regards`)
+    } finally {
+      setGeneratingClarification(false)
+    }
+  }
+
+  // Copy clarification to clipboard
+  const copyClarification = () => {
+    navigator.clipboard.writeText(clarificationDraft).then(() => {
+      setClarificationCopied(true)
+      setTimeout(() => setClarificationCopied(false), 2000)
+    })
+  }
 
   if (!isOpen || !flag) return null
 
@@ -552,37 +706,251 @@ export default function AgentAuditFindingsPanel({ isOpen, onClose, ticket, flag 
           backgroundColor: '#f9fafb',
           display: 'flex',
           justifyContent: 'space-between',
-          alignItems: 'center'
+          alignItems: 'center',
+          gap: '12px'
         }}>
           <div style={{ fontSize: '12px', color: '#6b7280' }}>
             🤖 Flagged by AI Agent • {formatDate(flag.ticket_date || ticket?.date)}
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              padding: '10px 24px',
-              backgroundColor: '#003366',
-              color: 'white',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontWeight: '500',
-              fontSize: '14px',
-              transition: 'background-color 0.2s'
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#002244'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#003366'}
-          >
-            Close
-          </button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={generateClarificationRequest}
+              disabled={generatingClarification}
+              style={{
+                padding: '10px 18px',
+                backgroundColor: '#8b5cf6',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: generatingClarification ? 'not-allowed' : 'pointer',
+                fontWeight: '500',
+                fontSize: '13px',
+                transition: 'background-color 0.2s',
+                opacity: generatingClarification ? 0.7 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}
+              onMouseEnter={(e) => !generatingClarification && (e.currentTarget.style.backgroundColor = '#7c3aed')}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#8b5cf6'}
+            >
+              ✉️ Request Clarification
+            </button>
+            <button
+              onClick={onClose}
+              style={{
+                padding: '10px 24px',
+                backgroundColor: '#003366',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: '500',
+                fontSize: '14px',
+                transition: 'background-color 0.2s'
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#002244'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#003366'}
+            >
+              Close
+            </button>
+          </div>
         </div>
       </div>
+
+      {/* Clarification Request Modal */}
+      {showClarificationModal && (
+        <div
+          onClick={() => !generatingClarification && setShowClarificationModal(false)}
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 10002,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '20px'
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              width: '100%',
+              maxWidth: '550px',
+              maxHeight: '80vh',
+              overflow: 'hidden',
+              boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+              display: 'flex',
+              flexDirection: 'column'
+            }}
+          >
+            {/* Modal Header */}
+            <div style={{
+              padding: '20px 24px',
+              borderBottom: '1px solid #e5e7eb',
+              backgroundColor: '#8b5cf6',
+              color: 'white'
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <span style={{ fontSize: '24px' }}>✉️</span>
+                <div>
+                  <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
+                    Request Clarification
+                  </h3>
+                  <p style={{ margin: '4px 0 0 0', fontSize: '13px', opacity: 0.9 }}>
+                    AI-generated message for {inspectorInfo?.display_name || ticket?.inspector_name || 'the inspector'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '24px', flex: 1, overflowY: 'auto' }}>
+              {generatingClarification ? (
+                <div style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '40px 20px',
+                  color: '#6b7280'
+                }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    border: '3px solid #e5e7eb',
+                    borderTopColor: '#8b5cf6',
+                    borderRadius: '50%',
+                    animation: 'spin 1s linear infinite',
+                    marginBottom: '16px'
+                  }} />
+                  <div style={{ fontSize: '14px', fontWeight: '500' }}>
+                    Generating clarification request...
+                  </div>
+                  <div style={{ fontSize: '12px', marginTop: '4px' }}>
+                    Using AI to draft a professional message
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div style={{ marginBottom: '16px' }}>
+                    <label style={{
+                      display: 'block',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      color: '#374151',
+                      marginBottom: '8px'
+                    }}>
+                      Draft Message (edit as needed)
+                    </label>
+                    <textarea
+                      value={clarificationDraft}
+                      onChange={(e) => setClarificationDraft(e.target.value)}
+                      style={{
+                        width: '100%',
+                        minHeight: '250px',
+                        padding: '14px',
+                        border: '1px solid #d1d5db',
+                        borderRadius: '8px',
+                        fontSize: '14px',
+                        lineHeight: '1.6',
+                        resize: 'vertical',
+                        fontFamily: 'inherit',
+                        boxSizing: 'border-box'
+                      }}
+                    />
+                  </div>
+
+                  {inspectorInfo?.email && (
+                    <div style={{
+                      padding: '12px 14px',
+                      backgroundColor: '#f0f9ff',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      color: '#0c4a6e',
+                      marginBottom: '16px'
+                    }}>
+                      <strong>Inspector Email:</strong> {inspectorInfo.email}
+                    </div>
+                  )}
+
+                  <div style={{
+                    padding: '12px 14px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    color: '#6b7280'
+                  }}>
+                    💡 <strong>Tip:</strong> Copy this message and send it via your preferred method (email, Teams, Slack, etc.)
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Modal Footer */}
+            {!generatingClarification && (
+              <div style={{
+                padding: '16px 24px',
+                borderTop: '1px solid #e5e7eb',
+                backgroundColor: '#f9fafb',
+                display: 'flex',
+                justifyContent: 'flex-end',
+                gap: '10px'
+              }}>
+                <button
+                  onClick={() => setShowClarificationModal(false)}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#e5e7eb',
+                    color: '#374151',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                    fontSize: '14px'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={copyClarification}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: clarificationCopied ? '#16a34a' : '#8b5cf6',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                    fontSize: '14px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'background-color 0.2s'
+                  }}
+                >
+                  {clarificationCopied ? '✓ Copied!' : '📋 Copy Message'}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Animation keyframes */}
       <style>{`
         @keyframes slideInFromRight {
           from { transform: translateX(100%); }
           to { transform: translateX(0); }
+        }
+        @keyframes spin {
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </>
