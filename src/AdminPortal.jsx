@@ -6215,7 +6215,7 @@ function AdminPortal() {
                   borderRadius: '6px',
                   padding: '10px'
                 }}>
-                  {projectDocuments.filter(d => d.is_current !== false && !d.is_addendum).map(doc => (
+                  {projectDocuments.filter(d => d.is_current !== false && !d.is_addendum && !d.is_global).map(doc => (
                     <label
                       key={doc.id}
                       style={{
