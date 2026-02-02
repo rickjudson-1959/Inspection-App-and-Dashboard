@@ -26,7 +26,7 @@ export default function AIAgentStatusIcon({ organizationId }) {
           .eq('organization_id', organizationId)
           .order('created_at', { ascending: false })
           .limit(1)
-          .single()
+          .maybeSingle()
 
         if (error && error.code !== 'PGRST116') {
           console.error('Error fetching AI status:', error)
