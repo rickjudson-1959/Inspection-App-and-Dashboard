@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - February 1, 2026
+## Project Manifest - February 2, 2026
 
 ---
 
@@ -14,7 +14,8 @@
 | Component | Technology |
 |-----------|------------|
 | Frontend | React 18.2.0 with Vite + PWA |
-| Backend | Supabase (PostgreSQL + Auth) |
+| Backend | Supabase (PostgreSQL + Auth + Edge Functions) |
+| AI Analysis | Anthropic Claude API (AI Agent) |
 | Email API | Resend |
 | Deployment | Vercel |
 | PDF Generation | jsPDF + jsPDF-autotable |
@@ -322,6 +323,7 @@
     ├── TrackableItemsTracker.jsx
     ├── SignaturePad.jsx         # Digital signature capture (ITP sign-offs)
     ├── TenantSwitcher.jsx       # Organization switcher dropdown
+    ├── AIAgentStatusIcon.jsx    # AI Watcher status indicator (NEW - Feb 2026)
     ├── MapDashboard.jsx
     ├── OfflineStatusBar.jsx     # PWA status indicator (NEW - Jan 2026)
     └── [supporting components]
@@ -341,12 +343,91 @@
 ├── 20260201_document_sync_status.sql         # Sync tracking
 ├── 20260201_create_signatures_bucket.sql     # Signature storage
 ├── 20260201_create_handovers_bucket.sql      # Handover ZIP storage
+├── 20260201_create_ai_agent_tables.sql       # AI agent logs
+├── 20260202_create_wps_material_specs.sql    # WPS material validation
 └── [other migrations]
 ```
 
 ---
 
 ## 6. RECENT UPDATES (January/February 2026)
+
+### AI Agent "Watcher" System (February 2, 2026)
+
+**Pipe-Up AI Agent - Intelligent Ticket Analysis**
+- Real-time analysis of daily construction tickets
+- Flags anomalies and compliance issues automatically
+- Green pulse animation when all clear, red pulse for critical flags
+
+**AI Agent Status Icon (AdminPortal Header)**
+- Visual status indicator with 5 states:
+  - 🤖 Gray (Idle) - No recent analysis
+  - ⚡ Blue pulse (Analyzing) - Processing tickets
+  - ✅ Green pulse (Clear) - No issues detected
+  - ⚠️ Yellow (Warning) - Review recommended
+  - 🚨 Red pulse (Flagged) - Critical issues requiring attention
+- Click to view detailed analysis results
+- Clickable flags navigate to affected tickets
+- Real-time Supabase subscription for live updates
+
+**Analysis Rules (7 Checks)**
+| Flag Type | Severity | Rule |
+|-----------|----------|------|
+| HOURS_EXCEEDED | Warning/Critical | Avg hours > 120%/150% of standard workday |
+| KP_OUT_OF_BOUNDS | Critical | Activity KP outside project boundaries |
+| LOW_EFFICIENCY | Warning/Critical | Shadow hours / billed hours < 70%/50% |
+| MANAGEMENT_DRAG_SPIKE | Critical | >30% labour marked as MANAGEMENT_DRAG |
+| LABOUR_ANOMALY | Info | >50 workers in single activity block |
+| WPS_MATERIAL_MISMATCH | Critical | Pipe material not approved for WPS |
+| EQUIPMENT_MISMATCH | Warning | WPS not found in approved specifications |
+
+**WPS Material Validation**
+- `wps_material_specs` table stores approved materials per WPS
+- Validates pipe grade against WPS allowed materials list
+- Flags critical violations (e.g., X65 Steel used with WPS-02 which only allows X70/X80)
+- Supports both block-level and weldData.weldEntries validation
+
+**AI-Generated Summaries**
+- Anthropic Claude API generates executive summaries of flagged issues
+- Prioritizes WPS/Material violations as potential stop-work items
+- Identifies contractors requiring investigation
+- Provides actionable recommendations
+
+**New Database Tables:**
+```
+ai_agent_logs           # Analysis results and metrics
+wps_material_specs      # WPS allowed materials configuration
+```
+
+**New Edge Function:**
+```
+supabase/functions/process-ticket-ai/index.ts
+```
+
+**New Component:**
+```
+src/components/AIAgentStatusIcon.jsx
+```
+
+**Files Modified:**
+- `src/AdminPortal.jsx` - AI Agent icon in header, flagged ticket modal
+- `src/utils/queryHelpers.js` - Fixed isReady() for org filtering
+
+---
+
+### Organization Filtering Fix (February 2, 2026)
+
+**Super Admin Data Filtering**
+- Fixed issue where super admins saw all organizations' data regardless of selection
+- All `addOrgFilter()` calls now use `forceFilter=true` for selected organization
+- Data state resets when switching organizations (prevents stale data)
+- `isReady()` now requires `organizationId` before queries execute
+
+**Files Modified:**
+- `src/AdminPortal.jsx` - Force org filtering, state reset on org change
+- `src/utils/queryHelpers.js` - Updated isReady() logic
+
+---
 
 ### Document Control & Project Handover System (February 1, 2026)
 
@@ -863,4 +944,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 1, 2026 (Document Control & Handover System)*
+*Last Updated: February 2, 2026 (AI Agent WPS/Material Validation)*
