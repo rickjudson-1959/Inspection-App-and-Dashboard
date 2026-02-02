@@ -358,7 +358,7 @@ function WeldingChiefDashboard() {
           <button onClick={() => navigate(orgPath('/chief-dashboard'))} style={{ padding: '10px 16px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>
             Chief Dashboard
           </button>
-          <button onClick={() => navigate(orgPath('/auditor-dashboard'))} style={{ padding: '10px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+          <button onClick={() => navigate(orgPath('/auditor-dashboard?readonly=true&from=welding-chief'))} style={{ padding: '10px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
             NDT Queue
           </button>
           <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>

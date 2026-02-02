@@ -29,9 +29,12 @@ function NDTAuditorDashboard() {
   const { signOut, userProfile } = useAuth()
   const { orgPath } = useOrgPath()
   
-  // Read-only mode for Chief Inspector cross-linking
-  const isReadOnly = searchParams.get('readonly') === 'true'
+  // Read-only mode for Chief Inspector or Welding Chief cross-linking
+  const userRole = userProfile?.role || userProfile?.user_role
+  const isWeldingChief = userRole === 'welding_chief'
+  const isReadOnly = searchParams.get('readonly') === 'true' || isWeldingChief
   const highlightWeldId = searchParams.get('weld')
+  const fromPage = searchParams.get('from') // Track where user came from
   
   // ============================================================================
   // STATE
@@ -685,24 +688,37 @@ function NDTAuditorDashboard() {
         
         {/* Navigation */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '15px', borderTop: '1px solid #333', backgroundColor: '#16213e' }}>
-          {/* Only show back button for super_admin/chiefs accessing via god mode */}
-          {(userProfile?.role === 'super_admin' || userProfile?.role === 'chief_inspector' ||
-            userProfile?.user_role === 'super_admin' || userProfile?.user_role === 'chief_inspector') && (
+          {/* Only show back button for super_admin/chiefs/welding_chief accessing via god mode */}
+          {(userRole === 'super_admin' || userRole === 'chief_inspector' || userRole === 'chief' || userRole === 'welding_chief') && (
             <button
               onClick={() => {
-                // Navigate to admin for super_admin, otherwise to chief
-                const userRole = userProfile?.role || userProfile?.user_role
-                if (userRole === 'super_admin') {
+                // Navigate based on where user came from or their role
+                if (fromPage === 'welding-chief') {
+                  navigate(orgPath('/welding-chief'))
+                } else if (userRole === 'super_admin') {
                   navigate(orgPath('/admin'))
+                } else if (userRole === 'welding_chief') {
+                  navigate(orgPath('/welding-chief'))
                 } else {
                   navigate(orgPath('/chief-dashboard'))
                 }
               }}
-              style={{ width: '100%', padding: '12px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginBottom: '8px' }}
+              style={{
+                width: '100%',
+                padding: '12px',
+                backgroundColor: fromPage === 'welding-chief' || userRole === 'welding_chief' ? '#6f42c1' : '#1a5f2a',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                marginBottom: '8px'
+              }}
             >
-              {userProfile?.role === 'super_admin' || userProfile?.user_role === 'super_admin'
-                ? '← Admin Dashboard'
-                : '← Chief Dashboard'}
+              {fromPage === 'welding-chief' || userRole === 'welding_chief'
+                ? '← Welding Chief Dashboard'
+                : userRole === 'super_admin'
+                  ? '← Admin Dashboard'
+                  : '← Chief Dashboard'}
             </button>
           )}
           <button

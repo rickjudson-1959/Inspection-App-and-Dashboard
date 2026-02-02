@@ -24,9 +24,12 @@ function AuditorDashboard() {
   const { addOrgFilter, getOrgId, organizationId, isReady } = useOrgQuery()
   const { orgPath } = useOrgPath()
 
-  // Check if read-only mode (Chief Inspector viewing)
-  const isReadOnly = searchParams.get('readonly') === 'true'
+  // Check if read-only mode (Chief Inspector or Welding Chief viewing)
+  const userRole = userProfile?.role || userProfile?.user_role
+  const isWeldingChief = userRole === 'welding_chief'
+  const isReadOnly = searchParams.get('readonly') === 'true' || isWeldingChief
   const highlightWeldId = searchParams.get('weld')
+  const fromPage = searchParams.get('from') // Track where user came from
   
   // Tab state
   const [activeTab, setActiveTab] = useState('queue')
@@ -415,11 +418,14 @@ function AuditorDashboard() {
           <div style={{ display: 'flex', gap: '10px' }}>
             {isReadOnly && (
               <span style={{ padding: '10px 20px', backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: '4px', fontSize: '14px' }}>
-                Viewing as Chief Inspector
+                {isWeldingChief ? 'Viewing as Welding Chief' : 'Viewing as Chief Inspector'}
               </span>
             )}
-            <button onClick={() => navigate(orgPath('/chief-dashboard'))} style={{ padding: '10px 20px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-              ← Chief Dashboard
+            <button
+              onClick={() => navigate(orgPath(fromPage === 'welding-chief' ? '/welding-chief' : '/chief-dashboard'))}
+              style={{ padding: '10px 20px', backgroundColor: fromPage === 'welding-chief' ? '#6f42c1' : '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+            >
+              ← {fromPage === 'welding-chief' ? 'Welding Chief Dashboard' : 'Chief Dashboard'}
             </button>
             <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
               Sign Out
