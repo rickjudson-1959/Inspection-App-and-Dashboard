@@ -243,7 +243,7 @@ function AdminPortal() {
           .eq('organization_id', organizationId)
           .eq('is_global', false)
           .or('is_current.is.null,is_current.eq.true')
-          .eq('is_addendum', false)
+          .or('is_addendum.is.null,is_addendum.eq.false')
 
         setOverviewDocs(vaultDocs || [])
       } catch (err) {
