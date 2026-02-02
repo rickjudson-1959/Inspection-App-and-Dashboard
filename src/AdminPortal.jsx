@@ -151,6 +151,10 @@ function AdminPortal() {
   })
   const [updatingSyncStatus, setUpdatingSyncStatus] = useState(false)
 
+  // Overview tab document stats (separate from Setup tab documents)
+  const [overviewDocs, setOverviewDocs] = useState([])
+  const [loadingOverviewDocs, setLoadingOverviewDocs] = useState(false)
+
   // Document vault categories
   const documentVaultCategories = [
     { key: 'prime_contract', label: 'Prime Contract', icon: '📜' },
@@ -225,6 +229,32 @@ function AdminPortal() {
     if (activeTab === 'stats' && isSuperAdmin) fetchUsageStats()
     if (activeTab === 'setup' && selectedOrgForSetup) fetchGovernanceData(selectedOrgForSetup)
   }, [activeTab, organizationId, selectedOrgForSetup])
+
+  // Fetch document sync stats for Overview tab
+  useEffect(() => {
+    async function fetchOverviewDocs() {
+      if (activeTab !== 'overview' || !organizationId) return
+
+      setLoadingOverviewDocs(true)
+      try {
+        const { data: vaultDocs } = await supabase
+          .from('project_documents')
+          .select('id, category, sync_status, is_global, is_current, is_addendum')
+          .eq('organization_id', organizationId)
+          .eq('is_global', false)
+          .or('is_current.is.null,is_current.eq.true')
+          .eq('is_addendum', false)
+
+        setOverviewDocs(vaultDocs || [])
+      } catch (err) {
+        console.error('Error fetching overview docs:', err)
+      } finally {
+        setLoadingOverviewDocs(false)
+      }
+    }
+
+    fetchOverviewDocs()
+  }, [activeTab, organizationId])
 
   // Auto-select current organization for Setup tab
   useEffect(() => {
@@ -315,6 +345,76 @@ function AdminPortal() {
       reportCount: recentReports.length
     }
   }, [recentReports])
+
+  // Calculate document sync stats for the selected organization
+  const syncStats = useMemo(() => {
+    const vaultDocs = projectDocuments.filter(d => !d.is_global && d.is_current !== false && !d.is_addendum)
+
+    if (vaultDocs.length === 0) {
+      return {
+        total: 0,
+        internal: 0,
+        transmitted: 0,
+        acknowledged: 0,
+        rejected: 0,
+        percentages: { internal: 0, transmitted: 0, acknowledged: 0, rejected: 0 }
+      }
+    }
+
+    const counts = {
+      internal: vaultDocs.filter(d => !d.sync_status || d.sync_status === 'internal').length,
+      transmitted: vaultDocs.filter(d => d.sync_status === 'transmitted').length,
+      acknowledged: vaultDocs.filter(d => d.sync_status === 'acknowledged').length,
+      rejected: vaultDocs.filter(d => d.sync_status === 'rejected').length
+    }
+
+    const total = vaultDocs.length
+
+    return {
+      total,
+      ...counts,
+      percentages: {
+        internal: total > 0 ? Math.round((counts.internal / total) * 100) : 0,
+        transmitted: total > 0 ? Math.round((counts.transmitted / total) * 100) : 0,
+        acknowledged: total > 0 ? Math.round((counts.acknowledged / total) * 100) : 0,
+        rejected: total > 0 ? Math.round((counts.rejected / total) * 100) : 0
+      }
+    }
+  }, [projectDocuments])
+
+  // Calculate document sync stats for Overview tab (uses overviewDocs)
+  const overviewSyncStats = useMemo(() => {
+    if (overviewDocs.length === 0) {
+      return {
+        total: 0,
+        internal: 0,
+        transmitted: 0,
+        acknowledged: 0,
+        rejected: 0,
+        percentages: { internal: 0, transmitted: 0, acknowledged: 0, rejected: 0 }
+      }
+    }
+
+    const counts = {
+      internal: overviewDocs.filter(d => !d.sync_status || d.sync_status === 'internal').length,
+      transmitted: overviewDocs.filter(d => d.sync_status === 'transmitted').length,
+      acknowledged: overviewDocs.filter(d => d.sync_status === 'acknowledged').length,
+      rejected: overviewDocs.filter(d => d.sync_status === 'rejected').length
+    }
+
+    const total = overviewDocs.length
+
+    return {
+      total,
+      ...counts,
+      percentages: {
+        internal: total > 0 ? Math.round((counts.internal / total) * 100) : 0,
+        transmitted: total > 0 ? Math.round((counts.transmitted / total) * 100) : 0,
+        acknowledged: total > 0 ? Math.round((counts.acknowledged / total) * 100) : 0,
+        rejected: total > 0 ? Math.round((counts.rejected / total) * 100) : 0
+      }
+    }
+  }, [overviewDocs])
 
   // ==================== INSPECTOR PROFILE MODAL ====================
   async function openProfileModal(profileId) {
@@ -2802,6 +2902,171 @@ function AdminPortal() {
                 <p style={{ margin: 0, fontSize: '36px', fontWeight: 'bold', color: '#6f42c1' }}>{efficiencyMetrics.reportCount}</p>
               </div>
             </div>
+
+            {/* Document Sync Health Widget */}
+            {organizationId && overviewSyncStats.total > 0 && (
+              <div style={{
+                marginTop: '20px',
+                backgroundColor: 'white',
+                padding: '25px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                border: overviewSyncStats.rejected > 0 ? '2px solid #dc2626' : 'none'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+                  <h3 style={{ margin: 0, color: '#333', fontSize: '16px' }}>📄 Document Sync Health</h3>
+                  <span style={{ fontSize: '12px', color: '#666' }}>
+                    {overviewSyncStats.total} document{overviewSyncStats.total !== 1 ? 's' : ''} in vault
+                  </span>
+                </div>
+
+                {/* Critical Alerts */}
+                {overviewSyncStats.rejected > 0 && (
+                  <div style={{
+                    marginBottom: '15px',
+                    padding: '12px 15px',
+                    backgroundColor: '#fee2e2',
+                    borderRadius: '6px',
+                    border: '1px solid #fecaca',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span style={{ fontSize: '20px' }}>🚨</span>
+                    <div>
+                      <div style={{ fontWeight: 'bold', color: '#dc2626', fontSize: '14px' }}>
+                        Action Required: {overviewSyncStats.rejected} Owner Rejection{overviewSyncStats.rejected !== 1 ? 's' : ''}
+                      </div>
+                      <div style={{ fontSize: '11px', color: '#991b1b' }}>
+                        New revision(s) required immediately
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {overviewSyncStats.internal > 0 && (
+                  <div style={{
+                    marginBottom: '15px',
+                    padding: '10px 15px',
+                    backgroundColor: '#fef9c3',
+                    borderRadius: '6px',
+                    border: '1px solid #fde68a',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px'
+                  }}>
+                    <span style={{ fontSize: '16px' }}>📤</span>
+                    <div style={{ fontSize: '13px', color: '#a16207' }}>
+                      <strong>{overviewSyncStats.internal}</strong> document{overviewSyncStats.internal !== 1 ? 's' : ''} pending transmittal to Owner
+                    </div>
+                  </div>
+                )}
+
+                {/* Status Bar */}
+                <div style={{ marginBottom: '10px' }}>
+                  <div style={{
+                    height: '24px',
+                    borderRadius: '12px',
+                    overflow: 'hidden',
+                    display: 'flex',
+                    backgroundColor: '#e5e7eb'
+                  }}>
+                    {overviewSyncStats.percentages.internal > 0 && (
+                      <div
+                        style={{
+                          width: `${overviewSyncStats.percentages.internal}%`,
+                          backgroundColor: '#fbbf24',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: '#78350f',
+                          fontSize: '10px',
+                          fontWeight: 'bold',
+                          minWidth: overviewSyncStats.percentages.internal > 10 ? 'auto' : '0'
+                        }}
+                        title={`Internal: ${overviewSyncStats.internal}`}
+                      >
+                        {overviewSyncStats.percentages.internal > 10 ? `${overviewSyncStats.percentages.internal}%` : ''}
+                      </div>
+                    )}
+                    {overviewSyncStats.percentages.transmitted > 0 && (
+                      <div
+                        style={{
+                          width: `${overviewSyncStats.percentages.transmitted}%`,
+                          backgroundColor: '#3b82f6',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'white',
+                          fontSize: '10px',
+                          fontWeight: 'bold',
+                          minWidth: overviewSyncStats.percentages.transmitted > 10 ? 'auto' : '0'
+                        }}
+                        title={`Transmitted: ${overviewSyncStats.transmitted}`}
+                      >
+                        {overviewSyncStats.percentages.transmitted > 10 ? `${overviewSyncStats.percentages.transmitted}%` : ''}
+                      </div>
+                    )}
+                    {overviewSyncStats.percentages.acknowledged > 0 && (
+                      <div
+                        style={{
+                          width: `${overviewSyncStats.percentages.acknowledged}%`,
+                          backgroundColor: '#22c55e',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'white',
+                          fontSize: '10px',
+                          fontWeight: 'bold',
+                          minWidth: overviewSyncStats.percentages.acknowledged > 10 ? 'auto' : '0'
+                        }}
+                        title={`Acknowledged: ${overviewSyncStats.acknowledged}`}
+                      >
+                        {overviewSyncStats.percentages.acknowledged > 10 ? `${overviewSyncStats.percentages.acknowledged}%` : ''}
+                      </div>
+                    )}
+                    {overviewSyncStats.percentages.rejected > 0 && (
+                      <div
+                        style={{
+                          width: `${overviewSyncStats.percentages.rejected}%`,
+                          backgroundColor: '#ef4444',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          color: 'white',
+                          fontSize: '10px',
+                          fontWeight: 'bold',
+                          minWidth: overviewSyncStats.percentages.rejected > 10 ? 'auto' : '0'
+                        }}
+                        title={`Rejected: ${overviewSyncStats.rejected}`}
+                      >
+                        {overviewSyncStats.percentages.rejected > 10 ? `${overviewSyncStats.percentages.rejected}%` : ''}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Legend */}
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '15px', fontSize: '11px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '2px', backgroundColor: '#fbbf24' }}></div>
+                    <span>Internal ({overviewSyncStats.internal})</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '2px', backgroundColor: '#3b82f6' }}></div>
+                    <span>Transmitted ({overviewSyncStats.transmitted})</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '2px', backgroundColor: '#22c55e' }}></div>
+                    <span>Acknowledged ({overviewSyncStats.acknowledged})</span>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <div style={{ width: '12px', height: '12px', borderRadius: '2px', backgroundColor: '#ef4444' }}></div>
+                    <span>Rejected ({overviewSyncStats.rejected})</span>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Efficiency & Reliability Metrics */}
             <div style={{ marginTop: '30px', marginBottom: '15px', display: 'flex', alignItems: 'center', gap: '12px' }}>
