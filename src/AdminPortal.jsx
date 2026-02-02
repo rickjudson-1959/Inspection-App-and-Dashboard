@@ -20,6 +20,7 @@ import TenantSwitcher from './components/TenantSwitcher.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 import SignaturePad from './components/SignaturePad.jsx'
 import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
+import AgentAuditFindingsPanel from './components/AgentAuditFindingsPanel.jsx'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 
@@ -48,9 +49,9 @@ function AdminPortal() {
   // Efficiency metrics state (for overview dashboard)
   const [recentReports, setRecentReports] = useState([])
 
-  // AI Agent Flag Modal state
-  const [flaggedTicketModal, setFlaggedTicketModal] = useState(null)
-  const [loadingFlaggedTicket, setLoadingFlaggedTicket] = useState(false)
+  // AI Agent Audit Panel state
+  const [auditPanelData, setAuditPanelData] = useState(null)
+  const [loadingAuditPanel, setLoadingAuditPanel] = useState(false)
 
   // Audit Activity state
   const [auditLog, setAuditLog] = useState([])
@@ -2864,7 +2865,7 @@ function AdminPortal() {
           <AIAgentStatusIcon
             organizationId={organizationId}
             onFlagClick={async (ticketId, flagData) => {
-              setLoadingFlaggedTicket(true)
+              setLoadingAuditPanel(true)
               try {
                 // Fetch the ticket details
                 const { data: ticket, error } = await supabase
@@ -2875,7 +2876,7 @@ function AdminPortal() {
 
                 if (error) throw error
 
-                setFlaggedTicketModal({
+                setAuditPanelData({
                   ticket,
                   flag: flagData
                 })
@@ -2883,7 +2884,7 @@ function AdminPortal() {
                 console.error('Error fetching flagged ticket:', err)
                 alert(`Error loading ticket #${ticketId}`)
               } finally {
-                setLoadingFlaggedTicket(false)
+                setLoadingAuditPanel(false)
               }
             }}
           />
@@ -6930,266 +6931,13 @@ function AdminPortal() {
 
       </div>
 
-      {/* ==================== AI AGENT FLAGGED TICKET MODAL ==================== */}
-      {flaggedTicketModal && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0,0,0,0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 10000
-        }} onClick={() => setFlaggedTicketModal(null)}>
-          <div style={{
-            backgroundColor: 'white',
-            borderRadius: '12px',
-            padding: '0',
-            maxWidth: '700px',
-            width: '90%',
-            maxHeight: '85vh',
-            overflow: 'hidden',
-            boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)'
-          }} onClick={(e) => e.stopPropagation()}>
-            {/* Modal Header */}
-            <div style={{
-              padding: '20px 24px',
-              borderBottom: '1px solid #e5e7eb',
-              backgroundColor: flaggedTicketModal.flag?.severity === 'critical' ? '#fef2f2' :
-                              flaggedTicketModal.flag?.severity === 'warning' ? '#fffbeb' : '#f9fafb'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                    <span style={{
-                      padding: '4px 10px',
-                      borderRadius: '4px',
-                      fontSize: '11px',
-                      fontWeight: '700',
-                      textTransform: 'uppercase',
-                      backgroundColor: flaggedTicketModal.flag?.severity === 'critical' ? '#dc2626' :
-                                      flaggedTicketModal.flag?.severity === 'warning' ? '#ca8a04' : '#6b7280',
-                      color: 'white'
-                    }}>
-                      {flaggedTicketModal.flag?.severity || 'Flag'}
-                    </span>
-                    <span style={{
-                      padding: '4px 10px',
-                      borderRadius: '4px',
-                      fontSize: '11px',
-                      fontWeight: '600',
-                      backgroundColor: '#e5e7eb',
-                      color: '#374151'
-                    }}>
-                      {flaggedTicketModal.flag?.type?.replace(/_/g, ' ') || 'Unknown'}
-                    </span>
-                  </div>
-                  <h2 style={{ margin: '0', fontSize: '20px', color: '#111827' }}>
-                    Ticket #{flaggedTicketModal.ticket?.id} - {flaggedTicketModal.ticket?.date}
-                  </h2>
-                </div>
-                <button
-                  onClick={() => setFlaggedTicketModal(null)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    fontSize: '24px',
-                    cursor: 'pointer',
-                    color: '#6b7280',
-                    padding: '0',
-                    lineHeight: '1'
-                  }}
-                >
-                  ×
-                </button>
-              </div>
-            </div>
-
-            {/* Modal Body */}
-            <div style={{ padding: '24px', overflowY: 'auto', maxHeight: 'calc(85vh - 180px)' }}>
-              {/* Flag Message */}
-              <div style={{
-                padding: '16px',
-                backgroundColor: flaggedTicketModal.flag?.severity === 'critical' ? '#fef2f2' :
-                                flaggedTicketModal.flag?.severity === 'warning' ? '#fffbeb' : '#f9fafb',
-                borderRadius: '8px',
-                marginBottom: '20px',
-                borderLeft: `4px solid ${
-                  flaggedTicketModal.flag?.severity === 'critical' ? '#dc2626' :
-                  flaggedTicketModal.flag?.severity === 'warning' ? '#ca8a04' : '#6b7280'
-                }`
-              }}>
-                <div style={{ fontWeight: '600', color: '#111827', marginBottom: '4px' }}>
-                  AI Agent Analysis
-                </div>
-                <div style={{ color: '#374151', fontSize: '14px' }}>
-                  {flaggedTicketModal.flag?.message}
-                </div>
-              </div>
-
-              {/* Ticket Details Grid */}
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: '16px',
-                marginBottom: '20px'
-              }}>
-                <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', marginBottom: '4px' }}>Spread</div>
-                  <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827' }}>{flaggedTicketModal.ticket?.spread || '-'}</div>
-                </div>
-                <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', marginBottom: '4px' }}>Inspector</div>
-                  <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827' }}>
-                    {flaggedTicketModal.ticket?.user_profiles?.display_name || flaggedTicketModal.ticket?.inspector_name || '-'}
-                  </div>
-                </div>
-                <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', marginBottom: '4px' }}>Contractor</div>
-                  <div style={{ fontSize: '16px', fontWeight: '600', color: '#111827' }}>{flaggedTicketModal.flag?.contractor || '-'}</div>
-                </div>
-              </div>
-
-              {/* Flag Details */}
-              {flaggedTicketModal.flag?.details && (
-                <div style={{ marginBottom: '20px' }}>
-                  <h3 style={{ fontSize: '14px', color: '#374151', marginBottom: '12px' }}>Flag Details</h3>
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(2, 1fr)',
-                    gap: '12px'
-                  }}>
-                    {flaggedTicketModal.flag.details.efficiency_score !== undefined && (
-                      <div style={{ padding: '12px', backgroundColor: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca' }}>
-                        <div style={{ fontSize: '11px', color: '#991b1b', textTransform: 'uppercase', marginBottom: '4px' }}>Efficiency Score</div>
-                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#dc2626' }}>{flaggedTicketModal.flag.details.efficiency_score}%</div>
-                        <div style={{ fontSize: '11px', color: '#6b7280' }}>Threshold: {flaggedTicketModal.flag.details.threshold}</div>
-                      </div>
-                    )}
-                    {flaggedTicketModal.flag.details.billed_hours !== undefined && (
-                      <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                        <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', marginBottom: '4px' }}>Billed Hours</div>
-                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#111827' }}>{flaggedTicketModal.flag.details.billed_hours}</div>
-                      </div>
-                    )}
-                    {flaggedTicketModal.flag.details.shadow_hours !== undefined && (
-                      <div style={{ padding: '12px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-                        <div style={{ fontSize: '11px', color: '#6b7280', textTransform: 'uppercase', marginBottom: '4px' }}>Shadow Hours</div>
-                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#111827' }}>{flaggedTicketModal.flag.details.shadow_hours}</div>
-                      </div>
-                    )}
-                    {flaggedTicketModal.flag.details.actual_hours !== undefined && (
-                      <div style={{ padding: '12px', backgroundColor: '#fef2f2', borderRadius: '8px', border: '1px solid #fecaca' }}>
-                        <div style={{ fontSize: '11px', color: '#991b1b', textTransform: 'uppercase', marginBottom: '4px' }}>Actual Hours</div>
-                        <div style={{ fontSize: '24px', fontWeight: '700', color: '#dc2626' }}>{flaggedTicketModal.flag.details.actual_hours}</div>
-                        <div style={{ fontSize: '11px', color: '#6b7280' }}>Max: {flaggedTicketModal.flag.details.max_allowed}</div>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* Activity Blocks */}
-              {flaggedTicketModal.ticket?.activity_blocks && flaggedTicketModal.ticket.activity_blocks.length > 0 && (
-                <div>
-                  <h3 style={{ fontSize: '14px', color: '#374151', marginBottom: '12px' }}>
-                    Activity Blocks ({flaggedTicketModal.ticket.activity_blocks.length})
-                  </h3>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    {flaggedTicketModal.ticket.activity_blocks.map((block, idx) => (
-                      <div
-                        key={idx}
-                        style={{
-                          padding: '12px',
-                          backgroundColor: idx === flaggedTicketModal.flag?.activity_block_index ? '#fef2f2' : '#f9fafb',
-                          borderRadius: '8px',
-                          border: idx === flaggedTicketModal.flag?.activity_block_index ? '2px solid #dc2626' : '1px solid #e5e7eb'
-                        }}
-                      >
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div>
-                            <span style={{ fontWeight: '600', color: '#111827' }}>{block.activityType || 'Activity'}</span>
-                            {block.contractor && <span style={{ color: '#6b7280', marginLeft: '8px' }}>• {block.contractor}</span>}
-                          </div>
-                          {idx === flaggedTicketModal.flag?.activity_block_index && (
-                            <span style={{
-                              padding: '2px 8px',
-                              backgroundColor: '#dc2626',
-                              color: 'white',
-                              fontSize: '10px',
-                              borderRadius: '4px',
-                              fontWeight: '600'
-                            }}>
-                              FLAGGED
-                            </span>
-                          )}
-                        </div>
-                        {block.startKp && block.endKp && (
-                          <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '4px' }}>
-                            KP: {block.startKp} → {block.endKp}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Modal Footer */}
-            <div style={{
-              padding: '16px 24px',
-              borderTop: '1px solid #e5e7eb',
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              backgroundColor: '#f9fafb'
-            }}>
-              <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                Flagged by AI Agent • {flaggedTicketModal.flag?.ticket_date}
-              </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button
-                  onClick={() => {
-                    setFlaggedTicketModal(null)
-                    setActiveTab('efficiency')
-                  }}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#3b82f6',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontWeight: '500',
-                    fontSize: '13px'
-                  }}
-                >
-                  View in Efficiency Tab
-                </button>
-                <button
-                  onClick={() => setFlaggedTicketModal(null)}
-                  style={{
-                    padding: '10px 20px',
-                    backgroundColor: '#e5e7eb',
-                    color: '#374151',
-                    border: 'none',
-                    borderRadius: '6px',
-                    cursor: 'pointer',
-                    fontWeight: '500',
-                    fontSize: '13px'
-                  }}
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* ==================== AI AGENT AUDIT FINDINGS PANEL ==================== */}
+      <AgentAuditFindingsPanel
+        isOpen={!!auditPanelData}
+        onClose={() => setAuditPanelData(null)}
+        ticket={auditPanelData?.ticket}
+        flag={auditPanelData?.flag}
+      />
 
     </div>
   )
