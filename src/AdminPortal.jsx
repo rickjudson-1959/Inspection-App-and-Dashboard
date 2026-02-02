@@ -5018,7 +5018,7 @@ function AdminPortal() {
             <h2>Inspector Reports</h2>
             <p style={{ color: '#666' }}>View and edit all inspector reports. Click Edit to modify any report.</p>
             <div style={{ display: 'flex', gap: '20px', marginTop: '20px', marginBottom: '20px' }}>
-              <button onClick={() => navigate('/reports')} style={{ padding: '15px 30px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '16px' }}>View Reports Page</button>
+              <button onClick={() => navigate(orgPath('/reports'))} style={{ padding: '15px 30px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '16px' }}>View Reports Page</button>
               <button onClick={() => exportMasterProduction()} style={{ padding: '15px 30px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '16px' }}>📋 Master Production Spreadsheet</button>
             </div>
 
