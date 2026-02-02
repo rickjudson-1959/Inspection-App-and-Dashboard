@@ -16,7 +16,7 @@ export const ROLE_CONFIG = {
   admin: {
     landingPage: '/admin',
     displayName: 'Administrator',
-    canAccess: ['admin', 'field-entry', 'auditor-dashboard', 'ndt-auditor', 'chief-dashboard', 'assistant-chief', 'cmt-dashboard', 'evm-dashboard', 'inspector-profile', 'dashboard', 'chief-summary']
+    canAccess: ['admin', 'field-entry', 'auditor-dashboard', 'ndt-auditor', 'chief-dashboard', 'assistant-chief', 'cmt-dashboard', 'evm-dashboard', 'inspector-profile', 'dashboard', 'chief-summary', 'welding-chief']
   },
   exec: {
     landingPage: '/evm-dashboard',
@@ -36,12 +36,12 @@ export const ROLE_CONFIG = {
   chief: {
     landingPage: '/chief-dashboard',
     displayName: 'Chief Inspector',
-    canAccess: ['chief-dashboard', 'cmt-dashboard', 'auditor-dashboard', 'ndt-auditor', 'field-entry', 'inspector-profile', 'chief-summary', 'dashboard']
+    canAccess: ['chief-dashboard', 'cmt-dashboard', 'auditor-dashboard', 'ndt-auditor', 'field-entry', 'inspector-profile', 'chief-summary', 'dashboard', 'welding-chief']
   },
   chief_inspector: {
     landingPage: '/chief-dashboard',
     displayName: 'Chief Inspector',
-    canAccess: ['chief-dashboard', 'cmt-dashboard', 'auditor-dashboard', 'ndt-auditor', 'field-entry', 'inspector-profile', 'chief-summary', 'dashboard']
+    canAccess: ['chief-dashboard', 'cmt-dashboard', 'auditor-dashboard', 'ndt-auditor', 'field-entry', 'inspector-profile', 'chief-summary', 'dashboard', 'welding-chief']
   },
   asst_chief: {
     landingPage: '/assistant-chief',
@@ -53,6 +53,11 @@ export const ROLE_CONFIG = {
     displayName: 'NDT Auditor',
     canAccess: ['ndt-auditor', 'auditor-dashboard']
   },
+  welding_chief: {
+    landingPage: '/welding-chief',
+    displayName: 'Welding Chief',
+    canAccess: ['welding-chief', 'chief-dashboard', 'auditor-dashboard', 'ndt-auditor', 'field-entry', 'inspector-profile', 'chief-summary', 'dashboard']
+  },
   inspector: {
     landingPage: '/field-entry',
     displayName: 'Field Inspector',
@@ -61,7 +66,7 @@ export const ROLE_CONFIG = {
   super_admin: {
     landingPage: '/admin',
     displayName: 'Super Administrator',
-    canAccess: ['admin', 'field-entry', 'auditor-dashboard', 'ndt-auditor', 'chief-dashboard', 'assistant-chief', 'cmt-dashboard', 'evm-dashboard', 'inspector-profile', 'dashboard', 'chief-summary']
+    canAccess: ['admin', 'field-entry', 'auditor-dashboard', 'ndt-auditor', 'chief-dashboard', 'assistant-chief', 'cmt-dashboard', 'evm-dashboard', 'inspector-profile', 'dashboard', 'chief-summary', 'welding-chief']
   }
 }
 
@@ -81,7 +86,7 @@ export function canAccessRoute(role, routePath) {
     // Check if first segment looks like an org slug (not a known route)
     const knownRoutes = ['admin', 'field-entry', 'auditor-dashboard', 'ndt-auditor', 'chief-dashboard',
                          'assistant-chief', 'cmt-dashboard', 'evm-dashboard', 'inspector-profile',
-                         'dashboard', 'chief-summary', 'login']
+                         'dashboard', 'chief-summary', 'login', 'welding-chief']
     if (!knownRoutes.includes(segments[0])) {
       // First segment is likely org slug, remove it
       cleanPath = segments.slice(1).join('/')

@@ -35,6 +35,7 @@ import HireOnPackage from './HireOnPackage.jsx'
 import TimesheetEditor from './TimesheetEditor.jsx'
 import TimesheetReview from './TimesheetReview.jsx'
 import ReferenceLibrary from './ReferenceLibrary.jsx'
+import WeldingChiefDashboard from './WeldingChiefDashboard.jsx'
 
 // Root redirect - sends users to their org-scoped, role-specific landing page
 function RootRedirect() {
@@ -294,6 +295,13 @@ function OrgRoutes() {
       <Route path="reference-library" element={
         <ProtectedRoute allowedRoles={['inspector', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <ReferenceLibrary />
+        </ProtectedRoute>
+      } />
+
+      {/* Welding Chief Dashboard */}
+      <Route path="welding-chief" element={
+        <ProtectedRoute allowedRoles={['welding_chief', 'chief', 'chief_inspector', 'admin', 'super_admin']}>
+          <WeldingChiefDashboard />
         </ProtectedRoute>
       } />
 
