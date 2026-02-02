@@ -24,7 +24,10 @@ import {
   extractIndividualWelds,
   extractAllRepairs,
   extractTieInData,
-  aggregateProductionByLocation
+  aggregateProductionByLocation,
+  generateWeldingChiefReport,
+  saveWeldingChiefReport,
+  fetchWeldingChiefReport
 } from './weldingChiefHelpers.js'
 
 // ============================================================================
@@ -85,6 +88,11 @@ function WeldingChiefDashboard() {
 
   // Expanded activity IDs
   const [expandedActivities, setExpandedActivities] = useState(new Set())
+
+  // Daily Report state
+  const [dailyReport, setDailyReport] = useState(null)
+  const [reportGenerating, setReportGenerating] = useState(false)
+  const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0])
 
   // AI Agent Audit Panel state
   const [auditPanelData, setAuditPanelData] = useState(null)
@@ -233,6 +241,55 @@ function WeldingChiefDashboard() {
       setCertifications(certs)
     } catch (err) {
       console.error('Error loading certifications:', err)
+    }
+  }
+
+  async function handleGenerateReport() {
+    setReportGenerating(true)
+    try {
+      // Fetch all data for the report date
+      let query = supabase
+        .from('daily_tickets')
+        .select('*')
+        .eq('date', reportDate)
+        .order('created_at', { ascending: false })
+
+      query = addOrgFilter(query)
+      const { data: reports, error } = await query
+
+      if (error) throw error
+
+      // Extract all detailed data
+      const activities = extractDetailedWeldingActivities(reports || [])
+      const repairs = extractAllRepairs(reports || [])
+      const tieIns = extractTieInData(reports || [])
+      const comments = extractWeldingComments(reports || [])
+      const summary = await getDailyWeldSummary(supabase, getOrgId(), reportDate)
+      const welderStats = await aggregateWelderStats(supabase, getOrgId())
+      const aiLogs = await fetchWeldingAILogs(supabase, getOrgId(), 50)
+      const flags = []
+      for (const log of aiLogs) {
+        flags.push(...(log.weldingFlags || []))
+      }
+
+      // Generate the report
+      const report = await generateWeldingChiefReport({
+        date: reportDate,
+        activities,
+        repairs,
+        tieIns,
+        comments,
+        dailySummary: summary,
+        welderPerformance: welderStats,
+        weldingFlags: flags
+      })
+
+      setDailyReport(report)
+    } catch (err) {
+      console.error('Error generating report:', err)
+      alert('Error generating report. Please try again.')
+    } finally {
+      setReportGenerating(false)
     }
   }
 
@@ -392,6 +449,9 @@ function WeldingChiefDashboard() {
                 {certifications.filter(c => c.status === 'Expired' || c.isExpiringSoon).length}
               </span>
             )}
+          </button>
+          <button onClick={() => setActiveTab('dailyreport')} style={tabButtonStyle(activeTab === 'dailyreport')}>
+            📄 Generate Report
           </button>
         </div>
       </div>
@@ -1370,6 +1430,239 @@ function WeldingChiefDashboard() {
               </table>
             )}
           </div>
+        </div>
+      )}
+
+      {/* ============ DAILY REPORT TAB ============ */}
+      {activeTab === 'dailyreport' && (
+        <div style={{ padding: '30px' }}>
+          {/* Report Date Selector and Generate Button */}
+          <div style={{ marginBottom: '20px', display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap' }}>
+            <label style={{ fontWeight: 'bold' }}>Report Date:</label>
+            <input
+              type="date"
+              value={reportDate}
+              onChange={(e) => setReportDate(e.target.value)}
+              style={{ padding: '10px', fontSize: '14px', border: '1px solid #ced4da', borderRadius: '4px' }}
+            />
+            <button
+              onClick={handleGenerateReport}
+              disabled={reportGenerating}
+              style={{
+                padding: '12px 24px',
+                backgroundColor: reportGenerating ? '#6c757d' : '#6f42c1',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: reportGenerating ? 'not-allowed' : 'pointer',
+                fontWeight: 'bold',
+                fontSize: '14px'
+              }}
+            >
+              {reportGenerating ? '⏳ Generating Report...' : '🤖 Generate AI Report'}
+            </button>
+            {dailyReport && (
+              <button
+                onClick={() => window.print()}
+                style={{
+                  padding: '12px 24px',
+                  backgroundColor: '#28a745',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                🖨️ Print Report
+              </button>
+            )}
+          </div>
+
+          {/* No Report Yet */}
+          {!dailyReport && !reportGenerating && (
+            <div style={{ ...cardStyle, padding: '60px', textAlign: 'center' }}>
+              <span style={{ fontSize: '64px' }}>📄</span>
+              <h2 style={{ margin: '20px 0 10px 0', color: '#333' }}>Welding Chief Daily Report</h2>
+              <p style={{ color: '#666', maxWidth: '500px', margin: '0 auto 20px auto' }}>
+                Select a date and click "Generate AI Report" to create a comprehensive daily welding report
+                with production summaries, quality analysis, and inspector observations.
+              </p>
+            </div>
+          )}
+
+          {/* Loading State */}
+          {reportGenerating && (
+            <div style={{ ...cardStyle, padding: '60px', textAlign: 'center' }}>
+              <div style={{ fontSize: '48px', animation: 'spin 2s linear infinite' }}>⚙️</div>
+              <h2 style={{ margin: '20px 0 10px 0', color: '#6f42c1' }}>Generating Report...</h2>
+              <p style={{ color: '#666' }}>
+                Analyzing welding data and generating AI narrative. This may take a moment.
+              </p>
+            </div>
+          )}
+
+          {/* Generated Report */}
+          {dailyReport && !reportGenerating && (
+            <div className="welding-report-printable">
+              {/* Report Header */}
+              <div style={{ ...cardStyle, marginBottom: '20px' }}>
+                <div style={{ backgroundColor: '#6f42c1', color: 'white', padding: '25px 30px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <h1 style={{ margin: 0, fontSize: '24px' }}>WELDING CHIEF DAILY REPORT</h1>
+                      <p style={{ margin: '5px 0 0 0', fontSize: '16px', opacity: 0.9 }}>
+                        {formatDate(reportDate)} • Pipeline Construction Project
+                      </p>
+                    </div>
+                    <div style={{ textAlign: 'right', fontSize: '14px' }}>
+                      <div>Prepared by: {userProfile?.full_name || 'Welding Chief'}</div>
+                      <div>Generated: {new Date().toLocaleString()}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Executive Summary */}
+                <div style={{ padding: '25px 30px', borderBottom: '1px solid #eee' }}>
+                  <h2 style={{ margin: '0 0 15px 0', fontSize: '18px', color: '#333', borderBottom: '2px solid #6f42c1', paddingBottom: '10px' }}>
+                    EXECUTIVE SUMMARY
+                  </h2>
+                  <p style={{ margin: 0, fontSize: '15px', lineHeight: '1.7', color: '#333' }}>
+                    {dailyReport.executiveSummary || 'No summary available.'}
+                  </p>
+                </div>
+              </div>
+
+              {/* Production Summary */}
+              <div style={{ ...cardStyle, marginBottom: '20px' }}>
+                <div style={cardHeaderStyle('#28a745')}>
+                  <h2 style={{ margin: 0, fontSize: '18px' }}>PRODUCTION SUMMARY</h2>
+                </div>
+                <div style={{ padding: '20px 30px' }}>
+                  <p style={{ margin: '0 0 15px 0', fontSize: '14px', lineHeight: '1.6', color: '#333' }}>
+                    {dailyReport.productionSummary?.narrative || 'No production data available.'}
+                  </p>
+                  {dailyReport.productionSummary?.bullets?.length > 0 && (
+                    <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                      {dailyReport.productionSummary.bullets.map((bullet, idx) => (
+                        <li key={idx} style={{ marginBottom: '8px', fontSize: '14px', color: '#333' }}>
+                          {bullet.replace(/^[<\-•]\s*/, '')}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              {/* Quality & Repairs */}
+              <div style={{ ...cardStyle, marginBottom: '20px' }}>
+                <div style={cardHeaderStyle('#dc3545')}>
+                  <h2 style={{ margin: 0, fontSize: '18px' }}>QUALITY & REPAIRS</h2>
+                </div>
+                <div style={{ padding: '20px 30px' }}>
+                  <p style={{ margin: '0 0 15px 0', fontSize: '14px', lineHeight: '1.6', color: '#333' }}>
+                    {dailyReport.qualityAndRepairs?.narrative || 'No quality issues to report.'}
+                  </p>
+                  {dailyReport.qualityAndRepairs?.bullets?.length > 0 && (
+                    <ul style={{ margin: '0 0 15px 0', paddingLeft: '20px' }}>
+                      {dailyReport.qualityAndRepairs.bullets.map((bullet, idx) => (
+                        <li key={idx} style={{ marginBottom: '8px', fontSize: '14px', color: '#333' }}>
+                          {bullet.replace(/^[<\-•]\s*/, '')}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                  {dailyReport.qualityAndRepairs?.flaggedWelders?.length > 0 && (
+                    <div style={{ backgroundColor: '#fff3cd', padding: '15px', borderRadius: '6px', marginTop: '15px' }}>
+                      <h4 style={{ margin: '0 0 10px 0', color: '#856404', fontSize: '14px' }}>⚠️ Flagged Welders</h4>
+                      <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                        {dailyReport.qualityAndRepairs.flaggedWelders.map((welder, idx) => (
+                          <li key={idx} style={{ fontSize: '13px', color: '#856404' }}>{welder}</li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Tie-In Operations */}
+              <div style={{ ...cardStyle, marginBottom: '20px' }}>
+                <div style={cardHeaderStyle('#8b4513')}>
+                  <h2 style={{ margin: 0, fontSize: '18px' }}>TIE-IN OPERATIONS</h2>
+                </div>
+                <div style={{ padding: '20px 30px' }}>
+                  <p style={{ margin: '0 0 15px 0', fontSize: '14px', lineHeight: '1.6', color: '#333' }}>
+                    {dailyReport.tieInOperations?.narrative || 'No tie-in operations today.'}
+                  </p>
+                  {dailyReport.tieInOperations?.bullets?.length > 0 && (
+                    <ul style={{ margin: 0, paddingLeft: '20px' }}>
+                      {dailyReport.tieInOperations.bullets.map((bullet, idx) => (
+                        <li key={idx} style={{ marginBottom: '8px', fontSize: '14px', color: '#333' }}>
+                          {bullet.replace(/^[<\-•]\s*/, '')}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div>
+
+              {/* Inspector Observations */}
+              <div style={{ ...cardStyle, marginBottom: '20px' }}>
+                <div style={cardHeaderStyle('#17a2b8')}>
+                  <h2 style={{ margin: 0, fontSize: '18px' }}>INSPECTOR OBSERVATIONS</h2>
+                </div>
+                <div style={{ padding: '20px 30px' }}>
+                  <p style={{ margin: '0 0 15px 0', fontSize: '14px', lineHeight: '1.6', color: '#333' }}>
+                    {dailyReport.inspectorObservations?.narrative || 'No observations recorded.'}
+                  </p>
+                  {dailyReport.inspectorObservations?.keyComments?.length > 0 && (
+                    <div style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '6px' }}>
+                      <h4 style={{ margin: '0 0 10px 0', color: '#333', fontSize: '14px' }}>Key Comments:</h4>
+                      {dailyReport.inspectorObservations.keyComments.map((comment, idx) => (
+                        <div key={idx} style={{
+                          padding: '10px 15px',
+                          backgroundColor: 'white',
+                          borderLeft: '3px solid #17a2b8',
+                          marginBottom: '10px',
+                          fontSize: '13px',
+                          color: '#333'
+                        }}>
+                          "{comment}"
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Action Items */}
+              {dailyReport.actionItems?.length > 0 && (
+                <div style={{ ...cardStyle, marginBottom: '20px' }}>
+                  <div style={cardHeaderStyle('#ffc107')}>
+                    <h2 style={{ margin: 0, fontSize: '18px', color: '#000' }}>ACTION ITEMS</h2>
+                  </div>
+                  <div style={{ padding: '20px 30px' }}>
+                    <ol style={{ margin: 0, paddingLeft: '25px' }}>
+                      {dailyReport.actionItems.map((item, idx) => (
+                        <li key={idx} style={{ marginBottom: '10px', fontSize: '14px', color: '#333' }}>
+                          {item}
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                </div>
+              )}
+
+              {/* Report Footer */}
+              <div style={{ textAlign: 'center', padding: '20px', color: '#666', fontSize: '12px' }}>
+                <p style={{ margin: 0 }}>
+                  This report was generated using AI analysis of daily welding inspection data.
+                  <br />
+                  Report Date: {reportDate} | Generated: {new Date().toISOString()}
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

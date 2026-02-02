@@ -6,6 +6,8 @@
 
 import { supabase } from './supabase'
 
+const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
+
 /**
  * Aggregate welder statistics by welder ID
  * @param {object} supabaseClient - Supabase client instance
@@ -919,6 +921,334 @@ export function aggregateProductionByLocation(reports) {
   }))
 }
 
+// =============================================
+// AI NARRATIVE GENERATION FOR WELDING CHIEF REPORT
+// =============================================
+
+/**
+ * Generate comprehensive Welding Chief Daily Report
+ * @param {Object} params - Report parameters
+ * @param {string} params.date - Report date
+ * @param {Array} params.activities - Detailed welding activities
+ * @param {Array} params.repairs - All repairs
+ * @param {Array} params.tieIns - Tie-in records
+ * @param {Array} params.comments - Inspector comments
+ * @param {Object} params.dailySummary - Daily summary stats
+ * @param {Array} params.welderPerformance - Welder stats
+ * @param {Array} params.weldingFlags - AI-detected flags
+ * @returns {Object} Generated report with narrative and sections
+ */
+export async function generateWeldingChiefReport(params) {
+  const {
+    date,
+    activities = [],
+    repairs = [],
+    tieIns = [],
+    comments = [],
+    dailySummary = {},
+    welderPerformance = [],
+    weldingFlags = []
+  } = params
+
+  console.log('=== generateWeldingChiefReport called ===')
+  console.log('Date:', date)
+  console.log('Activities:', activities.length)
+  console.log('Repairs:', repairs.length)
+  console.log('API Key present:', !!anthropicApiKey)
+
+  if (!anthropicApiKey) {
+    console.warn('Anthropic API key not configured')
+    return {
+      narrative: 'API key not configured. Please add VITE_ANTHROPIC_API_KEY to generate AI narratives.',
+      sections: buildManualReportSections(params),
+      generated: false
+    }
+  }
+
+  // Build context for AI
+  const contextSummary = buildReportContext(params)
+
+  const prompt = `You are a Welding Chief Inspector writing a Daily Welding Report for a pipeline construction project.
+
+Based on the following welding data from today, generate a professional daily report with:
+
+1. EXECUTIVE SUMMARY (2-3 sentences overview of the day's welding operations)
+
+2. PRODUCTION SUMMARY
+- Total welds completed by crew type
+- Progress against targets
+- Notable achievements or concerns
+
+3. QUALITY & REPAIRS
+- Repair rate analysis
+- Defect types encountered
+- Welders flagged for performance issues
+
+4. TIE-IN OPERATIONS (if applicable)
+- Tie-ins completed
+- NDE results (RT/UT)
+- Visual inspection status
+
+5. INSPECTOR OBSERVATIONS
+- Key comments from welding inspectors
+- Issues noted in the field
+- Recommendations
+
+6. ACTION ITEMS
+- Follow-up items for tomorrow
+- Welders requiring attention
+- Quality concerns to address
+
+TODAY'S DATA:
+${contextSummary}
+
+Respond in JSON format:
+{
+  "executiveSummary": "Brief 2-3 sentence overview",
+  "productionSummary": {
+    "narrative": "Production paragraph",
+    "bullets": ["< Bullet 1", "< Bullet 2"]
+  },
+  "qualityAndRepairs": {
+    "narrative": "Quality paragraph",
+    "bullets": ["< Bullet 1", "< Bullet 2"],
+    "flaggedWelders": ["Welder name - issue"]
+  },
+  "tieInOperations": {
+    "narrative": "Tie-in paragraph or 'No tie-in operations today'",
+    "bullets": ["< Bullet 1"]
+  },
+  "inspectorObservations": {
+    "narrative": "Observations paragraph",
+    "keyComments": ["Comment 1", "Comment 2"]
+  },
+  "actionItems": ["Action 1", "Action 2"]
+}
+
+Only output valid JSON, no other text.`
+
+  try {
+    console.log('Calling Anthropic API for welding report...')
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': anthropicApiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
+        messages: [{
+          role: 'user',
+          content: prompt
+        }]
+      })
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('API Error:', response.status, errorText)
+      return {
+        narrative: `API Error: ${response.status}`,
+        sections: buildManualReportSections(params),
+        generated: false
+      }
+    }
+
+    const data = await response.json()
+    const text = data.content?.[0]?.text || ''
+    console.log('Raw API response:', text.substring(0, 500))
+
+    // Parse JSON response
+    const parsed = JSON.parse(text.replace(/```json|```/g, '').trim())
+
+    return {
+      executiveSummary: parsed.executiveSummary || '',
+      productionSummary: parsed.productionSummary || { narrative: '', bullets: [] },
+      qualityAndRepairs: parsed.qualityAndRepairs || { narrative: '', bullets: [], flaggedWelders: [] },
+      tieInOperations: parsed.tieInOperations || { narrative: 'No tie-in operations today', bullets: [] },
+      inspectorObservations: parsed.inspectorObservations || { narrative: '', keyComments: [] },
+      actionItems: parsed.actionItems || [],
+      generated: true,
+      rawData: params
+    }
+  } catch (err) {
+    console.error('Error generating welding report:', err)
+    return {
+      narrative: 'Error generating report. Please review data manually.',
+      sections: buildManualReportSections(params),
+      generated: false,
+      error: err.message
+    }
+  }
+}
+
+/**
+ * Build context string for AI prompt
+ */
+function buildReportContext(params) {
+  const {
+    date,
+    activities,
+    repairs,
+    tieIns,
+    comments,
+    dailySummary,
+    welderPerformance,
+    weldingFlags
+  } = params
+
+  let context = `Date: ${date}\n\n`
+
+  // Production stats
+  context += `PRODUCTION STATISTICS:\n`
+  context += `- Total Welds Today: ${dailySummary.totalWelds || 0}\n`
+  context += `- Total Repairs: ${dailySummary.totalRepairs || 0}\n`
+  context += `- Daily Repair Rate: ${(dailySummary.repairRate || 0).toFixed(1)}%\n`
+
+  if (dailySummary.byCrewType?.length > 0) {
+    context += `\nBy Crew Type:\n`
+    for (const crew of dailySummary.byCrewType) {
+      context += `- ${crew.crewType}: ${crew.weldsCompleted} welds, ${crew.repairs} repairs (${crew.repairRate.toFixed(1)}%)\n`
+    }
+  }
+
+  // Activities detail
+  if (activities.length > 0) {
+    context += `\nWELDING ACTIVITIES (${activities.length}):\n`
+    for (const act of activities.slice(0, 10)) {
+      context += `- ${act.activityType} at KP ${act.startKP}-${act.endKP}`
+      context += ` | Contractor: ${act.contractor} | Welds: ${act.weldsToday}`
+      if (act.repairs.length > 0) context += ` | Repairs: ${act.repairs.length}`
+      context += `\n`
+    }
+  }
+
+  // Repairs detail
+  if (repairs.length > 0) {
+    context += `\nREPAIRS (${repairs.length}):\n`
+    for (const repair of repairs.slice(0, 10)) {
+      context += `- Weld ${repair.weldNumber}: ${repair.defectCode} (${repair.defectName})`
+      context += ` at KP ${repair.startKP} | Crew: ${repair.crewType}\n`
+    }
+  }
+
+  // Tie-ins
+  if (tieIns.length > 0) {
+    context += `\nTIE-IN OPERATIONS (${tieIns.length}):\n`
+    for (const ti of tieIns) {
+      context += `- ${ti.tieInNumber} at ${ti.station}`
+      context += ` | Visual: ${ti.visualResult || 'Pending'}`
+      context += ` | NDE: ${ti.ndeType || 'N/A'} - ${ti.ndeResult || 'Pending'}\n`
+    }
+  }
+
+  // Welder performance issues
+  const flaggedWelders = welderPerformance.filter(w => w.repairRate > 8)
+  if (flaggedWelders.length > 0) {
+    context += `\nFLAGGED WELDERS (>8% repair rate):\n`
+    for (const w of flaggedWelders) {
+      context += `- ${w.welderName}: ${w.repairRate.toFixed(1)}% repair rate (${w.repairs}/${w.totalWelds})\n`
+    }
+  }
+
+  // AI-detected flags
+  if (weldingFlags.length > 0) {
+    context += `\nAI-DETECTED QUALITY FLAGS (${weldingFlags.length}):\n`
+    for (const flag of weldingFlags.slice(0, 5)) {
+      context += `- ${flag.type}: ${flag.message}\n`
+    }
+  }
+
+  // Inspector comments
+  if (comments.length > 0) {
+    context += `\nINSPECTOR COMMENTS (${comments.length}):\n`
+    for (const c of comments.slice(0, 8)) {
+      context += `- ${c.inspector} (${c.activityType}): "${c.comment.substring(0, 150)}..."\n`
+    }
+  }
+
+  return context
+}
+
+/**
+ * Build manual report sections when AI is unavailable
+ */
+function buildManualReportSections(params) {
+  const {
+    activities,
+    repairs,
+    tieIns,
+    comments,
+    dailySummary,
+    welderPerformance
+  } = params
+
+  return {
+    production: {
+      totalWelds: dailySummary.totalWelds || 0,
+      byCrewType: dailySummary.byCrewType || [],
+      repairRate: dailySummary.repairRate || 0
+    },
+    repairs: repairs.slice(0, 20),
+    tieIns: tieIns,
+    flaggedWelders: welderPerformance.filter(w => w.repairRate > 8),
+    comments: comments.slice(0, 15)
+  }
+}
+
+/**
+ * Save Welding Chief Daily Report to database
+ */
+export async function saveWeldingChiefReport(supabaseClient, orgId, report) {
+  try {
+    const { data, error } = await supabaseClient
+      .from('welding_chief_reports')
+      .upsert({
+        organization_id: orgId,
+        report_date: report.date,
+        executive_summary: report.executiveSummary,
+        production_summary: report.productionSummary,
+        quality_and_repairs: report.qualityAndRepairs,
+        tiein_operations: report.tieInOperations,
+        inspector_observations: report.inspectorObservations,
+        action_items: report.actionItems,
+        raw_data: report.rawData,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'organization_id,report_date'
+      })
+      .select()
+
+    if (error) throw error
+    return data
+  } catch (err) {
+    console.error('Error saving welding chief report:', err)
+    throw err
+  }
+}
+
+/**
+ * Fetch existing Welding Chief Daily Report
+ */
+export async function fetchWeldingChiefReport(supabaseClient, orgId, date) {
+  try {
+    const { data, error } = await supabaseClient
+      .from('welding_chief_reports')
+      .select('*')
+      .eq('organization_id', orgId)
+      .eq('report_date', date)
+      .single()
+
+    if (error && error.code !== 'PGRST116') throw error
+    return data
+  } catch (err) {
+    console.error('Error fetching welding chief report:', err)
+    return null
+  }
+}
+
 export default {
   aggregateWelderStats,
   extractWeldingComments,
@@ -933,5 +1263,8 @@ export default {
   extractIndividualWelds,
   extractAllRepairs,
   extractTieInData,
-  aggregateProductionByLocation
+  aggregateProductionByLocation,
+  generateWeldingChiefReport,
+  saveWeldingChiefReport,
+  fetchWeldingChiefReport
 }
