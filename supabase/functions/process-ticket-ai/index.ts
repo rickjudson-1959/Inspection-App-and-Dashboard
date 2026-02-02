@@ -924,6 +924,7 @@ async function generateAISummary(
 
 /**
  * Build the prompt for AI analysis summary
+ * Uses authoritative, technical voice with industry terminology
  */
 function buildAnalysisPrompt(flags: AnalysisFlag[], tickets: any[], config: ContractConfig): string {
   const criticalFlags = flags.filter(f => f.severity === 'critical')
@@ -946,50 +947,57 @@ function buildAnalysisPrompt(flags: AnalysisFlag[], tickets: any[], config: Cont
   // Check for WPS-related issues specifically
   const wpsMaterialFlags = flags.filter(f => f.type === 'WPS_MATERIAL_MISMATCH')
   const equipmentFlags = flags.filter(f => f.type === 'EQUIPMENT_MISMATCH')
+  const coatingFlags = flags.filter(f => f.type === 'COATING_VIOLATION' || f.type === 'COATING_THICKNESS_LOW')
 
   // RAG-based spec violations
   const specViolations = flags.filter(f => f.type === 'SPEC_VIOLATION')
-  const coatingViolations = flags.filter(f => f.type === 'COATING_VIOLATION')
   const procedureViolations = flags.filter(f => f.type === 'PROCEDURE_VIOLATION')
-  const totalSpecIssues = specViolations.length + coatingViolations.length + procedureViolations.length
+  const totalSpecIssues = specViolations.length + coatingFlags.length + procedureViolations.length
 
-  return `You are a Pipeline Construction Inspector AI analyzing daily field reports. Provide a brief executive summary (2-3 sentences) of the analysis results.
+  return `You are a Senior Pipeline Construction Inspector preparing a technical briefing for the Chief Inspector. Your voice is authoritative, technical, and safety-focused.
 
-PROJECT CONFIGURATION:
+Use industry terminology: Right-of-Way, Lower-in, Holiday Detection, DFT, NDE, ITP Hold Point, WPS, hydro-test.
+
+PROJECT PARAMETERS:
 - Standard Workday: ${config.standard_workday} hours
-- Project KP Range: ${config.start_kp} to ${config.end_kp}
+- Right-of-Way Limits: KP ${config.start_kp} to KP ${config.end_kp}
 
 ANALYSIS RESULTS:
-- Tickets Analyzed: ${tickets.length}
-- Critical Issues: ${criticalFlags.length}
-- Warnings: ${warningFlags.length}
-- WPS/Material Violations: ${wpsMaterialFlags.length}
-- Equipment/Procedure Issues: ${equipmentFlags.length}
-- Specification Violations (from Project Docs): ${totalSpecIssues}
-  - Coating Thickness Violations: ${coatingViolations.length}
-  - Procedure Violations: ${procedureViolations.length}
-  - Other Spec Violations: ${specViolations.length}
+- Daily Tickets Reviewed: ${tickets.length}
+- CRITICAL Findings: ${criticalFlags.length}
+- Warnings Requiring Attention: ${warningFlags.length}
+- WPS/Base Material Non-Compliance: ${wpsMaterialFlags.length}
+- Coating DFT Violations: ${coatingFlags.length}
+- Specification Deviations (from Project Docs): ${totalSpecIssues}
 
-FLAGS DETECTED:
-${flags.slice(0, 12).map(f => `- [${f.severity.toUpperCase()}] ${f.type}: ${f.message}`).join('\n')}
-${flags.length > 12 ? `\n... and ${flags.length - 12} more flags` : ''}
+FINDINGS REQUIRING CHIEF INSPECTOR REVIEW:
+${flags.slice(0, 10).map(f => `• [${f.severity.toUpperCase()}] ${f.type}: ${f.message}`).join('\n')}
+${flags.length > 10 ? `\n• ... plus ${flags.length - 10} additional findings` : ''}
 
-CONTRACTORS WITH ISSUES:
-${Object.entries(byContractor).map(([c, f]) => `- ${c}: ${f.length} flag(s)`).join('\n')}
+CONTRACTORS REQUIRING FOLLOW-UP:
+${Object.entries(byContractor).map(([c, f]) => `• ${c}: ${f.length} finding(s)`).join('\n')}
 
-Provide a concise summary focusing on:
-1. COATING_VIOLATION flags (CRITICAL - coating thickness out of spec requires immediate attention)
-2. WPS/Material violations (CRITICAL - stop work may be required if wrong materials used)
-3. SPEC_VIOLATION flags (values not matching project specifications)
-4. Hours/efficiency anomalies requiring investigation
-5. Which contractors need follow-up
+GENERATE A CHIEF INSPECTOR BRIEFING using this format:
 
-IMPORTANT:
-- COATING_VIOLATION flags mean recorded thickness is outside the project specification range - highlight prominently
-- WPS_MATERIAL_MISMATCH flags indicate potential weld quality issues
-- SPEC_VIOLATION flags are based on comparison with actual project documents
+**SUMMARY** (2-3 sentences on overall status)
 
-Keep response under 120 words. Be specific and actionable.`
+**CRITICAL ITEMS REQUIRING IMMEDIATE ACTION:**
+• [Bullet points with specific technical risk for each critical item]
+
+**DOWNSTREAM SCHEDULE IMPACT:**
+• [How these findings affect hydro-test, Lower-in, tie-in, or ITP close-out]
+
+**RECOMMENDED ACTIONS:**
+• [Specific, actionable steps for each finding]
+
+IMPORTANT GUIDELINES:
+- Explain the TECHNICAL RISK of each error (e.g., "Gap in chainage documentation could delay hydro-test authorization")
+- Use bullet points for clear, actionable findings
+- Reference specific standards (CSA Z662, API 1169, Project Spec sections)
+- Prioritize items that block downstream construction activities
+- Be direct and authoritative - this goes to the Chief Inspector
+
+Keep response under 200 words. Focus on what action is needed, not just what's wrong.`
 }
 
 
@@ -1624,61 +1632,59 @@ async function analyzeWithRAG(
       continue
     }
 
-    const ragPrompt = `You are an expert Pipeline Construction Quality Inspector analyzing field data against project specifications.
+    const ragPrompt = `You are a Senior Pipeline Construction Inspector performing a technical compliance review for the Chief Inspector. Your analysis must be authoritative, technically precise, and safety-focused.
 
-## ACTIVITY BEING INSPECTED
+## ACTIVITY UNDER REVIEW
 Activity Type: ${activityType}
 Ticket ID: ${ticket.id}
 Date: ${ticket.date}
 Spread: ${ticket.spread || 'Not specified'}
 Contractor: ${block.contractor || 'Not specified'}
-Station/KP: ${block.startKP || 'Not specified'} to ${block.endKP || 'Not specified'}
+Right-of-Way Station: KP ${block.startKP || 'N/A'} to KP ${block.endKP || 'N/A'}
 
-## RECORDED FIELD VALUES
+## RECORDED FIELD VALUES FROM DAILY INSPECTION
 ${measurablesSummary}
 
-## PROJECT SPECIFICATION DOCUMENTS
-The following excerpts are from your project's WPS, ITP, Engineering Specs, and Procedures. Use these as the source of truth:
+## PROJECT SPECIFICATION DOCUMENTS (Source of Truth)
+The following excerpts are from the project's WPS, ITP, Engineering Specifications, and Approved Procedures:
 
 ${documentContext}
 
-## YOUR CRITICAL TASK
-For EACH recorded value, answer: "Does this match the requirements in the uploaded WPS, ITP, or Specs?"
+## COMPLIANCE REVIEW TASK
+For EACH recorded value, determine: "Does this conform to the requirements in the WPS, ITP, or Project Specifications?"
 
-If a value does NOT match the engineering specifications:
-1. Identify the specific violation
-2. Cite the exact source document and section
-3. Flag as CRITICAL if it's a safety/quality issue
+If a value is NON-COMPLIANT, you must:
+1. Identify the specific deviation from specification
+2. Cite the exact source document and clause/section
+3. Explain the TECHNICAL RISK (e.g., "Could delay hydro-test authorization", "Joint may require Holiday Detection re-test before Lower-in")
+4. Flag as CRITICAL if it impacts safety, weld integrity, or ITP compliance
 
-CHECK THESE SPECIFICALLY:
-1. COATING THICKNESS: Is the DFT reading within the specified min/max range? (Common spec: 20-25 mils)
-2. PIPE GRADE/MATERIAL: Is this material listed in the approved WPS?
-3. WALL THICKNESS: Does it match the engineering drawings?
-4. PREHEAT TEMPERATURE: Does it meet WPS minimum requirements?
-5. COVER DEPTH: Does it meet the minimum depth of cover requirement?
-6. WPS: Is the WPS number used valid and qualified for this application?
+## CRITICAL CHECKPOINTS
+1. **COATING DFT**: Is the Dry Film Thickness within spec? Below-minimum DFT compromises corrosion protection and requires stripping/re-coating before Lower-in.
+2. **BASE MATERIAL/PIPE GRADE**: Is the material listed in the qualified WPS? Unapproved materials void weld qualification.
+3. **WALL THICKNESS**: Does it match the Engineering Line List? Affects MAOP calculation and hydro-test pressure.
+4. **PREHEAT TEMPERATURE**: Does it meet WPS essential variable minimums? Insufficient preheat increases hydrogen cracking risk.
+5. **DEPTH OF COVER**: Does burial depth meet CSA Z662 minimums? Insufficient cover exposes pipeline to third-party damage.
+6. **WPS COMPLIANCE**: Is the WPS number valid and qualified for this base material and process?
 
 ## RESPONSE FORMAT
-Return a JSON array of violations. Each violation must have:
+Return a JSON array of non-compliances. Each finding must include:
 {
-  "field": "the field name",
-  "recorded_value": "what was recorded",
-  "spec_requirement": "what the spec requires (include document name and section)",
-  "source_document": "exact document name from the specifications above",
-  "source_section": "section or page reference if available",
-  "violation_type": "BELOW_MIN" | "ABOVE_MAX" | "NOT_APPROVED" | "PROCEDURE_VIOLATION" | "MISSING_DATA",
-  "severity": "critical" | "warning",
-  "message": "Clear explanation of why this is a violation and what needs to happen"
+  "field": "field name (e.g., coating_thickness_dft, pipe_grade, wall_thickness)",
+  "recorded_value": "the value recorded in the daily ticket",
+  "spec_requirement": "the specification requirement with document reference (e.g., '20-25 mils per Project Spec Section 5.2')",
+  "source_document": "exact document name (e.g., 'Project Coating Specification', 'WPS-02', 'CSA Z662')",
+  "source_section": "specific clause or section reference",
+  "violation_type": "BELOW_MIN | ABOVE_MAX | NOT_APPROVED | PROCEDURE_DEVIATION | TRACEABILITY_GAP",
+  "severity": "critical | warning",
+  "message": "Technical explanation including downstream risk (e.g., 'DFT of 15 mils is below 20 mil minimum per Project Spec 5.2. Joint requires Holiday Detection and potential re-coating before Lower-in authorization.')"
 }
 
-RULES:
-- CRITICAL severity for: coating thickness out of spec, unapproved materials, safety violations
-- WARNING severity for: values close to limits, minor procedural issues
-- Only flag violations where the spec CLEARLY states a requirement
-- Always cite the specific source document
-- If coating thickness is recorded as below minimum spec, that is ALWAYS critical
+## SEVERITY CLASSIFICATION
+- **CRITICAL**: Coating below spec, unapproved base materials, WPS non-compliance, insufficient preheat, depth of cover violation, ITP hold point bypass
+- **WARNING**: Values near specification limits, minor procedural deviations, documentation gaps
 
-Return ONLY valid JSON array, no other text. Return [] if all values are compliant.`
+Return ONLY a valid JSON array. Return [] if all values are compliant with specifications.`
 
     try {
       const response = await fetch('https://api.anthropic.com/v1/messages', {

@@ -558,7 +558,7 @@ Best regards`)
             )}
           </div>
 
-          {/* RISK ASSESSMENT Section */}
+          {/* TECHNICAL RISK Section */}
           <div style={{ padding: '24px', borderBottom: '1px solid #e5e7eb' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
               <span style={{ fontSize: '20px' }}>⚠️</span>
@@ -570,20 +570,70 @@ Best regards`)
                 letterSpacing: '0.5px',
                 color: '#dc2626'
               }}>
-                Risk Assessment
+                Technical Risk
               </h3>
             </div>
 
             <div style={{
-              padding: '14px 16px',
+              padding: '16px 18px',
               backgroundColor: '#fef2f2',
               borderRadius: '8px',
-              border: '1px solid #fecaca',
-              fontSize: '14px',
-              color: '#7f1d1d',
-              lineHeight: '1.6'
+              border: '2px solid #fecaca'
             }}>
-              {interpolateTemplate(config.riskTemplate, templateValues)}
+              {/* Parse and render the risk template with proper bullet formatting */}
+              {(() => {
+                const riskText = interpolateTemplate(config.riskTemplate, templateValues)
+                const lines = riskText.split('\n').filter(line => line.trim())
+
+                return lines.map((line, idx) => {
+                  const trimmed = line.trim()
+
+                  // Header line (TECHNICAL RISK:)
+                  if (trimmed.startsWith('TECHNICAL RISK') || trimmed.startsWith('CRITICAL:')) {
+                    return (
+                      <div key={idx} style={{
+                        fontSize: '13px',
+                        fontWeight: '700',
+                        color: '#991b1b',
+                        marginBottom: '10px',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.5px'
+                      }}>
+                        {trimmed.replace(':', '')}
+                      </div>
+                    )
+                  }
+
+                  // Bullet point line
+                  if (trimmed.startsWith('•')) {
+                    return (
+                      <div key={idx} style={{
+                        display: 'flex',
+                        gap: '10px',
+                        marginBottom: '8px',
+                        fontSize: '14px',
+                        color: '#7f1d1d',
+                        lineHeight: '1.5'
+                      }}>
+                        <span style={{ color: '#dc2626', fontWeight: '700' }}>•</span>
+                        <span>{trimmed.substring(1).trim()}</span>
+                      </div>
+                    )
+                  }
+
+                  // Regular line
+                  return (
+                    <div key={idx} style={{
+                      fontSize: '14px',
+                      color: '#7f1d1d',
+                      lineHeight: '1.6',
+                      marginBottom: '6px'
+                    }}>
+                      {trimmed}
+                    </div>
+                  )
+                })
+              })()}
             </div>
           </div>
 
