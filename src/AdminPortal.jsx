@@ -6937,6 +6937,13 @@ function AdminPortal() {
         onClose={() => setAuditPanelData(null)}
         ticket={auditPanelData?.ticket}
         flag={auditPanelData?.flag}
+        onFlagAction={async (actionData) => {
+          // Save flag action to localStorage for persistence
+          // In future, this could be saved to a database table
+          const storageKey = `flag_action_${actionData.ticketId}_${actionData.flagType}`
+          localStorage.setItem(storageKey, JSON.stringify(actionData))
+          console.log('Flag action saved:', actionData)
+        }}
       />
 
     </div>

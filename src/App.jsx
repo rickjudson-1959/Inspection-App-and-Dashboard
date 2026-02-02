@@ -50,20 +50,9 @@ function RootRedirect() {
       }
 
       try {
-        // First check if user is super_admin - they can go to any org
+        // First check if user is super_admin - default to Default Organization
         if (userProfile?.role === 'super_admin') {
-          // Get first available org for super admin
-          const { data: orgs } = await supabase
-            .from('organizations')
-            .select('slug')
-            .order('name')
-            .limit(1)
-
-          if (orgs && orgs.length > 0) {
-            setOrgSlug(orgs[0].slug)
-          } else {
-            setOrgSlug('default')
-          }
+          setOrgSlug('default')
           setOrgLoading(false)
           return
         }

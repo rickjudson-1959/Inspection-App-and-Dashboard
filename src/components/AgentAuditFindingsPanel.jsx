@@ -1,8 +1,8 @@
 // ============================================================================
-// AGENT AUDIT FINDINGS PANEL
+// AI AUDIT SIDEBAR
 // February 2, 2026
 // Slide-out side panel displaying detailed AI agent findings
-// Shows violation details, references, and risk assessment
+// Shows anomaly type, source citations, and action buttons
 // ============================================================================
 
 import React, { useState, useEffect } from 'react'
@@ -11,9 +11,14 @@ import { getFlagTypeConfig, interpolateTemplate, SEVERITY_COLORS } from '../util
 
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
-export default function AgentAuditFindingsPanel({ isOpen, onClose, ticket, flag }) {
+export default function AgentAuditFindingsPanel({ isOpen, onClose, ticket, flag, onFlagAction }) {
   const [wpsDetails, setWpsDetails] = useState(null)
   const [loadingWps, setLoadingWps] = useState(false)
+  const [flagStatus, setFlagStatus] = useState(null) // 'dismissed', 'flagged_for_inspector', null
+  const [actionLoading, setActionLoading] = useState(false)
+  const [actionNote, setActionNote] = useState('')
+  const [showNoteInput, setShowNoteInput] = useState(false)
+  const [pendingAction, setPendingAction] = useState(null)
 
   // Clarification request state
   const [showClarificationModal, setShowClarificationModal] = useState(false)
@@ -22,18 +27,26 @@ export default function AgentAuditFindingsPanel({ isOpen, onClose, ticket, flag 
   const [inspectorInfo, setInspectorInfo] = useState(null)
   const [clarificationCopied, setClarificationCopied] = useState(false)
 
+  // Reset state when flag changes
+  useEffect(() => {
+    if (flag) {
+      setFlagStatus(flag.status || null)
+      setActionNote('')
+      setShowNoteInput(false)
+      setPendingAction(null)
+    }
+  }, [flag?.type, flag?.ticket_id])
+
   // Fetch WPS details for WPS-related flags
   useEffect(() => {
     if (!isOpen || !flag) return
 
     const fetchWpsDetails = async () => {
-      // Only fetch WPS details for WPS/filler material flags
       if (flag.type !== 'WPS_MATERIAL_MISMATCH' && flag.type !== 'FILLER_MATERIAL_MISMATCH') {
         setWpsDetails(null)
         return
       }
 
-      // Extract WPS number from flag details or message
       const wpsNumber = flag.details?.wps_number ||
                         flag.message?.match(/WPS[- ]?(\d+)/i)?.[1] ||
                         flag.details?.wps
@@ -91,6 +104,42 @@ export default function AgentAuditFindingsPanel({ isOpen, onClose, ticket, flag 
     fetchInspectorInfo()
   }, [isOpen, ticket?.user_id])
 
+  // Handle flag action (dismiss or flag for inspector)
+  const handleFlagAction = async (action) => {
+    if (showNoteInput && pendingAction === action) {
+      // Execute the action with note
+      setActionLoading(true)
+      try {
+        // Update the flag status in the analysis_result of ai_agent_logs
+        // For now, we'll call the callback and let parent handle persistence
+        const actionData = {
+          action,
+          note: actionNote,
+          timestamp: new Date().toISOString(),
+          flagType: flag.type,
+          ticketId: flag.ticket_id || ticket?.id
+        }
+
+        if (onFlagAction) {
+          await onFlagAction(actionData)
+        }
+
+        setFlagStatus(action)
+        setShowNoteInput(false)
+        setActionNote('')
+        setPendingAction(null)
+      } catch (err) {
+        console.error('Error saving flag action:', err)
+      } finally {
+        setActionLoading(false)
+      }
+    } else {
+      // Show note input
+      setShowNoteInput(true)
+      setPendingAction(action)
+    }
+  }
+
   // Generate AI clarification request
   const generateClarificationRequest = async () => {
     setGeneratingClarification(true)
@@ -113,12 +162,15 @@ CONTEXT:
 - Spread: ${ticket?.spread || 'Not specified'}
 
 DISCREPANCY DETAILS:
-- Type: ${config.violationTitle}
+- Anomaly Type: ${config.anomalyType}
+- Violation: ${config.violationTitle}
 - Severity: ${flag.severity || config.severity}
 - Description: ${flag.message}
 ${flag.details ? `- Additional Details: ${JSON.stringify(flag.details)}` : ''}
 
 REFERENCE:
+Source: ${config.sourceDocument}
+Section: ${config.sourcePage}
 ${config.referenceTemplate}
 
 Write a brief, professional email/notification that:
@@ -140,9 +192,11 @@ Output ONLY the email text, no subject line or additional formatting.`
 
 I hope you're doing well. I wanted to reach out regarding your daily ticket from ${ticketDate}.
 
-Our automated review system flagged a potential discrepancy: ${config.violationTitle}
+Our automated review system flagged a potential discrepancy: ${config.anomalyType}
 
 Specifically: ${flag.message}
+
+Reference: ${config.sourceDocument}, ${config.sourcePage}
 
 Could you please take a moment to review this entry? If there's additional context or if a correction is needed, please update the ticket before it's finalized.
 
@@ -181,14 +235,15 @@ Best regards`)
       setClarificationDraft(emailText.trim())
     } catch (err) {
       console.error('Error generating clarification:', err)
-      // Fallback to template
       setClarificationDraft(`Hi ${inspectorName},
 
 I hope you're doing well. I wanted to reach out regarding your daily ticket from ${ticketDate}.
 
-Our automated review system flagged a potential discrepancy: ${config.violationTitle}
+Our automated review system flagged a potential discrepancy: ${config.anomalyType}
 
 Specifically: ${flag.message}
+
+Reference: ${config.sourceDocument}, ${config.sourcePage}
 
 Could you please take a moment to review this entry? If there's additional context or if a correction is needed, please update the ticket before it's finalized.
 
@@ -202,7 +257,6 @@ Best regards`)
     }
   }
 
-  // Copy clarification to clipboard
   const copyClarification = () => {
     navigator.clipboard.writeText(clarificationDraft).then(() => {
       setClarificationCopied(true)
@@ -215,7 +269,7 @@ Best regards`)
   const config = getFlagTypeConfig(flag.type)
   const colors = SEVERITY_COLORS[flag.severity || config.severity] || SEVERITY_COLORS.info
 
-  // Build template values from flag details and ticket
+  // Build template values
   const templateValues = {
     standardWorkday: flag.details?.max_allowed || ticket?.standard_workday || 10,
     actualHours: flag.details?.actual_hours || flag.details?.billed_hours,
@@ -232,10 +286,12 @@ Best regards`)
     actualFiller: flag.details?.actual_filler || flag.details?.filler_used,
     gapDistance: flag.details?.gap_distance,
     workerCount: flag.details?.worker_count,
-    expectedCount: flag.details?.expected_count || 20
+    expectedCount: flag.details?.expected_count || 20,
+    sourceDocument: flag.details?.source_document || config.sourceDocument,
+    specRequirement: flag.details?.spec_requirement,
+    recordedValue: flag.details?.recorded_value
   }
 
-  // Format date nicely
   const formatDate = (dateStr) => {
     if (!dateStr) return ''
     try {
@@ -274,7 +330,7 @@ Best regards`)
           top: 0,
           right: 0,
           bottom: 0,
-          width: '480px',
+          width: '520px',
           maxWidth: '100vw',
           backgroundColor: 'white',
           boxShadow: '-4px 0 25px rgba(0, 0, 0, 0.15)',
@@ -290,25 +346,25 @@ Best regards`)
         <div style={{
           padding: '20px 24px',
           borderBottom: '1px solid #e5e7eb',
-          backgroundColor: '#f9fafb',
+          backgroundColor: '#1e3a5f',
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center'
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
             <span style={{ fontSize: '24px' }}>🤖</span>
-            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#111827' }}>
-              Agent Audit Findings
+            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: 'white' }}>
+              AI Audit Sidebar
             </h2>
           </div>
           <button
             onClick={onClose}
             style={{
-              background: 'none',
+              background: 'rgba(255,255,255,0.1)',
               border: 'none',
-              fontSize: '28px',
+              fontSize: '24px',
               cursor: 'pointer',
-              color: '#6b7280',
+              color: 'white',
               padding: '0',
               lineHeight: '1',
               width: '36px',
@@ -319,33 +375,63 @@ Best regards`)
               borderRadius: '6px',
               transition: 'background-color 0.2s'
             }}
-            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#f3f4f6'}
-            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.2)'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'rgba(255,255,255,0.1)'}
           >
             ×
           </button>
         </div>
 
+        {/* Status Banner (if dismissed or flagged) */}
+        {flagStatus && (
+          <div style={{
+            padding: '12px 24px',
+            backgroundColor: flagStatus === 'dismissed' ? '#f0fdf4' : '#fef3c7',
+            borderBottom: `2px solid ${flagStatus === 'dismissed' ? '#86efac' : '#fcd34d'}`,
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            <span style={{ fontSize: '18px' }}>
+              {flagStatus === 'dismissed' ? '✅' : '🚩'}
+            </span>
+            <span style={{ fontWeight: '600', color: flagStatus === 'dismissed' ? '#166534' : '#92400e' }}>
+              {flagStatus === 'dismissed' ? 'Dismissed as False Positive' : 'Flagged for Inspector Review'}
+            </span>
+          </div>
+        )}
+
         {/* Ticket Info Bar */}
         <div style={{
           padding: '16px 24px',
-          backgroundColor: colors.bg,
-          borderBottom: `2px solid ${colors.border}`,
+          backgroundColor: '#f8fafc',
+          borderBottom: '1px solid #e5e7eb',
           display: 'flex',
           alignItems: 'center',
           gap: '12px'
         }}>
           <span style={{ fontSize: '20px' }}>🎫</span>
-          <div>
+          <div style={{ flex: 1 }}>
             <div style={{ fontWeight: '600', color: '#111827', fontSize: '15px' }}>
               Ticket #{ticket?.id?.toString().slice(-4) || flag.ticket_id} - {formatDate(ticket?.date || flag.ticket_date)}
             </div>
             {ticket?.spread && (
               <div style={{ fontSize: '13px', color: '#6b7280', marginTop: '2px' }}>
-                Spread: {ticket.spread} {ticket.contractor && `• ${ticket.contractor}`}
+                {ticket.spread} {ticket.contractor && `• ${ticket.contractor}`}
               </div>
             )}
           </div>
+          <span style={{
+            padding: '4px 12px',
+            backgroundColor: colors.badge,
+            color: 'white',
+            fontSize: '11px',
+            fontWeight: '700',
+            borderRadius: '4px',
+            textTransform: 'uppercase'
+          }}>
+            {flag.severity || config.severity}
+          </span>
         </div>
 
         {/* Scrollable Content */}
@@ -354,116 +440,46 @@ Best regards`)
           overflowY: 'auto',
           padding: '0'
         }}>
-          {/* THE VIOLATION Section */}
-          <div style={{ padding: '24px', borderBottom: '1px solid #e5e7eb' }}>
+          {/* ANOMALY FOUND Section */}
+          <div style={{ padding: '24px', borderBottom: '1px solid #e5e7eb', backgroundColor: colors.bg }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-              <span style={{ fontSize: '20px' }}>{config.icon}</span>
-              <h3 style={{
-                margin: 0,
-                fontSize: '12px',
-                fontWeight: '700',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px',
-                color: colors.text
-              }}>
-                The Violation
-              </h3>
-              <span style={{
-                padding: '3px 10px',
-                backgroundColor: colors.badge,
-                color: 'white',
-                fontSize: '10px',
-                fontWeight: '700',
-                borderRadius: '4px',
-                textTransform: 'uppercase'
-              }}>
-                {flag.severity || config.severity}
-              </span>
+              <span style={{ fontSize: '24px' }}>{config.icon}</span>
+              <div>
+                <div style={{
+                  fontSize: '11px',
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  color: colors.text,
+                  marginBottom: '4px'
+                }}>
+                  Anomaly Detected
+                </div>
+                <h3 style={{
+                  margin: 0,
+                  fontSize: '20px',
+                  fontWeight: '700',
+                  color: '#111827'
+                }}>
+                  {config.anomalyType || config.violationTitle}
+                </h3>
+              </div>
             </div>
 
-            <h4 style={{
-              margin: '0 0 12px 0',
-              fontSize: '18px',
-              fontWeight: '600',
-              color: '#111827'
-            }}>
-              {config.violationTitle}
-            </h4>
-
             <div style={{
-              padding: '14px 16px',
-              backgroundColor: colors.bg,
+              padding: '16px',
+              backgroundColor: 'white',
               borderRadius: '8px',
-              border: `1px solid ${colors.border}`,
+              border: `2px solid ${colors.border}`,
               fontSize: '14px',
               color: '#374151',
               lineHeight: '1.6'
             }}>
               {flag.message}
             </div>
-
-            {/* WPS Details (if available) */}
-            {wpsDetails && (
-              <div style={{
-                marginTop: '16px',
-                padding: '14px 16px',
-                backgroundColor: '#f9fafb',
-                borderRadius: '8px',
-                border: '1px solid #e5e7eb'
-              }}>
-                <div style={{
-                  fontSize: '11px',
-                  fontWeight: '600',
-                  color: '#6b7280',
-                  textTransform: 'uppercase',
-                  marginBottom: '10px'
-                }}>
-                  WPS Details - {wpsDetails.wps_number}
-                </div>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', fontSize: '13px' }}>
-                  {wpsDetails.base_materials && (
-                    <div>
-                      <span style={{ color: '#6b7280' }}>Base Materials:</span>
-                      <div style={{ color: '#111827', fontWeight: '500' }}>
-                        {Array.isArray(wpsDetails.base_materials)
-                          ? wpsDetails.base_materials.join(', ')
-                          : wpsDetails.base_materials}
-                      </div>
-                    </div>
-                  )}
-                  {wpsDetails.filler_materials && (
-                    <div>
-                      <span style={{ color: '#6b7280' }}>Filler Materials:</span>
-                      <div style={{ color: '#111827', fontWeight: '500' }}>
-                        {Array.isArray(wpsDetails.filler_materials)
-                          ? wpsDetails.filler_materials.join(', ')
-                          : wpsDetails.filler_materials}
-                      </div>
-                    </div>
-                  )}
-                  {wpsDetails.diameter_range && (
-                    <div>
-                      <span style={{ color: '#6b7280' }}>Diameter Range:</span>
-                      <div style={{ color: '#111827', fontWeight: '500' }}>{wpsDetails.diameter_range}</div>
-                    </div>
-                  )}
-                  {wpsDetails.wall_thickness_range && (
-                    <div>
-                      <span style={{ color: '#6b7280' }}>Wall Thickness:</span>
-                      <div style={{ color: '#111827', fontWeight: '500' }}>{wpsDetails.wall_thickness_range}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-            {loadingWps && (
-              <div style={{ marginTop: '12px', fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>
-                Loading WPS details...
-              </div>
-            )}
           </div>
 
-          {/* THE REFERENCE Section */}
+          {/* SOURCE CITATION Section */}
           <div style={{ padding: '24px', borderBottom: '1px solid #e5e7eb' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
               <span style={{ fontSize: '20px' }}>📚</span>
@@ -475,41 +491,77 @@ Best regards`)
                 letterSpacing: '0.5px',
                 color: '#3b82f6'
               }}>
-                The Reference
+                Source Citation
               </h3>
             </div>
 
+            {/* Source Document Card */}
             <div style={{
-              padding: '14px 16px',
+              padding: '16px',
               backgroundColor: '#f0f9ff',
               borderRadius: '8px',
               border: '1px solid #bae6fd',
-              fontSize: '14px',
-              color: '#0c4a6e',
-              lineHeight: '1.6'
+              marginBottom: '12px'
             }}>
-              {interpolateTemplate(config.referenceTemplate, templateValues)}
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                <span style={{ fontSize: '24px' }}>📖</span>
+                <div>
+                  <div style={{
+                    fontSize: '16px',
+                    fontWeight: '600',
+                    color: '#0c4a6e',
+                    marginBottom: '4px'
+                  }}>
+                    {flag.details?.source_document || config.sourceDocument}
+                  </div>
+                  <div style={{
+                    fontSize: '14px',
+                    color: '#0369a1'
+                  }}>
+                    {flag.details?.source_page || config.sourcePage}
+                  </div>
+                </div>
+              </div>
             </div>
 
-            {/* Additional reference codes if present in flag details */}
+            {/* Reference Text */}
+            <div style={{
+              padding: '14px 16px',
+              backgroundColor: '#f9fafb',
+              borderRadius: '8px',
+              border: '1px solid #e5e7eb',
+              fontSize: '14px',
+              color: '#374151',
+              lineHeight: '1.6',
+              fontStyle: 'italic'
+            }}>
+              "{interpolateTemplate(config.referenceTemplate, templateValues)}"
+            </div>
+
+            {/* Additional reference codes if present */}
             {flag.details?.reference_codes && (
               <div style={{
                 marginTop: '12px',
-                padding: '12px 14px',
-                backgroundColor: '#f9fafb',
+                padding: '10px 14px',
+                backgroundColor: '#fef3c7',
                 borderRadius: '6px',
-                fontSize: '12px'
+                fontSize: '13px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px'
               }}>
-                <span style={{ color: '#6b7280', fontWeight: '500' }}>Related Standards: </span>
-                <span style={{ color: '#111827' }}>{flag.details.reference_codes}</span>
+                <span>📋</span>
+                <span style={{ color: '#92400e' }}>
+                  <strong>Also see:</strong> {flag.details.reference_codes}
+                </span>
               </div>
             )}
           </div>
 
-          {/* THE RISK Section */}
+          {/* RISK ASSESSMENT Section */}
           <div style={{ padding: '24px', borderBottom: '1px solid #e5e7eb' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-              <span style={{ fontSize: '20px' }}>⚡</span>
+              <span style={{ fontSize: '20px' }}>⚠️</span>
               <h3 style={{
                 margin: 0,
                 fontSize: '12px',
@@ -518,7 +570,7 @@ Best regards`)
                 letterSpacing: '0.5px',
                 color: '#dc2626'
               }}>
-                The Risk
+                Risk Assessment
               </h3>
             </div>
 
@@ -535,7 +587,61 @@ Best regards`)
             </div>
           </div>
 
-          {/* Flag Details (numeric metrics) */}
+          {/* WPS Details (if available) */}
+          {wpsDetails && (
+            <div style={{ padding: '24px', borderBottom: '1px solid #e5e7eb' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                <span style={{ fontSize: '20px' }}>🔧</span>
+                <h3 style={{
+                  margin: 0,
+                  fontSize: '12px',
+                  fontWeight: '700',
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.5px',
+                  color: '#6b7280'
+                }}>
+                  WPS Details - {wpsDetails.wps_number}
+                </h3>
+              </div>
+
+              <div style={{
+                padding: '14px 16px',
+                backgroundColor: '#f9fafb',
+                borderRadius: '8px',
+                border: '1px solid #e5e7eb'
+              }}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', fontSize: '13px' }}>
+                  {wpsDetails.base_materials && (
+                    <div>
+                      <span style={{ color: '#6b7280', fontSize: '11px', textTransform: 'uppercase' }}>Base Materials</span>
+                      <div style={{ color: '#111827', fontWeight: '600', marginTop: '2px' }}>
+                        {Array.isArray(wpsDetails.base_materials)
+                          ? wpsDetails.base_materials.join(', ')
+                          : wpsDetails.base_materials}
+                      </div>
+                    </div>
+                  )}
+                  {wpsDetails.filler_materials && (
+                    <div>
+                      <span style={{ color: '#6b7280', fontSize: '11px', textTransform: 'uppercase' }}>Filler Materials</span>
+                      <div style={{ color: '#111827', fontWeight: '600', marginTop: '2px' }}>
+                        {Array.isArray(wpsDetails.filler_materials)
+                          ? wpsDetails.filler_materials.join(', ')
+                          : wpsDetails.filler_materials}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+          {loadingWps && (
+            <div style={{ padding: '24px', fontSize: '13px', color: '#6b7280', fontStyle: 'italic' }}>
+              Loading WPS details...
+            </div>
+          )}
+
+          {/* Metrics Section (if applicable) */}
           {flag.details && Object.keys(flag.details).some(k =>
             ['efficiency_score', 'billed_hours', 'shadow_hours', 'actual_hours'].includes(k)
           ) && (
@@ -550,7 +656,7 @@ Best regards`)
                   letterSpacing: '0.5px',
                   color: '#6b7280'
                 }}>
-                  Metrics
+                  Key Metrics
                 </h3>
               </div>
 
@@ -561,163 +667,208 @@ Best regards`)
               }}>
                 {flag.details.efficiency_score !== undefined && (
                   <div style={{
-                    padding: '14px',
+                    padding: '16px',
                     backgroundColor: '#fef2f2',
                     borderRadius: '8px',
                     border: '1px solid #fecaca',
                     textAlign: 'center'
                   }}>
-                    <div style={{ fontSize: '28px', fontWeight: '700', color: '#dc2626' }}>
+                    <div style={{ fontSize: '32px', fontWeight: '700', color: '#dc2626' }}>
                       {flag.details.efficiency_score}%
                     </div>
-                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                      Efficiency Score
+                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', textTransform: 'uppercase' }}>
+                      Efficiency
                     </div>
                   </div>
                 )}
                 {flag.details.billed_hours !== undefined && (
                   <div style={{
-                    padding: '14px',
+                    padding: '16px',
                     backgroundColor: '#f9fafb',
                     borderRadius: '8px',
                     border: '1px solid #e5e7eb',
                     textAlign: 'center'
                   }}>
-                    <div style={{ fontSize: '28px', fontWeight: '700', color: '#111827' }}>
+                    <div style={{ fontSize: '32px', fontWeight: '700', color: '#111827' }}>
                       {flag.details.billed_hours}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', textTransform: 'uppercase' }}>
                       Billed Hours
                     </div>
                   </div>
                 )}
                 {flag.details.shadow_hours !== undefined && (
                   <div style={{
-                    padding: '14px',
+                    padding: '16px',
                     backgroundColor: '#f9fafb',
                     borderRadius: '8px',
                     border: '1px solid #e5e7eb',
                     textAlign: 'center'
                   }}>
-                    <div style={{ fontSize: '28px', fontWeight: '700', color: '#111827' }}>
+                    <div style={{ fontSize: '32px', fontWeight: '700', color: '#111827' }}>
                       {flag.details.shadow_hours}
                     </div>
-                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px', textTransform: 'uppercase' }}>
                       Shadow Hours
                     </div>
                   </div>
                 )}
-                {flag.details.actual_hours !== undefined && (
-                  <div style={{
-                    padding: '14px',
-                    backgroundColor: '#fef2f2',
-                    borderRadius: '8px',
-                    border: '1px solid #fecaca',
-                    textAlign: 'center'
-                  }}>
-                    <div style={{ fontSize: '28px', fontWeight: '700', color: '#dc2626' }}>
-                      {flag.details.actual_hours}
-                    </div>
-                    <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
-                      Actual Hours {flag.details.max_allowed && `(Max: ${flag.details.max_allowed})`}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* Activity Blocks (if present) */}
-          {ticket?.activity_blocks && ticket.activity_blocks.length > 0 && (
-            <div style={{ padding: '24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
-                <span style={{ fontSize: '20px' }}>📋</span>
-                <h3 style={{
-                  margin: 0,
-                  fontSize: '12px',
-                  fontWeight: '700',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.5px',
-                  color: '#6b7280'
-                }}>
-                  Activity Blocks ({ticket.activity_blocks.length})
-                </h3>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-                {ticket.activity_blocks.map((block, idx) => {
-                  const isFlagged = idx === flag.activity_block_index
-                  return (
-                    <div
-                      key={idx}
-                      style={{
-                        padding: '14px',
-                        backgroundColor: isFlagged ? '#fef2f2' : '#f9fafb',
-                        borderRadius: '8px',
-                        border: isFlagged ? '2px solid #dc2626' : '1px solid #e5e7eb'
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div>
-                          <span style={{ fontWeight: '600', color: '#111827', fontSize: '14px' }}>
-                            {block.activityType || 'Activity'}
-                          </span>
-                          {block.contractor && (
-                            <span style={{ color: '#6b7280', marginLeft: '8px', fontSize: '13px' }}>
-                              • {block.contractor}
-                            </span>
-                          )}
-                        </div>
-                        {isFlagged && (
-                          <span style={{
-                            padding: '3px 10px',
-                            backgroundColor: '#dc2626',
-                            color: 'white',
-                            fontSize: '10px',
-                            borderRadius: '4px',
-                            fontWeight: '700'
-                          }}>
-                            FLAGGED
-                          </span>
-                        )}
-                      </div>
-                      {(block.startKp || block.endKp) && (
-                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '6px' }}>
-                          KP: {block.startKp || '—'} → {block.endKp || '—'}
-                        </div>
-                      )}
-                      {block.hours && (
-                        <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
-                          Hours: {block.hours}
-                        </div>
-                      )}
-                    </div>
-                  )
-                })}
               </div>
             </div>
           )}
         </div>
 
-        {/* Footer */}
+        {/* Action Buttons Footer */}
         <div style={{
-          padding: '16px 24px',
-          borderTop: '1px solid #e5e7eb',
-          backgroundColor: '#f9fafb',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          gap: '12px'
+          padding: '20px 24px',
+          borderTop: '2px solid #e5e7eb',
+          backgroundColor: '#f9fafb'
         }}>
-          <div style={{ fontSize: '12px', color: '#6b7280' }}>
-            🤖 Flagged by AI Agent • {formatDate(flag.ticket_date || ticket?.date)}
-          </div>
+          {/* Note Input (when action pending) */}
+          {showNoteInput && (
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{
+                display: 'block',
+                fontSize: '12px',
+                fontWeight: '600',
+                color: '#374151',
+                marginBottom: '8px'
+              }}>
+                {pendingAction === 'dismissed' ? 'Reason for dismissal (optional):' : 'Note for inspector (optional):'}
+              </label>
+              <textarea
+                value={actionNote}
+                onChange={(e) => setActionNote(e.target.value)}
+                placeholder={pendingAction === 'dismissed'
+                  ? 'e.g., Already addressed in follow-up ticket...'
+                  : 'e.g., Please review coating readings at KP 12+500...'
+                }
+                style={{
+                  width: '100%',
+                  padding: '10px 12px',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  fontSize: '13px',
+                  minHeight: '70px',
+                  resize: 'vertical',
+                  boxSizing: 'border-box'
+                }}
+              />
+              <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                <button
+                  onClick={() => handleFlagAction(pendingAction)}
+                  disabled={actionLoading}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    backgroundColor: pendingAction === 'dismissed' ? '#22c55e' : '#f59e0b',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: actionLoading ? 'not-allowed' : 'pointer',
+                    fontWeight: '600',
+                    fontSize: '13px',
+                    opacity: actionLoading ? 0.7 : 1
+                  }}
+                >
+                  {actionLoading ? 'Saving...' : 'Confirm'}
+                </button>
+                <button
+                  onClick={() => {
+                    setShowNoteInput(false)
+                    setPendingAction(null)
+                    setActionNote('')
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#e5e7eb',
+                    color: '#374151',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontWeight: '500',
+                    fontSize: '13px'
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Main Action Buttons */}
+          {!showNoteInput && !flagStatus && (
+            <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
+              <button
+                onClick={() => handleFlagAction('dismissed')}
+                style={{
+                  flex: 1,
+                  padding: '14px',
+                  backgroundColor: 'white',
+                  color: '#16a34a',
+                  border: '2px solid #16a34a',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#16a34a'
+                  e.currentTarget.style.color = 'white'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'white'
+                  e.currentTarget.style.color = '#16a34a'
+                }}
+              >
+                ✓ Dismiss
+                <span style={{ fontSize: '11px', opacity: 0.8 }}>(False Positive)</span>
+              </button>
+              <button
+                onClick={() => handleFlagAction('flagged_for_inspector')}
+                style={{
+                  flex: 1,
+                  padding: '14px',
+                  backgroundColor: 'white',
+                  color: '#f59e0b',
+                  border: '2px solid #f59e0b',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontWeight: '600',
+                  fontSize: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f59e0b'
+                  e.currentTarget.style.color = 'white'
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'white'
+                  e.currentTarget.style.color = '#f59e0b'
+                }}
+              >
+                🚩 Flag for Inspector
+              </button>
+            </div>
+          )}
+
+          {/* Secondary Actions */}
           <div style={{ display: 'flex', gap: '10px' }}>
             <button
               onClick={generateClarificationRequest}
               disabled={generatingClarification}
               style={{
-                padding: '10px 18px',
+                flex: 1,
+                padding: '12px 18px',
                 backgroundColor: '#8b5cf6',
                 color: 'white',
                 border: 'none',
@@ -725,35 +876,44 @@ Best regards`)
                 cursor: generatingClarification ? 'not-allowed' : 'pointer',
                 fontWeight: '500',
                 fontSize: '13px',
-                transition: 'background-color 0.2s',
                 opacity: generatingClarification ? 0.7 : 1,
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: '6px'
               }}
-              onMouseEnter={(e) => !generatingClarification && (e.currentTarget.style.backgroundColor = '#7c3aed')}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#8b5cf6'}
             >
               ✉️ Request Clarification
             </button>
             <button
               onClick={onClose}
               style={{
-                padding: '10px 24px',
-                backgroundColor: '#003366',
+                padding: '12px 24px',
+                backgroundColor: '#1e3a5f',
                 color: 'white',
                 border: 'none',
                 borderRadius: '6px',
                 cursor: 'pointer',
                 fontWeight: '500',
-                fontSize: '14px',
-                transition: 'background-color 0.2s'
+                fontSize: '14px'
               }}
-              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#002244'}
-              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#003366'}
             >
               Close
             </button>
+          </div>
+
+          {/* Footer Info */}
+          <div style={{
+            marginTop: '16px',
+            paddingTop: '12px',
+            borderTop: '1px solid #e5e7eb',
+            fontSize: '11px',
+            color: '#9ca3af',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
+          }}>
+            🤖 Flagged by AI Agent • {formatDate(flag.ticket_date || ticket?.date)}
           </div>
         </div>
       </div>
@@ -833,9 +993,6 @@ Best regards`)
                   <div style={{ fontSize: '14px', fontWeight: '500' }}>
                     Generating clarification request...
                   </div>
-                  <div style={{ fontSize: '12px', marginTop: '4px' }}>
-                    Using AI to draft a professional message
-                  </div>
                 </div>
               ) : (
                 <>
@@ -887,7 +1044,7 @@ Best regards`)
                     fontSize: '12px',
                     color: '#6b7280'
                   }}>
-                    💡 <strong>Tip:</strong> Copy this message and send it via your preferred method (email, Teams, Slack, etc.)
+                    💡 <strong>Tip:</strong> Copy this message and send via email, Teams, or Slack
                   </div>
                 </>
               )}
@@ -931,8 +1088,7 @@ Best regards`)
                     fontSize: '14px',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    transition: 'background-color 0.2s'
+                    gap: '6px'
                   }}
                 >
                   {clarificationCopied ? '✓ Copied!' : '📋 Copy Message'}
@@ -945,10 +1101,6 @@ Best regards`)
 
       {/* Animation keyframes */}
       <style>{`
-        @keyframes slideInFromRight {
-          from { transform: translateX(100%); }
-          to { transform: translateX(0); }
-        }
         @keyframes spin {
           to { transform: rotate(360deg); }
         }

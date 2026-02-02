@@ -120,11 +120,19 @@ export function OrgProvider({ children }) {
           return
         }
 
-        // Check if user has access (super_admin, membership, or legacy user accessing default)
+        // Super admin always has access to all orgs
+        if (isSuperAdmin) {
+          setCurrentOrganization(org)
+          setError(null)
+          setLoading(false)
+          return
+        }
+
+        // Check if user has access (membership or legacy user accessing default)
         const hasMembership = memberships.some(m => m.organization_id === org.id)
         const isLegacyAccessToDefault = memberships.length === 0 && org.slug === 'default'
 
-        if (!isSuperAdmin && !hasMembership && !isLegacyAccessToDefault) {
+        if (!hasMembership && !isLegacyAccessToDefault) {
           console.warn('Access denied to organization:', orgSlug)
           setError('Access denied to this organization')
 
