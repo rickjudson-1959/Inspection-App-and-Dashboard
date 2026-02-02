@@ -68,8 +68,22 @@ async function aggregateWelderStatsFromTickets(supabaseClient, orgId, dateRange 
           }
         }
 
-        // Use weldsToday for actual weld count (weldEntries contains passes, not welds)
-        welderMap[crewType].totalWelds += weldData.weldsToday || 0
+        // Count welds - use weldsToday if set, otherwise count unique weld numbers
+        let weldsCount = parseInt(weldData.weldsToday) || 0
+
+        // If weldsToday is 0 but we have entries, count unique weld numbers
+        if (weldsCount === 0 && weldEntries.length > 0) {
+          const uniqueWeldNumbers = new Set()
+          for (const entry of weldEntries) {
+            if (entry.weldNumber) {
+              const baseNumber = entry.weldNumber.split('-')[0] || entry.weldNumber
+              uniqueWeldNumbers.add(baseNumber)
+            }
+          }
+          weldsCount = uniqueWeldNumbers.size || 1
+        }
+
+        welderMap[crewType].totalWelds += weldsCount
         welderMap[crewType].repairs += repairs.length || 0
       }
     }
@@ -174,12 +188,29 @@ export function aggregateDailyWeldProduction(reports) {
         }
       }
 
-      // Count welds
-      // Use weldsToday for actual weld count (weldEntries contains passes, not welds)
-      // For tie-ins, count transitions as welds
-      const weldsToday = weldData.weldsToday ||
-                         counterboreData.transitions?.length ||
-                         0
+      // Count welds - use weldsToday if set, otherwise count unique weld numbers from entries
+      let weldsToday = parseInt(weldData.weldsToday) || 0
+
+      // For tie-ins, count tieIns from weldData (not tieInData)
+      if (block.activityType === 'Welding - Tie-in') {
+        // Tie-in data is stored in weldData.tieIns
+        weldsToday = weldData.tieIns?.length || counterboreData.transitions?.length || 0
+      }
+
+      // If weldsToday is still 0 but we have weld entries, count unique weld numbers
+      // (weld entries contain multiple passes per weld)
+      if (weldsToday === 0 && weldData.weldEntries?.length > 0) {
+        const uniqueWeldNumbers = new Set()
+        for (const entry of weldData.weldEntries) {
+          if (entry.weldNumber) {
+            // Extract base weld number (remove pass suffix if present)
+            const baseNumber = entry.weldNumber.split('-')[0] || entry.weldNumber
+            uniqueWeldNumbers.add(baseNumber)
+          }
+        }
+        weldsToday = uniqueWeldNumbers.size || 1 // At least 1 if there are entries
+      }
+
       byCrewType[crewType].weldsCompleted += weldsToday
       totalWelds += weldsToday
 
@@ -384,22 +415,27 @@ export async function getDailyWeldSummary(supabaseClient, orgId, date) {
     // Aggregate from reports
     const production = aggregateDailyWeldProduction(tickets || [])
 
-    // Get active AI alerts for welding
-    let alertQuery = supabaseClient
-      .from('ai_agent_logs')
-      .select('id, ticket_id, ticket_date, analysis_result')
-      .eq('ticket_date', date)
-
-    if (orgId) {
-      alertQuery = alertQuery.eq('organization_id', orgId)
-    }
-
-    const { data: aiLogs, error: alertError } = await alertQuery
-
+    // Get active AI alerts for welding (ai_agent_logs table may not exist)
     let activeAlerts = 0
-    if (!alertError && aiLogs) {
-      const weldingFlags = getWeldingAIFlags(aiLogs)
-      activeAlerts = weldingFlags.filter(f => f.severity === 'critical').length
+    try {
+      let alertQuery = supabaseClient
+        .from('ai_agent_logs')
+        .select('id, ticket_id, ticket_date, analysis_result')
+        .eq('ticket_date', date)
+
+      if (orgId) {
+        alertQuery = alertQuery.eq('organization_id', orgId)
+      }
+
+      const { data: aiLogs, error: alertError } = await alertQuery
+
+      if (!alertError && aiLogs) {
+        const weldingFlags = getWeldingAIFlags(aiLogs)
+        activeAlerts = weldingFlags.filter(f => f.severity === 'critical').length
+      }
+      // Silently ignore errors - table may not exist
+    } catch (err) {
+      // ai_agent_logs table may not exist - ignore
     }
 
     return {
@@ -456,8 +492,30 @@ async function getCumulativeWeldStatsFromTickets(supabaseClient, orgId) {
         if (!block.activityType?.toLowerCase().includes('weld')) continue
 
         const weldData = block.weldData || {}
-        // Use weldsToday for actual weld count (weldEntries contains passes, not welds)
-        totalWelds += weldData.weldsToday || 0
+        const weldEntries = weldData.weldEntries || []
+
+        // Count welds - use weldsToday if set, otherwise count unique weld numbers
+        let weldsCount = parseInt(weldData.weldsToday) || 0
+
+        // For tie-ins, count tieIns from weldData
+        if (block.activityType === 'Welding - Tie-in') {
+          // Tie-in data is stored in weldData.tieIns, not a separate tieInData
+          weldsCount = weldData.tieIns?.length || 0
+        }
+
+        // If weldsToday is 0 but we have entries, count unique weld numbers
+        if (weldsCount === 0 && weldEntries.length > 0) {
+          const uniqueWeldNumbers = new Set()
+          for (const entry of weldEntries) {
+            if (entry.weldNumber) {
+              const baseNumber = entry.weldNumber.split('-')[0] || entry.weldNumber
+              uniqueWeldNumbers.add(baseNumber)
+            }
+          }
+          weldsCount = uniqueWeldNumbers.size || 1
+        }
+
+        totalWelds += weldsCount
         totalRepairs += weldData.repairs?.length || 0
       }
     }
@@ -536,7 +594,7 @@ export function extractDetailedWeldingActivities(reports) {
 
       const weldData = block.weldData || {}
       const counterboreData = block.counterboreData || {}
-      const tieInData = block.tieInData || {}
+      // Note: tieIn data is stored inside weldData.tieIns, not a separate tieInData field
 
       const activity = {
         // Report info
@@ -547,8 +605,8 @@ export function extractDetailedWeldingActivities(reports) {
 
         // Activity info
         activityType: block.activityType,
-        contractor: block.contractor || weldData.contractor || tieInData.contractor || '',
-        foreman: block.foreman || weldData.foreman || tieInData.foreman || '',
+        contractor: block.contractor || weldData.contractor || '',
+        foreman: block.foreman || weldData.foreman || '',
 
         // Location
         startKP: block.startKP || '',
@@ -601,8 +659,8 @@ export function extractDetailedWeldingActivities(reports) {
         downTimeReason: weldData.downTimeReason || '',
         totalWeldTime: weldData.totalWeldTime || '',
 
-        // Tie-in specific data
-        tieIns: (tieInData.tieIns || counterboreData.transitions || []).map(ti => ({
+        // Tie-in specific data (stored in weldData.tieIns)
+        tieIns: (weldData.tieIns || counterboreData.transitions || []).map(ti => ({
           tieInNumber: ti.tieInNumber || ti.transitionNumber || '',
           station: ti.station || ti.kp || '',
           visualResult: ti.visualResult || '',
@@ -615,7 +673,7 @@ export function extractDetailedWeldingActivities(reports) {
         })),
 
         // Pipe size (for tie-ins)
-        pipeSize: tieInData.pipeSize || counterboreData.pipeSize || '',
+        pipeSize: weldData.pipeSize || counterboreData.pipeSize || '',
 
         // Comments
         comments: block.comments || block.generalComments || weldData.comments || '',
@@ -747,8 +805,10 @@ export function extractTieInData(reports) {
     for (const block of blocks) {
       if (block.activityType !== 'Welding - Tie-in') continue
 
-      const tieInData = block.tieInData || block.counterboreData || {}
-      const tieInList = tieInData.tieIns || tieInData.transitions || []
+      const weldData = block.weldData || {}
+      const counterboreData = block.counterboreData || {}
+      // Tie-in data is stored in weldData.tieIns
+      const tieInList = weldData.tieIns || counterboreData.transitions || []
 
       for (const ti of tieInList) {
         tieIns.push({
@@ -756,15 +816,15 @@ export function extractTieInData(reports) {
           reportId: report.id,
           reportDate: report.date,
           inspector: report.inspector_name || '',
-          contractor: block.contractor || tieInData.contractor || '',
-          foreman: block.foreman || tieInData.foreman || '',
+          contractor: block.contractor || weldData.contractor || '',
+          foreman: block.foreman || weldData.foreman || '',
           startKP: block.startKP || '',
           endKP: block.endKP || '',
 
           // Tie-in details
           tieInNumber: ti.tieInNumber || '',
           station: ti.station || '',
-          pipeSize: tieInData.pipeSize || '',
+          pipeSize: weldData.pipeSize || '',
           constructionDirection: ti.constructionDirection || '',
 
           // Inspection results
@@ -990,11 +1050,39 @@ Only output valid JSON, no other text.`
     }
   } catch (err) {
     console.error('Error generating welding report:', err)
+    // Return data in the same format as successful AI generation so UI can display it
+    const manualSections = buildManualReportSections(params)
     return {
-      narrative: 'Error generating report. Please review data manually.',
-      sections: buildManualReportSections(params),
+      executiveSummary: `Welding report for ${date}. AI narrative generation unavailable - showing raw data summary. Total welds: ${dailySummary.totalWelds || 0}, Repairs: ${dailySummary.totalRepairs || 0}, Repair Rate: ${(dailySummary.repairRate || 0).toFixed(1)}%`,
+      productionSummary: {
+        narrative: `${dailySummary.totalWelds || 0} welds completed across ${dailySummary.byCrewType?.length || 0} crew(s). Overall repair rate: ${(dailySummary.repairRate || 0).toFixed(1)}%`,
+        bullets: (dailySummary.byCrewType || []).map(c => `${c.crewType}: ${c.weldsCompleted} welds, ${c.repairs} repairs (${c.repairRate?.toFixed(1) || 0}%)`)
+      },
+      qualityAndRepairs: {
+        narrative: repairs.length > 0
+          ? `${repairs.length} repair(s) recorded for the day.`
+          : 'No repairs required today.',
+        bullets: repairs.slice(0, 5).map(r => `Weld ${r.weldNumber}: ${r.defectCode} - ${r.defectName}`),
+        flaggedWelders: manualSections.flaggedWelders?.map(w => `${w.welderName}: ${w.repairRate?.toFixed(1)}% repair rate`) || []
+      },
+      tieInOperations: {
+        narrative: tieIns.length > 0
+          ? `${tieIns.length} tie-in operation(s) performed.`
+          : 'No tie-in operations today.',
+        bullets: tieIns.slice(0, 5).map(t => `${t.tieInNumber} at ${t.station} - Visual: ${t.visualResult || 'Pending'}`)
+      },
+      inspectorObservations: {
+        narrative: comments.length > 0
+          ? `${comments.length} comment(s) recorded by inspectors.`
+          : 'No inspector comments recorded.',
+        keyComments: comments.slice(0, 5).map(c => `${c.inspector}: ${c.comment.substring(0, 100)}${c.comment.length > 100 ? '...' : ''}`)
+      },
+      actionItems: manualSections.flaggedWelders?.length > 0
+        ? [`Review welders with repair rates above 8%: ${manualSections.flaggedWelders.map(w => w.welderName).join(', ')}`]
+        : [],
       generated: false,
-      error: err.message
+      error: err.message,
+      rawData: params
     }
   }
 }
