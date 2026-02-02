@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - January 31, 2026
+## Project Manifest - February 1, 2026
 
 ---
 
@@ -116,6 +116,19 @@
 - Audit trail reports
 - Progress tracking by phase
 
+### Document Control & Handover
+- Project Document Vault with 9 categories
+- Traffic light status (green=uploaded, red=missing)
+- ITP Sign-off Matrix (3 roles required for ACTIVE status)
+- Digital signature capture with timestamps
+- Document version control (Rev 0, Rev 1, Rev 2...)
+- Owner DC compatibility with custom metadata fields
+- Sync status workflow (internal → transmitted → acknowledged → rejected)
+- Transmittal Generator with PDF output
+- Project Handover Package (ZIP with nested folders)
+- SHA-256 manifest CSV for integrity verification
+- Technical Resource Library (global read-only references)
+
 ---
 
 ## 4. DATABASE SCHEMA (SUPABASE)
@@ -210,6 +223,30 @@
 - Length, Material, Depth/Thickness
 - Action, Equipment, Notes
 
+### Document Control Tables (NEW - February 2026)
+
+**project_documents**
+- Organization-scoped document vault
+- Category tracking (prime_contract, scope_of_work, ifc_drawings, etc.)
+- Version control (version_number, is_current)
+- ITP sign-offs (JSONB with role-based signatures)
+- Owner DC sync status (internal, transmitted, acknowledged, rejected)
+- Custom metadata (JSONB)
+- Addenda support (is_addendum, parent_document_id)
+- Global flag for Technical Resource Library
+
+**transmittals**
+- Transmittal tracking and generation
+- Document linkage
+- From/To parties
+- Subject and notes
+
+**contract_config**
+- Per-organization project configuration
+- Contract number, workday hours, AP email
+- Project boundaries (start/end KP)
+- Custom document fields (JSONB array)
+
 ---
 
 ## 5. SOURCE FILE STRUCTURE
@@ -283,23 +320,175 @@
 │
 └── Components/
     ├── TrackableItemsTracker.jsx
-    ├── SignaturePad.jsx
+    ├── SignaturePad.jsx         # Digital signature capture (ITP sign-offs)
+    ├── TenantSwitcher.jsx       # Organization switcher dropdown
     ├── MapDashboard.jsx
-    ├── OfflineStatusBar.jsx    # PWA status indicator (NEW - Jan 2026)
+    ├── OfflineStatusBar.jsx     # PWA status indicator (NEW - Jan 2026)
     └── [supporting components]
 
 /supabase/migrations/
 ├── create_inspector_invoicing_tables.sql
 ├── create_trench_logs.sql
 ├── 20260120_add_padding_bedding_kp_columns.sql
-├── 20260121_create_drilling_waste_logs.sql   # NEW - Directive 050
-├── 20260121_create_bore_path_data.sql        # NEW - Steering log
+├── 20260121_create_drilling_waste_logs.sql   # Directive 050
+├── 20260121_create_bore_path_data.sql        # Steering log
+├── 20260131_create_contract_config.sql       # Project governance
+├── 20260131_01_create_memberships_table.sql  # Multi-tenant
+├── 20260201_create_project_documents.sql     # Document vault
+├── 20260201_add_signoffs_column.sql          # ITP signatures
+├── 20260201_document_versioning.sql          # Version control
+├── 20260201_document_metadata.sql            # Owner DC fields
+├── 20260201_document_sync_status.sql         # Sync tracking
+├── 20260201_create_signatures_bucket.sql     # Signature storage
+├── 20260201_create_handovers_bucket.sql      # Handover ZIP storage
 └── [other migrations]
 ```
 
 ---
 
-## 6. RECENT UPDATES (January 2026)
+## 6. RECENT UPDATES (January/February 2026)
+
+### Document Control & Project Handover System (February 1, 2026)
+
+**Project Document Vault (Admin Portal → Setup)**
+- 9 document categories with traffic light status indicators:
+  - Prime Contract, Scope of Work, IFC Drawings, Typical Drawings
+  - Project Specifications, Weld Procedures (WPS), ERP, EMP, ITP
+- Green dot = uploaded, Red dot = missing
+- Version control with automatic revision tracking (Rev 0, Rev 1, Rev 2...)
+- Document history modal showing all versions with timestamps
+- Addenda support for Project Specs, Weld Procedures, and ITP
+
+**ITP Sign-off Matrix & Digital Signatures**
+- Three required sign-offs: Chief Welding Inspector, Chief Inspector, Construction Manager
+- STATIONARY status: Document uploaded but not fully approved
+- ACTIVE status: All three signatures captured
+- Digital signature pad with timestamp and signer name
+- Signature reset prompt when uploading new ITP revision
+- Signatures stored in Supabase Storage (`signatures` bucket)
+
+**Owner Document Control (DC) Compatibility**
+- Custom metadata fields configurable per organization
+- Transmittal Generator with PDF output
+- Sync status tracking: internal → transmitted → acknowledged → rejected
+- Owner transmittal ID and comments capture
+- DC Status Report CSV export
+
+**Document Sync Health Widget (Admin Portal → Overview)**
+- Visual status bar showing sync distribution
+- Critical alerts for rejected documents requiring revision
+- Warning for documents pending transmittal
+- Color-coded legend (Yellow=Internal, Blue=Transmitted, Green=Acknowledged, Red=Rejected)
+
+**Project Handover Package (Admin Portal → Handover)**
+- Pre-flight audit checking critical documents
+- Validates ITP signature completion
+- ZIP generation with nested folder structure:
+  - 01_Governance (contracts, SOW, ITP)
+  - 02_Engineering (drawings, specs, procedures)
+  - 03_Field_Reports (daily tickets, addenda)
+  - 04_Compliance (ERP, EMP, permits)
+- Manifest CSV with SHA-256 hashes (Web Crypto API)
+- Custom metadata columns from Owner DC fields
+- Handover history with download links
+
+**Technical Resource Library (Admin Portal → Setup)**
+- 5 global reference document categories:
+  - API 1169 - Pipeline Construction Inspection
+  - CSA Z662 - Oil & Gas Pipeline Systems
+  - Practical Guide for Pipeline Construction Inspectors
+  - Pipeline Inspector's Playbook
+  - Pipeline Rules of Thumb
+- Read-only access for all users
+- Super Admin: Upload, Replace, Delete capabilities
+- Documents marked as `is_global: true` for cross-org access
+
+**New Database Tables:**
+```
+project_documents     # Document vault with version control
+transmittals          # Transmittal tracking
+```
+
+**New Database Columns (project_documents):**
+```
+sync_status           # internal, transmitted, acknowledged, rejected
+owner_transmittal_id  # Owner's transmittal reference
+owner_comments        # Owner feedback
+transmitted_at        # Timestamp
+acknowledged_at       # Timestamp
+sign_offs             # JSONB for ITP signatures
+version_number        # Revision tracking
+is_current            # Active version flag
+is_addendum           # Supporting document flag
+parent_document_id    # Links addenda to parent
+is_global             # Technical library flag
+metadata              # Custom DC metadata (JSONB)
+```
+
+**New Database Columns (contract_config):**
+```
+custom_document_fields  # JSONB array of custom metadata field definitions
+```
+
+**New Storage Buckets:**
+```
+signatures            # ITP digital signature images
+handovers             # Generated ZIP packages
+```
+
+**Files Created:**
+```
+supabase/migrations/20260201_create_project_documents.sql
+supabase/migrations/20260201_add_signoffs_column.sql
+supabase/migrations/20260201_add_technical_library.sql
+supabase/migrations/20260201_create_signatures_bucket.sql
+supabase/migrations/20260201_document_versioning.sql
+supabase/migrations/20260201_create_handovers_bucket.sql
+supabase/migrations/20260201_document_metadata.sql
+supabase/migrations/20260201_document_sync_status.sql
+```
+
+---
+
+### Project Governance & Auto-Populate Features (February 1, 2026)
+
+**New Database Table: `contract_config`**
+- Per-organization project configuration settings
+- Fields: contract_number, standard_workday, ap_email, start_kp, end_kp, default_diameter, per_diem_rate
+- One config per organization (unique constraint)
+- RLS policies for authenticated users
+
+**Project Governance Section (Admin Portal → Setup)**
+- Contract Number / AFE configuration
+- Standard Workday Hours setting
+- AP Email for invoice routing
+- Project Boundaries (Start KP / End KP)
+- Default Diameter setting
+- Per Diem Rate configuration
+- Config Status indicator (Complete/Incomplete based on required fields)
+
+**Inspector Report Auto-Populate Features**
+- AFE/Contract # field added to report header (after Pipeline)
+- Auto-fills from organization's contract_config.contract_number
+- Light green background when auto-filled
+- Inspector Name auto-fills from user profile (full_name)
+- Both skip auto-populate when editing existing reports or restoring drafts
+
+**Super Admin Features (Admin Portal)**
+- Fleet Onboarding tab: Provision new organizations with admin users
+- Usage Statistics tab: Cross-organization activity summary (reports, tickets, last activity)
+- Both tabs only visible to super_admin role
+
+**Files Created:**
+```
+supabase/migrations/20260131_create_contract_config.sql
+```
+
+**Files Modified:**
+- `src/AdminPortal.jsx` - Project Governance section, Fleet Onboarding, Usage Statistics
+- `src/InspectorReport.jsx` - AFE field UI, auto-populate for AFE and inspector name
+
+---
 
 ### Multi-Tenant Architecture (January 31, 2026)
 
@@ -674,4 +863,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: January 31, 2026*
+*Last Updated: February 1, 2026 (Document Control & Handover System)*
