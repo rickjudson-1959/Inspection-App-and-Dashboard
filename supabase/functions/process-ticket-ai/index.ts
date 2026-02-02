@@ -2,12 +2,14 @@
 // PIPE-UP AI AGENT - TICKET ANALYSIS EDGE FUNCTION
 // February 1, 2026
 // Analyzes daily_tickets against contract_config rules and flags anomalies
+// Now includes RAG-based document retrieval for spec compliance validation
 // ============================================================================
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
+const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
 
@@ -26,8 +28,20 @@ type FlagType =
   | 'EQUIPMENT_MISMATCH'
   | 'WPS_MATERIAL_MISMATCH'
   | 'MANAGEMENT_DRAG_SPIKE'
+  | 'SPEC_VIOLATION'           // RAG-based spec violations
+  | 'COATING_VIOLATION'        // Coating thickness out of spec
+  | 'PROCEDURE_VIOLATION'      // Procedure not followed per docs
 
 type Severity = 'critical' | 'warning' | 'info'
+
+// RAG Document Match interface
+interface DocumentMatch {
+  id: string
+  document_name: string
+  document_category: string
+  chunk_text: string
+  similarity: number
+}
 
 interface AnalysisFlag {
   type: FlagType
@@ -202,7 +216,7 @@ serve(async (req: Request) => {
     console.log(`[AI Agent] Loaded ${Object.keys(wpsLookup).length} WPS specifications for validation`)
 
     // =========================================================================
-    // 3. RUN ANALYSIS ON EACH TICKET
+    // 3. RUN ANALYSIS ON EACH TICKET (Rule-based)
     // =========================================================================
     const allFlags: AnalysisFlag[] = []
     let totalBilledHours = 0
@@ -222,7 +236,34 @@ serve(async (req: Request) => {
       ? (totalShadowHours / totalBilledHours) * 100
       : 100
 
-    console.log(`[AI Agent] Analysis complete: ${allFlags.length} flags raised, efficiency: ${overallEfficiency.toFixed(1)}%`)
+    console.log(`[AI Agent] Rule-based analysis complete: ${allFlags.length} flags raised, efficiency: ${overallEfficiency.toFixed(1)}%`)
+
+    // =========================================================================
+    // 3.5 RUN RAG-BASED SPEC COMPLIANCE ANALYSIS
+    // Searches document_embeddings for project specs and validates ticket values
+    // =========================================================================
+    if (OPENAI_API_KEY) {
+      console.log('[AI Agent] Starting RAG-based spec compliance analysis...')
+
+      for (const ticket of tickets) {
+        try {
+          const ragFlags = await analyzeWithRAG(supabase, ticket, organization_id)
+          allFlags.push(...ragFlags)
+        } catch (ragErr) {
+          console.error(`[AI Agent] RAG analysis error for ticket ${ticket.id}:`, ragErr)
+        }
+      }
+
+      const specViolations = allFlags.filter(f =>
+        ['SPEC_VIOLATION', 'COATING_VIOLATION', 'PROCEDURE_VIOLATION'].includes(f.type)
+      ).length
+
+      console.log(`[AI Agent] RAG analysis complete: ${specViolations} spec violations found`)
+    } else {
+      console.log('[AI Agent] Skipping RAG analysis - OPENAI_API_KEY not configured')
+    }
+
+    console.log(`[AI Agent] Total analysis complete: ${allFlags.length} flags raised`)
 
     // =========================================================================
     // 4. GENERATE AI SUMMARY (if flags found)
@@ -902,6 +943,12 @@ function buildAnalysisPrompt(flags: AnalysisFlag[], tickets: any[], config: Cont
   const wpsMaterialFlags = flags.filter(f => f.type === 'WPS_MATERIAL_MISMATCH')
   const equipmentFlags = flags.filter(f => f.type === 'EQUIPMENT_MISMATCH')
 
+  // RAG-based spec violations
+  const specViolations = flags.filter(f => f.type === 'SPEC_VIOLATION')
+  const coatingViolations = flags.filter(f => f.type === 'COATING_VIOLATION')
+  const procedureViolations = flags.filter(f => f.type === 'PROCEDURE_VIOLATION')
+  const totalSpecIssues = specViolations.length + coatingViolations.length + procedureViolations.length
+
   return `You are a Pipeline Construction Inspector AI analyzing daily field reports. Provide a brief executive summary (2-3 sentences) of the analysis results.
 
 PROJECT CONFIGURATION:
@@ -914,23 +961,31 @@ ANALYSIS RESULTS:
 - Warnings: ${warningFlags.length}
 - WPS/Material Violations: ${wpsMaterialFlags.length}
 - Equipment/Procedure Issues: ${equipmentFlags.length}
+- Specification Violations (from Project Docs): ${totalSpecIssues}
+  - Coating Thickness Violations: ${coatingViolations.length}
+  - Procedure Violations: ${procedureViolations.length}
+  - Other Spec Violations: ${specViolations.length}
 
 FLAGS DETECTED:
-${flags.slice(0, 10).map(f => `- [${f.severity.toUpperCase()}] ${f.type}: ${f.message}`).join('\n')}
-${flags.length > 10 ? `\n... and ${flags.length - 10} more flags` : ''}
+${flags.slice(0, 12).map(f => `- [${f.severity.toUpperCase()}] ${f.type}: ${f.message}`).join('\n')}
+${flags.length > 12 ? `\n... and ${flags.length - 12} more flags` : ''}
 
 CONTRACTORS WITH ISSUES:
 ${Object.entries(byContractor).map(([c, f]) => `- ${c}: ${f.length} flag(s)`).join('\n')}
 
 Provide a concise summary focusing on:
-1. WPS/Material violations (CRITICAL - stop work may be required if wrong materials used)
-2. Hours/efficiency anomalies requiring investigation
-3. Which contractors need follow-up
-4. Overall compliance assessment
+1. COATING_VIOLATION flags (CRITICAL - coating thickness out of spec requires immediate attention)
+2. WPS/Material violations (CRITICAL - stop work may be required if wrong materials used)
+3. SPEC_VIOLATION flags (values not matching project specifications)
+4. Hours/efficiency anomalies requiring investigation
+5. Which contractors need follow-up
 
-IMPORTANT: WPS_MATERIAL_MISMATCH flags indicate potential weld quality issues - highlight these prominently.
+IMPORTANT:
+- COATING_VIOLATION flags mean recorded thickness is outside the project specification range - highlight prominently
+- WPS_MATERIAL_MISMATCH flags indicate potential weld quality issues
+- SPEC_VIOLATION flags are based on comparison with actual project documents
 
-Keep response under 100 words. Be specific and actionable.`
+Keep response under 120 words. Be specific and actionable.`
 }
 
 
@@ -985,5 +1040,382 @@ async function logAnalysis(supabase: any, params: LogParams): Promise<void> {
     }
   } catch (err) {
     console.error('[AI Agent] Log error:', err)
+  }
+}
+
+
+// =============================================================================
+// RAG (RETRIEVAL AUGMENTED GENERATION) FUNCTIONS
+// =============================================================================
+
+/**
+ * Generate embedding vector using OpenAI's text-embedding-ada-002
+ */
+async function generateEmbedding(text: string): Promise<number[] | null> {
+  if (!OPENAI_API_KEY) {
+    console.log('[AI Agent] OpenAI API key not configured - RAG disabled')
+    return null
+  }
+
+  try {
+    const response = await fetch('https://api.openai.com/v1/embeddings', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${OPENAI_API_KEY}`
+      },
+      body: JSON.stringify({
+        model: 'text-embedding-ada-002',
+        input: text.slice(0, 8000) // Truncate to model limit
+      })
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[AI Agent] OpenAI embedding error:', errorText)
+      return null
+    }
+
+    const data = await response.json()
+    return data.data?.[0]?.embedding || null
+  } catch (err) {
+    console.error('[AI Agent] Embedding generation error:', err)
+    return null
+  }
+}
+
+/**
+ * Search document embeddings for relevant context
+ */
+async function searchDocuments(
+  supabase: any,
+  queryText: string,
+  organizationId: string,
+  category?: string,
+  matchCount: number = 5,
+  matchThreshold: number = 0.7
+): Promise<DocumentMatch[]> {
+  // Generate embedding for query
+  const embedding = await generateEmbedding(queryText)
+
+  if (!embedding) {
+    console.log('[AI Agent] Could not generate embedding for RAG query')
+    return []
+  }
+
+  try {
+    // Use the match_documents function
+    const { data, error } = await supabase.rpc('match_documents', {
+      query_embedding: embedding,
+      match_threshold: matchThreshold,
+      match_count: matchCount,
+      filter_org_id: organizationId,
+      filter_category: category || null
+    })
+
+    if (error) {
+      console.error('[AI Agent] Document search error:', error)
+      return []
+    }
+
+    return data || []
+  } catch (err) {
+    console.error('[AI Agent] RAG search error:', err)
+    return []
+  }
+}
+
+/**
+ * Extract measurable values from ticket for spec validation
+ */
+function extractMeasurableFields(ticket: any): { field: string, value: any, unit: string, context: string }[] {
+  const measurables: { field: string, value: any, unit: string, context: string }[] = []
+  const blocks = ticket.activity_blocks || []
+
+  for (const block of blocks) {
+    // Coating data
+    if (block.coatingData) {
+      const cd = block.coatingData
+      if (cd.dftReadings && Array.isArray(cd.dftReadings)) {
+        for (const reading of cd.dftReadings) {
+          if (reading.thickness !== undefined && reading.thickness !== null) {
+            measurables.push({
+              field: 'coating_thickness',
+              value: parseFloat(reading.thickness),
+              unit: 'mils',
+              context: `Coating DFT reading at ${reading.location || 'unspecified location'}, coating type: ${cd.coatingType || 'unknown'}`
+            })
+          }
+        }
+      }
+      if (cd.thickness !== undefined) {
+        measurables.push({
+          field: 'coating_thickness',
+          value: parseFloat(cd.thickness),
+          unit: 'mils',
+          context: `Coating thickness for ${cd.coatingType || 'coating'} application`
+        })
+      }
+      if (cd.minThickness !== undefined) {
+        measurables.push({
+          field: 'coating_min_thickness',
+          value: parseFloat(cd.minThickness),
+          unit: 'mils',
+          context: `Minimum coating thickness recorded`
+        })
+      }
+    }
+
+    // Weld data
+    if (block.weldData) {
+      const wd = block.weldData
+      if (wd.pipeGrade) {
+        measurables.push({
+          field: 'pipe_grade',
+          value: wd.pipeGrade,
+          unit: '',
+          context: `Pipe grade used for welding activity`
+        })
+      }
+      if (wd.pipeDiameter) {
+        measurables.push({
+          field: 'pipe_diameter',
+          value: parseFloat(wd.pipeDiameter),
+          unit: 'inches',
+          context: `Pipe diameter for weld`
+        })
+      }
+      if (wd.wallThickness) {
+        measurables.push({
+          field: 'wall_thickness',
+          value: parseFloat(wd.wallThickness),
+          unit: 'inches',
+          context: `Pipe wall thickness`
+        })
+      }
+    }
+
+    // Backfill data
+    if (block.backfillData) {
+      const bf = block.backfillData
+      if (bf.coverDepth !== undefined) {
+        measurables.push({
+          field: 'cover_depth',
+          value: parseFloat(bf.coverDepth),
+          unit: 'meters',
+          context: `Backfill cover depth over pipe`
+        })
+      }
+      if (bf.padding_thickness !== undefined) {
+        measurables.push({
+          field: 'padding_thickness',
+          value: parseFloat(bf.padding_thickness),
+          unit: 'mm',
+          context: `Padding thickness for pipe protection`
+        })
+      }
+    }
+
+    // NDT data
+    if (block.ndtData) {
+      const ndt = block.ndtData
+      if (ndt.repairRate !== undefined) {
+        measurables.push({
+          field: 'repair_rate',
+          value: parseFloat(ndt.repairRate),
+          unit: '%',
+          context: `NDT repair rate for welds inspected`
+        })
+      }
+    }
+
+    // Generic inspection values
+    if (block.inspectionValues && typeof block.inspectionValues === 'object') {
+      for (const [key, val] of Object.entries(block.inspectionValues)) {
+        if (typeof val === 'number' || (typeof val === 'string' && !isNaN(parseFloat(val)))) {
+          measurables.push({
+            field: key,
+            value: parseFloat(val as string),
+            unit: '',
+            context: `Inspection value: ${key}`
+          })
+        }
+      }
+    }
+  }
+
+  return measurables
+}
+
+/**
+ * Perform RAG-based spec compliance analysis
+ */
+async function analyzeWithRAG(
+  supabase: any,
+  ticket: any,
+  organizationId: string
+): Promise<AnalysisFlag[]> {
+  const flags: AnalysisFlag[] = []
+
+  // Extract measurable values from ticket
+  const measurables = extractMeasurableFields(ticket)
+
+  if (measurables.length === 0) {
+    console.log(`[AI Agent] No measurable fields found in ticket ${ticket.id}`)
+    return flags
+  }
+
+  console.log(`[AI Agent] Found ${measurables.length} measurable fields for RAG analysis`)
+
+  // Build query for document search based on measurable fields
+  const uniqueFields = [...new Set(measurables.map(m => m.field))]
+  const queryTerms = [
+    'specification requirements',
+    'acceptable range',
+    'minimum maximum',
+    ...uniqueFields.map(f => f.replace(/_/g, ' '))
+  ]
+
+  // Search for relevant specifications
+  const searchQuery = `${queryTerms.join(' ')} thickness tolerance limits requirements`
+  const relevantDocs = await searchDocuments(
+    supabase,
+    searchQuery,
+    organizationId,
+    undefined, // Search all categories
+    10,        // Get more documents for context
+    0.65       // Lower threshold to get more matches
+  )
+
+  if (relevantDocs.length === 0) {
+    console.log('[AI Agent] No relevant documents found for RAG analysis')
+    return flags
+  }
+
+  console.log(`[AI Agent] Found ${relevantDocs.length} relevant document chunks`)
+
+  // Build context from retrieved documents
+  const documentContext = relevantDocs.map(doc =>
+    `[${doc.document_name} - ${doc.document_category}]:\n${doc.chunk_text}`
+  ).join('\n\n---\n\n')
+
+  // Build measurables summary
+  const measurablesSummary = measurables.map(m =>
+    `- ${m.field}: ${m.value} ${m.unit} (${m.context})`
+  ).join('\n')
+
+  // Use Claude to analyze compliance
+  if (!ANTHROPIC_API_KEY) {
+    console.log('[AI Agent] Anthropic API key not configured - skipping RAG compliance check')
+    return flags
+  }
+
+  const ragPrompt = `You are a Pipeline Construction Quality Inspector AI. Your task is to check if the recorded field values comply with the project specifications.
+
+## RECORDED VALUES FROM DAILY TICKET
+Ticket ID: ${ticket.id}
+Date: ${ticket.date}
+Spread: ${ticket.spread || 'Not specified'}
+
+${measurablesSummary}
+
+## RELEVANT PROJECT SPECIFICATIONS
+The following excerpts are from the project's specification documents (API 1169, Project Specs, Procedures):
+
+${documentContext}
+
+## YOUR TASK
+Compare each recorded value against the specifications. For each value:
+1. Find the applicable specification requirement
+2. Determine if the value is within acceptable limits
+3. If out of spec, identify the violation
+
+Return a JSON array of violations found. Each violation should have:
+- field: the field name that's out of spec
+- recorded_value: the value that was recorded
+- spec_requirement: what the spec says (e.g., "20-25 mils per Project Spec Section 5.2")
+- violation_type: "BELOW_MIN" | "ABOVE_MAX" | "NOT_ALLOWED" | "MISSING_REQUIREMENT"
+- severity: "critical" | "warning"
+- message: A clear explanation of the violation
+
+If ALL values are within spec, return an empty array: []
+
+IMPORTANT:
+- Only flag clear violations where the spec explicitly states a requirement
+- Coating thickness is particularly important - flag any readings outside the specified range
+- For welding, check material compatibility and procedure compliance
+- Be specific about which document/section the requirement comes from
+
+Return ONLY valid JSON, no other text.`
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1500,
+        messages: [{
+          role: 'user',
+          content: ragPrompt
+        }]
+      })
+    })
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error('[AI Agent] RAG analysis API error:', errorText)
+      return flags
+    }
+
+    const data = await response.json()
+    const responseText = data.content?.[0]?.text || '[]'
+
+    // Parse the JSON response
+    let violations: any[] = []
+    try {
+      const cleanedText = responseText.replace(/```json|```/g, '').trim()
+      violations = JSON.parse(cleanedText)
+    } catch (parseErr) {
+      console.error('[AI Agent] Failed to parse RAG response:', parseErr)
+      return flags
+    }
+
+    // Convert violations to flags
+    for (const v of violations) {
+      const flagType: FlagType = v.field?.toLowerCase().includes('coating')
+        ? 'COATING_VIOLATION'
+        : v.field?.toLowerCase().includes('procedure') || v.field?.toLowerCase().includes('wps')
+          ? 'PROCEDURE_VIOLATION'
+          : 'SPEC_VIOLATION'
+
+      flags.push({
+        type: flagType,
+        severity: v.severity === 'critical' ? 'critical' : 'warning',
+        ticket_id: ticket.id,
+        ticket_date: ticket.date,
+        activity_type: ticket.activity_blocks?.[0]?.activityType,
+        contractor: ticket.activity_blocks?.[0]?.contractor,
+        message: v.message || `${v.field} violation: recorded ${v.recorded_value}, spec requires ${v.spec_requirement}`,
+        details: {
+          field: v.field,
+          recorded_value: v.recorded_value,
+          spec_requirement: v.spec_requirement,
+          violation_type: v.violation_type,
+          source_documents: relevantDocs.map(d => d.document_name).slice(0, 3)
+        }
+      })
+    }
+
+    console.log(`[AI Agent] RAG analysis found ${flags.length} spec violations`)
+    return flags
+
+  } catch (err) {
+    console.error('[AI Agent] RAG analysis error:', err)
+    return flags
   }
 }
