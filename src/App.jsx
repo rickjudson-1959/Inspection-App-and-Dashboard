@@ -133,54 +133,54 @@ function OrgRoutes() {
     <Routes>
       {/* Field Entry - Inspector */}
       <Route path="field-entry" element={
-        <ProtectedRoute allowedRoles={['inspector', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['inspector', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <InspectorReport />
         </ProtectedRoute>
       } />
 
       {/* NDT Auditor */}
       <Route path="ndt-auditor" element={
-        <ProtectedRoute allowedRoles={['ndt_auditor', 'chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['ndt_auditor', 'chief', 'chief_inspector', 'admin', 'super_admin']}>
           <NDTAuditorDashboard />
         </ProtectedRoute>
       } />
 
       {/* Auditor Dashboard */}
       <Route path="auditor-dashboard" element={
-        <ProtectedRoute allowedRoles={['ndt_auditor', 'chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['ndt_auditor', 'chief', 'chief_inspector', 'admin', 'super_admin']}>
           <AuditorDashboard />
         </ProtectedRoute>
       } />
 
       {/* Assistant Chief */}
       <Route path="assistant-chief" element={
-        <ProtectedRoute allowedRoles={['asst_chief', 'chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['asst_chief', 'chief', 'chief_inspector', 'admin', 'super_admin']}>
           <AssistantChiefDashboard />
         </ProtectedRoute>
       } />
 
       {/* Chief Dashboard */}
       <Route path="chief-dashboard" element={
-        <ProtectedRoute allowedRoles={['chief', 'asst_chief', 'cm', 'pm', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['chief', 'chief_inspector', 'asst_chief', 'cm', 'pm', 'admin', 'super_admin']}>
           <ChiefDashboard />
         </ProtectedRoute>
       } />
 
       {/* Chief Construction Summary (EGP Legacy Format) */}
       <Route path="chief-summary" element={
-        <ProtectedRoute allowedRoles={['chief', 'asst_chief', 'cm', 'pm', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['chief', 'chief_inspector', 'asst_chief', 'cm', 'pm', 'admin', 'super_admin']}>
           <ChiefConstructionSummary />
         </ProtectedRoute>
       } />
 
       {/* CMT Dashboard - also accessible via /dashboard alias */}
       <Route path="cmt-dashboard" element={
-        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'asst_chief', 'exec', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'chief_inspector', 'asst_chief', 'exec', 'admin', 'super_admin']}>
           <Dashboard />
         </ProtectedRoute>
       } />
       <Route path="dashboard" element={
-        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'asst_chief', 'exec', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'chief_inspector', 'asst_chief', 'exec', 'admin', 'super_admin']}>
           <Dashboard />
         </ProtectedRoute>
       } />
@@ -201,70 +201,70 @@ function OrgRoutes() {
 
       {/* Inspector Profile View */}
       <Route path="inspector-profile/:id" element={
-        <ProtectedRoute allowedRoles={['admin', 'super_admin', 'chief', 'asst_chief']}>
+        <ProtectedRoute allowedRoles={['admin', 'super_admin', 'chief', 'chief_inspector', 'asst_chief']}>
           <InspectorProfileView />
         </ProtectedRoute>
       } />
 
       {/* Reconciliation Dashboard */}
       <Route path="reconciliation" element={
-        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <ReconciliationDashboard />
         </ProtectedRoute>
       } />
 
       {/* Change Management */}
       <Route path="changes" element={
-        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <ChangeManagement />
         </ProtectedRoute>
       } />
 
       {/* Reports Page */}
       <Route path="reports" element={
-        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <ReportsPage />
         </ProtectedRoute>
       } />
 
       {/* Contractor LEMs */}
       <Route path="contractor-lems" element={
-        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <ContractorLEMs />
         </ProtectedRoute>
       } />
 
       {/* Report Viewer */}
       <Route path="report" element={
-        <ProtectedRoute allowedRoles={['inspector', 'cm', 'pm', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['inspector', 'cm', 'pm', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <ReportViewer />
         </ProtectedRoute>
       } />
 
       {/* Inspector App */}
       <Route path="inspector" element={
-        <ProtectedRoute allowedRoles={['inspector', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['inspector', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <InspectorApp />
         </ProtectedRoute>
       } />
 
       {/* My Reports */}
       <Route path="my-reports" element={
-        <ProtectedRoute allowedRoles={['inspector', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['inspector', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <InspectorApp />
         </ProtectedRoute>
       } />
 
       {/* Report Edit */}
       <Route path="report/edit/:reportId" element={
-        <ProtectedRoute allowedRoles={['inspector', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['inspector', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <InspectorApp />
         </ProtectedRoute>
       } />
 
       {/* Inspector Invoicing */}
       <Route path="inspector-invoicing" element={
-        <ProtectedRoute allowedRoles={['inspector', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['inspector', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <InspectorInvoicingDashboard />
         </ProtectedRoute>
       } />
@@ -278,21 +278,21 @@ function OrgRoutes() {
 
       {/* Timesheet Editor */}
       <Route path="timesheet" element={
-        <ProtectedRoute allowedRoles={['inspector', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['inspector', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <TimesheetEditor />
         </ProtectedRoute>
       } />
 
       {/* Timesheet Review */}
       <Route path="timesheet-review" element={
-        <ProtectedRoute allowedRoles={['chief', 'asst_chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <TimesheetReview />
         </ProtectedRoute>
       } />
 
       {/* Reference Library */}
       <Route path="reference-library" element={
-        <ProtectedRoute allowedRoles={['inspector', 'chief', 'asst_chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['inspector', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <ReferenceLibrary />
         </ProtectedRoute>
       } />

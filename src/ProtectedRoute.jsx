@@ -38,6 +38,11 @@ export const ROLE_CONFIG = {
     displayName: 'Chief Inspector',
     canAccess: ['chief-dashboard', 'cmt-dashboard', 'auditor-dashboard', 'ndt-auditor', 'field-entry', 'inspector-profile', 'chief-summary', 'dashboard']
   },
+  chief_inspector: {
+    landingPage: '/chief-dashboard',
+    displayName: 'Chief Inspector',
+    canAccess: ['chief-dashboard', 'cmt-dashboard', 'auditor-dashboard', 'ndt-auditor', 'field-entry', 'inspector-profile', 'chief-summary', 'dashboard']
+  },
   asst_chief: {
     landingPage: '/assistant-chief',
     displayName: 'Assistant Chief Inspector',
