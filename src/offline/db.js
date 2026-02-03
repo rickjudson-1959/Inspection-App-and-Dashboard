@@ -41,11 +41,45 @@ export async function initDB() {
 
 // Get the database instance
 let dbInstance = null
+let dbPromise = null
+
 export async function getDB() {
-  if (!dbInstance) {
-    dbInstance = await initDB()
+  // If we have a cached instance, verify it's still open
+  if (dbInstance) {
+    try {
+      // Test if the connection is still valid by checking objectStoreNames
+      // This will throw if the connection is closed
+      if (dbInstance.objectStoreNames.length >= 0) {
+        return dbInstance
+      }
+    } catch (e) {
+      // Connection is closed, clear the cache
+      dbInstance = null
+      dbPromise = null
+    }
   }
-  return dbInstance
+
+  // Prevent multiple simultaneous init calls
+  if (!dbPromise) {
+    dbPromise = initDB().then(db => {
+      dbInstance = db
+      return db
+    }).catch(err => {
+      dbPromise = null
+      throw err
+    })
+  }
+
+  return dbPromise
+}
+
+// Close and reset the database connection (useful for cleanup)
+export async function closeDB() {
+  if (dbInstance) {
+    dbInstance.close()
+    dbInstance = null
+    dbPromise = null
+  }
 }
 
 // =====================

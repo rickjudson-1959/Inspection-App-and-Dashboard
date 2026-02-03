@@ -69,7 +69,13 @@ export function useSyncStatus() {
       const reports = await getPendingReports()
       setPendingReports(reports)
     } catch (error) {
-      console.error('Error fetching pending count:', error)
+      // Only log if it's not a database closing error (common during navigation)
+      if (!error?.message?.includes('database connection is closing')) {
+        console.error('Error fetching pending count:', error)
+      }
+      // Reset counts on error to avoid stale data
+      setPendingCount(0)
+      setPendingReports([])
     }
   }, [])
 
