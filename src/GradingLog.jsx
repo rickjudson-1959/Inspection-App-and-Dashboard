@@ -5,9 +5,9 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
   const [showSoftSpots, setShowSoftSpots] = useState(data?.softSpots?.enabled || false)
   const [showCrossings, setShowCrossings] = useState(data?.crossings?.enabled || false)
   
-  // Collapsible section states
+  // Collapsible section states - ROW Conditions expanded by default for immediate data entry
   const [expandedSections, setExpandedSections] = useState({
-    rowConditions: false,
+    rowConditions: true,
     pileSeparation: false,
     topsoilStatus: false,
     drainage: false,

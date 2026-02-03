@@ -59,9 +59,9 @@ export const ROLE_CONFIG = {
     canAccess: ['welding-chief', 'chief-dashboard', 'auditor-dashboard', 'ndt-auditor', 'field-entry', 'inspector-profile', 'chief-summary', 'dashboard']
   },
   inspector: {
-    landingPage: '/field-entry',
+    landingPage: '/inspector',
     displayName: 'Field Inspector',
-    canAccess: ['field-entry']
+    canAccess: ['inspector', 'field-entry', 'inspector-invoicing', 'timesheet', 'my-reports', 'reference-library']
   },
   super_admin: {
     landingPage: '/admin',
