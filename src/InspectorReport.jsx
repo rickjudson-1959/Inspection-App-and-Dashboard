@@ -1665,9 +1665,14 @@ Important:
 
   // Fetch cumulative meters from previous reports for this activity type
   async function fetchPreviousMeters(blockId, activityType) {
+    // Skip if pipeline not yet selected
+    if (!pipeline) {
+      return
+    }
+
     try {
       const { data, error } = await supabase
-        .from('inspector_reports')
+        .from('daily_tickets')
         .select('activities, date')
         .eq('pipeline', pipeline)
         .order('date', { ascending: false })
