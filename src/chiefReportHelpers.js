@@ -53,7 +53,7 @@ export async function fetchProjectBaselines(organizationId = null) {
 }
 
 /**
- * Calculate cumulative progress from all daily_tickets up to a given date
+ * Calculate cumulative progress from all daily_reports up to a given date
  * @param {string} upToDate - Date to calculate progress up to
  * @param {string} organizationId - Optional organization ID for multi-tenant filtering
  */
@@ -61,7 +61,7 @@ export async function calculateCumulativeProgress(upToDate, organizationId = nul
   try {
     // Fetch all reports up to and including the date
     let query = supabase
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('id, date, activity_blocks')
       .lte('date', upToDate)
       .order('date', { ascending: true })
@@ -110,7 +110,7 @@ export async function calculateCumulativeProgress(upToDate, organizationId = nul
 export async function calculateDailyProgress(reportDate, organizationId = null) {
   try {
     let query = supabase
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('id, date, activity_blocks, spread')
       .eq('date', reportDate)
 
@@ -174,7 +174,7 @@ export async function calculateMTDProgress(year, month, organizationId = null) {
     const endOfMonth = new Date(year, month, 0).toISOString().split('T')[0]
 
     let query = supabase
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('id, date, activity_blocks')
       .gte('date', startOfMonth)
       .lte('date', endOfMonth)
@@ -276,7 +276,7 @@ export async function fetchApprovedReportsForDate(reportDate, organizationId = n
     // Get all reports for this date - Chief should see all reports regardless of status
     // We'll filter out only rejected reports in the UI if needed
     let mainQuery = supabase
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('*')
       .eq('date', reportDate)
       .order('created_at', { ascending: false })
@@ -288,10 +288,10 @@ export async function fetchApprovedReportsForDate(reportDate, organizationId = n
     const { data: allReports, error: allError } = await mainQuery
 
     if (allError) {
-      console.error('❌ Error fetching daily_tickets:', allError)
+      console.error('❌ Error fetching daily_reports:', allError)
       // Try a different query format in case date column type is different
       let altQuery = supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('*')
         .like('date', `${reportDate}%`)
         .order('created_at', { ascending: false })
@@ -372,7 +372,7 @@ export async function fetchApprovedReportsForDate(reportDate, organizationId = n
       console.log('⚠️ No reports found for date. Checking if any reports exist...')
       // Debug: Check if there are ANY reports in the table
       const { data: anyReports, error: anyError } = await supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('id, date, inspector_name')
         .order('date', { ascending: false })
         .limit(5)

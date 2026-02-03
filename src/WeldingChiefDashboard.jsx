@@ -200,7 +200,7 @@ function WeldingChiefDashboard() {
     try {
       // Fetch reports for selected date
       let query = supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('*')
         .eq('date', selectedDate)
         .order('created_at', { ascending: false })
@@ -237,7 +237,7 @@ function WeldingChiefDashboard() {
     try {
       // Fetch recent reports with welder testing data
       let query = supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('*')
         .order('date', { ascending: false })
         .limit(200)
@@ -259,7 +259,7 @@ function WeldingChiefDashboard() {
     try {
       // Fetch all data for the report date
       let query = supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('*')
         .eq('date', reportDate)
         .order('created_at', { ascending: false })
@@ -431,7 +431,7 @@ function WeldingChiefDashboard() {
               setLoadingAuditPanel(true)
               try {
                 const { data: ticket, error } = await supabase
-                  .from('daily_tickets')
+                  .from('daily_reports')
                   .select('*')
                   .eq('id', ticketId)
                   .single()
@@ -785,7 +785,7 @@ function WeldingChiefDashboard() {
                       onClick={async () => {
                         if (flag.ticket_id) {
                           const { data: ticket } = await supabase
-                            .from('daily_tickets')
+                            .from('daily_reports')
                             .select('*')
                             .eq('id', flag.ticket_id)
                             .single()

@@ -56,7 +56,7 @@ function ShadowAuditDashboard() {
     setLoading(true)
 
     let query = supabase
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('id, date, spread, inspector_name, activity_blocks')
       .gte('date', dateRange.start)
       .lte('date', dateRange.end)

@@ -303,7 +303,7 @@ export default function TimesheetEditor() {
       
       // Fetch daily tickets for this inspector in the date range
       const { data: tickets, error } = await supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('*')
         .eq('inspector_name', inspectorName)
         .gte('date', periodStart)

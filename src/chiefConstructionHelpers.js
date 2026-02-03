@@ -159,7 +159,7 @@ export async function aggregateProgressForLegacy(reports, reportDate) {
   let weeklyReports = []
   try {
     const { data } = await supabase
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('id, date, activity_blocks')
       .gte('date', weekStartStr)
       .lte('date', weekEndStr)
@@ -346,7 +346,7 @@ async function buildProgressToDate(reportDate) {
   let cumulativeData = {}
   try {
     const { data: allReports } = await supabase
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('activity_blocks')
       .lte('date', reportDate)
 
@@ -489,7 +489,7 @@ export async function aggregateWeldingForLegacy(reports, reportDate) {
   // Fetch previous totals
   try {
     const { data: previousReports } = await supabase
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('activity_blocks')
       .lt('date', reportDate)
 

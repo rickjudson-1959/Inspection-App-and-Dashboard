@@ -137,7 +137,7 @@ Supabase is your database - it stores all the actual data: user accounts, inspec
 | Table | Contains |
 |-------|----------|
 | `user_profiles` | User accounts and roles |
-| `daily_tickets` | Inspector reports |
+| `daily_reports` | Inspector reports |
 | `contractor_lems` | Contractor billing records |
 | `organizations` | Company/client information |
 | `projects` | Project details |
@@ -468,7 +468,7 @@ Claude remembers your conversation history. You can:
 
 ### Task: View All Inspection Reports
 
-1. Supabase → Table Editor → `daily_tickets`
+1. Supabase → Table Editor → `daily_reports`
 2. Use filters to narrow by date, inspector, project
 3. Click a row to see full details
 

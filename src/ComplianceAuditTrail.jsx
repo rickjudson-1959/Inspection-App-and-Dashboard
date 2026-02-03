@@ -128,7 +128,7 @@ export default function ComplianceAuditTrail() {
   async function fetchTotalReports() {
     try {
       let query = supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('*', { count: 'exact', head: true })
       query = addOrgFilter(query)
       const { count } = await query

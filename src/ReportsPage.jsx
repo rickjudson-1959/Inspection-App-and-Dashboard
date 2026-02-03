@@ -23,7 +23,7 @@ function ReportsPage() {
     setLoading(true)
     const { data, error } = await addOrgFilter(
       supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('*')
     ).order('date', { ascending: false })
     if (error) {

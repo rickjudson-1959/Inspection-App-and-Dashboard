@@ -167,7 +167,7 @@ function ChiefDashboard() {
       const { data: statusData } = await query
       const reportsWithData = []
       for (const status of (statusData || [])) {
-        let ticketQuery = supabase.from('daily_tickets').select('*').eq('id', status.report_id).single()
+        let ticketQuery = supabase.from('daily_reports').select('*').eq('id', status.report_id).single()
         const { data: ticket } = await ticketQuery
         if (ticket) reportsWithData.push({ ...status, ticket })
       }
@@ -182,7 +182,7 @@ function ChiefDashboard() {
       const { data: statusData } = await query
       const reportsWithData = []
       for (const status of (statusData || [])) {
-        const { data: ticket } = await supabase.from('daily_tickets').select('*').eq('id', status.report_id).single()
+        const { data: ticket } = await supabase.from('daily_reports').select('*').eq('id', status.report_id).single()
         if (ticket) reportsWithData.push({ ...status, ticket })
       }
       setApprovedReports(reportsWithData)
@@ -196,7 +196,7 @@ function ChiefDashboard() {
       const { data: statusData } = await query
       const reportsWithData = []
       for (const status of (statusData || [])) {
-        const { data: ticket } = await supabase.from('daily_tickets').select('*').eq('id', status.report_id).single()
+        const { data: ticket } = await supabase.from('daily_reports').select('*').eq('id', status.report_id).single()
         if (ticket) reportsWithData.push({ ...status, ticket })
       }
       setRejectedReports(reportsWithData)
@@ -820,7 +820,7 @@ function ChiefDashboard() {
     setGalleryLoading(true)
     try {
       let galleryQuery = supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('id, date, inspector_name, activity_blocks, photos')
         .order('date', { ascending: false })
         .limit(50)
@@ -869,7 +869,7 @@ function ChiefDashboard() {
     try {
       const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
       let personnelQuery = supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('id, date, personnel, inspector_name, spread')
         .gte('date', thirtyDaysAgo)
       personnelQuery = addOrgFilter(personnelQuery)
@@ -1006,7 +1006,7 @@ function ChiefDashboard() {
               setLoadingAuditPanel(true)
               try {
                 const { data: ticket, error } = await supabase
-                  .from('daily_tickets')
+                  .from('daily_reports')
                   .select('*')
                   .eq('id', ticketId)
                   .single()

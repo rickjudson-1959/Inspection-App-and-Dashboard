@@ -1033,7 +1033,7 @@ Important:
   async function fetchExistingChainages() {
     try {
       let query = supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('id, date, activity_blocks')
 
       // Add organization filter
@@ -1252,7 +1252,7 @@ Important:
     try {
       // Fetch existing reports
       const { data: existingReports, error } = await supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('date, spread, activity_blocks')
         .neq('date', selectedDate) // Exclude current date
 
@@ -1387,7 +1387,7 @@ Important:
         
         // First try: fetch ALL reports without filter to check RLS
         const { data: allData, error: allError } = await supabase
-          .from('daily_tickets')
+          .from('daily_reports')
           .select('id, date, spread, pipeline, inspector_name, activity_blocks')
           .order('date', { ascending: false })
           .limit(100)
@@ -1461,7 +1461,7 @@ Important:
       setLoadingReport(true)
       try {
         const { data: report, error } = await supabase
-          .from('daily_tickets')
+          .from('daily_reports')
           .select('*')
           .eq('id', editReportId)
           .single()
@@ -1672,7 +1672,7 @@ Important:
 
     try {
       const { data, error } = await supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('activities, date')
         .eq('pipeline', pipeline)
         .order('date', { ascending: false })
@@ -2641,7 +2641,7 @@ Important:
         console.log('Report data to save:', reportData)
         
         const { data: updateData, error: updateError, count } = await supabase
-          .from('daily_tickets')
+          .from('daily_reports')
           .update(reportData)
           .eq('id', currentReportId)
           .select()
@@ -2708,7 +2708,7 @@ Important:
 
       } else {
         // ==================== CREATE MODE ====================
-        const { data: insertedTicket, error: dbError } = await supabase.from('daily_tickets').insert([reportData]).select('id').single()
+        const { data: insertedTicket, error: dbError } = await supabase.from('daily_reports').insert([reportData]).select('id').single()
 
         if (dbError) throw dbError
 
@@ -5729,7 +5729,7 @@ Important:
 
           // Update report record with PDF info
           await supabase
-            .from('daily_tickets')
+            .from('daily_reports')
             .update({
               pdf_hash: pdfHash,
               pdf_storage_url: pdfStorageUrl,
@@ -5790,7 +5790,7 @@ Important:
   async function exportMasterProduction() {
     // Fetch all reports from database
     const { data: reports, error } = await supabase
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('*')
       .order('date', { ascending: true })
 

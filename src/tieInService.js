@@ -3,7 +3,7 @@ import { supabase } from './supabase'
 /**
  * Save tie-in data to Supabase
  * @param {Array} tieIns - Array of tie-in objects from TieInWeldData component
- * @param {number} ticketId - The daily_tickets ID to link to
+ * @param {number} ticketId - The daily_reports ID to link to
  * @param {UUID} organizationId - The organization ID for multi-tenant support
  * @returns {Object} { success: boolean, error?: string, savedIds?: string[] }
  */
@@ -122,7 +122,7 @@ export async function saveTieInTicket(tieIns, ticketId, organizationId = null) {
 
 /**
  * Load tie-in data from Supabase
- * @param {number} ticketId - The daily_tickets ID to load from
+ * @param {number} ticketId - The daily_reports ID to load from
  * @returns {Array} Array of tie-in objects matching component state structure
  */
 export async function loadTieInTicket(ticketId) {

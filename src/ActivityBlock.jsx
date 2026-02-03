@@ -501,7 +501,7 @@ function ActivityBlock({
         // Fetch all previous reports (org-scoped)
         const { data: reports, error } = await addOrgFilter(
           supabase
-            .from('daily_tickets')
+            .from('daily_reports')
             .select('activity_blocks, date')
             .lt('date', selectedDate)
         ).order('date', { ascending: false })

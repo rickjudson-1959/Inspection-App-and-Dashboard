@@ -296,7 +296,7 @@ function Dashboard({ onBackToReport }) {
 
     try {
       let query = supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('*')
         .gte('date', startDate.toISOString().split('T')[0])
         .order('date', { ascending: true })

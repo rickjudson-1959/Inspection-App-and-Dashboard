@@ -101,7 +101,7 @@ export default function ReconciliationDashboard() {
     lemsQuery = addOrgFilter(lemsQuery)
     const { data: lems } = await lemsQuery.order('date', { ascending: false })
 
-    let reportsQuery = supabase.from('daily_tickets').select('*')
+    let reportsQuery = supabase.from('daily_reports').select('*')
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0])
       .order('date', { ascending: false })

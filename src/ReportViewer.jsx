@@ -39,7 +39,7 @@ function ReportViewer() {
       
       // Load main report (with org filter for security)
       let reportQuery = supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('*')
         .eq('id', reportId)
       reportQuery = addOrgFilter(reportQuery)

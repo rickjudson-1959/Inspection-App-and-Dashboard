@@ -446,7 +446,7 @@ function EVMDashboard() {
 
         const { data: reports, error } = await addOrgFilter(
           supabase
-            .from('daily_tickets')
+            .from('daily_reports')
             .select('date, spread, activity_blocks')
             .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
         ).lte('date', asOfDate)

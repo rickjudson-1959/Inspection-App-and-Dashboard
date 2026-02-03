@@ -40,7 +40,7 @@ class ChainageCacheManager {
     try {
       // Fetch last N reports with chainage data
       const { data: reports, error } = await supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('date, spread, activity_blocks')
         .order('date', { ascending: false })
         .limit(MAX_REPORTS_TO_FETCH)

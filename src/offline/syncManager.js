@@ -260,7 +260,7 @@ class SyncManager {
 
       // Insert report to database (with organization_id from saved report data)
       const { data, error } = await supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .insert({
           date: report.reportData.date,
           spread: report.reportData.spread,
@@ -326,7 +326,7 @@ class SyncManager {
   // Check for existing report with same date/inspector/spread (within same org)
   async checkForConflict(reportData) {
     let query = supabase
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('id, date, spread, inspector_name, created_at')
       .eq('date', reportData.date)
       .eq('spread', reportData.spread)
@@ -451,7 +451,7 @@ class SyncManager {
     if (resolution === 'keep_local') {
       // Update the existing server record (with org filter for security)
       let findQuery = supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('id')
         .eq('date', report.reportData.date)
         .eq('spread', report.reportData.spread)
@@ -466,7 +466,7 @@ class SyncManager {
 
       if (existing) {
         // Delete existing and insert new (scoped to same org via the query above)
-        await supabase.from('daily_tickets').delete().eq('id', existing.id)
+        await supabase.from('daily_reports').delete().eq('id', existing.id)
       }
 
       // Reset status and retry sync

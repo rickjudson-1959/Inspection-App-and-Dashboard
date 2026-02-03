@@ -1,5 +1,5 @@
 // evmCalculations.js - Earned Value Management Calculations
-// Integrates project_baselines with daily_tickets for real-time EVM metrics
+// Integrates project_baselines with daily_reports for real-time EVM metrics
 
 import { supabase } from './supabase'
 
@@ -88,13 +88,13 @@ export async function fetchBaselineSummary() {
 // =====================================================
 
 /**
- * Aggregate actual production from daily_tickets
+ * Aggregate actual production from daily_reports
  */
 export async function fetchActualProduction(filters = {}) {
   const { startDate, endDate, spread, activityType } = filters
 
   let query = supabase
-    .from('daily_tickets')
+    .from('daily_reports')
     .select('*')
     .order('date')
 

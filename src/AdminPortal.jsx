@@ -313,7 +313,7 @@ function AdminPortal() {
     const thirtyDaysAgo = new Date()
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
     let reportsQuery = supabase
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('id, date, spread, activity_blocks')
       .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
       .order('date', { ascending: false })
@@ -494,7 +494,7 @@ function AdminPortal() {
       const reportsWithData = []
       for (const status of (statusData || [])) {
         const { data: ticket } = await supabase
-          .from('daily_tickets')
+          .from('daily_reports')
           .select('*')
           .eq('id', status.report_id)
           .single()
@@ -666,7 +666,7 @@ function AdminPortal() {
     setLoadingReports(true)
     try {
       let reportsQuery = supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('id, date, inspector_name, spread, pipeline, activity_blocks, pdf_hash, pdf_storage_url, pdf_document_id, pdf_generated_at')
         .order('date', { ascending: false })
         .limit(100)
@@ -735,9 +735,9 @@ function AdminPortal() {
 
       // For each org, get ticket and report counts plus last activity
       const statsPromises = orgs.map(async (org) => {
-        // Count daily_tickets
+        // Count daily_reports
         const { count: ticketCount } = await supabase
-          .from('daily_tickets')
+          .from('daily_reports')
           .select('*', { count: 'exact', head: true })
           .eq('organization_id', org.id)
 
@@ -747,9 +747,9 @@ function AdminPortal() {
           .select('*', { count: 'exact', head: true })
           .eq('organization_id', org.id)
 
-        // Get most recent activity from daily_tickets
+        // Get most recent activity from daily_reports
         const { data: lastTicket } = await supabase
-          .from('daily_tickets')
+          .from('daily_reports')
           .select('created_at')
           .eq('organization_id', org.id)
           .order('created_at', { ascending: false })
@@ -1796,7 +1796,7 @@ function AdminPortal() {
 
       // Fetch daily tickets count
       const { count: ticketCount } = await supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', orgId)
 
@@ -2014,7 +2014,7 @@ function AdminPortal() {
       // Fetch and add daily tickets
       setHandoverProgress('Fetching field reports...')
       const { data: tickets } = await supabase
-        .from('daily_tickets')
+        .from('daily_reports')
         .select('*')
         .eq('organization_id', selectedOrgForHandover)
         .order('date', { ascending: true })
@@ -2362,7 +2362,7 @@ function AdminPortal() {
         .from('inspector_timesheet_items')
         .select(`
           *,
-          daily_tickets:daily_ticket_id (date, spread, activity_blocks)
+          daily_reports:daily_ticket_id (date, spread, activity_blocks)
         `)
         .eq('timesheet_id', timesheet.id)
         .order('work_date', { ascending: true })
@@ -2672,7 +2672,7 @@ function AdminPortal() {
     const PROJECT_SHORT = "CWP"
     
     const { data: reports, error } = await supabase
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('*')
       .order('date', { ascending: true })
 
@@ -2869,7 +2869,7 @@ function AdminPortal() {
               try {
                 // Fetch the ticket details
                 const { data: ticket, error } = await supabase
-                  .from('daily_tickets')
+                  .from('daily_reports')
                   .select('*')
                   .eq('id', ticketId)
                   .single()

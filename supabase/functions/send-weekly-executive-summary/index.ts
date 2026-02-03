@@ -71,7 +71,7 @@ serve(async (req) => {
 
     // Aggregate weekly data
     const { data: reports, error: reportsError } = await supabase
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('*')
       .gte('date', startDate)
       .lte('date', endDate)

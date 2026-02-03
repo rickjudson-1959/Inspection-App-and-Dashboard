@@ -1,7 +1,7 @@
 // ============================================================================
 // PIPE-UP AI AGENT - TICKET ANALYSIS EDGE FUNCTION
 // February 1, 2026
-// Analyzes daily_tickets against contract_config rules and flags anomalies
+// Analyzes daily_reports against contract_config rules and flags anomalies
 // Now includes RAG-based document retrieval for spec compliance validation
 // ============================================================================
 
@@ -138,7 +138,7 @@ serve(async (req: Request) => {
     // 2. FETCH DAILY TICKETS TO ANALYZE
     // =========================================================================
     let ticketsQuery = supabase
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('*')
       .eq('organization_id', organization_id)
       .order('date', { ascending: false })

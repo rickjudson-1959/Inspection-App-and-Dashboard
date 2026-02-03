@@ -87,7 +87,7 @@ export default function WeeklyExecutiveSummary({ projectName = 'FortisBC EGP Pro
       // Fetch all reports from the last 7 days (org-scoped)
       const { data: reports, error: fetchError } = await addOrgFilter(
         supabase
-          .from('daily_tickets')
+          .from('daily_reports')
           .select('*')
           .gte('date', startDate)
           .lte('date', endDate)

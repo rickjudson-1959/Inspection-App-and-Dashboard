@@ -1876,7 +1876,7 @@ function AssistantChiefDashboard() {
                 setLoadingAuditPanel(true)
                 try {
                   const { data: ticket, error } = await supabase
-                    .from('daily_tickets')
+                    .from('daily_reports')
                     .select('*')
                     .eq('id', ticketId)
                     .single()

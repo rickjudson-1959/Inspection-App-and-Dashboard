@@ -16,17 +16,17 @@ const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
  * @returns {Array} Array of welder stats: { welderId, welderName, totalWelds, repairs, repairRate }
  */
 export async function aggregateWelderStats(supabaseClient, orgId, dateRange = null) {
-  // Use daily_tickets directly (weld_book table may not exist)
+  // Use daily_reports directly (weld_book table may not exist)
   return await aggregateWelderStatsFromTickets(supabaseClient, orgId, dateRange)
 }
 
 /**
- * Fallback: Aggregate welder stats from daily_tickets activity_blocks
+ * Fallback: Aggregate welder stats from daily_reports activity_blocks
  */
 async function aggregateWelderStatsFromTickets(supabaseClient, orgId, dateRange = null) {
   try {
     let query = supabaseClient
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('id, date, activity_blocks')
 
     if (orgId) {
@@ -281,7 +281,7 @@ export function getWeldingAIFlags(aiLogs) {
 }
 
 /**
- * Extract welder certifications from WelderTestingLog data in daily_tickets
+ * Extract welder certifications from WelderTestingLog data in daily_reports
  * @param {Array} reports - Array of daily_ticket reports
  * @returns {Array} Certification data: { welderName, projectId, qualDate, status, ... }
  */
@@ -400,7 +400,7 @@ export async function getDailyWeldSummary(supabaseClient, orgId, date) {
   try {
     // Fetch reports for the date
     let ticketQuery = supabaseClient
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('id, date, activity_blocks')
       .eq('date', date)
 
@@ -464,14 +464,14 @@ export async function getDailyWeldSummary(supabaseClient, orgId, date) {
  * @returns {Object} Cumulative stats
  */
 export async function getCumulativeWeldStats(supabaseClient, orgId) {
-  // Use daily_tickets directly (weld_book table may not exist)
+  // Use daily_reports directly (weld_book table may not exist)
   return await getCumulativeWeldStatsFromTickets(supabaseClient, orgId)
 }
 
 async function getCumulativeWeldStatsFromTickets(supabaseClient, orgId) {
   try {
     let query = supabaseClient
-      .from('daily_tickets')
+      .from('daily_reports')
       .select('activity_blocks')
 
     if (orgId) {
