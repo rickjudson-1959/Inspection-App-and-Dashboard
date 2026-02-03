@@ -1153,11 +1153,12 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           </select>
         ) : (
           <input
-            type={field.type}
+            type={field.type === 'number' ? 'text' : field.type}
+            inputMode={field.type === 'number' ? 'decimal' : undefined}
             value={
               // For To Date fields, calculate dynamically
-              field.name === 'parallelHolesToDate' 
-                ? (block.qualityData.parallelHolesToday 
+              field.name === 'parallelHolesToDate'
+                ? (block.qualityData.parallelHolesToday
                     ? (parseFloat(block.qualityData.parallelHolesToday) || 0) + (parseFloat(block.qualityData.parallelHolesPrevious) || 0)
                     : '')
                 : field.name === 'crossingHolesToDate'
