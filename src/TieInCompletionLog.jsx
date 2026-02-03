@@ -460,7 +460,8 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
           <div>
             <label style={labelStyle}>Padding Depth (mm)</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={tieInData.backfill.paddingDepth}
               onFocus={() => handleNestedFieldFocus('backfill', 'paddingDepth', tieInData.backfill.paddingDepth)}
               onChange={(e) => updateBackfill('paddingDepth', e.target.value)}
@@ -472,7 +473,8 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
           <div>
             <label style={labelStyle}>Lift Thickness (mm)</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={tieInData.backfill.liftThickness}
               onFocus={() => handleNestedFieldFocus('backfill', 'liftThickness', tieInData.backfill.liftThickness)}
               onChange={(e) => updateBackfill('liftThickness', e.target.value)}
@@ -484,7 +486,8 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
           <div>
             <label style={labelStyle}>Number of Lifts</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={tieInData.backfill.numberOfLifts}
               onFocus={() => handleNestedFieldFocus('backfill', 'numberOfLifts', tieInData.backfill.numberOfLifts)}
               onChange={(e) => updateBackfill('numberOfLifts', e.target.value)}
@@ -1142,8 +1145,8 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                   <div>
                     <label style={labelStyle}>Our Pipe Depth (m)</label>
                     <input
-                      type="number"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={crossing.ourPipeDepth}
                       onFocus={() => handleEntryFieldFocus(crossing.id, 'ourPipeDepth', crossing.ourPipeDepth)}
                       onChange={(e) => updateThirdPartyCrossing(crossing.id, 'ourPipeDepth', e.target.value)}
@@ -1155,8 +1158,8 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                   <div>
                     <label style={labelStyle}>3rd Party Depth (m)</label>
                     <input
-                      type="number"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={crossing.thirdPartyDepth}
                       onFocus={() => handleEntryFieldFocus(crossing.id, 'thirdPartyDepth', crossing.thirdPartyDepth)}
                       onChange={(e) => updateThirdPartyCrossing(crossing.id, 'thirdPartyDepth', e.target.value)}
@@ -1168,8 +1171,8 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                   <div>
                     <label style={labelStyle}>Separation Distance (m)</label>
                     <input
-                      type="number"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={crossing.separationDistance}
                       onFocus={() => handleEntryFieldFocus(crossing.id, 'separationDistance', crossing.separationDistance)}
                       onChange={(e) => updateThirdPartyCrossing(crossing.id, 'separationDistance', e.target.value)}
@@ -1181,8 +1184,8 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                   <div>
                     <label style={labelStyle}>Minimum Required (m)</label>
                     <input
-                      type="number"
-                      step="0.01"
+                      type="text"
+                      inputMode="decimal"
                       value={crossing.minimumRequired}
                       onFocus={() => handleEntryFieldFocus(crossing.id, 'minimumRequired', crossing.minimumRequired)}
                       onChange={(e) => updateThirdPartyCrossing(crossing.id, 'minimumRequired', e.target.value)}
@@ -1422,8 +1425,8 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                     <div>
                       <label style={labelStyle}>Depth (m)</label>
                       <input
-                        type="number"
-                        step="0.1"
+                        type="text"
+                        inputMode="decimal"
                         value={anode.depth}
                         onFocus={() => handleEntryFieldFocus(anode.id, 'depth', anode.depth)}
                         onChange={(e) => updateAnode(anode.id, 'depth', e.target.value)}
@@ -1435,7 +1438,8 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                     <div>
                       <label style={labelStyle}>Weight (kg)</label>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         value={anode.weight}
                         onFocus={() => handleEntryFieldFocus(anode.id, 'weight', anode.weight)}
                         onChange={(e) => updateAnode(anode.id, 'weight', e.target.value)}
@@ -1447,7 +1451,8 @@ function TieInCompletionLog({ data, onChange, contractor, foreman, reportDate, s
                     <div>
                       <label style={labelStyle}>Quantity</label>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         value={anode.quantity}
                         onFocus={() => handleEntryFieldFocus(anode.id, 'quantity', anode.quantity)}
                         onChange={(e) => updateAnode(anode.id, 'quantity', e.target.value)}

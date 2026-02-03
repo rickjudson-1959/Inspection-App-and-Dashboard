@@ -310,8 +310,8 @@ function DitchInspection({
           <div>
             <label style={labelStyle}>Trench Width (m)</label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={ditchData.trenchWidth}
               onFocus={() => handleFieldFocus('trenchWidth', ditchData.trenchWidth)}
               onChange={(e) => updateField('trenchWidth', e.target.value)}
@@ -323,8 +323,8 @@ function DitchInspection({
           <div>
             <label style={labelStyle}>Trench Depth (m)</label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={ditchData.trenchDepth}
               onFocus={() => handleFieldFocus('trenchDepth', ditchData.trenchDepth)}
               onChange={(e) => updateField('trenchDepth', e.target.value)}
@@ -336,8 +336,8 @@ function DitchInspection({
           <div>
             <label style={labelStyle}>Depth of Cover Required (m)</label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={ditchData.depthOfCoverRequired}
               onFocus={() => handleFieldFocus('depthOfCoverRequired', ditchData.depthOfCoverRequired)}
               onChange={(e) => updateField('depthOfCoverRequired', e.target.value)}
@@ -349,8 +349,8 @@ function DitchInspection({
           <div>
             <label style={labelStyle}>Depth of Cover Actual (m)</label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={ditchData.depthOfCoverActual}
               onFocus={() => handleFieldFocus('depthOfCoverActual', ditchData.depthOfCoverActual)}
               onChange={(e) => updateField('depthOfCoverActual', e.target.value)}
@@ -450,8 +450,8 @@ function DitchInspection({
                     <div>
                       <label style={labelStyle}>Padding/Bedding Metres</label>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={ditchData.paddingBeddingMeters}
                         onFocus={() => handleFieldFocus('paddingBeddingMeters', ditchData.paddingBeddingMeters)}
                         onChange={(e) => updateField('paddingBeddingMeters', e.target.value)}
@@ -597,8 +597,8 @@ function DitchInspection({
                 <div>
                   <label style={labelStyle}>Pumping Hours</label>
                   <input
-                    type="number"
-                    step="0.5"
+                    type="text"
+                    inputMode="decimal"
                     value={ditchData.waterManagement.pumpingHours}
                     onFocus={() => handleFieldFocus('pumpingHours', ditchData.waterManagement.pumpingHours)}
                     onChange={(e) => updateWaterManagement('pumpingHours', e.target.value)}
@@ -630,7 +630,8 @@ function DitchInspection({
                 <div>
                   <label style={labelStyle}>Filter Bag Count</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     value={ditchData.waterManagement.filterBagCount}
                     onFocus={() => handleFieldFocus('filterBagCount', ditchData.waterManagement.filterBagCount)}
                     onChange={(e) => updateWaterManagement('filterBagCount', e.target.value)}
@@ -731,8 +732,8 @@ function DitchInspection({
               <div>
                 <label style={labelStyle}>Groundwater Depth (m)</label>
                 <input
-                  type="number"
-                  step="0.1"
+                  type="text"
+                  inputMode="decimal"
                   value={ditchData.groundwaterDepth}
                   onFocus={() => handleFieldFocus('groundwaterDepth', ditchData.groundwaterDepth)}
                   onChange={(e) => updateField('groundwaterDepth', e.target.value)}

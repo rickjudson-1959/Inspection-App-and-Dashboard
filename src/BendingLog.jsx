@@ -290,7 +290,8 @@ export default function BendingLog({ blockId, reportId, onDataChange, existingDa
           <div>
             <label style={labelStyle}>Bends Today</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={bendsToday}
               onChange={(e) => setBendsToday(parseInt(e.target.value) || 0)}
               style={{ ...inputStyle, backgroundColor: '#e8f5e9', fontWeight: 'bold' }}
@@ -299,7 +300,8 @@ export default function BendingLog({ blockId, reportId, onDataChange, existingDa
           <div>
             <label style={labelStyle}>Bends Previous</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={bendsPrevious}
               readOnly
               style={{ ...inputStyle, backgroundColor: '#f5f5f5' }}
@@ -308,7 +310,8 @@ export default function BendingLog({ blockId, reportId, onDataChange, existingDa
           <div>
             <label style={labelStyle}>Total Bends</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={bendsToday + bendsPrevious}
               readOnly
               style={{ ...inputStyle, backgroundColor: '#c8e6c9', fontWeight: 'bold', fontSize: '16px' }}
@@ -406,8 +409,8 @@ export default function BendingLog({ blockId, reportId, onDataChange, existingDa
                       </td>
                       <td style={{ padding: '4px' }}>
                         <input
-                          type="number"
-                          step="0.1"
+                          type="text"
+                          inputMode="decimal"
                           value={entry.bendAngle}
                           onChange={(e) => updateBendEntry(entry.id, 'bendAngle', e.target.value)}
                           placeholder="0.0"
@@ -428,8 +431,8 @@ export default function BendingLog({ blockId, reportId, onDataChange, existingDa
                       </td>
                       <td style={{ padding: '4px' }}>
                         <input
-                          type="number"
-                          step="0.001"
+                          type="text"
+                          inputMode="decimal"
                           value={entry.dmax}
                           onChange={(e) => updateBendEntry(entry.id, 'dmax', e.target.value)}
                           placeholder="0.000"
@@ -438,8 +441,8 @@ export default function BendingLog({ blockId, reportId, onDataChange, existingDa
                       </td>
                       <td style={{ padding: '4px' }}>
                         <input
-                          type="number"
-                          step="0.001"
+                          type="text"
+                          inputMode="decimal"
                           value={entry.dmin}
                           onChange={(e) => updateBendEntry(entry.id, 'dmin', e.target.value)}
                           placeholder="0.000"

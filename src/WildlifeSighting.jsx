@@ -399,7 +399,8 @@ function WildlifeSighting({ data, onChange, inspectorName, reportDate }) {
                   <div>
                     <label style={labelStyle}>Number of Animals</label>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       value={sighting.numberOfAnimals}
                       onChange={(e) => updateSighting(sighting.id, 'numberOfAnimals', e.target.value)}
                       placeholder="Count"

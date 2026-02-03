@@ -316,7 +316,8 @@ function HydrovacLog({ data, onChange, logId, reportId }) {
               <td style={tdLabelStyle}>Parallel</td>
               <td style={tdStyle}>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={hydrovacData.holes.parallelToday}
                   onFocus={() => handleNestedFieldFocus('holes', 'parallelToday', hydrovacData.holes.parallelToday)}
                   onChange={(e) => updateHoles('parallelToday', e.target.value)}
@@ -327,7 +328,8 @@ function HydrovacLog({ data, onChange, logId, reportId }) {
               </td>
               <td style={tdStyle}>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={hydrovacData.holes.parallelPrevious}
                   onFocus={() => handleNestedFieldFocus('holes', 'parallelPrevious', hydrovacData.holes.parallelPrevious)}
                   onChange={(e) => updateHoles('parallelPrevious', e.target.value)}
@@ -349,7 +351,8 @@ function HydrovacLog({ data, onChange, logId, reportId }) {
               <td style={tdLabelStyle}>Crossing</td>
               <td style={tdStyle}>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={hydrovacData.holes.crossingToday}
                   onFocus={() => handleNestedFieldFocus('holes', 'crossingToday', hydrovacData.holes.crossingToday)}
                   onChange={(e) => updateHoles('crossingToday', e.target.value)}
@@ -360,7 +363,8 @@ function HydrovacLog({ data, onChange, logId, reportId }) {
               </td>
               <td style={tdStyle}>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   value={hydrovacData.holes.crossingPrevious}
                   onFocus={() => handleNestedFieldFocus('holes', 'crossingPrevious', hydrovacData.holes.crossingPrevious)}
                   onChange={(e) => updateHoles('crossingPrevious', e.target.value)}
@@ -539,8 +543,8 @@ function HydrovacLog({ data, onChange, logId, reportId }) {
                     </td>
                     <td style={tdStyle}>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={fac.depthM}
                         onFocus={() => handleEntryFieldFocus(fac.id, 'depthM', fac.depthM)}
                         onChange={(e) => updateFacility(fac.id, 'depthM', e.target.value)}

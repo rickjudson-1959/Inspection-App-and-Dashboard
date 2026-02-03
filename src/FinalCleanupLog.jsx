@@ -397,7 +397,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Target Depth (cm)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={inputStyle}
                 value={cleanupData.topsoilReplacement.targetDepthCm}
                 onFocus={() => handleNestedFieldFocus('topsoilReplacement', 'targetDepthCm', cleanupData.topsoilReplacement.targetDepthCm)}
@@ -409,7 +410,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Actual Replaced Depth (cm)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={inputStyle}
                 value={cleanupData.topsoilReplacement.actualReplacedDepthCm}
                 onFocus={() => handleNestedFieldFocus('topsoilReplacement', 'actualReplacedDepthCm', cleanupData.topsoilReplacement.actualReplacedDepthCm)}
@@ -567,8 +569,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Application Rate (kg/ha)</label>
               <input
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
                 style={inputStyle}
                 value={cleanupData.revegetation.applicationRateKgHa}
                 onFocus={() => handleNestedFieldFocus('revegetation', 'applicationRateKgHa', cleanupData.revegetation.applicationRateKgHa)}
@@ -580,8 +582,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Area Seeded (ha)</label>
               <input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 style={inputStyle}
                 value={cleanupData.revegetation.areaSeededHa}
                 onFocus={() => handleNestedFieldFocus('revegetation', 'areaSeededHa', cleanupData.revegetation.areaSeededHa)}
@@ -646,8 +648,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Rate (kg/ha)</label>
               <input
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
                 style={inputStyle}
                 value={cleanupData.revegetation.fertilizerRateKgHa}
                 onFocus={() => handleNestedFieldFocus('revegetation', 'fertilizerRateKgHa', cleanupData.revegetation.fertilizerRateKgHa)}
@@ -658,7 +660,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Bags Used</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={inputStyle}
                 value={cleanupData.revegetation.fertilizerBagsUsed}
                 onFocus={() => handleNestedFieldFocus('revegetation', 'fertilizerBagsUsed', cleanupData.revegetation.fertilizerBagsUsed)}
@@ -688,7 +691,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Linear Meters</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={inputStyle}
                 value={cleanupData.revegetation.mulchLinearMeters}
                 onFocus={() => handleNestedFieldFocus('revegetation', 'mulchLinearMeters', cleanupData.revegetation.mulchLinearMeters)}
@@ -820,7 +824,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div style={{ marginLeft: '20px', marginBottom: '10px' }}>
               <label style={{ fontSize: '12px', color: '#666' }}>Linear Meters</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={{ ...inputStyle, width: '120px' }}
                 value={cleanupData.permanentESC.permanentSiltFenceMeters}
                 onFocus={() => handleNestedFieldFocus('permanentESC', 'permanentSiltFenceMeters', cleanupData.permanentESC.permanentSiltFenceMeters)}
@@ -845,7 +850,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div style={{ marginLeft: '20px', marginBottom: '10px' }}>
               <label style={{ fontSize: '12px', color: '#666' }}>Count</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={{ ...inputStyle, width: '80px' }}
                 value={cleanupData.permanentESC.finalWaterBarsCount}
                 onFocus={() => handleNestedFieldFocus('permanentESC', 'finalWaterBarsCount', cleanupData.permanentESC.finalWaterBarsCount)}
@@ -870,7 +876,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div style={{ marginLeft: '20px', marginBottom: '10px' }}>
               <label style={{ fontSize: '12px', color: '#666' }}>Area (m²)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={{ ...inputStyle, width: '120px' }}
                 value={cleanupData.permanentESC.erosionControlBlanketM2}
                 onFocus={() => handleNestedFieldFocus('permanentESC', 'erosionControlBlanketM2', cleanupData.permanentESC.erosionControlBlanketM2)}
@@ -895,8 +902,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div style={{ marginLeft: '20px', marginBottom: '10px' }}>
               <label style={{ fontSize: '12px', color: '#666' }}>Volume (m³)</label>
               <input
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
                 style={{ ...inputStyle, width: '120px' }}
                 value={cleanupData.permanentESC.ripRapM3}
                 onFocus={() => handleNestedFieldFocus('permanentESC', 'ripRapM3', cleanupData.permanentESC.ripRapM3)}
@@ -921,7 +928,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div style={{ marginLeft: '20px', marginBottom: '10px' }}>
               <label style={{ fontSize: '12px', color: '#666' }}>Count</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={{ ...inputStyle, width: '80px' }}
                 value={cleanupData.permanentESC.checkDamsCount}
                 onFocus={() => handleNestedFieldFocus('permanentESC', 'checkDamsCount', cleanupData.permanentESC.checkDamsCount)}
@@ -1005,7 +1013,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
               <div>
                 <label style={{ fontSize: '12px', color: '#666' }}>Linear Meters</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   style={inputStyle}
                   value={cleanupData.assetRestoration.fenceLinearMeters}
                   onFocus={() => handleNestedFieldFocus('assetRestoration', 'fenceLinearMeters', cleanupData.assetRestoration.fenceLinearMeters)}
@@ -1031,7 +1040,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div style={{ marginLeft: '20px', marginBottom: '10px' }}>
               <label style={{ fontSize: '12px', color: '#666' }}>Number of Gates</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={{ ...inputStyle, width: '80px' }}
                 value={cleanupData.assetRestoration.gatesCount}
                 onFocus={() => handleNestedFieldFocus('assetRestoration', 'gatesCount', cleanupData.assetRestoration.gatesCount)}
@@ -1112,7 +1122,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
               <div style={{ marginTop: '5px' }}>
                 <label style={{ fontSize: '12px', color: '#666' }}>Total Markers Installed</label>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   style={{ ...inputStyle, width: '80px' }}
                   value={cleanupData.assetRestoration.markersCount}
                   onFocus={() => handleNestedFieldFocus('assetRestoration', 'markersCount', cleanupData.assetRestoration.markersCount)}
@@ -1259,8 +1270,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Seed Mix (kg)</label>
               <input
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
                 style={inputStyle}
                 value={cleanupData.trackableItems.seedMixKg}
                 onFocus={() => handleNestedFieldFocus('trackableItems', 'seedMixKg', cleanupData.trackableItems.seedMixKg)}
@@ -1271,7 +1282,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Fertilizer (bags)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={inputStyle}
                 value={cleanupData.trackableItems.fertilizerBags}
                 onFocus={() => handleNestedFieldFocus('trackableItems', 'fertilizerBags', cleanupData.trackableItems.fertilizerBags)}
@@ -1282,7 +1294,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Erosion Blanket (m²)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={inputStyle}
                 value={cleanupData.trackableItems.erosionBlanketM2}
                 onFocus={() => handleNestedFieldFocus('trackableItems', 'erosionBlanketM2', cleanupData.trackableItems.erosionBlanketM2)}
@@ -1293,7 +1306,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Silt Fence (m)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={inputStyle}
                 value={cleanupData.trackableItems.siltFenceMeters}
                 onFocus={() => handleNestedFieldFocus('trackableItems', 'siltFenceMeters', cleanupData.trackableItems.siltFenceMeters)}
@@ -1304,7 +1318,8 @@ function FinalCleanupLog({ data, onChange, contractor, foreman, reportDate, star
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Fence (m)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={inputStyle}
                 value={cleanupData.trackableItems.fenceMeters}
                 onFocus={() => handleNestedFieldFocus('trackableItems', 'fenceMeters', cleanupData.trackableItems.fenceMeters)}

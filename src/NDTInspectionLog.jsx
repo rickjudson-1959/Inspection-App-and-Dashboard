@@ -628,8 +628,8 @@ function NDTInspectionLog({
               <div>
                 <label style={labelStyle}>Film Density - Weld Area *</label>
                 <input
-                  type="number"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   style={inputStyle}
                   value={ndtData.film_density_weld}
                   onChange={(e) => updateField('film_density_weld', e.target.value)}
@@ -641,8 +641,8 @@ function NDTInspectionLog({
               <div>
                 <label style={labelStyle}>Film Density - Pipe Area *</label>
                 <input
-                  type="number"
-                  step="0.01"
+                  type="text"
+                  inputMode="decimal"
                   style={inputStyle}
                   value={ndtData.film_density_pipe}
                   onChange={(e) => updateField('film_density_pipe', e.target.value)}
@@ -654,8 +654,8 @@ function NDTInspectionLog({
               <div>
                 <label style={labelStyle}>Sensitivity (%)</label>
                 <input
-                  type="number"
-                  step="0.1"
+                  type="text"
+                  inputMode="decimal"
                   style={inputStyle}
                   value={ndtData.sensitivity}
                   onChange={(e) => updateField('sensitivity', e.target.value)}
@@ -675,8 +675,8 @@ function NDTInspectionLog({
                 <div>
                   <label style={labelStyle}>Focal Spot Size (F) mm</label>
                   <input
-                    type="number"
-                    step="0.1"
+                    type="text"
+                    inputMode="decimal"
                     style={inputStyle}
                     value={ndtData.focal_spot_size}
                     onChange={(e) => updateField('focal_spot_size', e.target.value)}
@@ -688,8 +688,8 @@ function NDTInspectionLog({
                 <div>
                   <label style={labelStyle}>Source-to-Object (D) mm</label>
                   <input
-                    type="number"
-                    step="1"
+                    type="text"
+                    inputMode="numeric"
                     style={inputStyle}
                     value={ndtData.source_to_object}
                     onChange={(e) => updateField('source_to_object', e.target.value)}
@@ -701,8 +701,8 @@ function NDTInspectionLog({
                 <div>
                   <label style={labelStyle}>Object-to-Film (d) mm</label>
                   <input
-                    type="number"
-                    step="1"
+                    type="text"
+                    inputMode="numeric"
                     style={inputStyle}
                     value={ndtData.object_to_film}
                     onChange={(e) => updateField('object_to_film', e.target.value)}
@@ -770,8 +770,8 @@ function NDTInspectionLog({
             <div>
               <label style={labelStyle}>Crawler Speed (mm/s) *</label>
               <input
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
                 style={inputStyle}
                 value={ndtData.crawler_speed}
                 onChange={(e) => updateField('crawler_speed', e.target.value)}
@@ -816,8 +816,8 @@ function NDTInspectionLog({
             <div>
               <label style={labelStyle}>Probe Angle (degrees) *</label>
               <input
-                type="number"
-                step="0.5"
+                type="text"
+                inputMode="decimal"
                 style={inputStyle}
                 value={ndtData.probe_angle}
                 onChange={(e) => updateField('probe_angle', e.target.value)}
@@ -845,8 +845,8 @@ function NDTInspectionLog({
             <div>
               <label style={labelStyle}>Frequency (MHz)</label>
               <input
-                type="number"
-                step="0.5"
+                type="text"
+                inputMode="decimal"
                 style={inputStyle}
                 value={ndtData.frequency_mhz}
                 onChange={(e) => updateField('frequency_mhz', e.target.value)}

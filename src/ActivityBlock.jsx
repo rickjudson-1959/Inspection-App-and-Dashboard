@@ -1827,7 +1827,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
             📏 Metres Today
           </label>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
             value={block.metersToday || calculateMetersToday(block) || ''}
             onChange={(e) => {
               updateBlock(block.id, 'metersToday', e.target.value)
@@ -1841,7 +1842,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
             📊 Metres Previous
           </label>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
             value={block.metersPrevious || ''}
             readOnly
             style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px', textAlign: 'center', backgroundColor: '#e9ecef', color: '#666', boxSizing: 'border-box' }}
@@ -1852,7 +1854,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
             ✓ Metres To Date
           </label>
           <input
-            type="number"
+            type="text"
+            inputMode="numeric"
             value={
               (parseFloat(block.metersToday || calculateMetersToday(block) || 0) + parseFloat(block.metersPrevious || 0)) || ''
             }
@@ -2238,7 +2241,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#155724' }}>RT</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               placeholder="8"
               value={currentLabour.rt}
               onChange={(e) => setCurrentLabour({ ...currentLabour, rt: e.target.value })}
@@ -2248,7 +2252,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#856404' }}>OT</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               placeholder="0"
               value={currentLabour.ot}
               onChange={(e) => setCurrentLabour({ ...currentLabour, ot: e.target.value })}
@@ -2258,7 +2263,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#004085' }}>JH</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               placeholder="0"
               value={currentLabour.jh}
               onChange={(e) => setCurrentLabour({ ...currentLabour, jh: e.target.value })}
@@ -2268,7 +2274,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Count</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               placeholder="1"
               value={currentLabour.count}
               onChange={(e) => setCurrentLabour({ ...currentLabour, count: e.target.value })}
@@ -2320,7 +2327,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                         <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: ot > 0 ? '#fff3cd' : '#fff' }}>{ot > 0 ? ot : '-'}</td>
                         <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: jh > 0 ? '#cce5ff' : '#fff' }}>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
                             value={jh || ''}
                             onChange={(e) => updateLabourJH(block.id, entry.id, e.target.value)}
                             placeholder="0"
@@ -2336,7 +2344,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                         </td>
                         <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f9fa' }}>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? entry.shadowEffectiveHours : shadowHours.toFixed(1)}
                             onChange={(e) => updateLabourShadowHours(block.id, entry.id, e.target.value)}
                             style={{
@@ -2511,7 +2520,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Hours</label>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               placeholder="Hours"
               value={currentEquipment.hours}
               onChange={(e) => setCurrentEquipment({ ...currentEquipment, hours: e.target.value })}
@@ -2521,7 +2531,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Count</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               placeholder="Count"
               value={currentEquipment.count}
               onChange={(e) => setCurrentEquipment({ ...currentEquipment, count: e.target.value })}
@@ -2572,7 +2583,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                         </td>
                         <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f9fa' }}>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="decimal"
                             value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? entry.shadowEffectiveHours : shadowHours.toFixed(1)}
                             onChange={(e) => updateEquipmentShadowHours(block.id, entry.id, e.target.value)}
                             style={{

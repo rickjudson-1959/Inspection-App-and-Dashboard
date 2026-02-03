@@ -6505,7 +6505,8 @@ Important:
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Precipitation (mm)</label>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={precipitation}
               onChange={(e) => setPrecipitation(e.target.value)}
               style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
@@ -6514,7 +6515,8 @@ Important:
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>High Temp (°C)</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={tempHigh}
               onChange={(e) => setTempHigh(e.target.value)}
               style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
@@ -6523,7 +6525,8 @@ Important:
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Low Temp (°C)</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={tempLow}
               onChange={(e) => setTempLow(e.target.value)}
               style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
@@ -6532,7 +6535,8 @@ Important:
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Wind (km/h)</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={windSpeed}
               onChange={(e) => setWindSpeed(e.target.value)}
               style={{ width: '100%', padding: '6px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '11px', height: '32px', boxSizing: 'border-box' }}
@@ -6846,7 +6850,8 @@ Important:
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Mileage (km)</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={inspectorMileage}
               onChange={(e) => setInspectorMileage(e.target.value)}
               placeholder="km driven"

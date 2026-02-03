@@ -443,7 +443,8 @@ export default function StringingLog({ blockId, reportId, onDataChange, existing
           <div>
             <label style={labelStyle}>Joints Today</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={jointsToday}
               onChange={(e) => setJointsToday(parseInt(e.target.value) || 0)}
               style={{ ...inputStyle, backgroundColor: '#e3f2fd', fontWeight: 'bold' }}
@@ -452,7 +453,8 @@ export default function StringingLog({ blockId, reportId, onDataChange, existing
           <div>
             <label style={labelStyle}>Joints Previous</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={jointsPrevious}
               readOnly
               style={{ ...inputStyle, backgroundColor: '#f5f5f5' }}
@@ -461,7 +463,8 @@ export default function StringingLog({ blockId, reportId, onDataChange, existing
           <div>
             <label style={labelStyle}>Total Joints</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={jointsToday + jointsPrevious}
               readOnly
               style={{ ...inputStyle, backgroundColor: '#bbdefb', fontWeight: 'bold', fontSize: '16px' }}
@@ -595,8 +598,8 @@ export default function StringingLog({ blockId, reportId, onDataChange, existing
                       </td>
                       <td style={{ padding: '4px' }}>
                         <input
-                          type="number"
-                          step="0.001"
+                          type="text"
+                          inputMode="decimal"
                           value={entry.lengthM}
                           onChange={(e) => updateJointEntry(entry.id, 'lengthM', e.target.value)}
                           placeholder="12.19"
@@ -605,8 +608,8 @@ export default function StringingLog({ blockId, reportId, onDataChange, existing
                       </td>
                       <td style={{ padding: '4px' }}>
                         <input
-                          type="number"
-                          step="0.01"
+                          type="text"
+                          inputMode="decimal"
                           value={entry.wallThickness}
                           onChange={(e) => updateJointEntry(entry.id, 'wallThickness', e.target.value)}
                           placeholder="6.35"
@@ -728,8 +731,8 @@ export default function StringingLog({ blockId, reportId, onDataChange, existing
               <div style={{ marginBottom: '16px' }}>
                 <label style={labelStyle}>Cut Length (m) - Goes into ditch</label>
                 <input
-                  type="number"
-                  step="0.001"
+                  type="text"
+                  inputMode="decimal"
                   value={cutLength}
                   onChange={(e) => setCutLength(e.target.value)}
                   placeholder="e.g., 8.000"

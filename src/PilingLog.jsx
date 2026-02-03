@@ -410,7 +410,8 @@ function PilingLog({ data, onChange, logId, reportId }) {
                   </td>
                   <td style={tdStyle}>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       value={loc.pilesRequired}
                       onFocus={() => handleEntryFieldFocus(loc.id, 'pilesRequired', loc.pilesRequired)}
                       onChange={(e) => updateLocation(loc.id, 'pilesRequired', e.target.value)}
@@ -421,7 +422,8 @@ function PilingLog({ data, onChange, logId, reportId }) {
                   </td>
                   <td style={tdStyle}>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       value={loc.pilesToday}
                       onFocus={() => handleEntryFieldFocus(loc.id, 'pilesToday', loc.pilesToday)}
                       onChange={(e) => updateLocation(loc.id, 'pilesToday', e.target.value)}
@@ -432,7 +434,8 @@ function PilingLog({ data, onChange, logId, reportId }) {
                   </td>
                   <td style={tdStyle}>
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="numeric"
                       value={loc.pilesPrevious}
                       onFocus={() => handleEntryFieldFocus(loc.id, 'pilesPrevious', loc.pilesPrevious)}
                       onChange={(e) => updateLocation(loc.id, 'pilesPrevious', e.target.value)}
@@ -513,7 +516,8 @@ function PilingLog({ data, onChange, logId, reportId }) {
           <div>
             <label style={labelStyle}>No. of Splices</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={pilingData.noOfSplices}
               onFocus={() => handleFieldFocus('noOfSplices', pilingData.noOfSplices)}
               onChange={(e) => updateField('noOfSplices', e.target.value)}
@@ -525,7 +529,8 @@ function PilingLog({ data, onChange, logId, reportId }) {
           <div>
             <label style={labelStyle}>Final Length (m)</label>
             <input
-              type="number"
+              type="text"
+              inputMode="decimal"
               value={pilingData.finalLength}
               onFocus={() => handleFieldFocus('finalLength', pilingData.finalLength)}
               onChange={(e) => updateField('finalLength', e.target.value)}
@@ -549,7 +554,8 @@ function PilingLog({ data, onChange, logId, reportId }) {
           <div>
             <label style={labelStyle}>Hammer Weight (kg)</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={pilingData.hammerWeightKg}
               onFocus={() => handleFieldFocus('hammerWeightKg', pilingData.hammerWeightKg)}
               onChange={(e) => updateField('hammerWeightKg', e.target.value)}
@@ -561,8 +567,8 @@ function PilingLog({ data, onChange, logId, reportId }) {
           <div>
             <label style={labelStyle}>Drop Distance (m)</label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={pilingData.dropDistanceM}
               onFocus={() => handleFieldFocus('dropDistanceM', pilingData.dropDistanceM)}
               onChange={(e) => updateField('dropDistanceM', e.target.value)}

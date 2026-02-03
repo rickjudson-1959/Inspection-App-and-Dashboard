@@ -410,8 +410,8 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
               <label style={styles.label}>Location (KP)</label>
               <div style={styles.locationRow}>
                 <input
-                  type="number"
-                  step="0.001"
+                  type="text"
+                  inputMode="decimal"
                   style={styles.input}
                   placeholder="Start KP"
                   value={deck.start_kp}
@@ -420,8 +420,8 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
                   onBlur={(e) => handleEntryFieldBlur(deck.id, 'start_kp', e.target.value, 'Start KP', getEntryLabel(deck, index))}
                 />
                 <input
-                  type="number"
-                  step="0.001"
+                  type="text"
+                  inputMode="decimal"
                   style={styles.input}
                   placeholder="End KP"
                   value={deck.end_kp}
@@ -522,7 +522,8 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
                   ))}
                 </select>
                 <input
-                  type="number"
+                  type="text"
+                  inputMode="numeric"
                   style={styles.input}
                   placeholder="Min ⌀ (cm)"
                   value={deck.min_top_diameter_cm}
@@ -538,8 +539,8 @@ const TimberDeckLog = ({ dailyReportId, projectId, onUpdate }) => {
               <label style={styles.label}>Volume Estimate</label>
               <div style={styles.volumeRow}>
                 <input
-                  type="number"
-                  step="0.1"
+                  type="text"
+                  inputMode="decimal"
                   style={styles.input}
                   placeholder="Volume"
                   value={deck.volume_estimate}

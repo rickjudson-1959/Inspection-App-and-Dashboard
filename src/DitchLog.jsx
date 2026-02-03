@@ -145,8 +145,8 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
           <div>
             <label style={labelStyle}>Specified Depth (m)</label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={ditchData.specifiedDepth}
               onFocus={() => handleFieldFocus('specifiedDepth', ditchData.specifiedDepth)}
               onChange={(e) => updateField('specifiedDepth', e.target.value)}
@@ -158,8 +158,8 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
           <div>
             <label style={labelStyle}>Actual Depth (m)</label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={ditchData.actualDepth}
               onFocus={() => handleFieldFocus('actualDepth', ditchData.actualDepth)}
               onChange={(e) => updateField('actualDepth', e.target.value)}
@@ -171,8 +171,8 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
           <div>
             <label style={labelStyle}>Specified Width (m)</label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={ditchData.specifiedWidth}
               onFocus={() => handleFieldFocus('specifiedWidth', ditchData.specifiedWidth)}
               onChange={(e) => updateField('specifiedWidth', e.target.value)}
@@ -184,8 +184,8 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
           <div>
             <label style={labelStyle}>Actual Width (m)</label>
             <input
-              type="number"
-              step="0.01"
+              type="text"
+              inputMode="decimal"
               value={ditchData.actualWidth}
               onFocus={() => handleFieldFocus('actualWidth', ditchData.actualWidth)}
               onChange={(e) => updateField('actualWidth', e.target.value)}
@@ -340,8 +340,8 @@ function DitchLog({ data, onChange, contractor, foreman, reportDate, startKP, en
               <div>
                 <label style={labelStyle}>Groundwater Depth (m)</label>
                 <input
-                  type="number"
-                  step="0.1"
+                  type="text"
+                  inputMode="decimal"
                   value={ditchData.groundwaterDepth}
                   onFocus={() => handleFieldFocus('groundwaterDepth', ditchData.groundwaterDepth)}
                   onChange={(e) => updateField('groundwaterDepth', e.target.value)}

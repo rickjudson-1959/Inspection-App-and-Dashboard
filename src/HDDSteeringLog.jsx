@@ -450,7 +450,7 @@ function HDDSteeringLog({
           <div style={gridStyle}>
             <div>
               <label style={labelStyle}>Pipe Diameter (inches)</label>
-              <input type="number" step="0.5" value={steeringData.pipeDiameterInches}
+              <input type="text" inputMode="decimal" value={steeringData.pipeDiameterInches}
                 onFocus={() => handleFieldFocus('pipeDiameterInches', steeringData.pipeDiameterInches)}
                 onChange={(e) => updateField('pipeDiameterInches', e.target.value)}
                 onBlur={(e) => handleFieldBlur('pipeDiameterInches', e.target.value, 'Pipe Diameter')}
@@ -458,7 +458,7 @@ function HDDSteeringLog({
             </div>
             <div>
               <label style={labelStyle}>Wall Thickness (inches)</label>
-              <input type="number" step="0.001" value={steeringData.pipeWallThickness}
+              <input type="text" inputMode="decimal" value={steeringData.pipeWallThickness}
                 onFocus={() => handleFieldFocus('pipeWallThickness', steeringData.pipeWallThickness)}
                 onChange={(e) => updateField('pipeWallThickness', e.target.value)}
                 onBlur={(e) => handleFieldBlur('pipeWallThickness', e.target.value, 'Wall Thickness')}
@@ -466,7 +466,7 @@ function HDDSteeringLog({
             </div>
             <div>
               <label style={labelStyle}>Min Bend Radius (m)</label>
-              <input type="number" value={steeringData.minimumBendRadiusM}
+              <input type="text" inputMode="numeric" value={steeringData.minimumBendRadiusM}
                 onFocus={() => handleFieldFocus('minimumBendRadiusM', steeringData.minimumBendRadiusM)}
                 onChange={(e) => updateField('minimumBendRadiusM', e.target.value)}
                 onBlur={(e) => handleFieldBlur('minimumBendRadiusM', e.target.value, 'Min Bend Radius')}
@@ -483,7 +483,7 @@ function HDDSteeringLog({
             <div style={{ display: 'grid', gap: '10px' }}>
               <div>
                 <label style={labelStyle}>Entry Angle (°)</label>
-                <input type="number" step="0.1" value={steeringData.designEntryAngle}
+                <input type="text" inputMode="decimal" value={steeringData.designEntryAngle}
                   onFocus={() => handleFieldFocus('designEntryAngle', steeringData.designEntryAngle)}
                   onChange={(e) => updateField('designEntryAngle', e.target.value)}
                   onBlur={(e) => handleFieldBlur('designEntryAngle', e.target.value, 'Design Entry Angle')}
@@ -491,7 +491,7 @@ function HDDSteeringLog({
               </div>
               <div>
                 <label style={labelStyle}>Exit Angle (°)</label>
-                <input type="number" step="0.1" value={steeringData.designExitAngle}
+                <input type="text" inputMode="decimal" value={steeringData.designExitAngle}
                   onFocus={() => handleFieldFocus('designExitAngle', steeringData.designExitAngle)}
                   onChange={(e) => updateField('designExitAngle', e.target.value)}
                   onBlur={(e) => handleFieldBlur('designExitAngle', e.target.value, 'Design Exit Angle')}
@@ -499,7 +499,7 @@ function HDDSteeringLog({
               </div>
               <div>
                 <label style={labelStyle}>Max Depth (m)</label>
-                <input type="number" step="0.1" value={steeringData.designMaxDepth}
+                <input type="text" inputMode="decimal" value={steeringData.designMaxDepth}
                   onFocus={() => handleFieldFocus('designMaxDepth', steeringData.designMaxDepth)}
                   onChange={(e) => updateField('designMaxDepth', e.target.value)}
                   onBlur={(e) => handleFieldBlur('designMaxDepth', e.target.value, 'Design Max Depth')}
@@ -507,7 +507,7 @@ function HDDSteeringLog({
               </div>
               <div>
                 <label style={labelStyle}>Bore Length (m)</label>
-                <input type="number" step="0.1" value={steeringData.designBoreLength}
+                <input type="text" inputMode="decimal" value={steeringData.designBoreLength}
                   onFocus={() => handleFieldFocus('designBoreLength', steeringData.designBoreLength)}
                   onChange={(e) => updateField('designBoreLength', e.target.value)}
                   onBlur={(e) => handleFieldBlur('designBoreLength', e.target.value, 'Design Bore Length')}
@@ -522,7 +522,7 @@ function HDDSteeringLog({
             <div style={{ display: 'grid', gap: '10px' }}>
               <div>
                 <label style={labelStyle}>Entry Angle (°)</label>
-                <input type="number" step="0.1" value={steeringData.actualEntryAngle}
+                <input type="text" inputMode="decimal" value={steeringData.actualEntryAngle}
                   onFocus={() => handleFieldFocus('actualEntryAngle', steeringData.actualEntryAngle)}
                   onChange={(e) => updateField('actualEntryAngle', e.target.value)}
                   onBlur={(e) => handleFieldBlur('actualEntryAngle', e.target.value, 'Actual Entry Angle')}
@@ -535,7 +535,7 @@ function HDDSteeringLog({
               </div>
               <div>
                 <label style={labelStyle}>Exit Angle (°)</label>
-                <input type="number" step="0.1" value={steeringData.actualExitAngle}
+                <input type="text" inputMode="decimal" value={steeringData.actualExitAngle}
                   onFocus={() => handleFieldFocus('actualExitAngle', steeringData.actualExitAngle)}
                   onChange={(e) => updateField('actualExitAngle', e.target.value)}
                   onBlur={(e) => handleFieldBlur('actualExitAngle', e.target.value, 'Actual Exit Angle')}
@@ -679,28 +679,28 @@ function HDDSteeringLog({
                     {steeringData.stations.map((station, idx) => (
                       <tr key={station.id} style={{ backgroundColor: station.bendRadiusAlert ? '#f8d7da' : (idx % 2 === 0 ? '#fff' : '#f8f9fa') }}>
                         <td style={tdStyle}>
-                          <input type="number" value={station.drillPipeJointNumber}
+                          <input type="text" inputMode="numeric" value={station.drillPipeJointNumber}
                             onFocus={() => handleEntryFieldFocus(station.id, 'drillPipeJointNumber', station.drillPipeJointNumber)}
                             onChange={(e) => updateStation(station.id, 'drillPipeJointNumber', e.target.value)}
                             onBlur={(e) => handleEntryFieldBlur(station.id, 'drillPipeJointNumber', e.target.value, 'Joint #', `Joint #${station.drillPipeJointNumber}`)}
                             style={tableInputStyle} />
                         </td>
                         <td style={tdStyle}>
-                          <input type="number" step="0.1" value={station.measuredDepthM}
+                          <input type="text" inputMode="decimal" value={station.measuredDepthM}
                             onFocus={() => handleEntryFieldFocus(station.id, 'measuredDepthM', station.measuredDepthM)}
                             onChange={(e) => updateStation(station.id, 'measuredDepthM', e.target.value)}
                             onBlur={(e) => handleEntryFieldBlur(station.id, 'measuredDepthM', e.target.value, 'Measured Depth', `Joint #${station.drillPipeJointNumber}`)}
                             style={tableInputStyle} />
                         </td>
                         <td style={tdStyle}>
-                          <input type="number" step="0.1" value={station.pitchPercent}
+                          <input type="text" inputMode="decimal" value={station.pitchPercent}
                             onFocus={() => handleEntryFieldFocus(station.id, 'pitchPercent', station.pitchPercent)}
                             onChange={(e) => updateStation(station.id, 'pitchPercent', e.target.value)}
                             onBlur={(e) => handleEntryFieldBlur(station.id, 'pitchPercent', e.target.value, 'Pitch %', `Joint #${station.drillPipeJointNumber}`)}
                             style={tableInputStyle} />
                         </td>
                         <td style={tdStyle}>
-                          <input type="number" step="0.1" value={station.azimuthDegrees}
+                          <input type="text" inputMode="decimal" value={station.azimuthDegrees}
                             onFocus={() => handleEntryFieldFocus(station.id, 'azimuthDegrees', station.azimuthDegrees)}
                             onChange={(e) => updateStation(station.id, 'azimuthDegrees', e.target.value)}
                             onBlur={(e) => handleEntryFieldBlur(station.id, 'azimuthDegrees', e.target.value, 'Azimuth', `Joint #${station.drillPipeJointNumber}`)}
@@ -714,28 +714,28 @@ function HDDSteeringLog({
                             placeholder="5+250" style={tableInputStyle} />
                         </td>
                         <td style={tdStyle}>
-                          <input type="number" step="0.1" value={station.trueVerticalDepthM}
+                          <input type="text" inputMode="decimal" value={station.trueVerticalDepthM}
                             onFocus={() => handleEntryFieldFocus(station.id, 'trueVerticalDepthM', station.trueVerticalDepthM)}
                             onChange={(e) => updateStation(station.id, 'trueVerticalDepthM', e.target.value)}
                             onBlur={(e) => handleEntryFieldBlur(station.id, 'trueVerticalDepthM', e.target.value, 'TVD', `Joint #${station.drillPipeJointNumber}`)}
                             style={tableInputStyle} />
                         </td>
                         <td style={tdStyle}>
-                          <input type="number" step="0.01" value={station.horizontalOffsetM}
+                          <input type="text" inputMode="decimal" value={station.horizontalOffsetM}
                             onFocus={() => handleEntryFieldFocus(station.id, 'horizontalOffsetM', station.horizontalOffsetM)}
                             onChange={(e) => updateStation(station.id, 'horizontalOffsetM', e.target.value)}
                             onBlur={(e) => handleEntryFieldBlur(station.id, 'horizontalOffsetM', e.target.value, 'H Offset', `Joint #${station.drillPipeJointNumber}`)}
                             style={tableInputStyle} />
                         </td>
                         <td style={tdStyle}>
-                          <input type="number" step="0.01" value={station.verticalOffsetM}
+                          <input type="text" inputMode="decimal" value={station.verticalOffsetM}
                             onFocus={() => handleEntryFieldFocus(station.id, 'verticalOffsetM', station.verticalOffsetM)}
                             onChange={(e) => updateStation(station.id, 'verticalOffsetM', e.target.value)}
                             onBlur={(e) => handleEntryFieldBlur(station.id, 'verticalOffsetM', e.target.value, 'V Offset', `Joint #${station.drillPipeJointNumber}`)}
                             style={tableInputStyle} />
                         </td>
                         <td style={{ ...tdStyle, backgroundColor: station.bendRadiusAlert ? '#f8d7da' : 'inherit' }}>
-                          <input type="number" step="1" value={station.calculatedBendRadiusM}
+                          <input type="text" inputMode="numeric" value={station.calculatedBendRadiusM}
                             onFocus={() => handleEntryFieldFocus(station.id, 'calculatedBendRadiusM', station.calculatedBendRadiusM)}
                             onChange={(e) => updateStation(station.id, 'calculatedBendRadiusM', e.target.value)}
                             onBlur={(e) => handleEntryFieldBlur(station.id, 'calculatedBendRadiusM', e.target.value, 'Bend Radius', `Joint #${station.drillPipeJointNumber}`)}

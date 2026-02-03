@@ -413,7 +413,8 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
           <div>
             <label style={labelStyle}>Welds Today</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={weldsToday}
               onChange={(e) => setWeldsToday(parseInt(e.target.value) || 0)}
               style={{ ...inputStyle, backgroundColor: '#e8f5e9', fontWeight: 'bold' }}
@@ -422,7 +423,8 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
           <div>
             <label style={labelStyle}>Welds Previous</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={weldsPrevious}
               readOnly
               style={{ ...inputStyle, backgroundColor: '#f5f5f5' }}
@@ -431,7 +433,8 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
           <div>
             <label style={labelStyle}>Total Welds</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={weldsToday + weldsPrevious}
               readOnly
               style={{ ...inputStyle, backgroundColor: '#e3f2fd', fontWeight: 'bold', fontSize: '16px' }}
@@ -498,7 +501,8 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
                     </td>
                     <td style={{ padding: '4px' }}>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         value={entry.preheat}
                         onChange={(e) => updateWeldEntry(entry.id, 'preheat', e.target.value)}
                         style={{ ...getInputStyle(getParamStatus(entry.preheat, 'preheat')), width: '70px', textAlign: 'center' }}
@@ -527,8 +531,8 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
                     </td>
                     <td style={{ padding: '4px' }}>
                       <input
-                        type="number"
-                        step="0.1"
+                        type="text"
+                        inputMode="decimal"
                         value={entry.voltage}
                         onChange={(e) => updateWeldEntry(entry.id, 'voltage', e.target.value)}
                         style={{ ...getInputStyle(getParamStatus(entry.voltage, 'voltage')), width: '65px', textAlign: 'center' }}
@@ -536,7 +540,8 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
                     </td>
                     <td style={{ padding: '4px' }}>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         value={entry.amperage}
                         onChange={(e) => updateWeldEntry(entry.id, 'amperage', e.target.value)}
                         style={{ ...getInputStyle(getParamStatus(entry.amperage, 'amperage', weldMethod)), width: '65px', textAlign: 'center' }}
@@ -544,7 +549,8 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
                     </td>
                     <td style={{ padding: '4px' }}>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         value={entry.distance}
                         onChange={(e) => updateWeldEntry(entry.id, 'distance', e.target.value)}
                         style={{ ...inputStyle, width: '65px', textAlign: 'center' }}
@@ -552,7 +558,8 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
                     </td>
                     <td style={{ padding: '4px' }}>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         value={entry.time}
                         onChange={(e) => updateWeldEntry(entry.id, 'time', e.target.value)}
                         style={{ ...inputStyle, width: '60px', textAlign: 'center' }}
@@ -560,7 +567,8 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
                     </td>
                     <td style={{ padding: '4px' }}>
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="numeric"
                         value={entry.travelSpeed}
                         onChange={(e) => updateWeldEntry(entry.id, 'travelSpeed', e.target.value)}
                         style={{ ...getInputStyle(getParamStatus(entry.travelSpeed, 'travelSpeed', weldMethod)), width: '75px', textAlign: 'center' }}
@@ -743,8 +751,8 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
           <div>
             <label style={labelStyle}>Down Time (hrs)</label>
             <input
-              type="number"
-              step="0.5"
+              type="text"
+              inputMode="decimal"
               value={downTimeHours}
               onChange={(e) => setDownTimeHours(e.target.value)}
               placeholder="0"

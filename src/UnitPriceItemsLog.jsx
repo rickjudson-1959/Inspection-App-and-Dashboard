@@ -258,7 +258,8 @@ function UnitPriceItemsLog({ data, onChange, reportDate, spread, afe }) {
                 <div>
                   <label style={labelStyle}>Quantity *</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     value={item.quantity}
                     onChange={(e) => updateItem(item.id, 'quantity', e.target.value)}
                     placeholder="Qty"

@@ -226,7 +226,7 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>ROW Width (m)</label>
-            <input type="number" step="0.1" value={gradingData.rowWidth}
+            <input type="text" inputMode="decimal" value={gradingData.rowWidth}
               onFocus={() => handleFieldFocus('rowWidth', gradingData.rowWidth)}
               onChange={(e) => updateField('rowWidth', e.target.value)}
               onBlur={(e) => handleFieldBlur('rowWidth', e.target.value, 'ROW Width')}
@@ -234,7 +234,7 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
           </div>
           <div>
             <label style={labelStyle}>Specified Width (m)</label>
-            <input type="number" step="0.1" value={gradingData.rowWidthSpec}
+            <input type="text" inputMode="decimal" value={gradingData.rowWidthSpec}
               onFocus={() => handleFieldFocus('rowWidthSpec', gradingData.rowWidthSpec)}
               onChange={(e) => updateField('rowWidthSpec', e.target.value)}
               onBlur={(e) => handleFieldBlur('rowWidthSpec', e.target.value, 'Specified Width')}
@@ -304,7 +304,7 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
           </div>
           <div>
             <label style={labelStyle}>Separation Distance (m)</label>
-            <input type="number" step="0.1" value={gradingData.topsoilPileSeparation}
+            <input type="text" inputMode="decimal" value={gradingData.topsoilPileSeparation}
               onFocus={() => handleFieldFocus('topsoilPileSeparation', gradingData.topsoilPileSeparation)}
               onChange={(e) => updateField('topsoilPileSeparation', e.target.value)}
               onBlur={(e) => handleFieldBlur('topsoilPileSeparation', e.target.value, 'Pile Separation Distance')}
@@ -365,7 +365,7 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
           </div>
           <div>
             <label style={labelStyle}>Topsoil Depth (cm)</label>
-            <input type="number" value={gradingData.topsoilDepth}
+            <input type="text" inputMode="numeric" value={gradingData.topsoilDepth}
               onFocus={() => handleFieldFocus('topsoilDepth', gradingData.topsoilDepth)}
               onChange={(e) => updateField('topsoilDepth', e.target.value)}
               onBlur={(e) => handleFieldBlur('topsoilDepth', e.target.value, 'Topsoil Depth')}
@@ -575,11 +575,11 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
                     </div>
                     <div>
                       <label style={labelStyle}>Length (m)</label>
-                      <input type="number" value={spot.length} onFocus={() => handleEntryFieldFocus(spot.id, 'length', spot.length)} onChange={(e) => updateSoftSpot(spot.id, 'length', e.target.value)} onBlur={(e) => handleEntryFieldBlur(spot.id, 'length', e.target.value, 'Length', getSoftSpotLabel(spot, idx))} placeholder="Approx length" style={inputStyle} />
+                      <input type="text" inputMode="decimal" value={spot.length} onFocus={() => handleEntryFieldFocus(spot.id, 'length', spot.length)} onChange={(e) => updateSoftSpot(spot.id, 'length', e.target.value)} onBlur={(e) => handleEntryFieldBlur(spot.id, 'length', e.target.value, 'Length', getSoftSpotLabel(spot, idx))} placeholder="Approx length" style={inputStyle} />
                     </div>
                     <div>
                       <label style={labelStyle}>Width (m)</label>
-                      <input type="number" value={spot.width} onFocus={() => handleEntryFieldFocus(spot.id, 'width', spot.width)} onChange={(e) => updateSoftSpot(spot.id, 'width', e.target.value)} onBlur={(e) => handleEntryFieldBlur(spot.id, 'width', e.target.value, 'Width', getSoftSpotLabel(spot, idx))} placeholder="Approx width" style={inputStyle} />
+                      <input type="text" inputMode="decimal" value={spot.width} onFocus={() => handleEntryFieldFocus(spot.id, 'width', spot.width)} onChange={(e) => updateSoftSpot(spot.id, 'width', e.target.value)} onBlur={(e) => handleEntryFieldBlur(spot.id, 'width', e.target.value, 'Width', getSoftSpotLabel(spot, idx))} placeholder="Approx width" style={inputStyle} />
                     </div>
                     <div>
                       <label style={labelStyle}>Cause</label>

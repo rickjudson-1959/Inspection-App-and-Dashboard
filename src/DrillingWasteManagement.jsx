@@ -358,7 +358,7 @@ function DrillingWasteManagement({
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Total Volume Mixed (m³)</label>
-            <input type="number" step="0.01" value={wasteData.totalVolumeMixedM3}
+            <input type="text" inputMode="decimal" value={wasteData.totalVolumeMixedM3}
               onFocus={() => handleFieldFocus('totalVolumeMixedM3', wasteData.totalVolumeMixedM3)}
               onChange={(e) => updateField('totalVolumeMixedM3', e.target.value)}
               onBlur={(e) => handleFieldBlur('totalVolumeMixedM3', e.target.value, 'Total Volume Mixed')}
@@ -366,7 +366,7 @@ function DrillingWasteManagement({
           </div>
           <div>
             <label style={labelStyle}>Volume in Storage (m³)</label>
-            <input type="number" step="0.01" value={wasteData.volumeInStorageM3}
+            <input type="text" inputMode="decimal" value={wasteData.volumeInStorageM3}
               onFocus={() => handleFieldFocus('volumeInStorageM3', wasteData.volumeInStorageM3)}
               onChange={(e) => updateField('volumeInStorageM3', e.target.value)}
               onBlur={(e) => handleFieldBlur('volumeInStorageM3', e.target.value, 'Volume in Storage')}
@@ -374,7 +374,7 @@ function DrillingWasteManagement({
           </div>
           <div>
             <label style={labelStyle}>Volume Hauled (m³)</label>
-            <input type="number" step="0.01" value={wasteData.volumeHauledM3}
+            <input type="text" inputMode="decimal" value={wasteData.volumeHauledM3}
               onFocus={() => handleFieldFocus('volumeHauledM3', wasteData.volumeHauledM3)}
               onChange={(e) => updateField('volumeHauledM3', e.target.value)}
               onBlur={(e) => handleFieldBlur('volumeHauledM3', e.target.value, 'Volume Hauled')}
@@ -405,7 +405,7 @@ function DrillingWasteManagement({
             </div>
             <div>
               <label style={labelStyle}>Storage Capacity (m³)</label>
-              <input type="number" step="0.01" value={wasteData.storageCapacityM3}
+              <input type="text" inputMode="decimal" value={wasteData.storageCapacityM3}
                 onFocus={() => handleFieldFocus('storageCapacityM3', wasteData.storageCapacityM3)}
                 onChange={(e) => updateField('storageCapacityM3', e.target.value)}
                 onBlur={(e) => handleFieldBlur('storageCapacityM3', e.target.value, 'Storage Capacity')}
@@ -524,7 +524,7 @@ function DrillingWasteManagement({
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: '10px' }}>
                 <div>
                   <label style={labelStyle}>Quantity</label>
-                  <input type="number" step="0.1" value={additive.quantity}
+                  <input type="text" inputMode="decimal" value={additive.quantity}
                     onFocus={() => handleEntryFieldFocus(additive.id, 'quantity', additive.quantity)}
                     onChange={(e) => updateAdditive(additive.id, 'quantity', e.target.value)}
                     onBlur={(e) => handleEntryFieldBlur(additive.id, 'quantity', e.target.value, 'Quantity', additive.productName)}
@@ -617,7 +617,7 @@ function DrillingWasteManagement({
           <div style={gridStyle}>
             <div>
               <label style={labelStyle}>Vac Truck Hours</label>
-              <input type="number" step="0.5" value={wasteData.vacTruckHours}
+              <input type="text" inputMode="decimal" value={wasteData.vacTruckHours}
                 onFocus={() => handleFieldFocus('vacTruckHours', wasteData.vacTruckHours)}
                 onChange={(e) => updateField('vacTruckHours', e.target.value)}
                 onBlur={(e) => handleFieldBlur('vacTruckHours', e.target.value, 'Vac Truck Hours')}
@@ -819,7 +819,7 @@ function DrillingWasteManagement({
                 </div>
                 <div>
                   <label style={labelStyle}>Latitude</label>
-                  <input type="number" step="0.000001" value={wasteData.entryPitLatitude}
+                  <input type="text" inputMode="decimal" value={wasteData.entryPitLatitude}
                     onFocus={() => handleFieldFocus('entryPitLatitude', wasteData.entryPitLatitude)}
                     onChange={(e) => updateField('entryPitLatitude', e.target.value)}
                     onBlur={(e) => handleFieldBlur('entryPitLatitude', e.target.value, 'Entry Pit Latitude')}
@@ -827,7 +827,7 @@ function DrillingWasteManagement({
                 </div>
                 <div>
                   <label style={labelStyle}>Longitude</label>
-                  <input type="number" step="0.000001" value={wasteData.entryPitLongitude}
+                  <input type="text" inputMode="decimal" value={wasteData.entryPitLongitude}
                     onFocus={() => handleFieldFocus('entryPitLongitude', wasteData.entryPitLongitude)}
                     onChange={(e) => updateField('entryPitLongitude', e.target.value)}
                     onBlur={(e) => handleFieldBlur('entryPitLongitude', e.target.value, 'Entry Pit Longitude')}
@@ -850,7 +850,7 @@ function DrillingWasteManagement({
                 </div>
                 <div>
                   <label style={labelStyle}>Latitude</label>
-                  <input type="number" step="0.000001" value={wasteData.exitPitLatitude}
+                  <input type="text" inputMode="decimal" value={wasteData.exitPitLatitude}
                     onFocus={() => handleFieldFocus('exitPitLatitude', wasteData.exitPitLatitude)}
                     onChange={(e) => updateField('exitPitLatitude', e.target.value)}
                     onBlur={(e) => handleFieldBlur('exitPitLatitude', e.target.value, 'Exit Pit Latitude')}
@@ -858,7 +858,7 @@ function DrillingWasteManagement({
                 </div>
                 <div>
                   <label style={labelStyle}>Longitude</label>
-                  <input type="number" step="0.000001" value={wasteData.exitPitLongitude}
+                  <input type="text" inputMode="decimal" value={wasteData.exitPitLongitude}
                     onFocus={() => handleFieldFocus('exitPitLongitude', wasteData.exitPitLongitude)}
                     onChange={(e) => updateField('exitPitLongitude', e.target.value)}
                     onBlur={(e) => handleFieldBlur('exitPitLongitude', e.target.value, 'Exit Pit Longitude')}

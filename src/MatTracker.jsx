@@ -252,11 +252,11 @@ function MatTracker({ projectId, reportDate, reportId, inspector, onDataChange, 
                   </div>
                   <div>
                     <label style={labelStyle}>Quantity</label>
-                    <input type="number" value={tx.quantity || ''} onChange={(e) => updateTransaction(idx, 'quantity', e.target.value)} min="1" style={inputStyle} />
+                    <input type="text" inputMode="numeric" value={tx.quantity || ''} onChange={(e) => updateTransaction(idx, 'quantity', e.target.value)} style={inputStyle} />
                   </div>
                   <div>
                     <label style={labelStyle}>KP Location</label>
-                    <input type="number" step="0.001" value={tx.kp || ''} onChange={(e) => updateTransaction(idx, 'kp', e.target.value)} placeholder="e.g., 5.250" style={inputStyle} />
+                    <input type="text" inputMode="decimal" value={tx.kp || ''} onChange={(e) => updateTransaction(idx, 'kp', e.target.value)} placeholder="e.g., 5.250" style={inputStyle} />
                   </div>
                 </div>
                 <div style={{ ...gridStyle, marginTop: '10px' }}>

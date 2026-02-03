@@ -259,7 +259,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
           <div>
             <label style={labelStyle}>Preheat Temp (°C)</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={transitionData.preheatTemp}
               onChange={(e) => updateField('preheatTemp', e.target.value)}
               placeholder="Min preheat"
@@ -269,7 +270,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
           <div>
             <label style={labelStyle}>Interpass Min (°C)</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={transitionData.interpassTempMin}
               onChange={(e) => updateField('interpassTempMin', e.target.value)}
               placeholder="Min"
@@ -279,7 +281,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
           <div>
             <label style={labelStyle}>Interpass Max (°C)</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={transitionData.interpassTempMax}
               onChange={(e) => updateField('interpassTempMax', e.target.value)}
               placeholder="Max"
@@ -390,7 +393,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
             <div>
               <label style={labelStyle}>Bore Length (mm)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 value={transitionData.diagramValues.boreLength}
                 onChange={(e) => updateDiagramValue('boreLength', e.target.value)}
                 placeholder="e.g. 50"
@@ -400,8 +404,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
             <div>
               <label style={labelStyle}>Taper Angle (°)</label>
               <input
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
                 value={transitionData.diagramValues.taperAngle}
                 onChange={(e) => updateDiagramValue('taperAngle', e.target.value)}
                 placeholder="e.g. 14"
@@ -411,8 +415,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
             <div>
               <label style={labelStyle}>Transition WT (mm)</label>
               <input
-                type="number"
-                step="0.01"
+                type="text"
+                inputMode="decimal"
                 value={transitionData.diagramValues.transitionWT}
                 onChange={(e) => updateDiagramValue('transitionWT', e.target.value)}
                 placeholder="e.g. 6.35"
@@ -422,8 +426,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
             <div>
               <label style={labelStyle}>Bevel Angle (°)</label>
               <input
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
                 value={transitionData.diagramValues.bevelAngle}
                 onChange={(e) => updateDiagramValue('bevelAngle', e.target.value)}
                 placeholder="e.g. 30"
@@ -508,8 +512,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
                     </td>
                     <td style={{ ...tdStyle, backgroundColor: '#e3f2fd' }}>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={t.ovalityQ1Q3}
                         onChange={(e) => updateTransition(t.id, 'ovalityQ1Q3', e.target.value)}
                         style={{ ...tableInputStyle, width: '50px' }}
@@ -517,8 +521,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
                     </td>
                     <td style={{ ...tdStyle, backgroundColor: '#e3f2fd' }}>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={t.ovalityQ2Q4}
                         onChange={(e) => updateTransition(t.id, 'ovalityQ2Q4', e.target.value)}
                         style={{ ...tableInputStyle, width: '50px' }}
@@ -526,8 +530,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
                     </td>
                     <td style={{ ...tdStyle, backgroundColor: '#e3f2fd' }}>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={t.ovalityAmount}
                         onChange={(e) => updateTransition(t.id, 'ovalityAmount', e.target.value)}
                         style={{ ...tableInputStyle, width: '50px' }}
@@ -535,8 +539,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
                     </td>
                     <td style={{ ...tdStyle, backgroundColor: '#e8f5e9' }}>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={t.wallThicknessQ1}
                         onChange={(e) => updateTransition(t.id, 'wallThicknessQ1', e.target.value)}
                         style={{ ...tableInputStyle, width: '50px' }}
@@ -544,8 +548,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
                     </td>
                     <td style={{ ...tdStyle, backgroundColor: '#e8f5e9' }}>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={t.wallThicknessQ2}
                         onChange={(e) => updateTransition(t.id, 'wallThicknessQ2', e.target.value)}
                         style={{ ...tableInputStyle, width: '50px' }}
@@ -553,8 +557,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
                     </td>
                     <td style={{ ...tdStyle, backgroundColor: '#e8f5e9' }}>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={t.wallThicknessQ3}
                         onChange={(e) => updateTransition(t.id, 'wallThicknessQ3', e.target.value)}
                         style={{ ...tableInputStyle, width: '50px' }}
@@ -562,8 +566,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
                     </td>
                     <td style={{ ...tdStyle, backgroundColor: '#e8f5e9' }}>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={t.wallThicknessQ4}
                         onChange={(e) => updateTransition(t.id, 'wallThicknessQ4', e.target.value)}
                         style={{ ...tableInputStyle, width: '50px' }}
@@ -571,8 +575,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
                     </td>
                     <td style={tdStyle}>
                       <input
-                        type="number"
-                        step="0.1"
+                        type="text"
+                        inputMode="decimal"
                         value={t.taperAngle}
                         onChange={(e) => updateTransition(t.id, 'taperAngle', e.target.value)}
                         style={{ ...tableInputStyle, width: '50px' }}
@@ -580,8 +584,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
                     </td>
                     <td style={tdStyle}>
                       <input
-                        type="number"
-                        step="0.1"
+                        type="text"
+                        inputMode="decimal"
                         value={t.counterBoreLength}
                         onChange={(e) => updateTransition(t.id, 'counterBoreLength', e.target.value)}
                         style={{ ...tableInputStyle, width: '50px' }}
@@ -589,8 +593,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
                     </td>
                     <td style={tdStyle}>
                       <input
-                        type="number"
-                        step="0.1"
+                        type="text"
+                        inputMode="decimal"
                         value={t.weldBevelAngle}
                         onChange={(e) => updateTransition(t.id, 'weldBevelAngle', e.target.value)}
                         style={{ ...tableInputStyle, width: '50px' }}
@@ -598,8 +602,8 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
                     </td>
                     <td style={tdStyle}>
                       <input
-                        type="number"
-                        step="0.01"
+                        type="text"
+                        inputMode="decimal"
                         value={t.transitionWallThickness}
                         onChange={(e) => updateTransition(t.id, 'transitionWallThickness', e.target.value)}
                         style={{ ...tableInputStyle, width: '50px' }}

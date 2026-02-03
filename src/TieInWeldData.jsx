@@ -505,7 +505,8 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                         </td>
                         <td style={{ padding: '4px' }}>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
                             value={param.preheat}
                             onChange={(e) => updateWeldParam(selectedTieIn, param.id, 'preheat', e.target.value)}
                             style={{ ...getInputStyle(getParamStatus(param.preheat, 'preheat')), width: '70px', textAlign: 'center' }}
@@ -534,8 +535,8 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                         </td>
                         <td style={{ padding: '4px' }}>
                           <input
-                            type="number"
-                            step="0.1"
+                            type="text"
+                            inputMode="decimal"
                             value={param.voltage}
                             onChange={(e) => updateWeldParam(selectedTieIn, param.id, 'voltage', e.target.value)}
                             style={{ ...getInputStyle(getParamStatus(param.voltage, 'voltage')), width: '60px', textAlign: 'center' }}
@@ -543,7 +544,8 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                         </td>
                         <td style={{ padding: '4px' }}>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
                             value={param.amperage}
                             onChange={(e) => updateWeldParam(selectedTieIn, param.id, 'amperage', e.target.value)}
                             style={{ ...getInputStyle(getParamStatus(param.amperage, 'amperage')), width: '60px', textAlign: 'center' }}
@@ -551,7 +553,8 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                         </td>
                         <td style={{ padding: '4px' }}>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
                             value={param.distance}
                             onChange={(e) => updateWeldParam(selectedTieIn, param.id, 'distance', e.target.value)}
                             style={{ ...inputStyle, width: '60px', textAlign: 'center' }}
@@ -559,7 +562,8 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                         </td>
                         <td style={{ padding: '4px' }}>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
                             value={param.time}
                             onChange={(e) => updateWeldParam(selectedTieIn, param.id, 'time', e.target.value)}
                             style={{ ...inputStyle, width: '55px', textAlign: 'center' }}
@@ -567,7 +571,8 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                         </td>
                         <td style={{ padding: '4px' }}>
                           <input
-                            type="number"
+                            type="text"
+                            inputMode="numeric"
                             value={param.travelSpeed}
                             onChange={(e) => updateWeldParam(selectedTieIn, param.id, 'travelSpeed', e.target.value)}
                             style={{ ...getInputStyle(getParamStatus(param.travelSpeed, 'travelSpeed')), width: '70px', textAlign: 'center' }}

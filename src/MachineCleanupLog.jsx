@@ -381,7 +381,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Ripping Depth (cm)</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={inputStyle}
                 value={cleanupData.subsoilRestoration.rippingDepthCm}
                 onFocus={() => handleNestedFieldFocus('subsoilRestoration', 'rippingDepthCm', cleanupData.subsoilRestoration.rippingDepthCm)}
@@ -393,7 +394,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Number of Passes</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={inputStyle}
                 value={cleanupData.subsoilRestoration.numberOfPasses}
                 onFocus={() => handleNestedFieldFocus('subsoilRestoration', 'numberOfPasses', cleanupData.subsoilRestoration.numberOfPasses)}
@@ -435,8 +437,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
                 <div>
                   <label style={{ fontSize: '12px', color: '#666' }}>Volume Removed (m³)</label>
                   <input
-                    type="number"
-                    step="0.1"
+                    type="text"
+                    inputMode="decimal"
                     style={inputStyle}
                     value={cleanupData.subsoilRestoration.rockVolumeRemovedM3}
                     onFocus={() => handleNestedFieldFocus('subsoilRestoration', 'rockVolumeRemovedM3', cleanupData.subsoilRestoration.rockVolumeRemovedM3)}
@@ -447,7 +449,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
                 <div>
                   <label style={{ fontSize: '12px', color: '#666' }}>Max Rock Size Spec (cm)</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     style={inputStyle}
                     value={cleanupData.subsoilRestoration.maxRockSizeCm}
                     onFocus={() => handleNestedFieldFocus('subsoilRestoration', 'maxRockSizeCm', cleanupData.subsoilRestoration.maxRockSizeCm)}
@@ -526,7 +529,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
           <div style={{ marginBottom: '10px' }}>
             <label style={{ fontSize: '12px', color: '#666' }}>Crown Height (cm)</label>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               style={inputStyle}
               value={cleanupData.trenchCrown.settlementCrownHeightCm}
               onFocus={() => handleNestedFieldFocus('trenchCrown', 'settlementCrownHeightCm', cleanupData.trenchCrown.settlementCrownHeightCm)}
@@ -567,7 +571,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
             <div style={{ marginLeft: '20px', marginTop: '10px' }}>
               <label style={{ fontSize: '12px', color: '#666' }}>Number of Gaps</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={{ ...inputStyle, width: '100px' }}
                 value={cleanupData.trenchCrown.crownReliefGapCount}
                 onFocus={() => handleNestedFieldFocus('trenchCrown', 'crownReliefGapCount', cleanupData.trenchCrown.crownReliefGapCount)}
@@ -614,7 +619,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
                 <div>
                   <label style={{ fontSize: '12px', color: '#666' }}>Number of Lifts</label>
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     style={inputStyle}
                     value={cleanupData.trenchCrown.compactionNumberOfLifts}
                     onFocus={() => handleNestedFieldFocus('trenchCrown', 'compactionNumberOfLifts', cleanupData.trenchCrown.compactionNumberOfLifts)}
@@ -918,7 +924,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
             <div style={{ marginLeft: '20px', marginBottom: '10px' }}>
               <label style={{ fontSize: '12px', color: '#666' }}>Linear Meters</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={{ ...inputStyle, width: '120px' }}
                 value={cleanupData.erosionControl.waterBarsLinearMeters}
                 onFocus={() => handleNestedFieldFocus('erosionControl', 'waterBarsLinearMeters', cleanupData.erosionControl.waterBarsLinearMeters)}
@@ -943,7 +950,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
             <div style={{ marginLeft: '20px', marginBottom: '10px' }}>
               <label style={{ fontSize: '12px', color: '#666' }}>Linear Meters</label>
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 style={{ ...inputStyle, width: '120px' }}
                 value={cleanupData.erosionControl.diversionBermsLinearMeters}
                 onFocus={() => handleNestedFieldFocus('erosionControl', 'diversionBermsLinearMeters', cleanupData.erosionControl.diversionBermsLinearMeters)}
@@ -1089,8 +1097,8 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
             <div style={{ marginLeft: '20px', marginTop: '5px' }}>
               <label style={{ fontSize: '12px', color: '#666' }}>Volume (m³)</label>
               <input
-                type="number"
-                step="0.1"
+                type="text"
+                inputMode="decimal"
                 style={{ ...inputStyle, width: '120px' }}
                 value={cleanupData.importedFillVolume}
                 onFocus={() => handleFieldFocus('importedFillVolume', cleanupData.importedFillVolume)}
