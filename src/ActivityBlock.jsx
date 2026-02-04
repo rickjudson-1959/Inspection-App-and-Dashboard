@@ -370,6 +370,7 @@ function ActivityBlock({
   updateEquipmentShadowHours,
   updateEquipmentDragReason,
   updateEquipmentContractorNote,
+  updateEquipmentUnitNumber,
   updateSystemicDelay,
   removeEquipmentFromBlock,
   handleWorkPhotosSelect,
@@ -391,7 +392,7 @@ function ActivityBlock({
     jh: '',
     count: '1'
   })
-  const [currentEquipment, setCurrentEquipment] = useState({ type: '', hours: '', count: '' })
+  const [currentEquipment, setCurrentEquipment] = useState({ type: '', hours: '', count: '', unitNumber: '' })
   const [ocrProcessing, setOcrProcessing] = useState(false)
   const [ocrError, setOcrError] = useState(null)
   
@@ -670,11 +671,13 @@ function ActivityBlock({
                 text: `Extract labour and equipment data from this contractor daily ticket. Return JSON only:
 {
   "ticketNumber": "string or null",
-  "contractor": "string or null", 
+  "contractor": "string or null",
   "foreman": "string or null",
   "labour": [{"classification": "string", "rt": number, "ot": number, "count": number}],
-  "equipment": [{"type": "string", "hours": number, "count": number}]
+  "equipment": [{"type": "string", "hours": number, "count": number, "unitNumber": "string or null"}]
 }
+
+For equipment unitNumber, extract the unit number, asset ID, or fleet number if visible on the ticket (e.g., "U-1234", "EQ-507", "Unit 42").
 
 Match classifications to: ${labourClassifications.slice(0, 20).join(', ')}...
 Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
@@ -708,7 +711,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
         if (data.equipment && Array.isArray(data.equipment)) {
           data.equipment.forEach(e => {
             if (e.type) {
-              addEquipmentToBlock(blockId, e.type, e.hours || 0, e.count || 1)
+              addEquipmentToBlock(blockId, e.type, e.hours || 0, e.count || 1, e.unitNumber || '')
             }
           })
         }
@@ -2503,7 +2506,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
       <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#cce5ff', borderRadius: '8px' }}>
         <h4 style={{ margin: '0 0 15px 0', color: '#004085' }}>🚜 Equipment</h4>
         
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 100px auto', gap: '15px', marginBottom: '15px', alignItems: 'end' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 80px 80px auto', gap: '10px', marginBottom: '15px', alignItems: 'end' }}>
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Equipment Type</label>
             <SearchableSelect
@@ -2511,6 +2514,16 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               onChange={(val) => setCurrentEquipment({ ...currentEquipment, type: val })}
               options={equipmentTypes}
               placeholder="Select Equipment"
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Unit #</label>
+            <input
+              type="text"
+              placeholder="Unit #"
+              value={currentEquipment.unitNumber}
+              onChange={(e) => setCurrentEquipment({ ...currentEquipment, unitNumber: e.target.value })}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
             />
           </div>
           <div>
@@ -2537,8 +2550,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           </div>
           <button
             onClick={() => {
-              addEquipmentToBlock(block.id, currentEquipment.type, currentEquipment.hours, currentEquipment.count)
-              setCurrentEquipment({ type: '', hours: '', count: '' })
+              addEquipmentToBlock(block.id, currentEquipment.type, currentEquipment.hours, currentEquipment.count, currentEquipment.unitNumber)
+              setCurrentEquipment({ type: '', hours: '', count: '', unitNumber: '' })
             }}
             style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', height: '38px' }}
           >
@@ -2552,6 +2565,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               <thead>
                 <tr style={{ backgroundColor: '#b8daff' }}>
                   <th style={{ padding: '8px', textAlign: 'left' }}>Equipment</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '80px' }}>Unit #</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '60px' }}>Hours</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '50px' }}>Count</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '80px', backgroundColor: '#d4e6f7' }} title="Field Activity Status">Field Status</th>
@@ -2569,6 +2583,22 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                     <React.Fragment key={entry.id}>
                       <tr style={{ backgroundColor: '#fff' }}>
                         <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6' }}>{entry.type}</td>
+                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
+                          <input
+                            type="text"
+                            value={entry.unitNumber || ''}
+                            onChange={(e) => updateEquipmentUnitNumber(block.id, entry.id, e.target.value)}
+                            placeholder="—"
+                            style={{
+                              width: '70px',
+                              padding: '4px',
+                              border: '1px solid #ced4da',
+                              borderRadius: '3px',
+                              textAlign: 'center',
+                              fontSize: '12px'
+                            }}
+                          />
+                        </td>
                         <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.hours}</td>
                         <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.count}</td>
                         <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f9fa' }}>
@@ -2607,7 +2637,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                       {/* Drag Reason Row - shown when status is not ACTIVE */}
                       {prodStatus !== 'ACTIVE' && (
                         <tr style={{ backgroundColor: statusConfig?.color === '#ffc107' ? '#fffbf0' : '#fff5f5' }}>
-                          <td colSpan={6} style={{ padding: '6px 8px', borderBottom: '1px solid #dee2e6' }}>
+                          <td colSpan={7} style={{ padding: '6px 8px', borderBottom: '1px solid #dee2e6' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                               <span style={{ fontSize: '11px', fontWeight: 'bold', color: statusConfig?.color }}>
                                 Delay Reason:

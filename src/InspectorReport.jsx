@@ -2153,6 +2153,20 @@ Important:
     }))
   }
 
+  function updateEquipmentUnitNumber(blockId, equipmentId, unitNumber) {
+    setActivityBlocks(prev => prev.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          equipmentEntries: block.equipmentEntries.map(entry =>
+            entry.id === equipmentId ? { ...entry, unitNumber } : entry
+          )
+        }
+      }
+      return block
+    }))
+  }
+
   // Efficiency Audit - Systemic (Entire Crew) delay handler
   function updateSystemicDelay(blockId, systemicDelay) {
     setActivityBlocks(prev => prev.map(block => {
@@ -2179,7 +2193,7 @@ Important:
   }
 
   // Equipment management for activity blocks
-  function addEquipmentToBlock(blockId, type, hours, count) {
+  function addEquipmentToBlock(blockId, type, hours, count, unitNumber) {
     if (!type || !hours) {
       alert('Please enter equipment type and hours')
       return
@@ -2192,7 +2206,8 @@ Important:
             id: Date.now(),
             type,
             hours: parseFloat(hours),
-            count: parseInt(count) || 1
+            count: parseInt(count) || 1,
+            unitNumber: unitNumber || ''
           }]
         }
       }
@@ -6679,6 +6694,7 @@ Important:
           updateEquipmentShadowHours={updateEquipmentShadowHours}
           updateEquipmentDragReason={updateEquipmentDragReason}
           updateEquipmentContractorNote={updateEquipmentContractorNote}
+          updateEquipmentUnitNumber={updateEquipmentUnitNumber}
           updateSystemicDelay={updateSystemicDelay}
           removeEquipmentFromBlock={removeEquipmentFromBlock}
           handleWorkPhotosSelect={handleWorkPhotosSelect}
