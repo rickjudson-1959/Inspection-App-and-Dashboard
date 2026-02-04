@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
+import BufferedInput from './components/BufferedInput'
 
 const PROJECT_NAME = "Clearwater Pipeline"
 const AFE_NUMBER = "CWP-2025-001"
@@ -360,20 +361,20 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '16px' }}>
           <div>
             <label style={labelStyle}>Contractor</label>
-            <input
+            <BufferedInput
               type="text"
               value={contractor}
-              onChange={(e) => setContractor(e.target.value)}
+              onChange={(val) => setContractor(val)}
               placeholder="Contractor name"
               style={inputStyle}
             />
           </div>
           <div>
             <label style={labelStyle}>Foreman</label>
-            <input
+            <BufferedInput
               type="text"
               value={foreman}
-              onChange={(e) => setForeman(e.target.value)}
+              onChange={(val) => setForeman(val)}
               placeholder="Foreman name"
               style={inputStyle}
             />
@@ -412,11 +413,11 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
           <div>
             <label style={labelStyle}>Welds Today</label>
-            <input
+            <BufferedInput
               type="text"
               inputMode="numeric"
               value={weldsToday}
-              onChange={(e) => setWeldsToday(parseInt(e.target.value) || 0)}
+              onChange={(val) => setWeldsToday(parseInt(val) || 0)}
               style={{ ...inputStyle, backgroundColor: '#e8f5e9', fontWeight: 'bold' }}
             />
           </div>
@@ -492,19 +493,19 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
                 {weldEntries.map((entry, idx) => (
                   <tr key={entry.id} style={{ backgroundColor: idx % 2 === 0 ? 'white' : '#f8f9fa' }}>
                     <td style={{ padding: '4px' }}>
-                      <input
+                      <BufferedInput
                         type="text"
                         value={entry.weldNumber}
-                        onChange={(e) => updateWeldEntry(entry.id, 'weldNumber', e.target.value)}
+                        onChange={(val) => updateWeldEntry(entry.id, 'weldNumber', val)}
                         style={{ ...inputStyle, width: '90px', fontFamily: 'monospace', fontWeight: 'bold' }}
                       />
                     </td>
                     <td style={{ padding: '4px' }}>
-                      <input
+                      <BufferedInput
                         type="text"
                         inputMode="numeric"
                         value={entry.preheat}
-                        onChange={(e) => updateWeldEntry(entry.id, 'preheat', e.target.value)}
+                        onChange={(val) => updateWeldEntry(entry.id, 'preheat', val)}
                         style={{ ...getInputStyle(getParamStatus(entry.preheat, 'preheat')), width: '70px', textAlign: 'center' }}
                       />
                     </td>
@@ -530,47 +531,47 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
                       </select>
                     </td>
                     <td style={{ padding: '4px' }}>
-                      <input
+                      <BufferedInput
                         type="text"
                         inputMode="decimal"
                         value={entry.voltage}
-                        onChange={(e) => updateWeldEntry(entry.id, 'voltage', e.target.value)}
+                        onChange={(val) => updateWeldEntry(entry.id, 'voltage', val)}
                         style={{ ...getInputStyle(getParamStatus(entry.voltage, 'voltage')), width: '65px', textAlign: 'center' }}
                       />
                     </td>
                     <td style={{ padding: '4px' }}>
-                      <input
+                      <BufferedInput
                         type="text"
                         inputMode="numeric"
                         value={entry.amperage}
-                        onChange={(e) => updateWeldEntry(entry.id, 'amperage', e.target.value)}
+                        onChange={(val) => updateWeldEntry(entry.id, 'amperage', val)}
                         style={{ ...getInputStyle(getParamStatus(entry.amperage, 'amperage', weldMethod)), width: '65px', textAlign: 'center' }}
                       />
                     </td>
                     <td style={{ padding: '4px' }}>
-                      <input
+                      <BufferedInput
                         type="text"
                         inputMode="numeric"
                         value={entry.distance}
-                        onChange={(e) => updateWeldEntry(entry.id, 'distance', e.target.value)}
+                        onChange={(val) => updateWeldEntry(entry.id, 'distance', val)}
                         style={{ ...inputStyle, width: '65px', textAlign: 'center' }}
                       />
                     </td>
                     <td style={{ padding: '4px' }}>
-                      <input
+                      <BufferedInput
                         type="text"
                         inputMode="numeric"
                         value={entry.time}
-                        onChange={(e) => updateWeldEntry(entry.id, 'time', e.target.value)}
+                        onChange={(val) => updateWeldEntry(entry.id, 'time', val)}
                         style={{ ...inputStyle, width: '60px', textAlign: 'center' }}
                       />
                     </td>
                     <td style={{ padding: '4px' }}>
-                      <input
+                      <BufferedInput
                         type="text"
                         inputMode="numeric"
                         value={entry.travelSpeed}
-                        onChange={(e) => updateWeldEntry(entry.id, 'travelSpeed', e.target.value)}
+                        onChange={(val) => updateWeldEntry(entry.id, 'travelSpeed', val)}
                         style={{ ...getInputStyle(getParamStatus(entry.travelSpeed, 'travelSpeed', weldMethod)), width: '75px', textAlign: 'center' }}
                       />
                     </td>
@@ -626,20 +627,20 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
           <div>
             <label style={labelStyle}>From Weld No.</label>
-            <input
+            <BufferedInput
               type="text"
               value={visualsFrom}
-              onChange={(e) => setVisualsFrom(e.target.value)}
+              onChange={(val) => setVisualsFrom(val)}
               placeholder="e.g., SC-0001"
               style={inputStyle}
             />
           </div>
           <div>
             <label style={labelStyle}>To Weld No.</label>
-            <input
+            <BufferedInput
               type="text"
               value={visualsTo}
-              onChange={(e) => setVisualsTo(e.target.value)}
+              onChange={(val) => setVisualsTo(val)}
               placeholder="e.g., SC-0015"
               style={inputStyle}
             />
@@ -676,10 +677,10 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
               {repairs.map((repair, idx) => (
                 <tr key={repair.id} style={{ backgroundColor: idx % 2 === 0 ? 'white' : '#fffbeb' }}>
                   <td style={{ padding: '6px' }}>
-                    <input
+                    <BufferedInput
                       type="text"
                       value={repair.weldNumber}
-                      onChange={(e) => updateRepair(repair.id, 'weldNumber', e.target.value)}
+                      onChange={(val) => updateRepair(repair.id, 'weldNumber', val)}
                       placeholder="e.g., SC-0005"
                       style={{ ...inputStyle, width: '120px' }}
                     />
@@ -750,11 +751,11 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
           </div>
           <div>
             <label style={labelStyle}>Down Time (hrs)</label>
-            <input
+            <BufferedInput
               type="text"
               inputMode="decimal"
               value={downTimeHours}
-              onChange={(e) => setDownTimeHours(e.target.value)}
+              onChange={(val) => setDownTimeHours(val)}
               placeholder="0"
               style={inputStyle}
             />

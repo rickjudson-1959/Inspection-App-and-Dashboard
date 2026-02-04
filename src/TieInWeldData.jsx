@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
+import BufferedInput from './components/BufferedInput'
 
 const PROJECT_NAME = "Clearwater Pipeline"
 const AFE_NUMBER = "CWP-2025-001"
@@ -297,20 +298,20 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '16px' }}>
           <div>
             <label style={labelStyle}>Contractor</label>
-            <input
+            <BufferedInput
               type="text"
               value={contractor}
-              onChange={(e) => setContractor(e.target.value)}
+              onChange={(val) => setContractor(val)}
               placeholder="Contractor name"
               style={inputStyle}
             />
           </div>
           <div>
             <label style={labelStyle}>Foreman</label>
-            <input
+            <BufferedInput
               type="text"
               value={foreman}
-              onChange={(e) => setForeman(e.target.value)}
+              onChange={(val) => setForeman(val)}
               placeholder="Foreman name"
               style={inputStyle}
             />
@@ -377,10 +378,10 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                   >
                     <td style={{ padding: '8px', fontFamily: 'monospace', fontWeight: 'bold', color: '#8b4513' }}>{ti.tieInNumber}</td>
                     <td style={{ padding: '8px' }}>
-                      <input
+                      <BufferedInput
                         type="text"
                         value={ti.station}
-                        onChange={(e) => updateTieIn(ti.id, 'station', e.target.value)}
+                        onChange={(val) => updateTieIn(ti.id, 'station', val)}
                         onClick={(e) => e.stopPropagation()}
                         placeholder="e.g., 5+250"
                         style={{ ...inputStyle, width: '100px' }}
@@ -496,19 +497,19 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                     {selectedTieInData.weldParams.map((param, idx) => (
                       <tr key={param.id} style={{ backgroundColor: idx % 2 === 0 ? 'white' : '#f8f9fa' }}>
                         <td style={{ padding: '4px' }}>
-                          <input
+                          <BufferedInput
                             type="text"
                             value={param.weldNumber}
-                            onChange={(e) => updateWeldParam(selectedTieIn, param.id, 'weldNumber', e.target.value)}
+                            onChange={(val) => updateWeldParam(selectedTieIn, param.id, 'weldNumber', val)}
                             style={{ ...inputStyle, width: '100px', fontFamily: 'monospace' }}
                           />
                         </td>
                         <td style={{ padding: '4px' }}>
-                          <input
+                          <BufferedInput
                             type="text"
                             inputMode="numeric"
                             value={param.preheat}
-                            onChange={(e) => updateWeldParam(selectedTieIn, param.id, 'preheat', e.target.value)}
+                            onChange={(val) => updateWeldParam(selectedTieIn, param.id, 'preheat', val)}
                             style={{ ...getInputStyle(getParamStatus(param.preheat, 'preheat')), width: '70px', textAlign: 'center' }}
                           />
                         </td>
@@ -534,47 +535,47 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                           </select>
                         </td>
                         <td style={{ padding: '4px' }}>
-                          <input
+                          <BufferedInput
                             type="text"
                             inputMode="decimal"
                             value={param.voltage}
-                            onChange={(e) => updateWeldParam(selectedTieIn, param.id, 'voltage', e.target.value)}
+                            onChange={(val) => updateWeldParam(selectedTieIn, param.id, 'voltage', val)}
                             style={{ ...getInputStyle(getParamStatus(param.voltage, 'voltage')), width: '60px', textAlign: 'center' }}
                           />
                         </td>
                         <td style={{ padding: '4px' }}>
-                          <input
+                          <BufferedInput
                             type="text"
                             inputMode="numeric"
                             value={param.amperage}
-                            onChange={(e) => updateWeldParam(selectedTieIn, param.id, 'amperage', e.target.value)}
+                            onChange={(val) => updateWeldParam(selectedTieIn, param.id, 'amperage', val)}
                             style={{ ...getInputStyle(getParamStatus(param.amperage, 'amperage')), width: '60px', textAlign: 'center' }}
                           />
                         </td>
                         <td style={{ padding: '4px' }}>
-                          <input
+                          <BufferedInput
                             type="text"
                             inputMode="numeric"
                             value={param.distance}
-                            onChange={(e) => updateWeldParam(selectedTieIn, param.id, 'distance', e.target.value)}
+                            onChange={(val) => updateWeldParam(selectedTieIn, param.id, 'distance', val)}
                             style={{ ...inputStyle, width: '60px', textAlign: 'center' }}
                           />
                         </td>
                         <td style={{ padding: '4px' }}>
-                          <input
+                          <BufferedInput
                             type="text"
                             inputMode="numeric"
                             value={param.time}
-                            onChange={(e) => updateWeldParam(selectedTieIn, param.id, 'time', e.target.value)}
+                            onChange={(val) => updateWeldParam(selectedTieIn, param.id, 'time', val)}
                             style={{ ...inputStyle, width: '55px', textAlign: 'center' }}
                           />
                         </td>
                         <td style={{ padding: '4px' }}>
-                          <input
+                          <BufferedInput
                             type="text"
                             inputMode="numeric"
                             value={param.travelSpeed}
-                            onChange={(e) => updateWeldParam(selectedTieIn, param.id, 'travelSpeed', e.target.value)}
+                            onChange={(val) => updateWeldParam(selectedTieIn, param.id, 'travelSpeed', val)}
                             style={{ ...getInputStyle(getParamStatus(param.travelSpeed, 'travelSpeed')), width: '70px', textAlign: 'center' }}
                           />
                         </td>
@@ -633,46 +634,46 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
                   <div>
                     <label style={{ ...labelStyle, fontSize: '10px' }}>Length Cut</label>
-                    <input
+                    <BufferedInput
                       type="text"
                       value={selectedTieInData.pup.cutLength}
-                      onChange={(e) => updateTieInPup(selectedTieIn, 'cutLength', e.target.value)}
+                      onChange={(val) => updateTieInPup(selectedTieIn, 'cutLength', val)}
                       style={{ ...inputStyle, fontSize: '12px', padding: '6px' }}
                     />
                   </div>
                   <div>
                     <label style={{ ...labelStyle, fontSize: '10px' }}>Pipe Number</label>
-                    <input
+                    <BufferedInput
                       type="text"
                       value={selectedTieInData.pup.cutPipeNumber}
-                      onChange={(e) => updateTieInPup(selectedTieIn, 'cutPipeNumber', e.target.value)}
+                      onChange={(val) => updateTieInPup(selectedTieIn, 'cutPipeNumber', val)}
                       style={{ ...inputStyle, fontSize: '12px', padding: '6px' }}
                     />
                   </div>
                   <div>
                     <label style={{ ...labelStyle, fontSize: '10px' }}>Heat Number</label>
-                    <input
+                    <BufferedInput
                       type="text"
                       value={selectedTieInData.pup.cutHeatNumber}
-                      onChange={(e) => updateTieInPup(selectedTieIn, 'cutHeatNumber', e.target.value)}
+                      onChange={(val) => updateTieInPup(selectedTieIn, 'cutHeatNumber', val)}
                       style={{ ...inputStyle, fontSize: '12px', padding: '6px' }}
                     />
                   </div>
                   <div>
                     <label style={{ ...labelStyle, fontSize: '10px' }}>W.T.</label>
-                    <input
+                    <BufferedInput
                       type="text"
                       value={selectedTieInData.pup.cutWallThickness}
-                      onChange={(e) => updateTieInPup(selectedTieIn, 'cutWallThickness', e.target.value)}
+                      onChange={(val) => updateTieInPup(selectedTieIn, 'cutWallThickness', val)}
                       style={{ ...inputStyle, fontSize: '12px', padding: '6px' }}
                     />
                   </div>
                   <div style={{ gridColumn: 'span 2' }}>
                     <label style={{ ...labelStyle, fontSize: '10px' }}>Manufacturer</label>
-                    <input
+                    <BufferedInput
                       type="text"
                       value={selectedTieInData.pup.cutManufacturer}
-                      onChange={(e) => updateTieInPup(selectedTieIn, 'cutManufacturer', e.target.value)}
+                      onChange={(val) => updateTieInPup(selectedTieIn, 'cutManufacturer', val)}
                       style={{ ...inputStyle, fontSize: '12px', padding: '6px' }}
                     />
                   </div>
@@ -685,46 +686,46 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '8px' }}>
                   <div>
                     <label style={{ ...labelStyle, fontSize: '10px' }}>Length Added</label>
-                    <input
+                    <BufferedInput
                       type="text"
                       value={selectedTieInData.pup.addedLength}
-                      onChange={(e) => updateTieInPup(selectedTieIn, 'addedLength', e.target.value)}
+                      onChange={(val) => updateTieInPup(selectedTieIn, 'addedLength', val)}
                       style={{ ...inputStyle, fontSize: '12px', padding: '6px' }}
                     />
                   </div>
                   <div>
                     <label style={{ ...labelStyle, fontSize: '10px' }}>Pipe Number</label>
-                    <input
+                    <BufferedInput
                       type="text"
                       value={selectedTieInData.pup.addedPipeNumber}
-                      onChange={(e) => updateTieInPup(selectedTieIn, 'addedPipeNumber', e.target.value)}
+                      onChange={(val) => updateTieInPup(selectedTieIn, 'addedPipeNumber', val)}
                       style={{ ...inputStyle, fontSize: '12px', padding: '6px' }}
                     />
                   </div>
                   <div>
                     <label style={{ ...labelStyle, fontSize: '10px' }}>Heat Number</label>
-                    <input
+                    <BufferedInput
                       type="text"
                       value={selectedTieInData.pup.addedHeatNumber}
-                      onChange={(e) => updateTieInPup(selectedTieIn, 'addedHeatNumber', e.target.value)}
+                      onChange={(val) => updateTieInPup(selectedTieIn, 'addedHeatNumber', val)}
                       style={{ ...inputStyle, fontSize: '12px', padding: '6px' }}
                     />
                   </div>
                   <div>
                     <label style={{ ...labelStyle, fontSize: '10px' }}>W.T.</label>
-                    <input
+                    <BufferedInput
                       type="text"
                       value={selectedTieInData.pup.addedWallThickness}
-                      onChange={(e) => updateTieInPup(selectedTieIn, 'addedWallThickness', e.target.value)}
+                      onChange={(val) => updateTieInPup(selectedTieIn, 'addedWallThickness', val)}
                       style={{ ...inputStyle, fontSize: '12px', padding: '6px' }}
                     />
                   </div>
                   <div style={{ gridColumn: 'span 2' }}>
                     <label style={{ ...labelStyle, fontSize: '10px' }}>Manufacturer</label>
-                    <input
+                    <BufferedInput
                       type="text"
                       value={selectedTieInData.pup.addedManufacturer}
-                      onChange={(e) => updateTieInPup(selectedTieIn, 'addedManufacturer', e.target.value)}
+                      onChange={(val) => updateTieInPup(selectedTieIn, 'addedManufacturer', val)}
                       style={{ ...inputStyle, fontSize: '12px', padding: '6px' }}
                     />
                   </div>
@@ -745,27 +746,27 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '6px', fontSize: '11px' }}>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>Pipe No.</label>
-                      <input type="text" value={selectedTieInData.pup.leftPipeNo} onChange={(e) => updateTieInPup(selectedTieIn, 'leftPipeNo', e.target.value)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
+                      <BufferedInput type="text" value={selectedTieInData.pup.leftPipeNo} onChange={(val) => updateTieInPup(selectedTieIn, 'leftPipeNo', val)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
                     </div>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>Heat No.</label>
-                      <input type="text" value={selectedTieInData.pup.leftHeatNo} onChange={(e) => updateTieInPup(selectedTieIn, 'leftHeatNo', e.target.value)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
+                      <BufferedInput type="text" value={selectedTieInData.pup.leftHeatNo} onChange={(val) => updateTieInPup(selectedTieIn, 'leftHeatNo', val)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
                     </div>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>Shaw No.</label>
-                      <input type="text" value={selectedTieInData.pup.leftShawNo} onChange={(e) => updateTieInPup(selectedTieIn, 'leftShawNo', e.target.value)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
+                      <BufferedInput type="text" value={selectedTieInData.pup.leftShawNo} onChange={(val) => updateTieInPup(selectedTieIn, 'leftShawNo', val)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
                     </div>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>W.T.</label>
-                      <input type="text" value={selectedTieInData.pup.leftWt} onChange={(e) => updateTieInPup(selectedTieIn, 'leftWt', e.target.value)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
+                      <BufferedInput type="text" value={selectedTieInData.pup.leftWt} onChange={(val) => updateTieInPup(selectedTieIn, 'leftWt', val)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
                     </div>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>Mftr.</label>
-                      <input type="text" value={selectedTieInData.pup.leftMftr} onChange={(e) => updateTieInPup(selectedTieIn, 'leftMftr', e.target.value)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
+                      <BufferedInput type="text" value={selectedTieInData.pup.leftMftr} onChange={(val) => updateTieInPup(selectedTieIn, 'leftMftr', val)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
                     </div>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>Length</label>
-                      <input type="text" value={selectedTieInData.pup.leftLength} onChange={(e) => updateTieInPup(selectedTieIn, 'leftLength', e.target.value)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
+                      <BufferedInput type="text" value={selectedTieInData.pup.leftLength} onChange={(val) => updateTieInPup(selectedTieIn, 'leftLength', val)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
                     </div>
                   </div>
                 </div>
@@ -777,10 +778,10 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                     <div style={{ fontWeight: 'bold' }}>Tie-In #</div>
                     <div>{selectedTieInData.tieInNumber}</div>
                     <div style={{ marginTop: '4px', fontSize: '10px' }}>Chainage</div>
-                    <input
+                    <BufferedInput
                       type="text"
                       value={selectedTieInData.pup.chainage}
-                      onChange={(e) => updateTieInPup(selectedTieIn, 'chainage', e.target.value)}
+                      onChange={(val) => updateTieInPup(selectedTieIn, 'chainage', val)}
                       placeholder="KP"
                       style={{ ...inputStyle, fontSize: '10px', padding: '3px', textAlign: 'center', marginTop: '2px' }}
                     />
@@ -793,27 +794,27 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '6px', fontSize: '11px' }}>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>Pipe No.</label>
-                      <input type="text" value={selectedTieInData.pup.rightPipeNo} onChange={(e) => updateTieInPup(selectedTieIn, 'rightPipeNo', e.target.value)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
+                      <BufferedInput type="text" value={selectedTieInData.pup.rightPipeNo} onChange={(val) => updateTieInPup(selectedTieIn, 'rightPipeNo', val)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
                     </div>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>Heat No.</label>
-                      <input type="text" value={selectedTieInData.pup.rightHeatNo} onChange={(e) => updateTieInPup(selectedTieIn, 'rightHeatNo', e.target.value)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
+                      <BufferedInput type="text" value={selectedTieInData.pup.rightHeatNo} onChange={(val) => updateTieInPup(selectedTieIn, 'rightHeatNo', val)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
                     </div>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>Shaw No.</label>
-                      <input type="text" value={selectedTieInData.pup.rightShawNo} onChange={(e) => updateTieInPup(selectedTieIn, 'rightShawNo', e.target.value)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
+                      <BufferedInput type="text" value={selectedTieInData.pup.rightShawNo} onChange={(val) => updateTieInPup(selectedTieIn, 'rightShawNo', val)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
                     </div>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>W.T.</label>
-                      <input type="text" value={selectedTieInData.pup.rightWt} onChange={(e) => updateTieInPup(selectedTieIn, 'rightWt', e.target.value)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
+                      <BufferedInput type="text" value={selectedTieInData.pup.rightWt} onChange={(val) => updateTieInPup(selectedTieIn, 'rightWt', val)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
                     </div>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>Mftr.</label>
-                      <input type="text" value={selectedTieInData.pup.rightMftr} onChange={(e) => updateTieInPup(selectedTieIn, 'rightMftr', e.target.value)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
+                      <BufferedInput type="text" value={selectedTieInData.pup.rightMftr} onChange={(val) => updateTieInPup(selectedTieIn, 'rightMftr', val)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
                     </div>
                     <div>
                       <label style={{ ...labelStyle, fontSize: '9px' }}>Length</label>
-                      <input type="text" value={selectedTieInData.pup.rightLength} onChange={(e) => updateTieInPup(selectedTieIn, 'rightLength', e.target.value)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
+                      <BufferedInput type="text" value={selectedTieInData.pup.rightLength} onChange={(val) => updateTieInPup(selectedTieIn, 'rightLength', val)} style={{ ...inputStyle, fontSize: '11px', padding: '4px' }} />
                     </div>
                   </div>
                 </div>
