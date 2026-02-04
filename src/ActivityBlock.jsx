@@ -863,6 +863,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           reportId={reportId}
           reportDate={selectedDate}
           currentUser={currentUser}
+          organizationId={organizationId}
+          mentorAuditor={mentor}
           existingData={block.clearingData || {}}
           onDataChange={(data) => updateClearingData(block.id, data)}
         />

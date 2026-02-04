@@ -132,6 +132,26 @@ export function useMentorAuditor({ activityType, blockId, reportId, organization
     }
   }, [alerts, reportId, blockId, organizationId])
 
+  /**
+   * Manually add a custom alert (for special validation logic).
+   * @param {Object} alert - Alert object
+   */
+  const addAlert = useCallback((alert) => {
+    setAlerts(prev => {
+      // Replace any existing alert with the same ID
+      const otherAlerts = prev.filter(a => a.id !== alert.id)
+      return [...otherAlerts, alert]
+    })
+  }, [])
+
+  /**
+   * Remove a specific alert by ID.
+   * @param {string} alertId - Alert identifier
+   */
+  const removeAlert = useCallback((alertId) => {
+    setAlerts(prev => prev.filter(a => a.id !== alertId))
+  }, [])
+
   // Count only active alerts (not acknowledged/overridden)
   const activeAlerts = alerts.filter(a => a.status === 'active')
   const criticalCount = activeAlerts.filter(a => a.severity === 'critical').length
@@ -144,6 +164,8 @@ export function useMentorAuditor({ activityType, blockId, reportId, organization
     dismissAlert,
     acknowledgeAlert,
     overrideAlert,
+    addAlert,
+    removeAlert,
     alertCount: activeAlerts.length,
     criticalCount,
     warningCount,

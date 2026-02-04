@@ -4,7 +4,7 @@ import ShieldedInput from './components/common/ShieldedInput.jsx'
 // ClearingLog component for clearing/grubbing inspection
 // Collapsible sections with repeatable timber deck entries
 
-function ClearingLog({ contractor, foreman, blockId, reportId, existingData, onDataChange }) {
+function ClearingLog({ contractor, foreman, blockId, reportId, organizationId, mentorAuditor, existingData, onDataChange }) {
   const [clearingData, setClearingData] = useState(() => {
     const defaultData = {
       rowBoundaries: {},
@@ -42,6 +42,42 @@ function ClearingLog({ contractor, foreman, blockId, reportId, existingData, onD
   useEffect(() => {
     if (onDataChange) onDataChange(clearingData)
   }, [clearingData])
+
+  // Mentor alert for ROW width compliance
+  useEffect(() => {
+    if (!mentorAuditor || !clearingData.rowBoundaries) return
+
+    const design = parseFloat(clearingData.rowBoundaries.rowWidthDesign)
+    const actual = parseFloat(clearingData.rowBoundaries.rowWidthActual)
+    const alertId = `${blockId}_rowWidthActual_manual`
+
+    if (!isNaN(design) && !isNaN(actual) && actual > design) {
+      // Create manual alert for ROW width exceeding design
+      const alert = {
+        id: alertId,
+        blockId: String(blockId),
+        reportId,
+        activityType: 'Clearing',
+        fieldKey: 'rowWidthActual',
+        fieldValue: actual,
+        alertType: 'threshold_breach',
+        severity: 'warning',
+        title: 'ROW Width Exceeds Design',
+        message: `Actual ROW width of ${actual}m exceeds the design specification of ${design}m. Verify clearing boundaries and check for landowner approval of any over-width clearing.`,
+        recommendedAction: 'Stop clearing and verify ROW boundaries with survey. Check if off-ROW approvals are required for over-width areas.',
+        referenceDocument: 'Contract Specifications - ROW Requirements',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        min: design,
+        max: null
+      }
+
+      mentorAuditor.addAlert(alert)
+    } else {
+      // Clear any existing ROW width alerts if now compliant
+      mentorAuditor.removeAlert(alertId)
+    }
+  }, [clearingData.rowBoundaries?.rowWidthDesign, clearingData.rowBoundaries?.rowWidthActual, mentorAuditor, blockId, reportId])
 
   const toggleSection = (name) => setExpandedSections(prev => ({ ...prev, [name]: !prev[name] }))
 
