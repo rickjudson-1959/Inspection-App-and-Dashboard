@@ -77,7 +77,8 @@ function ClearingLog({ contractor, foreman, blockId, reportId, organizationId, m
       // Clear any existing ROW width alerts if now compliant
       mentorAuditor.removeAlert(alertId)
     }
-  }, [clearingData.rowBoundaries?.rowWidthDesign, clearingData.rowBoundaries?.rowWidthActual, mentorAuditor, blockId, reportId])
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clearingData.rowBoundaries?.rowWidthDesign, clearingData.rowBoundaries?.rowWidthActual, blockId, reportId])
 
   const toggleSection = (name) => setExpandedSections(prev => ({ ...prev, [name]: !prev[name] }))
 

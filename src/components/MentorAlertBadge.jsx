@@ -44,7 +44,7 @@ function MentorAlertBadge({ alertCount, criticalCount, warningCount, onClick }) 
           borderRadius: '50%',
           backgroundColor: badgeColor,
           color: 'white',
-          border: 'none',
+          border: '2px solid white',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
@@ -52,6 +52,7 @@ function MentorAlertBadge({ alertCount, criticalCount, warningCount, onClick }) 
           fontSize: '18px',
           fontWeight: '700',
           zIndex: 9999,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
           transform: hovered ? 'scale(1.1)' : 'scale(1)',
           transition: 'transform 0.2s ease'
         }}
