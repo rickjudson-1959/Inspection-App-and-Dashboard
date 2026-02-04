@@ -26,6 +26,7 @@ import CounterboreTransitionLog from './CounterboreTransitionLog.jsx'
 import MachineCleanupLog from './MachineCleanupLog.jsx'
 import FinalCleanupLog from './FinalCleanupLog.jsx'
 import ConventionalBoreLog from './ConventionalBoreLog.jsx'
+import BufferedSearch from './components/BufferedSearch.jsx'
 
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -130,6 +131,7 @@ function reasonLocksSystemic(dragReason) {
 }
 
 // SearchableSelect component - type to filter dropdown
+// Uses BufferedSearch for debounced filtering + focus shield
 function SearchableSelect({
   value,
   onChange,
@@ -138,16 +140,15 @@ function SearchableSelect({
   style = {}
 }) {
   const [isOpen, setIsOpen] = useState(false)
-  const [searchText, setSearchText] = useState('')
+  const [filterText, setFilterText] = useState('')
   const [highlightedIndex, setHighlightedIndex] = useState(0)
   const containerRef = React.useRef(null)
-  const inputRef = React.useRef(null)
 
-  // Filter options based on search text - matches all words in any order
+  // Filter options based on debounced filter text - matches all words in any order
   const filteredOptions = options.filter(opt => {
-    if (!searchText.trim()) return true
+    if (!filterText.trim()) return true
     const optLower = opt.toLowerCase().replace(/-/g, ' ')
-    const searchWords = searchText.toLowerCase().split(/\s+/).filter(w => w)
+    const searchWords = filterText.toLowerCase().split(/\s+/).filter(w => w)
     return searchWords.every(word => optLower.includes(word))
   })
 
@@ -156,22 +157,22 @@ function SearchableSelect({
     const handleClickOutside = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
         setIsOpen(false)
-        setSearchText('')
+        setFilterText('')
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  // Reset highlight when filtered list changes
+  // Reset highlight when filter changes
   useEffect(() => {
     setHighlightedIndex(0)
-  }, [searchText])
+  }, [filterText])
 
   const handleSelect = (opt) => {
     onChange(opt)
     setIsOpen(false)
-    setSearchText('')
+    setFilterText('')
   }
 
   const handleKeyDown = (e) => {
@@ -202,7 +203,7 @@ function SearchableSelect({
         break
       case 'Escape':
         setIsOpen(false)
-        setSearchText('')
+        setFilterText('')
         break
     }
   }
@@ -213,20 +214,15 @@ function SearchableSelect({
         tabIndex={0}
         onClick={() => {
           setIsOpen(true)
-          setTimeout(() => inputRef.current?.focus(), 0)
         }}
         onFocus={() => {
-          // Open dropdown when tabbing into the component
           if (!isOpen) {
             setIsOpen(true)
-            setTimeout(() => inputRef.current?.focus(), 0)
           }
         }}
         onKeyDown={(e) => {
-          // Handle Enter/Space when focused but closed
           if (!isOpen && (e.key === 'Enter' || e.key === ' ')) {
             setIsOpen(true)
-            setTimeout(() => inputRef.current?.focus(), 0)
             e.preventDefault()
           }
         }}
@@ -245,13 +241,13 @@ function SearchableSelect({
         }}
       >
         {isOpen ? (
-          <input
-            ref={inputRef}
-            type="text"
-            value={searchText}
-            onChange={(e) => setSearchText(e.target.value)}
+          <BufferedSearch
+            value={filterText}
+            onSearch={(text) => setFilterText(text)}
             onKeyDown={handleKeyDown}
             placeholder="Type to search..."
+            autoFocus
+            debounceMs={150}
             style={{
               border: 'none',
               outline: 'none',
@@ -260,7 +256,6 @@ function SearchableSelect({
               padding: 0,
               backgroundColor: 'transparent'
             }}
-            autoFocus
           />
         ) : (
           <span style={{
