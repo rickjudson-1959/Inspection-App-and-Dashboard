@@ -1,7 +1,7 @@
 import './App.css'
 import { saveTieInTicket } from './saveLogic.js'
 import { useAuth } from './AuthContext.jsx'
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
@@ -33,6 +33,13 @@ import ActivityBlock from './ActivityBlock.jsx'
 
 // Import shadow audit utils for efficiency tracking
 import { generateShadowAuditSummary } from './shadowAuditUtils.js'
+
+// Mentor agent components
+import MentorSidebar from './components/MentorSidebar.jsx'
+import MentorAlertBadge from './components/MentorAlertBadge.jsx'
+import { computeHealthScore } from './agents/ReportHealthScorer.js'
+import HealthScoreIndicator from './components/HealthScoreIndicator.jsx'
+import { logOverride } from './agents/OverrideLogger.js'
 
 // Report-level components (not part of activity blocks)
 import SafetyRecognition from './SafetyRecognition.jsx'
@@ -101,6 +108,13 @@ function InspectorReport() {
 
   // Activity blocks (main data structure)
   const [activityBlocks, setActivityBlocks] = useState([createEmptyActivity()])
+
+  // Mentor agent state - accumulated alerts from all blocks
+  const [mentorAlerts, setMentorAlerts] = useState({})
+  const [mentorSidebarOpen, setMentorSidebarOpen] = useState(false)
+
+  // Health score state
+  const [healthScore, setHealthScore] = useState(null)
 
   // Current labour/equipment entry fields (for each activity block)
   const [currentLabour, setCurrentLabour] = useState({ employeeName: '', classification: '', rt: '', ot: '', jh: '', count: '1' })
@@ -1762,6 +1776,31 @@ Important:
     }
   }
 
+  // Mentor agent: accumulate alerts from all blocks (memoized to preserve React.memo on ActivityBlock)
+  const handleMentorAlert = useCallback((blockId, blockAlerts) => {
+    setMentorAlerts(prev => ({ ...prev, [blockId]: blockAlerts }))
+    // Auto-open sidebar when critical alerts appear
+    if (blockAlerts.some(a => a.severity === 'critical' && a.status === 'active')) {
+      setMentorSidebarOpen(true)
+    }
+  }, [])
+
+  // Debounced health score computation (1000ms)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const flatAlerts = Object.values(mentorAlerts).flat()
+      const result = computeHealthScore(activityBlocks, {}, flatAlerts)
+      setHealthScore(result)
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [activityBlocks, mentorAlerts])
+
+  // Flatten all mentor alerts for sidebar display
+  const allMentorAlerts = Object.values(mentorAlerts).flat()
+  const activeMentorAlerts = allMentorAlerts.filter(a => a.status === 'active')
+  const mentorCriticalCount = activeMentorAlerts.filter(a => a.severity === 'critical').length
+  const mentorWarningCount = activeMentorAlerts.filter(a => a.severity === 'warning').length
+
   function updateQualityData(blockId, fieldName, value) {
     setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
@@ -2672,6 +2711,9 @@ Important:
           throw new Error('Update failed - no rows affected. Report ID may not exist.')
         }
 
+        // Persist health score separately (non-blocking, tolerates missing column)
+        persistHealthScore(currentReportId)
+
         // Log each change to audit trail
         for (const change of changes) {
           await supabase.from('report_audit_log').insert({
@@ -2732,6 +2774,9 @@ Important:
 
         const ticketId = insertedTicket.id
         setCurrentReportId(ticketId)
+
+        // Persist health score separately (non-blocking, tolerates missing column)
+        persistHealthScore(ticketId)
 
         // Log to audit trail
         await supabase.from('report_audit_log').insert({
@@ -2888,6 +2933,22 @@ Important:
     }
 
     setSaving(false)
+  }
+
+  // Persist health score to daily_reports (non-blocking, tolerates missing column)
+  async function persistHealthScore(reportId) {
+    if (!reportId || !healthScore?.score) return
+    try {
+      await supabase
+        .from('daily_reports')
+        .update({
+          health_score: healthScore.score,
+          health_score_details: healthScore.details
+        })
+        .eq('id', reportId)
+    } catch {
+      // Column may not exist yet - silently ignore
+    }
   }
 
   // Export to Excel
@@ -6703,6 +6764,9 @@ Important:
           // For section toggle
           setActivityBlocks={setActivityBlocks}
           activityBlocks={activityBlocks}
+          // Mentor agent props
+          organizationId={organizationId}
+          onMentorAlert={handleMentorAlert}
         />
       ))}
 
@@ -7054,6 +7118,9 @@ Important:
           </div>
         )}
         
+        {/* Health Score Indicator */}
+        <HealthScoreIndicator healthScore={healthScore} />
+
         <div style={{ display: 'flex', gap: '20px', justifyContent: 'center', flexWrap: 'wrap' }}>
           <button
             onClick={() => setShowTrackableItemsModal(true)}
@@ -7062,7 +7129,7 @@ Important:
               padding: '20px 60px',
               backgroundColor: isOnline ? '#28a745' : '#ff9800',
               color: 'white',
-              border: 'none',
+              border: healthScore && !healthScore.passing ? '3px solid #ca8a04' : 'none',
               borderRadius: '8px',
               cursor: saving ? 'not-allowed' : 'pointer',
               fontSize: '20px',
@@ -7230,6 +7297,69 @@ Important:
             </div>
           </div>
         </div>
+      )}
+
+      {/* Mentor Agent: Sidebar + Badge */}
+      <MentorSidebar
+        isOpen={mentorSidebarOpen}
+        onClose={() => setMentorSidebarOpen(false)}
+        alerts={allMentorAlerts}
+        onAcknowledge={(alertId) => {
+          setMentorAlerts(prev => {
+            const updated = {}
+            for (const [blockId, blockAlerts] of Object.entries(prev)) {
+              updated[blockId] = blockAlerts.map(a =>
+                a.id === alertId ? { ...a, status: 'acknowledged' } : a
+              )
+            }
+            return updated
+          })
+        }}
+        onOverride={(alertId, reason) => {
+          // Find the alert for logging
+          const alert = allMentorAlerts.find(a => a.id === alertId)
+          if (alert) {
+            logOverride({
+              reportId: currentReportId,
+              blockId: alert.blockId,
+              alertId: alert.dbId || alertId,
+              alertType: alert.alertType,
+              alertSeverity: alert.severity,
+              alertMessage: alert.message,
+              overrideReason: reason,
+              fieldKey: alert.fieldKey,
+              fieldValue: alert.fieldValue,
+              thresholdExpected: null,
+              organizationId
+            })
+          }
+          setMentorAlerts(prev => {
+            const updated = {}
+            for (const [blockId, blockAlerts] of Object.entries(prev)) {
+              updated[blockId] = blockAlerts.map(a =>
+                a.id === alertId ? { ...a, status: 'overridden', overrideReason: reason } : a
+              )
+            }
+            return updated
+          })
+        }}
+        onDismiss={(alertId) => {
+          setMentorAlerts(prev => {
+            const updated = {}
+            for (const [blockId, blockAlerts] of Object.entries(prev)) {
+              updated[blockId] = blockAlerts.filter(a => a.id !== alertId)
+            }
+            return updated
+          })
+        }}
+      />
+      {!mentorSidebarOpen && (
+        <MentorAlertBadge
+          alertCount={activeMentorAlerts.length}
+          criticalCount={mentorCriticalCount}
+          warningCount={mentorWarningCount}
+          onClick={() => setMentorSidebarOpen(true)}
+        />
       )}
     </div>
   )

@@ -28,6 +28,10 @@ import FinalCleanupLog from './FinalCleanupLog.jsx'
 import ConventionalBoreLog from './ConventionalBoreLog.jsx'
 import BufferedSearch from './components/BufferedSearch.jsx'
 import ShieldedInput from './components/common/ShieldedInput.jsx'
+import { useMentorAuditor } from './hooks/useMentorAuditor.js'
+import { getTipsForActivity } from './agents/MentorTipService.js'
+import MentorTipOverlay from './components/MentorTipOverlay.jsx'
+import AskTheAgentPanel from './components/AskTheAgentPanel.jsx'
 
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -379,10 +383,22 @@ function ActivityBlock({
   removeWorkPhoto,
   // For section toggle
   setActivityBlocks,
-  activityBlocks
+  activityBlocks,
+  // Mentor agent props
+  organizationId,
+  onMentorAlert
 }) {
   // Org-scoped query hook
   const { addOrgFilter } = useOrgQuery()
+
+  // Mentor agent: real-time field auditing
+  const mentor = useMentorAuditor({
+    activityType: block.activityType,
+    blockId: String(block.id),
+    reportId,
+    organizationId,
+    userId: currentUser?.id
+  })
 
   // Local state for input fields
   const [currentLabour, setCurrentLabour] = useState({
@@ -406,6 +422,36 @@ function ActivityBlock({
       [sectionName]: !prev[sectionName]
     }))
   }
+
+  // Propagate mentor alerts to parent
+  useEffect(() => {
+    if (onMentorAlert) {
+      onMentorAlert(block.id, mentor.alerts)
+    }
+  }, [mentor.alerts]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Mentor tips: fetch when activity type changes
+  const [mentorTips, setMentorTips] = useState([])
+  const [showMentorTips, setShowMentorTips] = useState(false)
+
+  useEffect(() => {
+    if (!block.activityType || !organizationId) {
+      setMentorTips([])
+      setShowMentorTips(false)
+      return
+    }
+
+    // Check localStorage for "don't show again" preference
+    const dismissed = localStorage.getItem(`mentor_tips_dismissed_${block.activityType}`)
+    if (dismissed === 'true') return
+
+    getTipsForActivity(block.activityType, organizationId).then(tips => {
+      if (tips.length > 0) {
+        setMentorTips(tips)
+        setShowMentorTips(true)
+      }
+    })
+  }, [block.activityType, organizationId])
 
   // GPS KP Sync state
   const [syncingKP, setSyncingKP] = useState(false)
@@ -1180,6 +1226,12 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                 const today = parseFloat(e.target.value) || 0
                 const previous = parseFloat(block.qualityData.crossingHolesPrevious) || 0
                 updateQualityData(block.id, 'crossingHolesToDate', (today + previous).toString())
+              }
+            }}
+            onBlur={(e) => {
+              // Mentor agent: audit field on blur (post-sync moment)
+              if (field.type === 'number' && e.target.value) {
+                mentor.auditField(field.name, e.target.value)
               }
             }}
             placeholder={field.placeholder || ''}
@@ -1980,6 +2032,28 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           </div>
         )}
       </div>
+
+      {/* Ask the Agent */}
+      {block.activityType && (
+        <AskTheAgentPanel
+          activityType={block.activityType}
+          organizationId={organizationId}
+          blockId={String(block.id)}
+        />
+      )}
+
+      {/* Mentor Tips Overlay */}
+      {showMentorTips && mentorTips.length > 0 && (
+        <MentorTipOverlay
+          tips={mentorTips}
+          activityType={block.activityType}
+          onDismiss={() => setShowMentorTips(false)}
+          onDontShowAgain={(type) => {
+            localStorage.setItem(`mentor_tips_dismissed_${type}`, 'true')
+            setShowMentorTips(false)
+          }}
+        />
+      )}
 
       {/* Quality Checks */}
       <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '8px', overflow: 'hidden' }}>

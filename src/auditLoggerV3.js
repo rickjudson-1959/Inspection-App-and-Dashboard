@@ -596,6 +596,59 @@ export function createAuditHelpers(config) {
 // ============================================================================
 // DEFAULT EXPORT
 // ============================================================================
+/**
+ * Convenience wrapper for logging inspector override events.
+ * Used by the Mentor Agent's OverrideLogger for dual-write audit trail.
+ */
+export async function logInspectorOverride({
+  reportId,
+  entityId,
+  fieldName,
+  fieldValue,
+  thresholdExpected,
+  overrideReason,
+  alertSeverity,
+  alertType,
+  blockId,
+  organizationId = null
+}) {
+  try {
+    const auditEntry = {
+      report_id: reportId || null,
+      entity_type: 'mentor_alert',
+      entity_id: entityId,
+      section: 'mentor_agent',
+      field_name: fieldName,
+      old_value: formatValueForAudit(thresholdExpected, fieldName),
+      new_value: formatValueForAudit(fieldValue, fieldName),
+      action_type: 'inspector_override',
+      change_type: 'override',
+      regulatory_category: getRegulatoryCategory(fieldName, 'mentor_agent'),
+      is_critical: alertSeverity === 'critical' || isCriticalField(fieldName),
+      metadata: {
+        alert_type: alertType,
+        alert_severity: alertSeverity,
+        override_reason: overrideReason,
+        block_id: blockId
+      },
+      changed_at: new Date().toISOString(),
+      organization_id: organizationId
+    }
+
+    const { data, error } = await supabase
+      .from('report_audit_log')
+      .insert(auditEntry)
+      .select()
+      .single()
+
+    if (error) throw error
+    return data
+  } catch (err) {
+    console.error('Audit log error (inspector override):', err)
+    return null
+  }
+}
+
 export default {
   PRECISION_MAP,
   getPrecision,
@@ -608,5 +661,6 @@ export default {
   logEntryAdd,
   logEntryDelete,
   logStatusChange,
+  logInspectorOverride,
   createAuditHelpers
 }
