@@ -100,8 +100,6 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
     softSpots: { enabled: false, entries: [] },
     accessMaintained: '',
     crossings: { enabled: false, entries: [] },
-    gradingEquipment: '',
-    equipmentOther: '',
     topsoilStripped: '',
     topsoilDepth: '',
     topsoilStockpiled: '',
@@ -255,31 +253,6 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
               <option value="Poor">Poor - Requires Attention</option>
             </select>
           </div>
-          <div>
-            <label style={labelStyle}>Grading Equipment</label>
-            <select value={gradingData.gradingEquipment}
-              onFocus={() => handleFieldFocus('gradingEquipment', gradingData.gradingEquipment)}
-              onChange={(e) => { updateField('gradingEquipment', e.target.value); handleFieldBlur('gradingEquipment', e.target.value, 'Grading Equipment') }}
-              style={selectStyle}>
-              <option value="">Select...</option>
-              <option value="Dozer">Dozer</option>
-              <option value="Grader">Grader</option>
-              <option value="Excavator">Excavator</option>
-              <option value="Skid Steer">Skid Steer</option>
-              <option value="Multiple">Multiple Equipment</option>
-              <option value="Other">Other</option>
-            </select>
-          </div>
-          {gradingData.gradingEquipment === 'Other' && (
-            <div>
-              <label style={labelStyle}>Other Equipment</label>
-              <BufferedInput type="text" value={gradingData.equipmentOther}
-                onFocus={() => handleFieldFocus('equipmentOther', gradingData.equipmentOther)}
-                onChange={(val) => updateField('equipmentOther', val)}
-                onBlur={(e) => handleFieldBlur('equipmentOther', e.target.value, 'Other Equipment')}
-                placeholder="Specify equipment" style={inputStyle} />
-            </div>
-          )}
         </div>
       </CollapsibleSection>
 
