@@ -43,20 +43,44 @@ serve(async (req) => {
       )
     }
 
-    // Step 2: Search documents via match_documents RPC
-    const { data: matches, error: matchError } = await supabase.rpc('match_documents', {
+    // Step 2a: Search organization-specific documents (Project Document Vault)
+    const { data: orgMatches, error: orgMatchError } = await supabase.rpc('match_documents', {
       query_embedding: embedding,
       match_threshold: 0.6,
-      match_count: 8,
+      match_count: 5,
       filter_org_id: organization_id,
       filter_category: null
     })
 
-    if (matchError) {
-      console.error('match_documents error:', matchError)
+    if (orgMatchError) {
+      console.error('match_documents (org) error:', orgMatchError)
     }
 
-    const documentChunks = matches || []
+    // Step 2b: Search global documents (Technical Resource Library)
+    const GLOBAL_ORG_ID = '00000000-0000-0000-0000-000000000001'
+    const { data: globalMatches, error: globalMatchError} = await supabase.rpc('match_documents', {
+      query_embedding: embedding,
+      match_threshold: 0.6,
+      match_count: 5,
+      filter_org_id: GLOBAL_ORG_ID,
+      filter_category: null
+    })
+
+    if (globalMatchError) {
+      console.error('match_documents (global) error:', globalMatchError)
+    }
+
+    // Merge and deduplicate results, prioritizing org-specific documents
+    const allMatches = [
+      ...(orgMatches || []),
+      ...(globalMatches || [])
+    ]
+    const seenIds = new Set()
+    const documentChunks = allMatches.filter((doc: any) => {
+      if (seenIds.has(doc.id)) return false
+      seenIds.add(doc.id)
+      return true
+    }).slice(0, 8) // Total limit of 8 chunks
 
     // Step 3: Build prompt with retrieved chunks
     const contextText = documentChunks.length > 0
