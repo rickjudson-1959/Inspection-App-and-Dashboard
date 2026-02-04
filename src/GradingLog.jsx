@@ -1,9 +1,14 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useCallback } from 'react'
 import { useActivityAudit } from './useActivityAudit'
 
 function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday, logId, reportId }) {
   const [showSoftSpots, setShowSoftSpots] = useState(data?.softSpots?.enabled || false)
   const [showCrossings, setShowCrossings] = useState(data?.crossings?.enabled || false)
+
+  // Local input buffer: while a field is focused, we use local state
+  // to prevent parent re-renders from overwriting the input value
+  const [localInputs, setLocalInputs] = useState({})
+  const focusedFieldRef = useRef(null)
   
   // Collapsible section states - ROW Conditions expanded by default for immediate data entry
   const [expandedSections, setExpandedSections] = useState({
@@ -129,7 +134,37 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
     logEntryFieldChange(entryValuesRef, entryId, fieldName, newValue, displayName, entryLabel)
   }
 
+  // Get the display value for an input - uses local buffer while focused
+  const getInputValue = useCallback((field) => {
+    if (focusedFieldRef.current === field && field in localInputs) {
+      return localInputs[field]
+    }
+    return gradingData[field]
+  }, [localInputs, gradingData])
+
+  // Handle focus: start buffering locally
+  const handleInputFocus = (field) => {
+    focusedFieldRef.current = field
+    setLocalInputs(prev => ({ ...prev, [field]: gradingData[field] }))
+  }
+
+  // Handle blur: clear local buffer
+  const handleInputBlur = (field) => {
+    focusedFieldRef.current = null
+    setLocalInputs(prev => {
+      const next = { ...prev }
+      delete next[field]
+      return next
+    })
+  }
+
   const updateField = (field, value) => {
+    console.log(`[GradingLog] updateField: ${field} = "${value}"`)
+    // Update local buffer immediately so input shows the typed value
+    if (focusedFieldRef.current === field) {
+      setLocalInputs(prev => ({ ...prev, [field]: value }))
+    }
+    // Push to parent
     onChange({ ...gradingData, [field]: value })
   }
 
@@ -193,6 +228,10 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
   const labelStyle = { display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#666', marginBottom: '4px' }
   const inputStyle = { width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px', boxSizing: 'border-box' }
   const selectStyle = { ...inputStyle, cursor: 'pointer' }
+  const selectProps = { ...noAutofill } // Also apply to selects
+
+  // Attributes to prevent password manager extensions from interfering with inputs
+  const noAutofill = { autoComplete: 'off', 'data-bwignore': 'true', 'data-1p-ignore': 'true', 'data-lpignore': 'true', 'data-form-type': 'other' }
 
   return (
     <div style={{ marginTop: '15px' }}>
@@ -226,19 +265,19 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>ROW Width (m)</label>
-            <input type="text" inputMode="decimal" value={gradingData.rowWidth}
-              onFocus={() => handleFieldFocus('rowWidth', gradingData.rowWidth)}
+            <input type="text" inputMode="decimal" value={getInputValue('rowWidth')}
+              onFocus={() => { handleInputFocus('rowWidth'); handleFieldFocus('rowWidth', gradingData.rowWidth) }}
               onChange={(e) => updateField('rowWidth', e.target.value)}
-              onBlur={(e) => handleFieldBlur('rowWidth', e.target.value, 'ROW Width')}
-              placeholder="Actual width" style={inputStyle} />
+              onBlur={(e) => { handleInputBlur('rowWidth'); handleFieldBlur('rowWidth', e.target.value, 'ROW Width') }}
+              placeholder="Actual width" style={inputStyle} {...noAutofill} />
           </div>
           <div>
             <label style={labelStyle}>Specified Width (m)</label>
-            <input type="text" inputMode="decimal" value={gradingData.rowWidthSpec}
-              onFocus={() => handleFieldFocus('rowWidthSpec', gradingData.rowWidthSpec)}
+            <input type="text" inputMode="decimal" value={getInputValue('rowWidthSpec')}
+              onFocus={() => { handleInputFocus('rowWidthSpec'); handleFieldFocus('rowWidthSpec', gradingData.rowWidthSpec) }}
               onChange={(e) => updateField('rowWidthSpec', e.target.value)}
-              onBlur={(e) => handleFieldBlur('rowWidthSpec', e.target.value, 'Specified Width')}
-              placeholder="Per drawings" style={inputStyle} />
+              onBlur={(e) => { handleInputBlur('rowWidthSpec'); handleFieldBlur('rowWidthSpec', e.target.value, 'Specified Width') }}
+              placeholder="Per drawings" style={inputStyle} {...noAutofill} />
           </div>
           <div>
             <label style={labelStyle}>ROW Condition</label>
@@ -270,11 +309,11 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
           {gradingData.gradingEquipment === 'Other' && (
             <div>
               <label style={labelStyle}>Other Equipment</label>
-              <input type="text" value={gradingData.equipmentOther}
-                onFocus={() => handleFieldFocus('equipmentOther', gradingData.equipmentOther)}
+              <input type="text" value={getInputValue('equipmentOther')}
+                onFocus={() => { handleInputFocus('equipmentOther'); handleFieldFocus('equipmentOther', gradingData.equipmentOther) }}
                 onChange={(e) => updateField('equipmentOther', e.target.value)}
-                onBlur={(e) => handleFieldBlur('equipmentOther', e.target.value, 'Other Equipment')}
-                placeholder="Specify equipment" style={inputStyle} />
+                onBlur={(e) => { handleInputBlur('equipmentOther'); handleFieldBlur('equipmentOther', e.target.value, 'Other Equipment') }}
+                placeholder="Specify equipment" style={inputStyle} {...noAutofill} />
             </div>
           )}
         </div>
@@ -304,11 +343,11 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
           </div>
           <div>
             <label style={labelStyle}>Separation Distance (m)</label>
-            <input type="text" inputMode="decimal" value={gradingData.topsoilPileSeparation}
-              onFocus={() => handleFieldFocus('topsoilPileSeparation', gradingData.topsoilPileSeparation)}
+            <input type="text" inputMode="decimal" value={getInputValue('topsoilPileSeparation')}
+              onFocus={() => { handleInputFocus('topsoilPileSeparation'); handleFieldFocus('topsoilPileSeparation', gradingData.topsoilPileSeparation) }}
               onChange={(e) => updateField('topsoilPileSeparation', e.target.value)}
-              onBlur={(e) => handleFieldBlur('topsoilPileSeparation', e.target.value, 'Pile Separation Distance')}
-              placeholder="Distance between piles" style={inputStyle} />
+              onBlur={(e) => { handleInputBlur('topsoilPileSeparation'); handleFieldBlur('topsoilPileSeparation', e.target.value, 'Pile Separation Distance') }}
+              placeholder="Distance between piles" style={inputStyle} {...noAutofill} />
           </div>
           <div>
             <label style={labelStyle}>Topsoil Pile Location</label>
@@ -337,11 +376,11 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
           {gradingData.pileSeparationMaintained === 'No' && (
             <div style={{ gridColumn: 'span 2' }}>
               <label style={{ ...labelStyle, color: '#721c24' }}>Issues / NCR Details *</label>
-              <textarea value={gradingData.pileSeparationIssues}
-                onFocus={() => handleFieldFocus('pileSeparationIssues', gradingData.pileSeparationIssues)}
+              <textarea value={getInputValue('pileSeparationIssues')}
+                onFocus={() => { handleInputFocus('pileSeparationIssues'); handleFieldFocus('pileSeparationIssues', gradingData.pileSeparationIssues) }}
                 onChange={(e) => updateField('pileSeparationIssues', e.target.value)}
-                onBlur={(e) => handleFieldBlur('pileSeparationIssues', e.target.value, 'Pile Separation Issues')}
-                placeholder="Describe pile separation issues..." style={{ ...inputStyle, minHeight: '60px', resize: 'vertical', backgroundColor: '#fff5f5' }} />
+                onBlur={(e) => { handleInputBlur('pileSeparationIssues'); handleFieldBlur('pileSeparationIssues', e.target.value, 'Pile Separation Issues') }}
+                placeholder="Describe pile separation issues..." style={{ ...inputStyle, minHeight: '60px', resize: 'vertical', backgroundColor: '#fff5f5' }} {...noAutofill} />
             </div>
           )}
         </div>
@@ -365,11 +404,11 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
           </div>
           <div>
             <label style={labelStyle}>Topsoil Depth (cm)</label>
-            <input type="text" inputMode="numeric" value={gradingData.topsoilDepth}
-              onFocus={() => handleFieldFocus('topsoilDepth', gradingData.topsoilDepth)}
+            <input type="text" inputMode="numeric" value={getInputValue('topsoilDepth')}
+              onFocus={() => { handleInputFocus('topsoilDepth'); handleFieldFocus('topsoilDepth', gradingData.topsoilDepth) }}
               onChange={(e) => updateField('topsoilDepth', e.target.value)}
-              onBlur={(e) => handleFieldBlur('topsoilDepth', e.target.value, 'Topsoil Depth')}
-              placeholder="Average depth" style={inputStyle} />
+              onBlur={(e) => { handleInputBlur('topsoilDepth'); handleFieldBlur('topsoilDepth', e.target.value, 'Topsoil Depth') }}
+              placeholder="Average depth" style={inputStyle} {...noAutofill} />
           </div>
           <div>
             <label style={labelStyle}>Topsoil Stockpiled Properly?</label>
@@ -427,11 +466,11 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
           {gradingData.pondingObserved === 'Yes' && (
             <div>
               <label style={labelStyle}>Ponding Location (KP)</label>
-              <input type="text" value={gradingData.pondingLocation}
-                onFocus={() => handleFieldFocus('pondingLocation', gradingData.pondingLocation)}
+              <input type="text" value={getInputValue('pondingLocation')}
+                onFocus={() => { handleInputFocus('pondingLocation'); handleFieldFocus('pondingLocation', gradingData.pondingLocation) }}
                 onChange={(e) => updateField('pondingLocation', e.target.value)}
-                onBlur={(e) => handleFieldBlur('pondingLocation', e.target.value, 'Ponding Location')}
-                placeholder="e.g. 5+350" style={inputStyle} />
+                onBlur={(e) => { handleInputBlur('pondingLocation'); handleFieldBlur('pondingLocation', e.target.value, 'Ponding Location') }}
+                placeholder="e.g. 5+350" style={inputStyle} {...noAutofill} />
             </div>
           )}
           <div>
@@ -449,11 +488,11 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
           {gradingData.drainageControlsInstalled === 'Yes' && (
             <div>
               <label style={labelStyle}>Control Type</label>
-              <input type="text" value={gradingData.drainageControlsType}
-                onFocus={() => handleFieldFocus('drainageControlsType', gradingData.drainageControlsType)}
+              <input type="text" value={getInputValue('drainageControlsType')}
+                onFocus={() => { handleInputFocus('drainageControlsType'); handleFieldFocus('drainageControlsType', gradingData.drainageControlsType) }}
                 onChange={(e) => updateField('drainageControlsType', e.target.value)}
-                onBlur={(e) => handleFieldBlur('drainageControlsType', e.target.value, 'Drainage Control Type')}
-                placeholder="e.g. Culverts, berms, swales" style={inputStyle} />
+                onBlur={(e) => { handleInputBlur('drainageControlsType'); handleFieldBlur('drainageControlsType', e.target.value, 'Drainage Control Type') }}
+                placeholder="e.g. Culverts, berms, swales" style={inputStyle} {...noAutofill} />
             </div>
           )}
         </div>
@@ -533,11 +572,11 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
           </div>
           <div style={{ gridColumn: 'span 2' }}>
             <label style={labelStyle}>Environmental Issues / Notes</label>
-            <input type="text" value={gradingData.environmentalIssues}
-              onFocus={() => handleFieldFocus('environmentalIssues', gradingData.environmentalIssues)}
+            <input type="text" value={getInputValue('environmentalIssues')}
+              onFocus={() => { handleInputFocus('environmentalIssues'); handleFieldFocus('environmentalIssues', gradingData.environmentalIssues) }}
               onChange={(e) => updateField('environmentalIssues', e.target.value)}
-              onBlur={(e) => handleFieldBlur('environmentalIssues', e.target.value, 'Environmental Issues')}
-              placeholder="Any environmental concerns, wildlife, watercourse issues..." style={inputStyle} />
+              onBlur={(e) => { handleInputBlur('environmentalIssues'); handleFieldBlur('environmentalIssues', e.target.value, 'Environmental Issues') }}
+              placeholder="Any environmental concerns, wildlife, watercourse issues..." style={inputStyle} {...noAutofill} />
           </div>
         </div>
       </CollapsibleSection>
@@ -571,15 +610,15 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
                   <div style={gridStyle}>
                     <div>
                       <label style={labelStyle}>Location (KP)</label>
-                      <input type="text" value={spot.kp} onFocus={() => handleEntryFieldFocus(spot.id, 'kp', spot.kp)} onChange={(e) => updateSoftSpot(spot.id, 'kp', e.target.value)} onBlur={(e) => handleEntryFieldBlur(spot.id, 'kp', e.target.value, 'Location KP', getSoftSpotLabel(spot, idx))} placeholder="e.g. 5+350" style={inputStyle} />
+                      <input type="text" value={spot.kp} onFocus={() => handleEntryFieldFocus(spot.id, 'kp', spot.kp)} onChange={(e) => updateSoftSpot(spot.id, 'kp', e.target.value)} onBlur={(e) => handleEntryFieldBlur(spot.id, 'kp', e.target.value, 'Location KP', getSoftSpotLabel(spot, idx))} placeholder="e.g. 5+350" style={inputStyle} {...noAutofill} />
                     </div>
                     <div>
                       <label style={labelStyle}>Length (m)</label>
-                      <input type="text" inputMode="decimal" value={spot.length} onFocus={() => handleEntryFieldFocus(spot.id, 'length', spot.length)} onChange={(e) => updateSoftSpot(spot.id, 'length', e.target.value)} onBlur={(e) => handleEntryFieldBlur(spot.id, 'length', e.target.value, 'Length', getSoftSpotLabel(spot, idx))} placeholder="Approx length" style={inputStyle} />
+                      <input type="text" inputMode="decimal" value={spot.length} onFocus={() => handleEntryFieldFocus(spot.id, 'length', spot.length)} onChange={(e) => updateSoftSpot(spot.id, 'length', e.target.value)} onBlur={(e) => handleEntryFieldBlur(spot.id, 'length', e.target.value, 'Length', getSoftSpotLabel(spot, idx))} placeholder="Approx length" style={inputStyle} {...noAutofill} />
                     </div>
                     <div>
                       <label style={labelStyle}>Width (m)</label>
-                      <input type="text" inputMode="decimal" value={spot.width} onFocus={() => handleEntryFieldFocus(spot.id, 'width', spot.width)} onChange={(e) => updateSoftSpot(spot.id, 'width', e.target.value)} onBlur={(e) => handleEntryFieldBlur(spot.id, 'width', e.target.value, 'Width', getSoftSpotLabel(spot, idx))} placeholder="Approx width" style={inputStyle} />
+                      <input type="text" inputMode="decimal" value={spot.width} onFocus={() => handleEntryFieldFocus(spot.id, 'width', spot.width)} onChange={(e) => updateSoftSpot(spot.id, 'width', e.target.value)} onBlur={(e) => handleEntryFieldBlur(spot.id, 'width', e.target.value, 'Width', getSoftSpotLabel(spot, idx))} placeholder="Approx width" style={inputStyle} {...noAutofill} />
                     </div>
                     <div>
                       <label style={labelStyle}>Cause</label>
@@ -616,7 +655,7 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
                     </div>
                     <div style={{ gridColumn: 'span 2' }}>
                       <label style={labelStyle}>Comments</label>
-                      <input type="text" value={spot.comments} onFocus={() => handleEntryFieldFocus(spot.id, 'comments', spot.comments)} onChange={(e) => updateSoftSpot(spot.id, 'comments', e.target.value)} onBlur={(e) => handleEntryFieldBlur(spot.id, 'comments', e.target.value, 'Comments', getSoftSpotLabel(spot, idx))} placeholder="Additional details..." style={inputStyle} />
+                      <input type="text" value={spot.comments} onFocus={() => handleEntryFieldFocus(spot.id, 'comments', spot.comments)} onChange={(e) => updateSoftSpot(spot.id, 'comments', e.target.value)} onBlur={(e) => handleEntryFieldBlur(spot.id, 'comments', e.target.value, 'Comments', getSoftSpotLabel(spot, idx))} placeholder="Additional details..." style={inputStyle} {...noAutofill} />
                     </div>
                   </div>
                 </div>
@@ -680,7 +719,7 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
                     </div>
                     <div>
                       <label style={labelStyle}>Location (KP)</label>
-                      <input type="text" value={crossing.kp} onFocus={() => handleEntryFieldFocus(crossing.id, 'kp', crossing.kp)} onChange={(e) => updateCrossing(crossing.id, 'kp', e.target.value)} onBlur={(e) => handleEntryFieldBlur(crossing.id, 'kp', e.target.value, 'Location KP', getCrossingLabel(crossing, idx))} placeholder="e.g. 5+500" style={inputStyle} />
+                      <input type="text" value={crossing.kp} onFocus={() => handleEntryFieldFocus(crossing.id, 'kp', crossing.kp)} onChange={(e) => updateCrossing(crossing.id, 'kp', e.target.value)} onBlur={(e) => handleEntryFieldBlur(crossing.id, 'kp', e.target.value, 'Location KP', getCrossingLabel(crossing, idx))} placeholder="e.g. 5+500" style={inputStyle} {...noAutofill} />
                     </div>
                     <div>
                       <label style={labelStyle}>Access Maintained?</label>
@@ -720,7 +759,7 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
                     </div>
                     <div style={{ gridColumn: 'span 2' }}>
                       <label style={labelStyle}>Comments</label>
-                      <input type="text" value={crossing.comments} onFocus={() => handleEntryFieldFocus(crossing.id, 'comments', crossing.comments)} onChange={(e) => updateCrossing(crossing.id, 'comments', e.target.value)} onBlur={(e) => handleEntryFieldBlur(crossing.id, 'comments', e.target.value, 'Comments', getCrossingLabel(crossing, idx))} placeholder="Additional details..." style={inputStyle} />
+                      <input type="text" value={crossing.comments} onFocus={() => handleEntryFieldFocus(crossing.id, 'comments', crossing.comments)} onChange={(e) => updateCrossing(crossing.id, 'comments', e.target.value)} onBlur={(e) => handleEntryFieldBlur(crossing.id, 'comments', e.target.value, 'Comments', getCrossingLabel(crossing, idx))} placeholder="Additional details..." style={inputStyle} {...noAutofill} />
                     </div>
                   </div>
                 </div>
@@ -732,12 +771,12 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
 
       {/* COMMENTS - Collapsible */}
       <CollapsibleSection id="comments" title="📝 COMMENTS">
-        <textarea value={gradingData.comments}
-          onFocus={() => handleFieldFocus('comments', gradingData.comments)}
+        <textarea value={getInputValue('comments')}
+          onFocus={() => { handleInputFocus('comments'); handleFieldFocus('comments', gradingData.comments) }}
           onChange={(e) => updateField('comments', e.target.value)}
-          onBlur={(e) => handleFieldBlur('comments', e.target.value, 'Comments')}
+          onBlur={(e) => { handleInputBlur('comments'); handleFieldBlur('comments', e.target.value, 'Comments') }}
           placeholder="Additional comments, observations, production notes..."
-          style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px', minHeight: '80px', resize: 'vertical', boxSizing: 'border-box' }} />
+          style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px', minHeight: '80px', resize: 'vertical', boxSizing: 'border-box' }} {...noAutofill} />
       </CollapsibleSection>
     </div>
   )

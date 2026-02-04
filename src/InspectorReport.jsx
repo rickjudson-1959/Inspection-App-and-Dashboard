@@ -1932,6 +1932,7 @@ Important:
   }
 
   function updateGradingData(blockId, gradingData) {
+    console.log('[updateGradingData] rowWidth:', gradingData?.rowWidth, 'rowWidthSpec:', gradingData?.rowWidthSpec)
     setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
