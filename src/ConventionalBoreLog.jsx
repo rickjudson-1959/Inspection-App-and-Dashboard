@@ -9,6 +9,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { useActivityAudit } from './useActivityAudit'
 import { extractGPSFromImage } from './exifUtils'
 import DrillingWasteManagement from './DrillingWasteManagement'
+import ShieldedInput from './components/common/ShieldedInput.jsx'
 
 // Bore method options
 const BORE_METHODS = [
@@ -337,9 +338,9 @@ function ConventionalBoreLog({
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Bore ID</label>
-            <input type="text" value={boreData.boreId}
+            <ShieldedInput type="text" value={boreData.boreId}
               onFocus={() => handleFieldFocus('boreId', boreData.boreId)}
-              onChange={(e) => updateField('boreId', e.target.value)}
+              onChange={(val) => updateField('boreId', val)}
               onBlur={(e) => handleFieldBlur('boreId', e.target.value, 'Bore ID')}
               placeholder="e.g. CB-001" style={inputStyle} />
           </div>
@@ -370,49 +371,49 @@ function ConventionalBoreLog({
           </div>
           <div>
             <label style={labelStyle}>Crossing Description</label>
-            <input type="text" value={boreData.crossingDescription}
+            <ShieldedInput type="text" value={boreData.crossingDescription}
               onFocus={() => handleFieldFocus('crossingDescription', boreData.crossingDescription)}
-              onChange={(e) => updateField('crossingDescription', e.target.value)}
+              onChange={(val) => updateField('crossingDescription', val)}
               onBlur={(e) => handleFieldBlur('crossingDescription', e.target.value, 'Crossing Description')}
               placeholder="e.g. Township Road 42" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Design Entry KP</label>
-            <input type="text" value={boreData.designEntryKP}
+            <ShieldedInput type="text" value={boreData.designEntryKP}
               onFocus={() => handleFieldFocus('designEntryKP', boreData.designEntryKP)}
-              onChange={(e) => updateField('designEntryKP', e.target.value)}
+              onChange={(val) => updateField('designEntryKP', val)}
               onBlur={(e) => handleFieldBlur('designEntryKP', e.target.value, 'Design Entry KP')}
               placeholder="e.g. 5+250" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Design Exit KP</label>
-            <input type="text" value={boreData.designExitKP}
+            <ShieldedInput type="text" value={boreData.designExitKP}
               onFocus={() => handleFieldFocus('designExitKP', boreData.designExitKP)}
-              onChange={(e) => updateField('designExitKP', e.target.value)}
+              onChange={(val) => updateField('designExitKP', val)}
               onBlur={(e) => handleFieldBlur('designExitKP', e.target.value, 'Design Exit KP')}
               placeholder="e.g. 5+290" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Bore Length (m)</label>
-            <input type="text" inputMode="decimal" value={boreData.boreLength}
+            <ShieldedInput type="text" inputMode="decimal" value={boreData.boreLength}
               onFocus={() => handleFieldFocus('boreLength', boreData.boreLength)}
-              onChange={(e) => updateFieldWithCalc('boreLength', e.target.value)}
+              onChange={(val) => updateFieldWithCalc('boreLength', val)}
               onBlur={(e) => handleFieldBlur('boreLength', e.target.value, 'Bore Length')}
               placeholder="Total length" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Subcontractor</label>
-            <input type="text" value={boreData.subcontractor}
+            <ShieldedInput type="text" value={boreData.subcontractor}
               onFocus={() => handleFieldFocus('subcontractor', boreData.subcontractor)}
-              onChange={(e) => updateField('subcontractor', e.target.value)}
+              onChange={(val) => updateField('subcontractor', val)}
               onBlur={(e) => handleFieldBlur('subcontractor', e.target.value, 'Subcontractor')}
               placeholder="Bore subcontractor" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Machine ID</label>
-            <input type="text" value={boreData.machineId}
+            <ShieldedInput type="text" value={boreData.machineId}
               onFocus={() => handleFieldFocus('machineId', boreData.machineId)}
-              onChange={(e) => updateField('machineId', e.target.value)}
+              onChange={(val) => updateField('machineId', val)}
               onBlur={(e) => handleFieldBlur('machineId', e.target.value, 'Machine ID')}
               placeholder="Equipment ID" style={inputStyle} />
           </div>
@@ -424,33 +425,33 @@ function ConventionalBoreLog({
           <div style={gridStyle}>
             <div>
               <label style={labelStyle}>Casing Diameter (in)</label>
-              <input type="text" inputMode="decimal" value={boreData.casingDiameterInches}
+              <ShieldedInput type="text" inputMode="decimal" value={boreData.casingDiameterInches}
                 onFocus={() => handleFieldFocus('casingDiameterInches', boreData.casingDiameterInches)}
-                onChange={(e) => updateFieldWithCalc('casingDiameterInches', e.target.value)}
+                onChange={(val) => updateFieldWithCalc('casingDiameterInches', val)}
                 onBlur={(e) => handleFieldBlur('casingDiameterInches', e.target.value, 'Casing Diameter')}
                 placeholder="e.g. 30" style={inputStyle} />
             </div>
             <div>
               <label style={labelStyle}>Casing Wall (in)</label>
-              <input type="text" inputMode="decimal" value={boreData.casingWallThickness}
+              <ShieldedInput type="text" inputMode="decimal" value={boreData.casingWallThickness}
                 onFocus={() => handleFieldFocus('casingWallThickness', boreData.casingWallThickness)}
-                onChange={(e) => updateField('casingWallThickness', e.target.value)}
+                onChange={(val) => updateField('casingWallThickness', val)}
                 onBlur={(e) => handleFieldBlur('casingWallThickness', e.target.value, 'Casing Wall Thickness')}
                 placeholder="e.g. 0.375" style={inputStyle} />
             </div>
             <div>
               <label style={labelStyle}>Carrier Pipe Diameter (in)</label>
-              <input type="text" inputMode="decimal" value={boreData.carrierDiameterInches}
+              <ShieldedInput type="text" inputMode="decimal" value={boreData.carrierDiameterInches}
                 onFocus={() => handleFieldFocus('carrierDiameterInches', boreData.carrierDiameterInches)}
-                onChange={(e) => updateFieldWithCalc('carrierDiameterInches', e.target.value)}
+                onChange={(val) => updateFieldWithCalc('carrierDiameterInches', val)}
                 onBlur={(e) => handleFieldBlur('carrierDiameterInches', e.target.value, 'Carrier Diameter')}
                 placeholder="e.g. 24" style={inputStyle} />
             </div>
             <div>
               <label style={labelStyle}>Carrier Wall (in)</label>
-              <input type="text" inputMode="decimal" value={boreData.carrierWallThickness}
+              <ShieldedInput type="text" inputMode="decimal" value={boreData.carrierWallThickness}
                 onFocus={() => handleFieldFocus('carrierWallThickness', boreData.carrierWallThickness)}
-                onChange={(e) => updateField('carrierWallThickness', e.target.value)}
+                onChange={(val) => updateField('carrierWallThickness', val)}
                 onBlur={(e) => handleFieldBlur('carrierWallThickness', e.target.value, 'Carrier Wall Thickness')}
                 placeholder="e.g. 0.500" style={inputStyle} />
             </div>
@@ -474,9 +475,9 @@ function ConventionalBoreLog({
             <div style={gridStyle}>
               <div>
                 <label style={labelStyle}>Winch Tension (lbs)</label>
-                <input type="text" inputMode="numeric" value={boreData.winchTension}
+                <ShieldedInput type="text" inputMode="numeric" value={boreData.winchTension}
                   onFocus={() => handleFieldFocus('winchTension', boreData.winchTension)}
-                  onChange={(e) => updateField('winchTension', e.target.value)}
+                  onChange={(val) => updateField('winchTension', val)}
                   onBlur={(e) => handleFieldBlur('winchTension', e.target.value, 'Winch Tension')}
                   placeholder="Measured tension" style={inputStyle} />
               </div>
@@ -548,25 +549,25 @@ function ConventionalBoreLog({
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Actual Exit KP</label>
-            <input type="text" value={boreData.actualExitKP}
+            <ShieldedInput type="text" value={boreData.actualExitKP}
               onFocus={() => handleFieldFocus('actualExitKP', boreData.actualExitKP)}
-              onChange={(e) => updateField('actualExitKP', e.target.value)}
+              onChange={(val) => updateField('actualExitKP', val)}
               onBlur={(e) => handleFieldBlur('actualExitKP', e.target.value, 'Actual Exit KP')}
               placeholder="Measured exit KP" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Start Pitch (%)</label>
-            <input type="text" inputMode="decimal" value={boreData.startPitchPercent}
+            <ShieldedInput type="text" inputMode="decimal" value={boreData.startPitchPercent}
               onFocus={() => handleFieldFocus('startPitchPercent', boreData.startPitchPercent)}
-              onChange={(e) => updateField('startPitchPercent', e.target.value)}
+              onChange={(val) => updateField('startPitchPercent', val)}
               onBlur={(e) => handleFieldBlur('startPitchPercent', e.target.value, 'Start Pitch')}
               placeholder="e.g. -2.5" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Exit Pitch (%)</label>
-            <input type="text" inputMode="decimal" value={boreData.exitPitchPercent}
+            <ShieldedInput type="text" inputMode="decimal" value={boreData.exitPitchPercent}
               onFocus={() => handleFieldFocus('exitPitchPercent', boreData.exitPitchPercent)}
-              onChange={(e) => updateField('exitPitchPercent', e.target.value)}
+              onChange={(val) => updateField('exitPitchPercent', val)}
               onBlur={(e) => handleFieldBlur('exitPitchPercent', e.target.value, 'Exit Pitch')}
               placeholder="e.g. +1.5" style={inputStyle} />
           </div>
@@ -647,9 +648,9 @@ function ConventionalBoreLog({
             <>
               <div>
                 <label style={labelStyle}>Total Water Used (m³)</label>
-                <input type="text" inputMode="decimal" value={boreData.totalWaterUsedM3}
+                <ShieldedInput type="text" inputMode="decimal" value={boreData.totalWaterUsedM3}
                   onFocus={() => handleFieldFocus('totalWaterUsedM3', boreData.totalWaterUsedM3)}
-                  onChange={(e) => updateField('totalWaterUsedM3', e.target.value)}
+                  onChange={(val) => updateField('totalWaterUsedM3', val)}
                   onBlur={(e) => handleFieldBlur('totalWaterUsedM3', e.target.value, 'Total Water Used')}
                   placeholder="Cubic meters" style={inputStyle} />
               </div>
@@ -667,9 +668,9 @@ function ConventionalBoreLog({
               {boreData.mudType && boreData.mudType !== 'water_only' && boreData.mudType !== 'none' && (
                 <div>
                   <label style={labelStyle}>Mud Volume (m³)</label>
-                  <input type="text" inputMode="decimal" value={boreData.mudVolumeM3}
+                  <ShieldedInput type="text" inputMode="decimal" value={boreData.mudVolumeM3}
                     onFocus={() => handleFieldFocus('mudVolumeM3', boreData.mudVolumeM3)}
-                    onChange={(e) => updateField('mudVolumeM3', e.target.value)}
+                    onChange={(val) => updateField('mudVolumeM3', val)}
                     onBlur={(e) => handleFieldBlur('mudVolumeM3', e.target.value, 'Mud Volume')}
                     placeholder="Cubic meters" style={inputStyle} />
                 </div>
@@ -718,7 +719,7 @@ function ConventionalBoreLog({
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Calculated Annulus Volume (m³)</label>
-            <input type="text" value={boreData.calculatedAnnulusVolume}
+            <ShieldedInput type="text" value={boreData.calculatedAnnulusVolume}
               readOnly
               style={readOnlyStyle}
               placeholder="Auto-calculated" />
@@ -726,15 +727,15 @@ function ConventionalBoreLog({
           </div>
           <div>
             <label style={labelStyle}>Actual Grout Pumped (m³)</label>
-            <input type="text" inputMode="decimal" value={boreData.actualGroutPumpedM3}
+            <ShieldedInput type="text" inputMode="decimal" value={boreData.actualGroutPumpedM3}
               onFocus={() => handleFieldFocus('actualGroutPumpedM3', boreData.actualGroutPumpedM3)}
-              onChange={(e) => updateFieldWithCalc('actualGroutPumpedM3', e.target.value)}
+              onChange={(val) => updateFieldWithCalc('actualGroutPumpedM3', val)}
               onBlur={(e) => handleFieldBlur('actualGroutPumpedM3', e.target.value, 'Actual Grout Pumped')}
               placeholder="Measured volume" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Variance (%)</label>
-            <input type="text" value={boreData.groutVariancePercent ? `${boreData.groutVariancePercent}%` : ''}
+            <ShieldedInput type="text" value={boreData.groutVariancePercent ? `${boreData.groutVariancePercent}%` : ''}
               readOnly
               style={{
                 ...readOnlyStyle,
@@ -783,9 +784,9 @@ function ConventionalBoreLog({
           <div style={gridStyle}>
             <div>
               <label style={labelStyle}>Weld ID (Carrier Pipe)</label>
-              <input type="text" value={boreData.weldId}
+              <ShieldedInput type="text" value={boreData.weldId}
                 onFocus={() => handleFieldFocus('weldId', boreData.weldId)}
-                onChange={(e) => updateField('weldId', e.target.value)}
+                onChange={(val) => updateField('weldId', val)}
                 onBlur={(e) => handleFieldBlur('weldId', e.target.value, 'Weld ID')}
                 placeholder="Link to pipe string weld" style={inputStyle} />
             </div>
@@ -852,9 +853,9 @@ function ConventionalBoreLog({
                   )}
                   <div style={{ marginBottom: '10px' }}>
                     <label style={labelStyle}>KP Location</label>
-                    <input type="text" value={boreData.exitPitPhotoKP}
+                    <ShieldedInput type="text" value={boreData.exitPitPhotoKP}
                       onFocus={() => handleFieldFocus('exitPitPhotoKP', boreData.exitPitPhotoKP)}
-                      onChange={(e) => updateField('exitPitPhotoKP', e.target.value)}
+                      onChange={(val) => updateField('exitPitPhotoKP', val)}
                       onBlur={(e) => handleFieldBlur('exitPitPhotoKP', e.target.value, 'Photo KP Location')}
                       placeholder="e.g. 5+290" style={{ ...inputStyle, maxWidth: '150px' }} />
                   </div>
@@ -909,9 +910,9 @@ function ConventionalBoreLog({
 
       {/* 8. COMMENTS */}
       <CollapsibleSection id="comments" title="COMMENTS" expanded={expandedSections.comments} onToggle={toggleSection}>
-        <textarea value={boreData.comments}
+        <ShieldedInput as="textarea" value={boreData.comments}
           onFocus={() => handleFieldFocus('comments', boreData.comments)}
-          onChange={(e) => updateField('comments', e.target.value)}
+          onChange={(val) => updateField('comments', val)}
           onBlur={(e) => handleFieldBlur('comments', e.target.value, 'Comments')}
           placeholder="Additional comments, issues, observations, or notes..."
           style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px', minHeight: '80px', resize: 'vertical', boxSizing: 'border-box' }} />

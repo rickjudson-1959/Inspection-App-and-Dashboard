@@ -1,4 +1,5 @@
 import React, { useRef } from 'react'
+import ShieldedInput from './components/common/ShieldedInput.jsx'
 import { useActivityAudit } from './useActivityAudit'
 
 function PilingLog({ data, onChange, logId, reportId }) {
@@ -681,10 +682,11 @@ function PilingLog({ data, onChange, logId, reportId }) {
       {/* COMMENTS */}
       <div style={sectionStyle}>
         <div style={sectionHeaderStyle}>📝 COMMENTS</div>
-        <textarea
+        <ShieldedInput
+          as="textarea"
           value={pilingData.comments}
           onFocus={() => handleFieldFocus('comments', pilingData.comments)}
-          onChange={(e) => updateField('comments', e.target.value)}
+          onChange={(val) => updateField('comments', val)}
           onBlur={(e) => handleFieldBlur('comments', e.target.value, 'Comments')}
           placeholder="Additional comments, observations, or notes..."
           style={{

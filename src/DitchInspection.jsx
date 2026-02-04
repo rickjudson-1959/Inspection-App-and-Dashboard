@@ -7,6 +7,7 @@
 
 import React, { useState, useRef } from 'react'
 import { useActivityAudit } from './useActivityAudit'
+import ShieldedInput from './components/common/ShieldedInput.jsx'
 
 // Format KP input to X+XXX format (e.g., 6500 -> 6+500)
 function formatKP(kp) {
@@ -309,12 +310,12 @@ function DitchInspection({
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Trench Width (m)</label>
-            <input
+            <ShieldedInput
               type="text"
               inputMode="decimal"
               value={ditchData.trenchWidth}
               onFocus={() => handleFieldFocus('trenchWidth', ditchData.trenchWidth)}
-              onChange={(e) => updateField('trenchWidth', e.target.value)}
+              onChange={(val) => updateField('trenchWidth', val)}
               onBlur={(e) => handleFieldBlur('trenchWidth', e.target.value, 'Trench Width')}
               placeholder="As measured"
               style={inputStyle}
@@ -322,12 +323,12 @@ function DitchInspection({
           </div>
           <div>
             <label style={labelStyle}>Trench Depth (m)</label>
-            <input
+            <ShieldedInput
               type="text"
               inputMode="decimal"
               value={ditchData.trenchDepth}
               onFocus={() => handleFieldFocus('trenchDepth', ditchData.trenchDepth)}
-              onChange={(e) => updateField('trenchDepth', e.target.value)}
+              onChange={(val) => updateField('trenchDepth', val)}
               onBlur={(e) => handleFieldBlur('trenchDepth', e.target.value, 'Trench Depth')}
               placeholder="As measured"
               style={inputStyle}
@@ -335,12 +336,12 @@ function DitchInspection({
           </div>
           <div>
             <label style={labelStyle}>Depth of Cover Required (m)</label>
-            <input
+            <ShieldedInput
               type="text"
               inputMode="decimal"
               value={ditchData.depthOfCoverRequired}
               onFocus={() => handleFieldFocus('depthOfCoverRequired', ditchData.depthOfCoverRequired)}
-              onChange={(e) => updateField('depthOfCoverRequired', e.target.value)}
+              onChange={(val) => updateField('depthOfCoverRequired', val)}
               onBlur={(e) => handleFieldBlur('depthOfCoverRequired', e.target.value, 'Depth of Cover Required')}
               placeholder="Per spec"
               style={inputStyle}
@@ -348,12 +349,12 @@ function DitchInspection({
           </div>
           <div>
             <label style={labelStyle}>Depth of Cover Actual (m)</label>
-            <input
+            <ShieldedInput
               type="text"
               inputMode="decimal"
               value={ditchData.depthOfCoverActual}
               onFocus={() => handleFieldFocus('depthOfCoverActual', ditchData.depthOfCoverActual)}
-              onChange={(e) => updateField('depthOfCoverActual', e.target.value)}
+              onChange={(val) => updateField('depthOfCoverActual', val)}
               onBlur={(e) => handleFieldBlur('depthOfCoverActual', e.target.value, 'Depth of Cover Actual')}
               placeholder="As achieved"
               style={inputStyle}
@@ -413,11 +414,11 @@ function DitchInspection({
                   <div style={gridStyle}>
                     <div>
                       <label style={labelStyle}>From KP</label>
-                      <input
+                      <ShieldedInput
                         type="text"
                         value={ditchData.paddingBeddingFromKP || ''}
                         onFocus={() => handleFieldFocus('paddingBeddingFromKP', ditchData.paddingBeddingFromKP)}
-                        onChange={(e) => updateField('paddingBeddingFromKP', e.target.value)}
+                        onChange={(val) => updateField('paddingBeddingFromKP', val)}
                         onBlur={(e) => {
                           const formatted = formatKP(e.target.value)
                           if (formatted !== e.target.value) {
@@ -431,11 +432,11 @@ function DitchInspection({
                     </div>
                     <div>
                       <label style={labelStyle}>To KP</label>
-                      <input
+                      <ShieldedInput
                         type="text"
                         value={ditchData.paddingBeddingToKP || ''}
                         onFocus={() => handleFieldFocus('paddingBeddingToKP', ditchData.paddingBeddingToKP)}
-                        onChange={(e) => updateField('paddingBeddingToKP', e.target.value)}
+                        onChange={(val) => updateField('paddingBeddingToKP', val)}
                         onBlur={(e) => {
                           const formatted = formatKP(e.target.value)
                           if (formatted !== e.target.value) {
@@ -449,12 +450,12 @@ function DitchInspection({
                     </div>
                     <div>
                       <label style={labelStyle}>Padding/Bedding Metres</label>
-                      <input
+                      <ShieldedInput
                         type="text"
                         inputMode="decimal"
                         value={ditchData.paddingBeddingMeters}
                         onFocus={() => handleFieldFocus('paddingBeddingMeters', ditchData.paddingBeddingMeters)}
-                        onChange={(e) => updateField('paddingBeddingMeters', e.target.value)}
+                        onChange={(val) => updateField('paddingBeddingMeters', val)}
                         onBlur={(e) => handleFieldBlur('paddingBeddingMeters', e.target.value, 'Padding/Bedding Metres')}
                         placeholder="Total metres"
                         style={inputStyle}
@@ -535,10 +536,11 @@ function DitchInspection({
             {/* BOT Issues */}
             <div style={{ gridColumn: '1 / -1' }}>
               <label style={labelStyle}>BOT Issues / Notes</label>
-              <textarea
+              <ShieldedInput
+                as="textarea"
                 value={ditchData.botChecklist.issues}
                 onFocus={() => handleFieldFocus('botIssues', ditchData.botChecklist.issues)}
-                onChange={(e) => updateBOTChecklist('issues', e.target.value)}
+                onChange={(val) => updateBOTChecklist('issues', val)}
                 onBlur={(e) => handleFieldBlur('botIssues', e.target.value, 'BOT Issues')}
                 placeholder="Document any BOT issues or required corrections..."
                 style={{
@@ -584,11 +586,11 @@ function DitchInspection({
               <div style={gridStyle}>
                 <div>
                   <label style={labelStyle}>Pumping Equipment</label>
-                  <input
+                  <ShieldedInput
                     type="text"
                     value={ditchData.waterManagement.pumpingEquipment}
                     onFocus={() => handleFieldFocus('pumpingEquipment', ditchData.waterManagement.pumpingEquipment)}
-                    onChange={(e) => updateWaterManagement('pumpingEquipment', e.target.value)}
+                    onChange={(val) => updateWaterManagement('pumpingEquipment', val)}
                     onBlur={(e) => handleFieldBlur('pumpingEquipment', e.target.value, 'Pumping Equipment')}
                     placeholder="e.g., 4&quot; trash pump"
                     style={inputStyle}
@@ -596,12 +598,12 @@ function DitchInspection({
                 </div>
                 <div>
                   <label style={labelStyle}>Pumping Hours</label>
-                  <input
+                  <ShieldedInput
                     type="text"
                     inputMode="decimal"
                     value={ditchData.waterManagement.pumpingHours}
                     onFocus={() => handleFieldFocus('pumpingHours', ditchData.waterManagement.pumpingHours)}
-                    onChange={(e) => updateWaterManagement('pumpingHours', e.target.value)}
+                    onChange={(val) => updateWaterManagement('pumpingHours', val)}
                     onBlur={(e) => handleFieldBlur('pumpingHours', e.target.value, 'Pumping Hours')}
                     placeholder="Hours"
                     style={inputStyle}
@@ -629,12 +631,12 @@ function DitchInspection({
               <div style={gridStyle}>
                 <div>
                   <label style={labelStyle}>Filter Bag Count</label>
-                  <input
+                  <ShieldedInput
                     type="text"
-                    inputMode="numeric"
+                    inputMode="decimal"
                     value={ditchData.waterManagement.filterBagCount}
                     onFocus={() => handleFieldFocus('filterBagCount', ditchData.waterManagement.filterBagCount)}
-                    onChange={(e) => updateWaterManagement('filterBagCount', e.target.value)}
+                    onChange={(val) => updateWaterManagement('filterBagCount', val)}
                     onBlur={(e) => handleFieldBlur('filterBagCount', e.target.value, 'Filter Bag Count')}
                     placeholder="Number used"
                     style={inputStyle}
@@ -642,11 +644,11 @@ function DitchInspection({
                 </div>
                 <div>
                   <label style={labelStyle}>Discharge Location</label>
-                  <input
+                  <ShieldedInput
                     type="text"
                     value={ditchData.waterManagement.dischargeLocation}
                     onFocus={() => handleFieldFocus('dischargeLocation', ditchData.waterManagement.dischargeLocation)}
-                    onChange={(e) => updateWaterManagement('dischargeLocation', e.target.value)}
+                    onChange={(val) => updateWaterManagement('dischargeLocation', val)}
                     onBlur={(e) => handleFieldBlur('dischargeLocation', e.target.value, 'Discharge Location')}
                     placeholder="Where water is discharged"
                     style={inputStyle}
@@ -654,11 +656,11 @@ function DitchInspection({
                 </div>
                 <div>
                   <label style={labelStyle}>Discharge Permit #</label>
-                  <input
+                  <ShieldedInput
                     type="text"
                     value={ditchData.waterManagement.dischargePermitNumber}
                     onFocus={() => handleFieldFocus('dischargePermitNumber', ditchData.waterManagement.dischargePermitNumber)}
-                    onChange={(e) => updateWaterManagement('dischargePermitNumber', e.target.value)}
+                    onChange={(val) => updateWaterManagement('dischargePermitNumber', val)}
                     onBlur={(e) => handleFieldBlur('dischargePermitNumber', e.target.value, 'Discharge Permit Number')}
                     placeholder="Permit number"
                     style={inputStyle}
@@ -669,10 +671,11 @@ function DitchInspection({
 
             <div style={{ marginTop: '15px' }}>
               <label style={labelStyle}>Water Management Notes</label>
-              <textarea
+              <ShieldedInput
+                as="textarea"
                 value={ditchData.waterManagement.notes}
                 onFocus={() => handleFieldFocus('waterManagementNotes', ditchData.waterManagement.notes)}
-                onChange={(e) => updateWaterManagement('notes', e.target.value)}
+                onChange={(val) => updateWaterManagement('notes', val)}
                 onBlur={(e) => handleFieldBlur('waterManagementNotes', e.target.value, 'Water Management Notes')}
                 placeholder="Additional water management observations..."
                 style={{
@@ -731,12 +734,12 @@ function DitchInspection({
             <>
               <div>
                 <label style={labelStyle}>Groundwater Depth (m)</label>
-                <input
+                <ShieldedInput
                   type="text"
                   inputMode="decimal"
                   value={ditchData.groundwaterDepth}
                   onFocus={() => handleFieldFocus('groundwaterDepth', ditchData.groundwaterDepth)}
-                  onChange={(e) => updateField('groundwaterDepth', e.target.value)}
+                  onChange={(val) => updateField('groundwaterDepth', val)}
                   onBlur={(e) => handleFieldBlur('groundwaterDepth', e.target.value, 'Groundwater Depth')}
                   placeholder="Depth to water"
                   style={inputStyle}
@@ -805,10 +808,11 @@ function DitchInspection({
             <div style={gridStyle}>
               <div style={{ gridColumn: 'span 2' }}>
                 <label style={labelStyle}>Reason Minimum Depth Not Met *</label>
-                <textarea
+                <ShieldedInput
+                  as="textarea"
                   value={ditchData.depthNotMetReason}
                   onFocus={() => handleFieldFocus('depthNotMetReason', ditchData.depthNotMetReason)}
-                  onChange={(e) => updateField('depthNotMetReason', e.target.value)}
+                  onChange={(val) => updateField('depthNotMetReason', val)}
                   onBlur={(e) => handleFieldBlur('depthNotMetReason', e.target.value, 'Depth Not Met Reason')}
                   placeholder="Explain why minimum depth could not be achieved..."
                   style={{
@@ -820,11 +824,11 @@ function DitchInspection({
               </div>
               <div>
                 <label style={labelStyle}>Signoff Name *</label>
-                <input
+                <ShieldedInput
                   type="text"
                   value={ditchData.depthNotMetSignoff}
                   onFocus={() => handleFieldFocus('depthNotMetSignoff', ditchData.depthNotMetSignoff)}
-                  onChange={(e) => updateField('depthNotMetSignoff', e.target.value)}
+                  onChange={(val) => updateField('depthNotMetSignoff', val)}
                   onBlur={(e) => handleFieldBlur('depthNotMetSignoff', e.target.value, 'Depth Signoff Name')}
                   placeholder="Chief Inspector / CM"
                   style={inputStyle}
@@ -850,11 +854,11 @@ function DitchInspection({
               </div>
               <div>
                 <label style={labelStyle}>Date of Signoff</label>
-                <input
+                <ShieldedInput
                   type="date"
                   value={ditchData.depthNotMetDate}
                   onFocus={() => handleFieldFocus('depthNotMetDate', ditchData.depthNotMetDate)}
-                  onChange={(e) => updateField('depthNotMetDate', e.target.value)}
+                  onChange={(val) => updateField('depthNotMetDate', val)}
                   onBlur={(e) => handleFieldBlur('depthNotMetDate', e.target.value, 'Depth Signoff Date')}
                   style={inputStyle}
                 />
@@ -867,10 +871,11 @@ function DitchInspection({
       {/* COMMENTS */}
       <div style={sectionStyle}>
         <div style={sectionHeaderStyle}>COMMENTS</div>
-        <textarea
+        <ShieldedInput
+          as="textarea"
           value={ditchData.comments}
           onFocus={() => handleFieldFocus('comments', ditchData.comments)}
-          onChange={(e) => updateField('comments', e.target.value)}
+          onChange={(val) => updateField('comments', val)}
           onBlur={(e) => handleFieldBlur('comments', e.target.value, 'Comments')}
           placeholder="Additional comments, observations, production notes..."
           style={{

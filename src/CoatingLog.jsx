@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react'
+import ShieldedInput from './components/common/ShieldedInput.jsx'
 
 // CoatingLog component for field joint coating inspection
-// All inputs are inline - no nested components
+// All inputs use ShieldedInput - no raw DOM inputs
 
 function CoatingLog({ contractor, foreman, blockId, reportId, existingData, onDataChange }) {
   const [coatingData, setCoatingData] = useState(() => {
@@ -77,7 +78,7 @@ function CoatingLog({ contractor, foreman, blockId, reportId, existingData, onDa
 
   return (
     <div style={{ marginTop: '15px' }}>
-      
+
       {/* WELD IDENTIFICATION */}
       <div style={sectionStyle}>
         <button type="button" onClick={() => toggleSection('Weld Identification')} style={{ width: '100%', padding: '12px 15px', backgroundColor: expandedSections['Weld Identification'] ? '#17a2b8' : '#e9ecef', color: expandedSections['Weld Identification'] ? 'white' : '#333', border: 'none', textAlign: 'left', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -104,12 +105,12 @@ function CoatingLog({ contractor, foreman, blockId, reportId, existingData, onDa
                 <tbody>
                   {(coatingData.welds || []).map((weld, idx) => (
                     <tr key={idx}>
-                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><input type="text" value={weld.weldNumber || ''} onChange={(e) => updateWeld(idx, 'weldNumber', e.target.value)} style={{ ...inputStyle, padding: '6px' }} /></td>
-                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><input type="text" inputMode="decimal" value={weld.kp || ''} onChange={(e) => updateWeld(idx, 'kp', e.target.value)} style={{ ...inputStyle, padding: '6px' }} /></td>
-                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><input type="text" inputMode="decimal" value={weld.diameter || ''} onChange={(e) => updateWeld(idx, 'diameter', e.target.value)} style={{ ...inputStyle, padding: '6px' }} /></td>
-                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><input type="text" inputMode="decimal" value={weld.wallThickness || ''} onChange={(e) => updateWeld(idx, 'wallThickness', e.target.value)} style={{ ...inputStyle, padding: '6px' }} /></td>
-                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><input type="text" value={weld.grade || ''} onChange={(e) => updateWeld(idx, 'grade', e.target.value)} style={{ ...inputStyle, padding: '6px' }} /></td>
-                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><input type="text" value={weld.coatingCompany || ''} onChange={(e) => updateWeld(idx, 'coatingCompany', e.target.value)} style={{ ...inputStyle, padding: '6px' }} /></td>
+                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><ShieldedInput type="text" value={weld.weldNumber || ''} onChange={(val) => updateWeld(idx, 'weldNumber', val)} style={{ ...inputStyle, padding: '6px' }} /></td>
+                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><ShieldedInput type="text" inputMode="decimal" value={weld.kp || ''} onChange={(val) => updateWeld(idx, 'kp', val)} style={{ ...inputStyle, padding: '6px' }} /></td>
+                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><ShieldedInput type="text" inputMode="decimal" value={weld.diameter || ''} onChange={(val) => updateWeld(idx, 'diameter', val)} style={{ ...inputStyle, padding: '6px' }} /></td>
+                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><ShieldedInput type="text" inputMode="decimal" value={weld.wallThickness || ''} onChange={(val) => updateWeld(idx, 'wallThickness', val)} style={{ ...inputStyle, padding: '6px' }} /></td>
+                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><ShieldedInput type="text" value={weld.grade || ''} onChange={(val) => updateWeld(idx, 'grade', val)} style={{ ...inputStyle, padding: '6px' }} /></td>
+                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><ShieldedInput type="text" value={weld.coatingCompany || ''} onChange={(val) => updateWeld(idx, 'coatingCompany', val)} style={{ ...inputStyle, padding: '6px' }} /></td>
                       <td style={{ padding: '4px', border: '1px solid #dee2e6', textAlign: 'center' }}><button type="button" onClick={() => removeWeld(idx)} style={{ padding: '4px 8px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>✕</button></td>
                     </tr>
                   ))}
@@ -136,12 +137,12 @@ function CoatingLog({ contractor, foreman, blockId, reportId, existingData, onDa
                   {(coatingData.ambientReadings || []).length > 1 && <button type="button" onClick={() => removeAmbientReading(idx)} style={{ padding: '4px 10px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px' }}>Remove</button>}
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: '10px' }}>
-                  <div><label style={labelStyle}>Time</label><input type="time" value={reading.time || ''} onChange={(e) => updateAmbientReading(idx, 'time', e.target.value)} style={inputStyle} /></div>
-                  <div><label style={labelStyle}>Wet Bulb (°C)</label><input type="text" inputMode="decimal" value={reading.wetBulb || ''} onChange={(e) => updateAmbientReading(idx, 'wetBulb', e.target.value)} style={inputStyle} /></div>
-                  <div><label style={labelStyle}>Dry Bulb (°C)</label><input type="text" inputMode="decimal" value={reading.dryBulb || ''} onChange={(e) => updateAmbientReading(idx, 'dryBulb', e.target.value)} style={inputStyle} /></div>
-                  <div><label style={labelStyle}>Dew Point (°C)</label><input type="text" inputMode="decimal" value={reading.dewPoint || ''} onChange={(e) => updateAmbientReading(idx, 'dewPoint', e.target.value)} style={inputStyle} /></div>
-                  <div><label style={labelStyle}>RH (%)</label><input type="text" inputMode="decimal" value={reading.humidity || ''} onChange={(e) => updateAmbientReading(idx, 'humidity', e.target.value)} style={inputStyle} /></div>
-                  <div><label style={labelStyle}>Steel Temp (°C)</label><input type="text" inputMode="decimal" value={reading.steelTemp || ''} onChange={(e) => updateAmbientReading(idx, 'steelTemp', e.target.value)} style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Time</label><ShieldedInput type="time" value={reading.time || ''} onChange={(val) => updateAmbientReading(idx, 'time', val)} style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Wet Bulb (°C)</label><ShieldedInput type="text" inputMode="decimal" value={reading.wetBulb || ''} onChange={(val) => updateAmbientReading(idx, 'wetBulb', val)} style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Dry Bulb (°C)</label><ShieldedInput type="text" inputMode="decimal" value={reading.dryBulb || ''} onChange={(val) => updateAmbientReading(idx, 'dryBulb', val)} style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Dew Point (°C)</label><ShieldedInput type="text" inputMode="decimal" value={reading.dewPoint || ''} onChange={(val) => updateAmbientReading(idx, 'dewPoint', val)} style={inputStyle} /></div>
+                  <div><label style={labelStyle}>RH (%)</label><ShieldedInput type="text" inputMode="decimal" value={reading.humidity || ''} onChange={(val) => updateAmbientReading(idx, 'humidity', val)} style={inputStyle} /></div>
+                  <div><label style={labelStyle}>Steel Temp (°C)</label><ShieldedInput type="text" inputMode="decimal" value={reading.steelTemp || ''} onChange={(val) => updateAmbientReading(idx, 'steelTemp', val)} style={inputStyle} /></div>
                 </div>
               </div>
             ))}
@@ -174,26 +175,26 @@ function CoatingLog({ contractor, foreman, blockId, reportId, existingData, onDa
                     <button type="button" onClick={() => removeSurfacePrep(idx)} style={{ padding: '4px 10px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '11px' }}>Remove</button>
                   </div>
                   <div style={gridStyle}>
-                    <div><label style={labelStyle}>Weld Number</label><input type="text" value={prep.weldNumber || ''} onChange={(e) => updateSurfacePrep(idx, 'weldNumber', e.target.value)} placeholder="W-1234" style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Weld Number</label><ShieldedInput type="text" value={prep.weldNumber || ''} onChange={(val) => updateSurfacePrep(idx, 'weldNumber', val)} placeholder="W-1234" style={inputStyle} /></div>
                     <div><label style={labelStyle}>Contaminants?</label><select value={prep.contaminants || ''} onChange={(e) => updateSurfacePrep(idx, 'contaminants', e.target.value)} style={inputStyle}><option value="">Select...</option><option value="None">None</option><option value="Oil/Grease">Oil/Grease</option><option value="Rust">Rust</option><option value="Mill Scale">Mill Scale</option><option value="Other">Other</option></select></div>
                     <div><label style={labelStyle}>Steel Condition</label><select value={prep.steelCondition || ''} onChange={(e) => updateSurfacePrep(idx, 'steelCondition', e.target.value)} style={inputStyle}><option value="">Select...</option><option value="Clean">Clean</option><option value="Light Rust">Light Rust</option><option value="Heavy Rust">Heavy Rust</option><option value="Mill Scale">Mill Scale</option></select></div>
-                    <div><label style={labelStyle}>Abrasive Type</label><input type="text" value={prep.abrasiveType || ''} onChange={(e) => updateSurfacePrep(idx, 'abrasiveType', e.target.value)} style={inputStyle} /></div>
-                    <div><label style={labelStyle}>Conductivity (µs)</label><input type="text" inputMode="decimal" value={prep.conductivity || ''} onChange={(e) => updateSurfacePrep(idx, 'conductivity', e.target.value)} style={inputStyle} /></div>
-                    <div><label style={labelStyle}>Sweep Blast (mm)</label><input type="text" inputMode="decimal" value={prep.sweepBlast || ''} onChange={(e) => updateSurfacePrep(idx, 'sweepBlast', e.target.value)} style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Abrasive Type</label><ShieldedInput type="text" value={prep.abrasiveType || ''} onChange={(val) => updateSurfacePrep(idx, 'abrasiveType', val)} style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Conductivity (µs)</label><ShieldedInput type="text" inputMode="decimal" value={prep.conductivity || ''} onChange={(val) => updateSurfacePrep(idx, 'conductivity', val)} style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Sweep Blast (mm)</label><ShieldedInput type="text" inputMode="decimal" value={prep.sweepBlast || ''} onChange={(val) => updateSurfacePrep(idx, 'sweepBlast', val)} style={inputStyle} /></div>
                     <div><label style={labelStyle}>Surface Cleaned?</label><select value={prep.surfaceCleaned || ''} onChange={(e) => updateSurfacePrep(idx, 'surfaceCleaned', e.target.value)} style={inputStyle}><option value="">Select...</option><option value="Yes">Yes</option><option value="No">No</option></select></div>
                     <div><label style={labelStyle}>Blast Finish</label><select value={prep.blastFinish || ''} onChange={(e) => updateSurfacePrep(idx, 'blastFinish', e.target.value)} style={inputStyle}><option value="">Select...</option><option value="Near White">Near White</option><option value="White Metal">White Metal</option><option value="Commercial">Commercial</option><option value="Other">Other</option></select></div>
                   </div>
                   <div style={{ marginTop: '10px', padding: '10px', backgroundColor: '#e9ecef', borderRadius: '4px' }}>
                     <label style={{ ...labelStyle, marginBottom: '8px' }}>Profile Depth (mils)</label>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                      <div><label style={labelStyle}>#1</label><input type="text" inputMode="decimal" value={prep.profileDepth1 || ''} onChange={(e) => updateSurfacePrep(idx, 'profileDepth1', e.target.value)} style={inputStyle} /></div>
-                      <div><label style={labelStyle}>#2</label><input type="text" inputMode="decimal" value={prep.profileDepth2 || ''} onChange={(e) => updateSurfacePrep(idx, 'profileDepth2', e.target.value)} style={inputStyle} /></div>
-                      <div><label style={labelStyle}>#3</label><input type="text" inputMode="decimal" value={prep.profileDepth3 || ''} onChange={(e) => updateSurfacePrep(idx, 'profileDepth3', e.target.value)} style={inputStyle} /></div>
+                      <div><label style={labelStyle}>#1</label><ShieldedInput type="text" inputMode="decimal" value={prep.profileDepth1 || ''} onChange={(val) => updateSurfacePrep(idx, 'profileDepth1', val)} style={inputStyle} /></div>
+                      <div><label style={labelStyle}>#2</label><ShieldedInput type="text" inputMode="decimal" value={prep.profileDepth2 || ''} onChange={(val) => updateSurfacePrep(idx, 'profileDepth2', val)} style={inputStyle} /></div>
+                      <div><label style={labelStyle}>#3</label><ShieldedInput type="text" inputMode="decimal" value={prep.profileDepth3 || ''} onChange={(val) => updateSurfacePrep(idx, 'profileDepth3', val)} style={inputStyle} /></div>
                     </div>
                   </div>
                   <div style={{ ...gridStyle, marginTop: '10px' }}>
-                    <div><label style={labelStyle}>Tape Test (%)</label><input type="text" inputMode="decimal" value={prep.tapeTest || ''} onChange={(e) => updateSurfacePrep(idx, 'tapeTest', e.target.value)} style={inputStyle} /></div>
-                    <div><label style={labelStyle}>Time Before Coating (mins)</label><input type="text" inputMode="decimal" value={prep.timeBeforeCoating || ''} onChange={(e) => updateSurfacePrep(idx, 'timeBeforeCoating', e.target.value)} style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Tape Test (%)</label><ShieldedInput type="text" inputMode="decimal" value={prep.tapeTest || ''} onChange={(val) => updateSurfacePrep(idx, 'tapeTest', val)} style={inputStyle} /></div>
+                    <div><label style={labelStyle}>Time Before Coating (mins)</label><ShieldedInput type="text" inputMode="decimal" value={prep.timeBeforeCoating || ''} onChange={(val) => updateSurfacePrep(idx, 'timeBeforeCoating', val)} style={inputStyle} /></div>
                   </div>
                 </div>
               ))
@@ -213,11 +214,11 @@ function CoatingLog({ contractor, foreman, blockId, reportId, existingData, onDa
           <div style={contentStyle}>
             <div style={gridStyle}>
               <div><label style={labelStyle}>Coating System</label><select value={coatingData.coatingMaterial?.coatingType || ''} onChange={(e) => updateField('coatingMaterial', 'coatingType', e.target.value)} style={inputStyle}><option value="">Select...</option><option value="Shrink Sleeve">Shrink Sleeve</option><option value="FBE">FBE</option><option value="3LPE">3LPE</option><option value="3LPP">3LPP</option><option value="Tape Wrap">Tape Wrap</option><option value="Liquid Epoxy">Liquid Epoxy</option><option value="Other">Other</option></select></div>
-              <div><label style={labelStyle}>Shrink Sleeve Type</label><input type="text" value={coatingData.coatingMaterial?.sleeveType || ''} onChange={(e) => updateField('coatingMaterial', 'sleeveType', e.target.value)} placeholder="e.g., Canusa GTS-65" style={inputStyle} /></div>
-              <div><label style={labelStyle}>Base Batch No.</label><input type="text" value={coatingData.coatingMaterial?.baseBatch || ''} onChange={(e) => updateField('coatingMaterial', 'baseBatch', e.target.value)} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Hardener Batch No.</label><input type="text" value={coatingData.coatingMaterial?.hardenerBatch || ''} onChange={(e) => updateField('coatingMaterial', 'hardenerBatch', e.target.value)} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Hardener Expiry</label><input type="date" value={coatingData.coatingMaterial?.hardenerExpiry || ''} onChange={(e) => updateField('coatingMaterial', 'hardenerExpiry', e.target.value)} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Storage Temp (°C)</label><input type="text" inputMode="decimal" value={coatingData.coatingMaterial?.storageTemp || ''} onChange={(e) => updateField('coatingMaterial', 'storageTemp', e.target.value)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Shrink Sleeve Type</label><ShieldedInput type="text" value={coatingData.coatingMaterial?.sleeveType || ''} onChange={(val) => updateField('coatingMaterial', 'sleeveType', val)} placeholder="e.g., Canusa GTS-65" style={inputStyle} /></div>
+              <div><label style={labelStyle}>Base Batch No.</label><ShieldedInput type="text" value={coatingData.coatingMaterial?.baseBatch || ''} onChange={(val) => updateField('coatingMaterial', 'baseBatch', val)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Hardener Batch No.</label><ShieldedInput type="text" value={coatingData.coatingMaterial?.hardenerBatch || ''} onChange={(val) => updateField('coatingMaterial', 'hardenerBatch', val)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Hardener Expiry</label><ShieldedInput type="date" value={coatingData.coatingMaterial?.hardenerExpiry || ''} onChange={(val) => updateField('coatingMaterial', 'hardenerExpiry', val)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Storage Temp (°C)</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.coatingMaterial?.storageTemp || ''} onChange={(val) => updateField('coatingMaterial', 'storageTemp', val)} style={inputStyle} /></div>
             </div>
           </div>
         )}
@@ -234,12 +235,12 @@ function CoatingLog({ contractor, foreman, blockId, reportId, existingData, onDa
             <div style={gridStyle}>
               <div><label style={labelStyle}>Surface Still Near White?</label><select value={coatingData.application?.stillNearWhite || ''} onChange={(e) => updateField('application', 'stillNearWhite', e.target.value)} style={inputStyle}><option value="">Select...</option><option value="Yes">Yes</option><option value="No">No</option></select></div>
               <div><label style={labelStyle}>Preheat Method</label><select value={coatingData.application?.preheatMethod || ''} onChange={(e) => updateField('application', 'preheatMethod', e.target.value)} style={inputStyle}><option value="">Select...</option><option value="Propane Torch">Propane Torch</option><option value="Induction">Induction</option><option value="Electric Blanket">Electric Blanket</option><option value="N/A">N/A</option></select></div>
-              <div><label style={labelStyle}>Preheat Temp (°C)</label><input type="text" inputMode="decimal" value={coatingData.application?.preheatTemp || ''} onChange={(e) => updateField('application', 'preheatTemp', e.target.value)} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Time to Preheat (mins)</label><input type="text" inputMode="decimal" value={coatingData.application?.timeToPreheat || ''} onChange={(e) => updateField('application', 'timeToPreheat', e.target.value)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Preheat Temp (°C)</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.application?.preheatTemp || ''} onChange={(val) => updateField('application', 'preheatTemp', val)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Time to Preheat (mins)</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.application?.timeToPreheat || ''} onChange={(val) => updateField('application', 'timeToPreheat', val)} style={inputStyle} /></div>
               <div><label style={labelStyle}>Application Method</label><select value={coatingData.application?.appMethod || ''} onChange={(e) => updateField('application', 'appMethod', e.target.value)} style={inputStyle}><option value="">Select...</option><option value="Spray">Spray</option><option value="Brush">Brush</option><option value="Automatic">Automatic</option></select></div>
-              <div><label style={labelStyle}>Mix to Coat Time (mins)</label><input type="text" inputMode="decimal" value={coatingData.application?.mixToCoatTime || ''} onChange={(e) => updateField('application', 'mixToCoatTime', e.target.value)} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Temp When Applied (°C)</label><input type="text" inputMode="decimal" value={coatingData.application?.tempWhenApplied || ''} onChange={(e) => updateField('application', 'tempWhenApplied', e.target.value)} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Time to Coat (mins)</label><input type="text" inputMode="decimal" value={coatingData.application?.timeToCoat || ''} onChange={(e) => updateField('application', 'timeToCoat', e.target.value)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Mix to Coat Time (mins)</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.application?.mixToCoatTime || ''} onChange={(val) => updateField('application', 'mixToCoatTime', val)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Temp When Applied (°C)</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.application?.tempWhenApplied || ''} onChange={(val) => updateField('application', 'tempWhenApplied', val)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Time to Coat (mins)</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.application?.timeToCoat || ''} onChange={(val) => updateField('application', 'timeToCoat', val)} style={inputStyle} /></div>
               <div><label style={labelStyle}>Visual Appearance</label><select value={coatingData.application?.visualAppearance || ''} onChange={(e) => updateField('application', 'visualAppearance', e.target.value)} style={inputStyle}><option value="">Select...</option><option value="Acceptable">Acceptable</option><option value="Minor Defects">Minor Defects</option><option value="Requires Repair">Requires Repair</option></select></div>
             </div>
           </div>
@@ -257,19 +258,19 @@ function CoatingLog({ contractor, foreman, blockId, reportId, existingData, onDa
             <div style={{ marginBottom: '15px', padding: '10px', backgroundColor: '#f8f9fa', borderRadius: '4px' }}>
               <label style={{ ...labelStyle, marginBottom: '10px' }}>DFT Thickness (mils)</label>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(6, 1fr)', gap: '8px' }}>
-                {[1,2,3,4,5,6].map(n => (<div key={n}><label style={{ display: 'block', fontSize: '10px', color: '#666' }}>#{n}</label><input type="text" inputMode="decimal" value={coatingData.inspection?.[`dft${n}`] || ''} onChange={(e) => updateField('inspection', `dft${n}`, e.target.value)} style={inputStyle} /></div>))}
+                {[1,2,3,4,5,6].map(n => (<div key={n}><label style={{ display: 'block', fontSize: '10px', color: '#666' }}>#{n}</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.inspection?.[`dft${n}`] || ''} onChange={(val) => updateField('inspection', `dft${n}`, val)} style={inputStyle} /></div>))}
               </div>
             </div>
             <div style={gridStyle}>
-              <div><label style={labelStyle}>DFT Min Spec (mils)</label><input type="text" inputMode="decimal" value={coatingData.inspection?.dftMinSpec || ''} onChange={(e) => updateField('inspection', 'dftMinSpec', e.target.value)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>DFT Min Spec (mils)</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.inspection?.dftMinSpec || ''} onChange={(val) => updateField('inspection', 'dftMinSpec', val)} style={inputStyle} /></div>
               <div><label style={labelStyle}>DFT Compliant?</label><select value={coatingData.inspection?.dftCompliant || ''} onChange={(e) => updateField('inspection', 'dftCompliant', e.target.value)} style={inputStyle}><option value="">Select...</option><option value="Yes">Yes</option><option value="No - Low Mils">No - Low Mils</option></select></div>
-              <div><label style={labelStyle}>Holiday Voltage (V)</label><input type="text" inputMode="decimal" value={coatingData.inspection?.holidayVoltage || ''} onChange={(e) => updateField('inspection', 'holidayVoltage', e.target.value)} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Detector ID</label><input type="text" value={coatingData.inspection?.detectorId || ''} onChange={(e) => updateField('inspection', 'detectorId', e.target.value)} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Calibration Date</label><input type="date" value={coatingData.inspection?.calibrationDate || ''} onChange={(e) => updateField('inspection', 'calibrationDate', e.target.value)} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Jeeps &lt;25mm</label><input type="text" inputMode="decimal" value={coatingData.inspection?.jeepsUnder25 || ''} onChange={(e) => updateField('inspection', 'jeepsUnder25', e.target.value)} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Jeeps &gt;25mm</label><input type="text" inputMode="decimal" value={coatingData.inspection?.jeepsOver25 || ''} onChange={(e) => updateField('inspection', 'jeepsOver25', e.target.value)} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Total Jeeps Today</label><input type="text" inputMode="decimal" value={coatingData.inspection?.totalJeeps || ''} onChange={(e) => updateField('inspection', 'totalJeeps', e.target.value)} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Low Mils Today</label><input type="text" inputMode="decimal" value={coatingData.inspection?.lowMilsToday || ''} onChange={(e) => updateField('inspection', 'lowMilsToday', e.target.value)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Holiday Voltage (V)</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.inspection?.holidayVoltage || ''} onChange={(val) => updateField('inspection', 'holidayVoltage', val)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Detector ID</label><ShieldedInput type="text" value={coatingData.inspection?.detectorId || ''} onChange={(val) => updateField('inspection', 'detectorId', val)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Calibration Date</label><ShieldedInput type="date" value={coatingData.inspection?.calibrationDate || ''} onChange={(val) => updateField('inspection', 'calibrationDate', val)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Jeeps &lt;25mm</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.inspection?.jeepsUnder25 || ''} onChange={(val) => updateField('inspection', 'jeepsUnder25', val)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Jeeps &gt;25mm</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.inspection?.jeepsOver25 || ''} onChange={(val) => updateField('inspection', 'jeepsOver25', val)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Total Jeeps Today</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.inspection?.totalJeeps || ''} onChange={(val) => updateField('inspection', 'totalJeeps', val)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Low Mils Today</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.inspection?.lowMilsToday || ''} onChange={(val) => updateField('inspection', 'lowMilsToday', val)} style={inputStyle} /></div>
             </div>
           </div>
         )}
@@ -285,8 +286,8 @@ function CoatingLog({ contractor, foreman, blockId, reportId, existingData, onDa
           <div style={contentStyle}>
             <div style={gridStyle}>
               <div><label style={labelStyle}>Repairs Required?</label><select value={coatingData.repairs?.required || ''} onChange={(e) => updateField('repairs', 'required', e.target.value)} style={inputStyle}><option value="">Select...</option><option value="Yes">Yes</option><option value="No">No</option></select></div>
-              <div><label style={labelStyle}>Patch Stick Type</label><input type="text" value={coatingData.repairs?.patchStickType || ''} onChange={(e) => updateField('repairs', 'patchStickType', e.target.value)} style={inputStyle} /></div>
-              <div><label style={labelStyle}>Liquid Repair Type</label><input type="text" value={coatingData.repairs?.liquidRepairType || ''} onChange={(e) => updateField('repairs', 'liquidRepairType', e.target.value)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Patch Stick Type</label><ShieldedInput type="text" value={coatingData.repairs?.patchStickType || ''} onChange={(val) => updateField('repairs', 'patchStickType', val)} style={inputStyle} /></div>
+              <div><label style={labelStyle}>Liquid Repair Type</label><ShieldedInput type="text" value={coatingData.repairs?.liquidRepairType || ''} onChange={(val) => updateField('repairs', 'liquidRepairType', val)} style={inputStyle} /></div>
               <div><label style={labelStyle}>Spec Followed?</label><select value={coatingData.repairs?.specFollowed || ''} onChange={(e) => updateField('repairs', 'specFollowed', e.target.value)} style={inputStyle}><option value="">Select...</option><option value="Yes">Yes</option><option value="No">No</option><option value="N/A">N/A</option></select></div>
               <div><label style={labelStyle}>Repair Tested?</label><select value={coatingData.repairs?.repairTested || ''} onChange={(e) => updateField('repairs', 'repairTested', e.target.value)} style={inputStyle}><option value="">Select...</option><option value="Pass">Pass</option><option value="Fail">Fail</option><option value="N/A">N/A</option></select></div>
             </div>
@@ -294,9 +295,9 @@ function CoatingLog({ contractor, foreman, blockId, reportId, existingData, onDa
               <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#fff3cd', borderRadius: '4px' }}>
                 <label style={{ ...labelStyle, marginBottom: '10px', color: '#856404' }}>Repair Thickness (mils)</label>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px' }}>
-                  <div><label style={labelStyle}>#1</label><input type="text" inputMode="decimal" value={coatingData.repairs?.thickness1 || ''} onChange={(e) => updateField('repairs', 'thickness1', e.target.value)} style={inputStyle} /></div>
-                  <div><label style={labelStyle}>#2</label><input type="text" inputMode="decimal" value={coatingData.repairs?.thickness2 || ''} onChange={(e) => updateField('repairs', 'thickness2', e.target.value)} style={inputStyle} /></div>
-                  <div><label style={labelStyle}>#3</label><input type="text" inputMode="decimal" value={coatingData.repairs?.thickness3 || ''} onChange={(e) => updateField('repairs', 'thickness3', e.target.value)} style={inputStyle} /></div>
+                  <div><label style={labelStyle}>#1</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.repairs?.thickness1 || ''} onChange={(val) => updateField('repairs', 'thickness1', val)} style={inputStyle} /></div>
+                  <div><label style={labelStyle}>#2</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.repairs?.thickness2 || ''} onChange={(val) => updateField('repairs', 'thickness2', val)} style={inputStyle} /></div>
+                  <div><label style={labelStyle}>#3</label><ShieldedInput type="text" inputMode="decimal" value={coatingData.repairs?.thickness3 || ''} onChange={(val) => updateField('repairs', 'thickness3', val)} style={inputStyle} /></div>
                 </div>
               </div>
             )}
@@ -320,9 +321,9 @@ function CoatingLog({ contractor, foreman, blockId, reportId, existingData, onDa
                 <tbody>
                   {(coatingData.cureTests || []).map((test, idx) => (
                     <tr key={idx}>
-                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><input type="text" value={test.weldNumber || ''} onChange={(e) => updateCureTest(idx, 'weldNumber', e.target.value)} style={{ ...inputStyle, padding: '6px' }} /></td>
+                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><ShieldedInput type="text" value={test.weldNumber || ''} onChange={(val) => updateCureTest(idx, 'weldNumber', val)} style={{ ...inputStyle, padding: '6px' }} /></td>
                       <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><select value={test.vCutRating || ''} onChange={(e) => updateCureTest(idx, 'vCutRating', e.target.value)} style={{ ...inputStyle, padding: '6px' }}><option value="">-</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option><option value="5">5</option></select></td>
-                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><input type="text" inputMode="decimal" value={test.shoreDHardness || ''} onChange={(e) => updateCureTest(idx, 'shoreDHardness', e.target.value)} style={{ ...inputStyle, padding: '6px' }} /></td>
+                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><ShieldedInput type="text" inputMode="decimal" value={test.shoreDHardness || ''} onChange={(val) => updateCureTest(idx, 'shoreDHardness', val)} style={{ ...inputStyle, padding: '6px' }} /></td>
                       <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><select value={test.pass || ''} onChange={(e) => updateCureTest(idx, 'pass', e.target.value)} style={{ ...inputStyle, padding: '6px' }}><option value="">-</option><option value="Yes">Yes</option><option value="No">No</option></select></td>
                       <td style={{ padding: '4px', border: '1px solid #dee2e6', textAlign: 'center' }}><button type="button" onClick={() => removeCureTest(idx)} style={{ padding: '4px 8px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>✕</button></td>
                     </tr>
@@ -344,7 +345,7 @@ function CoatingLog({ contractor, foreman, blockId, reportId, existingData, onDa
         {expandedSections['Sign-Off'] && (
           <div style={contentStyle}>
             <div style={{ marginBottom: '15px' }}><label style={labelStyle}>NCR Required?</label><select value={coatingData.signOff?.ncrRequired || ''} onChange={(e) => updateField('signOff', 'ncrRequired', e.target.value)} style={inputStyle}><option value="">Select...</option><option value="No">No</option><option value="Yes - Issued">Yes - Issued</option><option value="Yes - Pending">Yes - Pending</option></select></div>
-            <div><label style={labelStyle}>Inspector Notes</label><textarea value={coatingData.signOff?.notes || ''} onChange={(e) => updateField('signOff', 'notes', e.target.value)} placeholder="Additional observations..." rows={4} style={{ ...inputStyle, resize: 'vertical' }} /></div>
+            <div><label style={labelStyle}>Inspector Notes</label><ShieldedInput as="textarea" value={coatingData.signOff?.notes || ''} onChange={(val) => updateField('signOff', 'notes', val)} placeholder="Additional observations..." rows={4} style={{ ...inputStyle, resize: 'vertical' }} /></div>
           </div>
         )}
       </div>

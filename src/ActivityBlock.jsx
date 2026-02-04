@@ -27,6 +27,7 @@ import MachineCleanupLog from './MachineCleanupLog.jsx'
 import FinalCleanupLog from './FinalCleanupLog.jsx'
 import ConventionalBoreLog from './ConventionalBoreLog.jsx'
 import BufferedSearch from './components/BufferedSearch.jsx'
+import ShieldedInput from './components/common/ShieldedInput.jsx'
 
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -1110,9 +1111,10 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
       return (
         <div key={field.name} style={{ gridColumn: '1 / -1' }}>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>{field.label}</label>
-          <textarea
+          <ShieldedInput
+            as="textarea"
             value={block.qualityData[field.name] || ''}
-            onChange={(e) => updateQualityData(block.id, field.name, e.target.value)}
+            onChange={(val) => updateQualityData(block.id, field.name, val)}
             placeholder={field.placeholder || ''}
             rows={3}
             style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', resize: 'vertical', boxSizing: 'border-box' }}
@@ -1877,17 +1879,18 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
             <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#721c24', marginBottom: '5px' }}>
               ✍️ Reason for overlap (REQUIRED to save):
             </label>
-            <textarea
+            <ShieldedInput
+              as="textarea"
               value={chainageReasons[block.id]?.overlapReason || ''}
-              onChange={(e) => setChainageReasons({
+              onChange={(val) => setChainageReasons({
                 ...chainageReasons,
-                [block.id]: { ...chainageReasons[block.id], overlapReason: e.target.value }
+                [block.id]: { ...chainageReasons[block.id], overlapReason: val }
               })}
               placeholder="e.g., Re-work required due to coating damage, Tie-in weld at station..."
               rows={2}
-              style={{ 
-                width: '100%', 
-                padding: '8px', 
+              style={{
+                width: '100%',
+                padding: '8px',
                 border: chainageReasons[block.id]?.overlapReason ? '2px solid #28a745' : '2px solid #dc3545',
                 borderRadius: '4px',
                 fontSize: '13px'
@@ -1909,17 +1912,18 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
             <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', color: '#856404', marginBottom: '5px' }}>
               ✍️ Reason for gap (REQUIRED to save):
             </label>
-            <textarea
+            <ShieldedInput
+              as="textarea"
               value={chainageReasons[block.id]?.gapReason || ''}
-              onChange={(e) => setChainageReasons({
+              onChange={(val) => setChainageReasons({
                 ...chainageReasons,
-                [block.id]: { ...chainageReasons[block.id], gapReason: e.target.value }
+                [block.id]: { ...chainageReasons[block.id], gapReason: val }
               })}
               placeholder="e.g., Section completed by another crew, Road crossing permit pending..."
               rows={2}
-              style={{ 
-                width: '100%', 
-                padding: '8px', 
+              style={{
+                width: '100%',
+                padding: '8px',
                 border: chainageReasons[block.id]?.gapReason ? '2px solid #28a745' : '2px solid #ffc107',
                 borderRadius: '4px',
                 fontSize: '13px'
@@ -1954,9 +1958,10 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           <label style={{ fontSize: '12px', fontWeight: 'bold' }}>Work Description</label>
           <VoiceButton fieldId={`workDescription_${block.id}`} />
         </div>
-        <textarea
+        <ShieldedInput
+          as="textarea"
           value={block.workDescription}
-          onChange={(e) => updateBlock(block.id, 'workDescription', e.target.value)}
+          onChange={(val) => updateBlock(block.id, 'workDescription', val)}
           placeholder="Describe the work performed... (use 🎤 for voice input)"
           rows={3}
           style={{
@@ -2852,9 +2857,10 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                   <label style={{ display: 'block', fontSize: '13px', fontWeight: 'bold', color: '#495057', marginBottom: '6px' }}>
                     Please add a note explaining site conditions: <span style={{ color: '#dc3545' }}>*</span>
                   </label>
-                  <textarea
+                  <ShieldedInput
+                    as="textarea"
                     value={block.reliability_notes || ''}
-                    onChange={(e) => updateBlock(block.id, 'reliability_notes', e.target.value)}
+                    onChange={(val) => updateBlock(block.id, 'reliability_notes', val)}
                     placeholder="Examples: Setup day for new spread, equipment mobilization, safety stand-down, waiting for survey crew..."
                     style={{
                       width: '100%',

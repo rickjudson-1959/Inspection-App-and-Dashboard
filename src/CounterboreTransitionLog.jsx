@@ -1,4 +1,5 @@
 import React, { useState } from 'react'
+import ShieldedInput from './components/common/ShieldedInput.jsx'
 
 function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, spread, afe }) {
   const [showCounterbore, setShowCounterbore] = useState(data?.counterboreRequired === 'Yes')
@@ -782,9 +783,10 @@ function CounterboreTransitionLog({ data, onChange, contractor, foreman, reportD
       {/* COMMENTS */}
       <div style={sectionStyle}>
         <div style={sectionHeaderStyle}>📝 COMMENTS</div>
-        <textarea
+        <ShieldedInput
+          as="textarea"
           value={transitionData.comments}
-          onChange={(e) => updateField('comments', e.target.value)}
+          onChange={(val) => updateField('comments', val)}
           placeholder="Additional comments, observations, issues..."
           style={{
             width: '100%',

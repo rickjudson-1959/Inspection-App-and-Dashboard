@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react'
 import { useActivityAudit } from './useActivityAudit'
+import ShieldedInput from './components/common/ShieldedInput.jsx'
 
 function CleaningLog({ data, onChange, inspector, reportDate, reportId, currentUser }) {
   const { initializeEntryValues, logEntryFieldChange, logEntryAdd, logEntryDelete, originalEntriesRef } = useActivityAudit({
@@ -80,8 +81,8 @@ function CleaningLog({ data, onChange, inspector, reportDate, reportId, currentU
               <tbody>
                 {cleaningData.entries.map(entry => (
                   <tr key={entry.id} style={{ backgroundColor: entry.cleaningLevel === '3' ? '#fff3cd' : 'white' }}>
-                    <td style={tdStyle}><input type="date" value={entry.date} onChange={(e) => updateEntry(entry.id, 'date', e.target.value)} onBlur={() => handleBlur(entry.id, 'date')} style={tableInputStyle}/></td>
-                    <td style={tdStyle}><input type="text" value={entry.unitItem} onChange={(e) => updateEntry(entry.id, 'unitItem', e.target.value)} onBlur={() => handleBlur(entry.id, 'unitItem')} style={tableInputStyle} placeholder="e.g. boots, quad"/></td>
+                    <td style={tdStyle}><ShieldedInput type="date" value={entry.date} onChange={(val) => updateEntry(entry.id, 'date', val)} onBlur={() => handleBlur(entry.id, 'date')} style={tableInputStyle}/></td>
+                    <td style={tdStyle}><ShieldedInput type="text" value={entry.unitItem} onChange={(val) => updateEntry(entry.id, 'unitItem', val)} onBlur={() => handleBlur(entry.id, 'unitItem')} style={tableInputStyle} placeholder="e.g. boots, quad"/></td>
                     <td style={tdStyle}>
                       <select value={entry.cleaningLevel} onChange={(e) => updateEntry(entry.id, 'cleaningLevel', e.target.value)} onBlur={() => handleBlur(entry.id, 'cleaningLevel')} style={selectStyle}>
                         <option value="">Select...</option>
@@ -98,8 +99,8 @@ function CleaningLog({ data, onChange, inspector, reportDate, reportId, currentU
                       </select>
                       {entry.cleaningLevel === '3' && entry.photosTaken !== 'yes' && <div style={{ fontSize: '10px', color: '#dc3545', marginTop: '2px' }}>Required for L3</div>}
                     </td>
-                    <td style={tdStyle}><input type="text" value={entry.lsd} onChange={(e) => updateEntry(entry.id, 'lsd', e.target.value)} onBlur={() => handleBlur(entry.id, 'lsd')} style={tableInputStyle} placeholder="Location"/></td>
-                    <td style={tdStyle}><input type="text" value={entry.directionOfTravel} onChange={(e) => updateEntry(entry.id, 'directionOfTravel', e.target.value)} onBlur={() => handleBlur(entry.id, 'directionOfTravel')} style={tableInputStyle} placeholder="Next LSD"/></td>
+                    <td style={tdStyle}><ShieldedInput type="text" value={entry.lsd} onChange={(val) => updateEntry(entry.id, 'lsd', val)} onBlur={() => handleBlur(entry.id, 'lsd')} style={tableInputStyle} placeholder="Location"/></td>
+                    <td style={tdStyle}><ShieldedInput type="text" value={entry.directionOfTravel} onChange={(val) => updateEntry(entry.id, 'directionOfTravel', val)} onBlur={() => handleBlur(entry.id, 'directionOfTravel')} style={tableInputStyle} placeholder="Next LSD"/></td>
                     <td style={tdStyle}><button onClick={() => removeEntry(entry.id)} style={{ padding: '4px 8px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>✕</button></td>
                   </tr>
                 ))}

@@ -1,6 +1,7 @@
 import React, { useState, useRef, useMemo } from 'react'
 import { useActivityAudit } from './useActivityAudit'
 import { extractGPSFromImage, formatGPSCoordinates } from './exifUtils'
+import ShieldedInput from './components/common/ShieldedInput.jsx'
 
 // Collapsible section component - defined outside to prevent re-mounting on parent re-render
 function CollapsibleSection({ id, title, color, bgColor, borderColor, children, hasData, expanded, onToggle }) {
@@ -380,26 +381,26 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '10px' }}>
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Ripping Depth (cm)</label>
-              <input
+              <ShieldedInput
                 type="text"
                 inputMode="numeric"
                 style={inputStyle}
                 value={cleanupData.subsoilRestoration.rippingDepthCm}
                 onFocus={() => handleNestedFieldFocus('subsoilRestoration', 'rippingDepthCm', cleanupData.subsoilRestoration.rippingDepthCm)}
-                onChange={(e) => updateSubsoilRestoration('rippingDepthCm', e.target.value)}
+                onChange={(val) => updateSubsoilRestoration('rippingDepthCm', val)}
                 onBlur={(e) => handleNestedFieldBlur('subsoilRestoration', 'rippingDepthCm', e.target.value, 'Ripping Depth')}
                 placeholder="e.g., 30"
               />
             </div>
             <div>
               <label style={{ fontSize: '12px', color: '#666' }}>Number of Passes</label>
-              <input
+              <ShieldedInput
                 type="text"
                 inputMode="numeric"
                 style={inputStyle}
                 value={cleanupData.subsoilRestoration.numberOfPasses}
                 onFocus={() => handleNestedFieldFocus('subsoilRestoration', 'numberOfPasses', cleanupData.subsoilRestoration.numberOfPasses)}
-                onChange={(e) => updateSubsoilRestoration('numberOfPasses', e.target.value)}
+                onChange={(val) => updateSubsoilRestoration('numberOfPasses', val)}
                 onBlur={(e) => handleNestedFieldBlur('subsoilRestoration', 'numberOfPasses', e.target.value, 'Number of Passes')}
                 placeholder="e.g., 2"
               />
@@ -436,25 +437,25 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '10px' }}>
                 <div>
                   <label style={{ fontSize: '12px', color: '#666' }}>Volume Removed (m³)</label>
-                  <input
+                  <ShieldedInput
                     type="text"
                     inputMode="decimal"
                     style={inputStyle}
                     value={cleanupData.subsoilRestoration.rockVolumeRemovedM3}
                     onFocus={() => handleNestedFieldFocus('subsoilRestoration', 'rockVolumeRemovedM3', cleanupData.subsoilRestoration.rockVolumeRemovedM3)}
-                    onChange={(e) => updateSubsoilRestoration('rockVolumeRemovedM3', e.target.value)}
+                    onChange={(val) => updateSubsoilRestoration('rockVolumeRemovedM3', val)}
                     onBlur={(e) => handleNestedFieldBlur('subsoilRestoration', 'rockVolumeRemovedM3', e.target.value, 'Rock Volume Removed')}
                   />
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', color: '#666' }}>Max Rock Size Spec (cm)</label>
-                  <input
+                  <ShieldedInput
                     type="text"
                     inputMode="numeric"
                     style={inputStyle}
                     value={cleanupData.subsoilRestoration.maxRockSizeCm}
                     onFocus={() => handleNestedFieldFocus('subsoilRestoration', 'maxRockSizeCm', cleanupData.subsoilRestoration.maxRockSizeCm)}
-                    onChange={(e) => updateSubsoilRestoration('maxRockSizeCm', e.target.value)}
+                    onChange={(val) => updateSubsoilRestoration('maxRockSizeCm', val)}
                     onBlur={(e) => handleNestedFieldBlur('subsoilRestoration', 'maxRockSizeCm', e.target.value, 'Max Rock Size')}
                   />
                 </div>
@@ -502,11 +503,12 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
 
         <div>
           <label style={{ fontSize: '12px', color: '#666' }}>Notes</label>
-          <textarea
+          <ShieldedInput
+            as="textarea"
             style={{ ...inputStyle, minHeight: '60px' }}
             value={cleanupData.subsoilRestoration.notes}
             onFocus={() => handleNestedFieldFocus('subsoilRestoration', 'notes', cleanupData.subsoilRestoration.notes)}
-            onChange={(e) => updateSubsoilRestoration('notes', e.target.value)}
+            onChange={(val) => updateSubsoilRestoration('notes', val)}
             onBlur={(e) => handleNestedFieldBlur('subsoilRestoration', 'notes', e.target.value, 'Subsoil Notes')}
             placeholder="Additional notes on subsoil restoration..."
           />
@@ -528,13 +530,13 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
           <h5 style={{ fontSize: '13px', color: '#1565c0', margin: '0 0 10px 0' }}>Settlement Crown (Roach)</h5>
           <div style={{ marginBottom: '10px' }}>
             <label style={{ fontSize: '12px', color: '#666' }}>Crown Height (cm)</label>
-            <input
+            <ShieldedInput
               type="text"
               inputMode="numeric"
               style={inputStyle}
               value={cleanupData.trenchCrown.settlementCrownHeightCm}
               onFocus={() => handleNestedFieldFocus('trenchCrown', 'settlementCrownHeightCm', cleanupData.trenchCrown.settlementCrownHeightCm)}
-              onChange={(e) => updateTrenchCrown('settlementCrownHeightCm', e.target.value)}
+              onChange={(val) => updateTrenchCrown('settlementCrownHeightCm', val)}
               onBlur={(e) => handleNestedFieldBlur('trenchCrown', 'settlementCrownHeightCm', e.target.value, 'Crown Height')}
               placeholder="e.g., 15"
             />
@@ -570,13 +572,13 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
           {cleanupData.trenchCrown.crownReliefGapsInstalled && (
             <div style={{ marginLeft: '20px', marginTop: '10px' }}>
               <label style={{ fontSize: '12px', color: '#666' }}>Number of Gaps</label>
-              <input
+              <ShieldedInput
                 type="text"
                 inputMode="numeric"
                 style={{ ...inputStyle, width: '100px' }}
                 value={cleanupData.trenchCrown.crownReliefGapCount}
                 onFocus={() => handleNestedFieldFocus('trenchCrown', 'crownReliefGapCount', cleanupData.trenchCrown.crownReliefGapCount)}
-                onChange={(e) => updateTrenchCrown('crownReliefGapCount', e.target.value)}
+                onChange={(val) => updateTrenchCrown('crownReliefGapCount', val)}
                 onBlur={(e) => handleNestedFieldBlur('trenchCrown', 'crownReliefGapCount', e.target.value, 'Crown Relief Gap Count')}
               />
             </div>
@@ -618,13 +620,13 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
                 </div>
                 <div>
                   <label style={{ fontSize: '12px', color: '#666' }}>Number of Lifts</label>
-                  <input
+                  <ShieldedInput
                     type="text"
                     inputMode="numeric"
                     style={inputStyle}
                     value={cleanupData.trenchCrown.compactionNumberOfLifts}
                     onFocus={() => handleNestedFieldFocus('trenchCrown', 'compactionNumberOfLifts', cleanupData.trenchCrown.compactionNumberOfLifts)}
-                    onChange={(e) => updateTrenchCrown('compactionNumberOfLifts', e.target.value)}
+                    onChange={(val) => updateTrenchCrown('compactionNumberOfLifts', val)}
                     onBlur={(e) => handleNestedFieldBlur('trenchCrown', 'compactionNumberOfLifts', e.target.value, 'Compaction Lifts')}
                   />
                 </div>
@@ -635,11 +637,12 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
 
         <div>
           <label style={{ fontSize: '12px', color: '#666' }}>Notes</label>
-          <textarea
+          <ShieldedInput
+            as="textarea"
             style={{ ...inputStyle, minHeight: '60px' }}
             value={cleanupData.trenchCrown.notes}
             onFocus={() => handleNestedFieldFocus('trenchCrown', 'notes', cleanupData.trenchCrown.notes)}
-            onChange={(e) => updateTrenchCrown('notes', e.target.value)}
+            onChange={(val) => updateTrenchCrown('notes', val)}
             onBlur={(e) => handleNestedFieldBlur('trenchCrown', 'notes', e.target.value, 'Trench Crown Notes')}
             placeholder="Additional notes on trench/crown management..."
           />
@@ -731,11 +734,12 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
 
         <div>
           <label style={{ fontSize: '12px', color: '#666' }}>Notes</label>
-          <textarea
+          <ShieldedInput
+            as="textarea"
             style={{ ...inputStyle, minHeight: '60px' }}
             value={cleanupData.debrisRecovery.notes}
             onFocus={() => handleNestedFieldFocus('debrisRecovery', 'notes', cleanupData.debrisRecovery.notes)}
-            onChange={(e) => updateDebrisRecovery('notes', e.target.value)}
+            onChange={(val) => updateDebrisRecovery('notes', val)}
             onBlur={(e) => handleNestedFieldBlur('debrisRecovery', 'notes', e.target.value, 'Debris Recovery Notes')}
             placeholder="Notes on debris recovery..."
           />
@@ -832,61 +836,62 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
                   </div>
                   <div>
                     <label style={{ fontSize: '11px', color: '#666' }}>Diameter</label>
-                    <input
+                    <ShieldedInput
                       type="text"
                       style={{ ...inputStyle, fontSize: '12px' }}
                       value={tile.diameter}
-                      onChange={(e) => updateDrainTileEntry(tile.id, 'diameter', e.target.value)}
+                      onChange={(val) => updateDrainTileEntry(tile.id, 'diameter', val)}
                       placeholder="e.g., 4 inch"
                     />
                   </div>
                   <div>
                     <label style={{ fontSize: '11px', color: '#666' }}>Depth</label>
-                    <input
+                    <ShieldedInput
                       type="text"
                       style={{ ...inputStyle, fontSize: '12px' }}
                       value={tile.depth}
-                      onChange={(e) => updateDrainTileEntry(tile.id, 'depth', e.target.value)}
+                      onChange={(val) => updateDrainTileEntry(tile.id, 'depth', val)}
                       placeholder="e.g., 0.9m"
                     />
                   </div>
                   <div>
                     <label style={{ fontSize: '11px', color: '#666' }}>Slope</label>
-                    <input
+                    <ShieldedInput
                       type="text"
                       style={{ ...inputStyle, fontSize: '12px' }}
                       value={tile.slope}
-                      onChange={(e) => updateDrainTileEntry(tile.id, 'slope', e.target.value)}
+                      onChange={(val) => updateDrainTileEntry(tile.id, 'slope', val)}
                       placeholder="e.g., 0.5%"
                     />
                   </div>
                   <div>
                     <label style={{ fontSize: '11px', color: '#666' }}>Support</label>
-                    <input
+                    <ShieldedInput
                       type="text"
                       style={{ ...inputStyle, fontSize: '12px' }}
                       value={tile.support}
-                      onChange={(e) => updateDrainTileEntry(tile.id, 'support', e.target.value)}
+                      onChange={(val) => updateDrainTileEntry(tile.id, 'support', val)}
                       placeholder="e.g., Gravel bed"
                     />
                   </div>
                   <div>
                     <label style={{ fontSize: '11px', color: '#666' }}>Repair Method</label>
-                    <input
+                    <ShieldedInput
                       type="text"
                       style={{ ...inputStyle, fontSize: '12px' }}
                       value={tile.repairMethod}
-                      onChange={(e) => updateDrainTileEntry(tile.id, 'repairMethod', e.target.value)}
+                      onChange={(val) => updateDrainTileEntry(tile.id, 'repairMethod', val)}
                       placeholder="e.g., Coupling"
                     />
                   </div>
                 </div>
                 <div style={{ marginTop: '10px' }}>
                   <label style={{ fontSize: '11px', color: '#666' }}>As-Built Notes</label>
-                  <textarea
+                  <ShieldedInput
+                    as="textarea"
                     style={{ ...inputStyle, fontSize: '12px', minHeight: '40px' }}
                     value={tile.asBuiltNotes}
-                    onChange={(e) => updateDrainTileEntry(tile.id, 'asBuiltNotes', e.target.value)}
+                    onChange={(val) => updateDrainTileEntry(tile.id, 'asBuiltNotes', val)}
                     placeholder="As-built details..."
                   />
                 </div>
@@ -923,13 +928,13 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
           {cleanupData.erosionControl.waterBarsInstalled && (
             <div style={{ marginLeft: '20px', marginBottom: '10px' }}>
               <label style={{ fontSize: '12px', color: '#666' }}>Linear Meters</label>
-              <input
+              <ShieldedInput
                 type="text"
                 inputMode="numeric"
                 style={{ ...inputStyle, width: '120px' }}
                 value={cleanupData.erosionControl.waterBarsLinearMeters}
                 onFocus={() => handleNestedFieldFocus('erosionControl', 'waterBarsLinearMeters', cleanupData.erosionControl.waterBarsLinearMeters)}
-                onChange={(e) => updateErosionControl('waterBarsLinearMeters', e.target.value)}
+                onChange={(val) => updateErosionControl('waterBarsLinearMeters', val)}
                 onBlur={(e) => handleNestedFieldBlur('erosionControl', 'waterBarsLinearMeters', e.target.value, 'Water Bars Linear Meters')}
               />
             </div>
@@ -949,13 +954,13 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
           {cleanupData.erosionControl.diversionBermsInstalled && (
             <div style={{ marginLeft: '20px', marginBottom: '10px' }}>
               <label style={{ fontSize: '12px', color: '#666' }}>Linear Meters</label>
-              <input
+              <ShieldedInput
                 type="text"
                 inputMode="numeric"
                 style={{ ...inputStyle, width: '120px' }}
                 value={cleanupData.erosionControl.diversionBermsLinearMeters}
                 onFocus={() => handleNestedFieldFocus('erosionControl', 'diversionBermsLinearMeters', cleanupData.erosionControl.diversionBermsLinearMeters)}
-                onChange={(e) => updateErosionControl('diversionBermsLinearMeters', e.target.value)}
+                onChange={(val) => updateErosionControl('diversionBermsLinearMeters', val)}
                 onBlur={(e) => handleNestedFieldBlur('erosionControl', 'diversionBermsLinearMeters', e.target.value, 'Diversion Berms Linear Meters')}
               />
             </div>
@@ -1014,11 +1019,12 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
 
         <div>
           <label style={{ fontSize: '12px', color: '#666' }}>Notes</label>
-          <textarea
+          <ShieldedInput
+            as="textarea"
             style={{ ...inputStyle, minHeight: '60px' }}
             value={cleanupData.erosionControl.notes}
             onFocus={() => handleNestedFieldFocus('erosionControl', 'notes', cleanupData.erosionControl.notes)}
-            onChange={(e) => updateErosionControl('notes', e.target.value)}
+            onChange={(val) => updateErosionControl('notes', val)}
             onBlur={(e) => handleNestedFieldBlur('erosionControl', 'notes', e.target.value, 'Erosion Control Notes')}
             placeholder="Notes on erosion and sediment control..."
           />
@@ -1037,12 +1043,12 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '15px' }}>
           <div>
             <label style={{ fontSize: '12px', color: '#666' }}>Soil Type</label>
-            <input
+            <ShieldedInput
               type="text"
               style={inputStyle}
               value={cleanupData.soilType}
               onFocus={() => handleFieldFocus('soilType', cleanupData.soilType)}
-              onChange={(e) => updateField('soilType', e.target.value)}
+              onChange={(val) => updateField('soilType', val)}
               onBlur={(e) => handleFieldBlur('soilType', e.target.value, 'Soil Type')}
               placeholder="e.g., Clay, Sandy Loam"
             />
@@ -1096,13 +1102,13 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
           {cleanupData.importedFillUsed && (
             <div style={{ marginLeft: '20px', marginTop: '5px' }}>
               <label style={{ fontSize: '12px', color: '#666' }}>Volume (m³)</label>
-              <input
+              <ShieldedInput
                 type="text"
                 inputMode="decimal"
                 style={{ ...inputStyle, width: '120px' }}
                 value={cleanupData.importedFillVolume}
                 onFocus={() => handleFieldFocus('importedFillVolume', cleanupData.importedFillVolume)}
-                onChange={(e) => updateField('importedFillVolume', e.target.value)}
+                onChange={(val) => updateField('importedFillVolume', val)}
                 onBlur={(e) => handleFieldBlur('importedFillVolume', e.target.value, 'Imported Fill Volume')}
               />
             </div>
@@ -1228,11 +1234,12 @@ function MachineCleanupLog({ data, onChange, contractor, foreman, reportDate, st
       {/* General Comments */}
       <div style={{ marginTop: '15px' }}>
         <label style={{ fontSize: '13px', fontWeight: 'bold', color: '#495057' }}>General Comments</label>
-        <textarea
+        <ShieldedInput
+          as="textarea"
           style={{ ...inputStyle, minHeight: '80px', marginTop: '5px' }}
           value={cleanupData.comments}
           onFocus={() => handleFieldFocus('comments', cleanupData.comments)}
-          onChange={(e) => updateField('comments', e.target.value)}
+          onChange={(val) => updateField('comments', val)}
           onBlur={(e) => handleFieldBlur('comments', e.target.value, 'General Comments')}
           placeholder="Additional comments on machine cleanup operations..."
         />

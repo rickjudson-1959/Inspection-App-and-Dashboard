@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react'
 import { useActivityAudit } from './useActivityAudit'
 import DrillingWasteManagement from './DrillingWasteManagement'
 import HDDSteeringLog from './HDDSteeringLog'
+import ShieldedInput from './components/common/ShieldedInput.jsx'
 
 // Collapsible section wrapper - MUST be defined outside component to prevent remounting
 const CollapsibleSection = ({ id, title, expanded, onToggle, color = '#495057', bgColor = '#e9ecef', borderColor = '#dee2e6', contentBgColor = '#f8f9fa', children }) => (
@@ -270,9 +271,9 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Bore ID</label>
-            <input type="text" value={hddData.boreId}
+            <ShieldedInput type="text" value={hddData.boreId}
               onFocus={() => handleFieldFocus('boreId', hddData.boreId)}
-              onChange={(e) => updateField('boreId', e.target.value)}
+              onChange={(val) => updateField('boreId', val)}
               onBlur={(e) => handleFieldBlur('boreId', e.target.value, 'Bore ID')}
               placeholder="e.g. HDD-001" style={inputStyle} />
           </div>
@@ -295,41 +296,41 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
           </div>
           <div>
             <label style={labelStyle}>Entry KP</label>
-            <input type="text" value={hddData.entryKP}
+            <ShieldedInput type="text" value={hddData.entryKP}
               onFocus={() => handleFieldFocus('entryKP', hddData.entryKP)}
-              onChange={(e) => updateField('entryKP', e.target.value)}
+              onChange={(val) => updateField('entryKP', val)}
               onBlur={(e) => handleFieldBlur('entryKP', e.target.value, 'Entry KP')}
               placeholder="e.g. 5+250" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Exit KP</label>
-            <input type="text" value={hddData.exitKP}
+            <ShieldedInput type="text" value={hddData.exitKP}
               onFocus={() => handleFieldFocus('exitKP', hddData.exitKP)}
-              onChange={(e) => updateField('exitKP', e.target.value)}
+              onChange={(val) => updateField('exitKP', val)}
               onBlur={(e) => handleFieldBlur('exitKP', e.target.value, 'Exit KP')}
               placeholder="e.g. 5+450" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Bore Length (m)</label>
-            <input type="text" inputMode="decimal" value={hddData.boreLength}
+            <ShieldedInput type="text" inputMode="decimal" value={hddData.boreLength}
               onFocus={() => handleFieldFocus('boreLength', hddData.boreLength)}
-              onChange={(e) => updateField('boreLength', e.target.value)}
+              onChange={(val) => updateField('boreLength', val)}
               onBlur={(e) => handleFieldBlur('boreLength', e.target.value, 'Bore Length')}
               placeholder="Total length" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Subcontractor</label>
-            <input type="text" value={hddData.subcontractor}
+            <ShieldedInput type="text" value={hddData.subcontractor}
               onFocus={() => handleFieldFocus('subcontractor', hddData.subcontractor)}
-              onChange={(e) => updateField('subcontractor', e.target.value)}
+              onChange={(val) => updateField('subcontractor', val)}
               onBlur={(e) => handleFieldBlur('subcontractor', e.target.value, 'Subcontractor')}
               placeholder="HDD subcontractor" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Rig Number</label>
-            <input type="text" value={hddData.rigNumber}
+            <ShieldedInput type="text" value={hddData.rigNumber}
               onFocus={() => handleFieldFocus('rigNumber', hddData.rigNumber)}
-              onChange={(e) => updateField('rigNumber', e.target.value)}
+              onChange={(val) => updateField('rigNumber', val)}
               onBlur={(e) => handleFieldBlur('rigNumber', e.target.value, 'Rig Number')}
               placeholder="Rig ID" style={inputStyle} />
           </div>
@@ -363,65 +364,65 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Mud Weight (ppg)</label>
-            <input type="text" inputMode="decimal" value={hddData.pilotHole.mudWeight}
+            <ShieldedInput type="text" inputMode="decimal" value={hddData.pilotHole.mudWeight}
               onFocus={() => handleFieldFocus('pilotHole.mudWeight', hddData.pilotHole.mudWeight)}
-              onChange={(e) => updatePilotHole('mudWeight', e.target.value)}
+              onChange={(val) => updatePilotHole('mudWeight', val)}
               onBlur={(e) => handleFieldBlur('pilotHole.mudWeight', e.target.value, 'Mud Weight')}
               placeholder="Pounds per gallon" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Viscosity (sec/qt)</label>
-            <input type="text" inputMode="numeric" value={hddData.pilotHole.viscosity}
+            <ShieldedInput type="text" inputMode="numeric" value={hddData.pilotHole.viscosity}
               onFocus={() => handleFieldFocus('pilotHole.viscosity', hddData.pilotHole.viscosity)}
-              onChange={(e) => updatePilotHole('viscosity', e.target.value)}
+              onChange={(val) => updatePilotHole('viscosity', val)}
               onBlur={(e) => handleFieldBlur('pilotHole.viscosity', e.target.value, 'Viscosity')}
               placeholder="Marsh funnel" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>pH</label>
-            <input type="text" inputMode="decimal" min="0" max="14" value={hddData.pilotHole.ph}
+            <ShieldedInput type="text" inputMode="decimal" min="0" max="14" value={hddData.pilotHole.ph}
               onFocus={() => handleFieldFocus('pilotHole.ph', hddData.pilotHole.ph)}
-              onChange={(e) => updatePilotHole('ph', e.target.value)}
+              onChange={(val) => updatePilotHole('ph', val)}
               onBlur={(e) => handleFieldBlur('pilotHole.ph', e.target.value, 'pH')}
               placeholder="0-14" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Fluid Loss (mL/30min)</label>
-            <input type="text" inputMode="decimal" value={hddData.pilotHole.fluidLoss}
+            <ShieldedInput type="text" inputMode="decimal" value={hddData.pilotHole.fluidLoss}
               onFocus={() => handleFieldFocus('pilotHole.fluidLoss', hddData.pilotHole.fluidLoss)}
-              onChange={(e) => updatePilotHole('fluidLoss', e.target.value)}
+              onChange={(val) => updatePilotHole('fluidLoss', val)}
               onBlur={(e) => handleFieldBlur('pilotHole.fluidLoss', e.target.value, 'Fluid Loss')}
               placeholder="API test" style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle}>Pitch Angle (°)</label>
-            <input type="text" inputMode="decimal" value={hddData.pilotHole.pitchAngle}
+            <label style={labelStyle}>Pitch Angle (deg)</label>
+            <ShieldedInput type="text" inputMode="decimal" value={hddData.pilotHole.pitchAngle}
               onFocus={() => handleFieldFocus('pilotHole.pitchAngle', hddData.pilotHole.pitchAngle)}
-              onChange={(e) => updatePilotHole('pitchAngle', e.target.value)}
+              onChange={(val) => updatePilotHole('pitchAngle', val)}
               onBlur={(e) => handleFieldBlur('pilotHole.pitchAngle', e.target.value, 'Pitch Angle')}
               placeholder="Entry angle" style={inputStyle} />
           </div>
           <div>
-            <label style={labelStyle}>Azimuth (°)</label>
-            <input type="text" inputMode="decimal" min="0" max="360" value={hddData.pilotHole.azimuth}
+            <label style={labelStyle}>Azimuth (deg)</label>
+            <ShieldedInput type="text" inputMode="decimal" min="0" max="360" value={hddData.pilotHole.azimuth}
               onFocus={() => handleFieldFocus('pilotHole.azimuth', hddData.pilotHole.azimuth)}
-              onChange={(e) => updatePilotHole('azimuth', e.target.value)}
+              onChange={(val) => updatePilotHole('azimuth', val)}
               onBlur={(e) => handleFieldBlur('pilotHole.azimuth', e.target.value, 'Azimuth')}
               placeholder="0-360" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Depth (m)</label>
-            <input type="text" inputMode="decimal" value={hddData.pilotHole.depth}
+            <ShieldedInput type="text" inputMode="decimal" value={hddData.pilotHole.depth}
               onFocus={() => handleFieldFocus('pilotHole.depth', hddData.pilotHole.depth)}
-              onChange={(e) => updatePilotHole('depth', e.target.value)}
+              onChange={(val) => updatePilotHole('depth', val)}
               onBlur={(e) => handleFieldBlur('pilotHole.depth', e.target.value, 'Depth')}
               placeholder="Max depth" style={inputStyle} />
           </div>
           <div>
             <label style={labelStyle}>Variance from Plan (m)</label>
-            <input type="text" inputMode="decimal" value={hddData.pilotHole.variance}
+            <ShieldedInput type="text" inputMode="decimal" value={hddData.pilotHole.variance}
               onFocus={() => handleFieldFocus('pilotHole.variance', hddData.pilotHole.variance)}
-              onChange={(e) => updatePilotHole('variance', e.target.value)}
+              onChange={(val) => updatePilotHole('variance', val)}
               onBlur={(e) => handleFieldBlur('pilotHole.variance', e.target.value, 'Variance')}
               placeholder="± deviation" style={inputStyle} />
           </div>
@@ -459,23 +460,23 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
                   <div style={gridStyle}>
                     <div>
                       <label style={labelStyle}>Pass Number</label>
-                      <input type="text" value={pass.passNumber} onFocus={() => handleEntryFieldFocus(pass.id, 'passNumber', pass.passNumber)} onChange={(e) => updateReamingPass(pass.id, 'passNumber', e.target.value)} onBlur={(e) => handleEntryFieldBlur(pass.id, 'passNumber', e.target.value, 'Pass Number', getReamingPassLabel(pass, idx))} placeholder="#" style={inputStyle} />
+                      <ShieldedInput type="text" value={pass.passNumber} onFocus={() => handleEntryFieldFocus(pass.id, 'passNumber', pass.passNumber)} onChange={(val) => updateReamingPass(pass.id, 'passNumber', val)} onBlur={(e) => handleEntryFieldBlur(pass.id, 'passNumber', e.target.value, 'Pass Number', getReamingPassLabel(pass, idx))} placeholder="#" style={inputStyle} />
                     </div>
                     <div>
                       <label style={labelStyle}>Reamer Size (in)</label>
-                      <input type="text" inputMode="decimal" value={pass.reamerSize} onFocus={() => handleEntryFieldFocus(pass.id, 'reamerSize', pass.reamerSize)} onChange={(e) => updateReamingPass(pass.id, 'reamerSize', e.target.value)} onBlur={(e) => handleEntryFieldBlur(pass.id, 'reamerSize', e.target.value, 'Reamer Size', getReamingPassLabel(pass, idx))} placeholder="Diameter" style={inputStyle} />
+                      <ShieldedInput type="text" inputMode="decimal" value={pass.reamerSize} onFocus={() => handleEntryFieldFocus(pass.id, 'reamerSize', pass.reamerSize)} onChange={(val) => updateReamingPass(pass.id, 'reamerSize', val)} onBlur={(e) => handleEntryFieldBlur(pass.id, 'reamerSize', e.target.value, 'Reamer Size', getReamingPassLabel(pass, idx))} placeholder="Diameter" style={inputStyle} />
                     </div>
                     <div>
                       <label style={labelStyle}>Pullback Force (lbs)</label>
-                      <input type="text" inputMode="numeric" value={pass.pullbackForce} onFocus={() => handleEntryFieldFocus(pass.id, 'pullbackForce', pass.pullbackForce)} onChange={(e) => updateReamingPass(pass.id, 'pullbackForce', e.target.value)} onBlur={(e) => handleEntryFieldBlur(pass.id, 'pullbackForce', e.target.value, 'Pullback Force', getReamingPassLabel(pass, idx))} placeholder="Max force" style={inputStyle} />
+                      <ShieldedInput type="text" inputMode="numeric" value={pass.pullbackForce} onFocus={() => handleEntryFieldFocus(pass.id, 'pullbackForce', pass.pullbackForce)} onChange={(val) => updateReamingPass(pass.id, 'pullbackForce', val)} onBlur={(e) => handleEntryFieldBlur(pass.id, 'pullbackForce', e.target.value, 'Pullback Force', getReamingPassLabel(pass, idx))} placeholder="Max force" style={inputStyle} />
                     </div>
                     <div>
                       <label style={labelStyle}>Drilling Fluid Pressure (psi)</label>
-                      <input type="text" inputMode="numeric" value={pass.drillingFluidPressure} onFocus={() => handleEntryFieldFocus(pass.id, 'drillingFluidPressure', pass.drillingFluidPressure)} onChange={(e) => updateReamingPass(pass.id, 'drillingFluidPressure', e.target.value)} onBlur={(e) => handleEntryFieldBlur(pass.id, 'drillingFluidPressure', e.target.value, 'Drilling Fluid Pressure', getReamingPassLabel(pass, idx))} placeholder="Pressure" style={inputStyle} />
+                      <ShieldedInput type="text" inputMode="numeric" value={pass.drillingFluidPressure} onFocus={() => handleEntryFieldFocus(pass.id, 'drillingFluidPressure', pass.drillingFluidPressure)} onChange={(val) => updateReamingPass(pass.id, 'drillingFluidPressure', val)} onBlur={(e) => handleEntryFieldBlur(pass.id, 'drillingFluidPressure', e.target.value, 'Drilling Fluid Pressure', getReamingPassLabel(pass, idx))} placeholder="Pressure" style={inputStyle} />
                     </div>
                     <div>
                       <label style={labelStyle}>Flow Rate (gpm)</label>
-                      <input type="text" inputMode="numeric" value={pass.flowRate} onFocus={() => handleEntryFieldFocus(pass.id, 'flowRate', pass.flowRate)} onChange={(e) => updateReamingPass(pass.id, 'flowRate', e.target.value)} onBlur={(e) => handleEntryFieldBlur(pass.id, 'flowRate', e.target.value, 'Flow Rate', getReamingPassLabel(pass, idx))} placeholder="Gallons/min" style={inputStyle} />
+                      <ShieldedInput type="text" inputMode="numeric" value={pass.flowRate} onFocus={() => handleEntryFieldFocus(pass.id, 'flowRate', pass.flowRate)} onChange={(val) => updateReamingPass(pass.id, 'flowRate', val)} onBlur={(e) => handleEntryFieldBlur(pass.id, 'flowRate', e.target.value, 'Flow Rate', getReamingPassLabel(pass, idx))} placeholder="Gallons/min" style={inputStyle} />
                     </div>
                     <div>
                       <label style={labelStyle}>Pass Complete?</label>
@@ -507,9 +508,9 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Pullback Force (lbs)</label>
-            <input type="text" inputMode="numeric" value={hddData.pipeInstallation.pullbackForce}
+            <ShieldedInput type="text" inputMode="numeric" value={hddData.pipeInstallation.pullbackForce}
               onFocus={() => handleFieldFocus('pipeInstallation.pullbackForce', hddData.pipeInstallation.pullbackForce)}
-              onChange={(e) => updatePipeInstallation('pullbackForce', e.target.value)}
+              onChange={(val) => updatePipeInstallation('pullbackForce', val)}
               onBlur={(e) => handleFieldBlur('pipeInstallation.pullbackForce', e.target.value, 'Pullback Force')}
               placeholder="Max during pull" style={inputStyle} />
           </div>
@@ -539,9 +540,9 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
           </div>
           <div>
             <label style={labelStyle}>Pullback Speed (ft/min)</label>
-            <input type="text" inputMode="decimal" value={hddData.pipeInstallation.pullbackSpeed}
+            <ShieldedInput type="text" inputMode="decimal" value={hddData.pipeInstallation.pullbackSpeed}
               onFocus={() => handleFieldFocus('pipeInstallation.pullbackSpeed', hddData.pipeInstallation.pullbackSpeed)}
-              onChange={(e) => updatePipeInstallation('pullbackSpeed', e.target.value)}
+              onChange={(val) => updatePipeInstallation('pullbackSpeed', val)}
               onBlur={(e) => handleFieldBlur('pipeInstallation.pullbackSpeed', e.target.value, 'Pullback Speed')}
               placeholder="Average speed" style={inputStyle} />
           </div>
@@ -589,18 +590,18 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
           {(hddData.postInstallation.groutRequired === 'Yes') && (
             <>
               <div>
-                <label style={labelStyle}>Grout Volume (m³)</label>
-                <input type="text" inputMode="decimal" value={hddData.postInstallation.groutVolume}
+                <label style={labelStyle}>Grout Volume (m3)</label>
+                <ShieldedInput type="text" inputMode="decimal" value={hddData.postInstallation.groutVolume}
                   onFocus={() => handleFieldFocus('postInstallation.groutVolume', hddData.postInstallation.groutVolume)}
-                  onChange={(e) => updatePostInstallation('groutVolume', e.target.value)}
+                  onChange={(val) => updatePostInstallation('groutVolume', val)}
                   onBlur={(e) => handleFieldBlur('postInstallation.groutVolume', e.target.value, 'Grout Volume')}
                   placeholder="Cubic meters" style={inputStyle} />
               </div>
               <div>
                 <label style={labelStyle}>Grout Pressure (psi)</label>
-                <input type="text" inputMode="numeric" value={hddData.postInstallation.groutPressure}
+                <ShieldedInput type="text" inputMode="numeric" value={hddData.postInstallation.groutPressure}
                   onFocus={() => handleFieldFocus('postInstallation.groutPressure', hddData.postInstallation.groutPressure)}
-                  onChange={(e) => updatePostInstallation('groutPressure', e.target.value)}
+                  onChange={(val) => updatePostInstallation('groutPressure', val)}
                   onBlur={(e) => handleFieldBlur('postInstallation.groutPressure', e.target.value, 'Grout Pressure')}
                   placeholder="Injection pressure" style={inputStyle} />
               </div>
@@ -710,9 +711,9 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
 
       {/* 8. COMMENTS - Collapsible */}
       <CollapsibleSection id="comments" title="COMMENTS" expanded={expandedSections.comments} onToggle={toggleSection}>
-        <textarea value={hddData.comments}
+        <ShieldedInput as="textarea" value={hddData.comments}
           onFocus={() => handleFieldFocus('comments', hddData.comments)}
-          onChange={(e) => updateField('comments', e.target.value)}
+          onChange={(val) => updateField('comments', val)}
           onBlur={(e) => handleFieldBlur('comments', e.target.value, 'Comments')}
           placeholder="Additional comments, issues, observations, or notes..."
           style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '14px', minHeight: '80px', resize: 'vertical', boxSizing: 'border-box' }} />
