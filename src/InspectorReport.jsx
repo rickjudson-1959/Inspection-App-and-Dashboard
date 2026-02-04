@@ -1629,7 +1629,7 @@ Important:
 
   // Activity block management
   function addActivityBlock() {
-    setActivityBlocks([...activityBlocks, createEmptyActivity()])
+    setActivityBlocks(prev => [...prev, createEmptyActivity()])
   }
 
   function removeActivityBlock(blockId) {
@@ -1637,20 +1637,22 @@ Important:
       alert('You must have at least one activity')
       return
     }
-    setActivityBlocks(activityBlocks.filter(b => b.id !== blockId))
+    setActivityBlocks(prev => prev.filter(b => b.id !== blockId))
   }
 
   function updateActivityBlock(blockId, field, value) {
-    const updatedBlocks = activityBlocks.map(block => 
-      block.id === blockId ? { ...block, [field]: value } : block
-    )
-    setActivityBlocks(updatedBlocks)
-    
-    // Check for overlaps when KP or activity type changes
-    if (field === 'startKP' || field === 'endKP' || field === 'activityType') {
-      const warnings = checkChainageOverlaps(updatedBlocks)
-      setOverlapWarnings(warnings)
-    }
+    setActivityBlocks(prev => {
+      const updatedBlocks = prev.map(block =>
+        block.id === blockId ? { ...block, [field]: value } : block
+      )
+
+      // Check for overlaps when KP or activity type changes
+      if (field === 'startKP' || field === 'endKP' || field === 'activityType') {
+        setOverlapWarnings(checkChainageOverlaps(updatedBlocks))
+      }
+
+      return updatedBlocks
+    })
     
     // Fetch previous meters when activity type is selected
     if (field === 'activityType' && value) {
@@ -1761,7 +1763,7 @@ Important:
   }
 
   function updateQualityData(blockId, fieldName, value) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1773,7 +1775,7 @@ Important:
   }
 
   function updateWeldData(blockId, weldData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1786,7 +1788,7 @@ Important:
 
 
   function updateBendData(blockId, bendData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1798,7 +1800,7 @@ Important:
   }
 
   function updateStringData(blockId, stringData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1810,7 +1812,7 @@ Important:
   }
 
   function updateCoatingData(blockId, coatingData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1822,7 +1824,7 @@ Important:
   }
 
   function updateClearingData(blockId, clearingData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1834,7 +1836,7 @@ Important:
   }
 
   function updateHDDData(blockId, hddData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1846,7 +1848,7 @@ Important:
   }
 
   function updatePilingData(blockId, pilingData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1858,7 +1860,7 @@ Important:
   }
 
   function updateCleaningLogData(blockId, cleaningLogData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1870,7 +1872,7 @@ Important:
   }
 
   function updateHydrovacData(blockId, hydrovacData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1882,7 +1884,7 @@ Important:
   }
 
   function updateWelderTestingData(blockId, welderTestingData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1894,7 +1896,7 @@ Important:
   }
 
   function updateHydrotestData(blockId, hydrotestData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1906,7 +1908,7 @@ Important:
   }
 
   function updateTieInCompletionData(blockId, tieInCompletionData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1918,7 +1920,7 @@ Important:
   }
 
   function updateDitchData(blockId, ditchData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1930,7 +1932,7 @@ Important:
   }
 
   function updateGradingData(blockId, gradingData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1942,7 +1944,7 @@ Important:
   }
 
   function updateCounterboreData(blockId, counterboreData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1954,7 +1956,7 @@ Important:
   }
 
   function updateMachineCleanupData(blockId, machineCleanupData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1966,7 +1968,7 @@ Important:
   }
 
   function updateFinalCleanupData(blockId, finalCleanupData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1978,7 +1980,7 @@ Important:
   }
 
   function updateConventionalBoreData(blockId, conventionalBoreData) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -1999,7 +2001,7 @@ Important:
     const rtVal = parseFloat(rt) || 0
     const otVal = parseFloat(ot) || 0
     const jhVal = parseFloat(jh) || 0
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -2021,7 +2023,7 @@ Important:
 
   // Update JH (Jump Hours) for a specific labour entry
   function updateLabourJH(blockId, labourId, jhValue) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -2036,7 +2038,7 @@ Important:
 
   // Efficiency Audit - Labour handlers
   function updateLabourProductionStatus(blockId, labourId, status) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -2050,7 +2052,7 @@ Important:
   }
 
   function updateLabourShadowHours(blockId, labourId, hours) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -2064,7 +2066,7 @@ Important:
   }
 
   function updateLabourDragReason(blockId, labourId, reason) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -2079,7 +2081,7 @@ Important:
 
   // Contractor Drag Note - required for contractor + management drag
   function updateLabourContractorNote(blockId, labourId, note) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -2094,7 +2096,7 @@ Important:
 
   // Efficiency Audit - Equipment handlers
   function updateEquipmentProductionStatus(blockId, equipmentId, status) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -2108,7 +2110,7 @@ Important:
   }
 
   function updateEquipmentShadowHours(blockId, equipmentId, hours) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -2122,7 +2124,7 @@ Important:
   }
 
   function updateEquipmentDragReason(blockId, equipmentId, reason) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -2137,7 +2139,7 @@ Important:
 
   // Contractor Drag Note - required for contractor + management drag
   function updateEquipmentContractorNote(blockId, equipmentId, note) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -2152,7 +2154,7 @@ Important:
 
   // Efficiency Audit - Systemic (Entire Crew) delay handler
   function updateSystemicDelay(blockId, systemicDelay) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -2164,7 +2166,7 @@ Important:
   }
 
   function removeLabourFromBlock(blockId, labourId) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -2181,7 +2183,7 @@ Important:
       alert('Please enter equipment type and hours')
       return
     }
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -2198,7 +2200,7 @@ Important:
   }
 
   function removeEquipmentFromBlock(blockId, equipmentId) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -2224,7 +2226,7 @@ Important:
       location: '',
       description: ''
     }))
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
@@ -2236,7 +2238,7 @@ Important:
   }
 
   function updatePhotoMetadata(blockId, photoIndex, field, value) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         const updatedPhotos = [...block.workPhotos]
         updatedPhotos[photoIndex] = { ...updatedPhotos[photoIndex], [field]: value }
@@ -2247,7 +2249,7 @@ Important:
   }
 
   function removeWorkPhoto(blockId, photoIndex) {
-    setActivityBlocks(activityBlocks.map(block => {
+    setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
         return {
           ...block,
