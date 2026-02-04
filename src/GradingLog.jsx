@@ -2,10 +2,49 @@ import React, { useState, useRef } from 'react'
 import { useActivityAudit } from './useActivityAudit'
 import BufferedInput from './components/BufferedInput'
 
+// Collapsible section wrapper - MUST be outside component to prevent unmount/remount on every render
+function CollapsibleSection({ id, title, expanded, onToggle, color = '#495057', bgColor = '#e9ecef', borderColor = '#dee2e6', contentBgColor = '#f8f9fa', children }) {
+  return (
+    <div style={{ marginBottom: '10px' }}>
+      <div
+        style={{
+          fontSize: '14px',
+          fontWeight: 'bold',
+          color: color,
+          padding: '12px 15px',
+          backgroundColor: bgColor,
+          borderRadius: expanded ? '6px 6px 0 0' : '6px',
+          cursor: 'pointer',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          userSelect: 'none',
+          border: `1px solid ${borderColor}`
+        }}
+        onClick={() => onToggle(id)}
+      >
+        <span>{title}</span>
+        <span style={{ fontSize: '18px' }}>{expanded ? '−' : '+'}</span>
+      </div>
+      {expanded && (
+        <div style={{
+          padding: '15px',
+          backgroundColor: contentBgColor,
+          borderRadius: '0 0 6px 6px',
+          border: `1px solid ${borderColor}`,
+          borderTop: 'none'
+        }}>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday, logId, reportId }) {
   const [showSoftSpots, setShowSoftSpots] = useState(data?.softSpots?.enabled || false)
   const [showCrossings, setShowCrossings] = useState(data?.crossings?.enabled || false)
-  
+
   // Collapsible section states - ROW Conditions expanded by default for immediate data entry
   const [expandedSections, setExpandedSections] = useState({
     rowConditions: true,
@@ -17,47 +56,10 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
     crossings: false,
     comments: false
   })
-  
+
   const toggleSection = (section) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))
   }
-  
-  // Collapsible section wrapper component
-  const CollapsibleSection = ({ id, title, color = '#495057', bgColor = '#e9ecef', borderColor = '#dee2e6', contentBgColor = '#f8f9fa', children }) => (
-    <div style={{ marginBottom: '10px' }}>
-      <div 
-        style={{ 
-          fontSize: '14px', 
-          fontWeight: 'bold', 
-          color: color, 
-          padding: '12px 15px',
-          backgroundColor: bgColor,
-          borderRadius: expandedSections[id] ? '6px 6px 0 0' : '6px',
-          cursor: 'pointer',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          userSelect: 'none',
-          border: `1px solid ${borderColor}`
-        }}
-        onClick={() => toggleSection(id)}
-      >
-        <span>{title}</span>
-        <span style={{ fontSize: '18px' }}>{expandedSections[id] ? '−' : '+'}</span>
-      </div>
-      {expandedSections[id] && (
-        <div style={{ 
-          padding: '15px', 
-          backgroundColor: contentBgColor, 
-          borderRadius: '0 0 6px 6px', 
-          border: `1px solid ${borderColor}`,
-          borderTop: 'none'
-        }}>
-          {children}
-        </div>
-      )}
-    </div>
-  )
 
   // Audit trail hook
   const { 
@@ -223,7 +225,7 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
       )}
 
       {/* ROW CONDITIONS - Collapsible */}
-      <CollapsibleSection id="rowConditions" title="🛤️ RIGHT OF WAY CONDITIONS">
+      <CollapsibleSection id="rowConditions" title="🛤️ RIGHT OF WAY CONDITIONS" expanded={expandedSections.rowConditions} onToggle={toggleSection}>
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>ROW Width (m)</label>
@@ -282,9 +284,10 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
       </CollapsibleSection>
 
       {/* PILE SEPARATION - Collapsible */}
-      <CollapsibleSection 
-        id="pileSeparation" 
+      <CollapsibleSection
+        id="pileSeparation"
         title="⚠️ PILE SEPARATION (Critical for Reclamation)"
+        expanded={expandedSections.pileSeparation} onToggle={toggleSection}
         color="#856404"
         bgColor="#fff3cd"
         borderColor="#ffc107"
@@ -349,7 +352,7 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
       </CollapsibleSection>
 
       {/* TOPSOIL STATUS - Collapsible */}
-      <CollapsibleSection id="topsoilStatus" title="🌱 TOPSOIL STATUS">
+      <CollapsibleSection id="topsoilStatus" title="🌱 TOPSOIL STATUS" expanded={expandedSections.topsoilStatus} onToggle={toggleSection}>
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Topsoil Stripped?</label>
@@ -388,7 +391,7 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
       </CollapsibleSection>
 
       {/* DRAINAGE - Collapsible */}
-      <CollapsibleSection id="drainage" title="💧 DRAINAGE">
+      <CollapsibleSection id="drainage" title="💧 DRAINAGE" expanded={expandedSections.drainage} onToggle={toggleSection}>
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Drainage Condition</label>
@@ -461,9 +464,10 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
       </CollapsibleSection>
 
       {/* ENVIRONMENTAL CONTROLS - Collapsible */}
-      <CollapsibleSection 
-        id="environmental" 
+      <CollapsibleSection
+        id="environmental"
         title="🌿 ENVIRONMENTAL CONTROLS"
+        expanded={expandedSections.environmental} onToggle={toggleSection}
         color="#155724"
         bgColor="#d4edda"
         borderColor="#28a745"
@@ -544,9 +548,10 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
       </CollapsibleSection>
 
       {/* SOFT SPOTS - Collapsible */}
-      <CollapsibleSection 
-        id="softSpots" 
+      <CollapsibleSection
+        id="softSpots"
         title="🚧 SOFT SPOTS / PROBLEM AREAS"
+        expanded={expandedSections.softSpots} onToggle={toggleSection}
         color="#856404"
         bgColor="#fff3cd"
         borderColor="#ffc107"
@@ -628,9 +633,10 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
       </CollapsibleSection>
 
       {/* ACCESS & CROSSINGS - Collapsible */}
-      <CollapsibleSection 
-        id="crossings" 
+      <CollapsibleSection
+        id="crossings"
         title="🚗 ACCESS & CROSSINGS"
+        expanded={expandedSections.crossings} onToggle={toggleSection}
         color="#0c5460"
         bgColor="#d1ecf1"
         borderColor="#17a2b8"
@@ -732,7 +738,7 @@ function GradingLog({ data, onChange, contractor, foreman, reportDate, startKP, 
       </CollapsibleSection>
 
       {/* COMMENTS - Collapsible */}
-      <CollapsibleSection id="comments" title="📝 COMMENTS">
+      <CollapsibleSection id="comments" title="📝 COMMENTS" expanded={expandedSections.comments} onToggle={toggleSection}>
         <BufferedInput as="textarea" value={gradingData.comments}
           onFocus={() => handleFieldFocus('comments', gradingData.comments)}
           onChange={(val) => updateField('comments', val)}

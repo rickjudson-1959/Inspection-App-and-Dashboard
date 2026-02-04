@@ -10,6 +10,45 @@ import { useActivityAudit } from './useActivityAudit'
 import { extractGPSFromImage } from './exifUtils'
 import BufferedInput from './components/BufferedInput'
 
+// Collapsible section wrapper - MUST be outside component to prevent unmount/remount on every render
+function CollapsibleSection({ id, title, expanded, onToggle, color = '#495057', bgColor = '#e9ecef', borderColor = '#dee2e6', contentBgColor = '#f8f9fa', alert = false, children }) {
+  return (
+    <div style={{ marginBottom: '10px' }}>
+      <div
+        style={{
+          fontSize: '14px',
+          fontWeight: 'bold',
+          color: alert ? '#721c24' : color,
+          padding: '12px 15px',
+          backgroundColor: alert ? '#f8d7da' : bgColor,
+          borderRadius: expanded ? '6px 6px 0 0' : '6px',
+          cursor: 'pointer',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          userSelect: 'none',
+          border: `1px solid ${alert ? '#dc3545' : borderColor}`
+        }}
+        onClick={() => onToggle(id)}
+      >
+        <span>{alert && '\u26a0\ufe0f '}{title}</span>
+        <span style={{ fontSize: '18px' }}>{expanded ? '\u2212' : '+'}</span>
+      </div>
+      {expanded && (
+        <div style={{
+          padding: '15px',
+          backgroundColor: alert ? '#fff5f5' : contentBgColor,
+          borderRadius: '0 0 6px 6px',
+          border: `1px solid ${alert ? '#dc3545' : borderColor}`,
+          borderTop: 'none'
+        }}>
+          {children}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // Guidance system types
 const GUIDANCE_TYPES = [
   { value: 'walk_over_sonde', label: 'Walk-over Sonde' },
@@ -61,43 +100,6 @@ function HDDSteeringLog({
   const toggleSection = (section) => {
     setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }))
   }
-
-  // Collapsible section wrapper
-  const CollapsibleSection = ({ id, title, color = '#495057', bgColor = '#e9ecef', borderColor = '#dee2e6', contentBgColor = '#f8f9fa', alert = false, children }) => (
-    <div style={{ marginBottom: '10px' }}>
-      <div
-        style={{
-          fontSize: '14px',
-          fontWeight: 'bold',
-          color: alert ? '#721c24' : color,
-          padding: '12px 15px',
-          backgroundColor: alert ? '#f8d7da' : bgColor,
-          borderRadius: expandedSections[id] ? '6px 6px 0 0' : '6px',
-          cursor: 'pointer',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          userSelect: 'none',
-          border: `1px solid ${alert ? '#dc3545' : borderColor}`
-        }}
-        onClick={() => toggleSection(id)}
-      >
-        <span>{alert && '⚠️ '}{title}</span>
-        <span style={{ fontSize: '18px' }}>{expandedSections[id] ? '−' : '+'}</span>
-      </div>
-      {expandedSections[id] && (
-        <div style={{
-          padding: '15px',
-          backgroundColor: alert ? '#fff5f5' : contentBgColor,
-          borderRadius: '0 0 6px 6px',
-          border: `1px solid ${alert ? '#dc3545' : borderColor}`,
-          borderTop: 'none'
-        }}>
-          {children}
-        </div>
-      )}
-    </div>
-  )
 
   // Audit trail hook
   const {
@@ -345,6 +347,7 @@ function HDDSteeringLog({
       <CollapsibleSection
         id="guidanceSetup"
         title="GUIDANCE SYSTEM SETUP"
+        expanded={expandedSections.guidanceSetup} onToggle={toggleSection}
         color="#6f42c1"
         bgColor="#e2d9f3"
         borderColor="#6f42c1"
@@ -440,6 +443,7 @@ function HDDSteeringLog({
       <CollapsibleSection
         id="designParameters"
         title="DESIGN vs ACTUAL (Entry/Exit Angles)"
+        expanded={expandedSections.designParameters} onToggle={toggleSection}
         color="#0c5460"
         bgColor="#d1ecf1"
         borderColor="#17a2b8"
@@ -613,6 +617,7 @@ function HDDSteeringLog({
       <CollapsibleSection
         id="steeringData"
         title="STEERING DATA (Per Joint/Station)"
+        expanded={expandedSections.steeringData} onToggle={toggleSection}
         color="#155724"
         bgColor="#d4edda"
         borderColor="#28a745"
@@ -788,6 +793,7 @@ function HDDSteeringLog({
       <CollapsibleSection
         id="bendingRadius"
         title={`BENDING RADIUS CHECK${hasBendingAlert ? ` (${alertCount} ALERTS)` : ''}`}
+        expanded={expandedSections.bendingRadius} onToggle={toggleSection}
         alert={hasBendingAlert}
       >
         <div style={{ marginBottom: '15px' }}>
@@ -844,6 +850,7 @@ function HDDSteeringLog({
       <CollapsibleSection
         id="evidence"
         title="EVIDENCE (Bore Log / Steering Report)"
+        expanded={expandedSections.evidence} onToggle={toggleSection}
         color="#495057"
         bgColor="#e9ecef"
         borderColor="#6c757d"
@@ -947,7 +954,7 @@ function HDDSteeringLog({
       </CollapsibleSection>
 
       {/* 6. COMMENTS */}
-      <CollapsibleSection id="comments" title="COMMENTS">
+      <CollapsibleSection id="comments" title="COMMENTS" expanded={expandedSections.comments} onToggle={toggleSection}>
         <BufferedInput as="textarea" value={steeringData.comments}
           onFocus={() => handleFieldFocus('comments', steeringData.comments)}
           onChange={(val) => updateField('comments', val)}

@@ -1,8 +1,9 @@
 // BufferedInput.jsx - Reusable input with local state buffer
 // Prevents parent re-renders from overwriting user input mid-keystroke.
 // Uses local state while focused; syncs from props only when unfocused.
+// Wrapped in React.memo to skip re-renders when props haven't changed.
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import React, { useState, useRef, useEffect, useCallback, memo } from 'react'
 
 // Hard-coded password manager defense attributes
 const PM_DEFENSE = {
@@ -14,7 +15,7 @@ const PM_DEFENSE = {
   'data-form-type': 'other',
 }
 
-export default function BufferedInput({
+const BufferedInput = memo(function BufferedInput({
   value,
   onChange,
   onFocus,
@@ -66,6 +67,7 @@ export default function BufferedInput({
   const handleChange = useCallback((e) => {
     const val = e.target.value
     setLocalValue(val)
+    console.log('[BufferedInput] Emitting value:', val)
     if (onChange) onChange(val)
   }, [onChange])
 
@@ -90,4 +92,6 @@ export default function BufferedInput({
       {...rest}
     />
   )
-}
+})
+
+export default BufferedInput
