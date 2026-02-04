@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - February 2, 2026
+## Project Manifest - February 4, 2026
 
 ---
 
@@ -325,6 +325,11 @@
 │   └── index.js                # Barrel export
 │
 └── Components/
+    ├── common/
+    │   ├── ShieldedInput.jsx    # Ref-Shield input (focus-locked local state) (NEW - Feb 2026)
+    │   └── ShieldedSearch.jsx   # Ref-Shield search with 300ms debounce (NEW - Feb 2026)
+    ├── BufferedInput.jsx        # Re-export → ShieldedInput (backward compat)
+    ├── BufferedSearch.jsx       # Re-export → ShieldedSearch (backward compat)
     ├── TrackableItemsTracker.jsx
     ├── SignaturePad.jsx         # Digital signature capture (ITP sign-offs)
     ├── TenantSwitcher.jsx       # Organization switcher dropdown
@@ -356,6 +361,82 @@
 ---
 
 ## 6. RECENT UPDATES (January/February 2026)
+
+### Shielded Input Architecture (February 4, 2026)
+
+**Project-wide fix for the "single-digit input" bug**
+Inspectors could only type 1 character in form fields before the value was lost/reset. Root causes identified and fixed:
+
+1. **CollapsibleSection unmount/remount** - `CollapsibleSection` was defined as an arrow function inside the render function of GradingLog and HDDSteeringLog. React treated each render's new function reference as a different component type, causing full unmount/remount of the subtree on every keystroke — destroying all child state. **Fix:** Extracted CollapsibleSection to module level.
+
+2. **Parent re-render overwriting typed text** - React state updates from `onDataChange` callbacks triggered parent re-renders that pushed new prop values into inputs mid-keystroke, resetting the displayed value. **Fix:** Created ShieldedInput with the Ref-Shield pattern.
+
+3. **Search field clearing during filter operations** - Equipment/Manpower SearchableSelect inputs cleared while typing because filtering triggered re-renders. **Fix:** Created ShieldedSearch with 300ms debounce.
+
+**ShieldedInput / ShieldedSearch — Ref-Shield Pattern:**
+- `localValue` state is the **sole display source** while the input is focused
+- Prop updates are **blocked** while the user is typing (focus shield)
+- Syncs from props only on `onBlur` or when not focused
+- Wrapped in `React.memo` to skip re-renders when props haven't changed
+- Password manager defense attributes: `data-bwignore`, `data-1p-ignore`, `data-lpignore`, `autoComplete="off"`, `spellCheck: false`
+- Verification logging: `console.log('[ShieldedSystem] Prop Sync Blocked - User is Typing')`
+- `onChange` passes **string value** directly (NOT an event object)
+
+**131 raw DOM elements replaced across 12 files:**
+
+| File | Inputs | Textareas | Total |
+|------|--------|-----------|-------|
+| CoatingLog.jsx | 44 | 1 | 45 |
+| HDDLog.jsx | 23 | 1 | 24 |
+| ConventionalBoreLog.jsx | 22 | 1 | 23 |
+| ClearingLog.jsx | 11 | 1 | 12 |
+| FinalCleanupLog.jsx | 0 | 7 | 7 |
+| MachineCleanupLog.jsx | 0 | 6 | 6 |
+| ActivityBlock.jsx | 0 | 5 | 5 |
+| DitchInspection.jsx | 0 | 4 | 4 |
+| EquipmentCleaningLog.jsx | 3 | 0 | 3 |
+| TieInCompletionLog.jsx | 0 | 1 | 1 |
+| PilingLog.jsx | 0 | 1 | 1 |
+| CounterboreTransitionLog.jsx | 0 | 1 | 1 |
+
+**Backward Compatibility:**
+- `BufferedInput.jsx` re-exports from `ShieldedInput.jsx`
+- `BufferedSearch.jsx` re-exports from `ShieldedSearch.jsx`
+- Existing imports in GradingLog, HDDSteeringLog, MainlineWeldData, TieInWeldData continue working unchanged
+
+**New Files Created:**
+```
+src/components/common/ShieldedInput.jsx   # Ref-Shield input component
+src/components/common/ShieldedSearch.jsx  # Ref-Shield search with debounce
+```
+
+---
+
+### Equipment Unit Number Column (February 3, 2026)
+
+**Unit # tracking for Equipment section**
+- New column added to Equipment table in ActivityBlock.jsx
+- Editable inline cell for manual entry
+- OCR extraction support: AI prompt updated to extract unitNumber from contractor tickets
+- Grid layout updated from 4 to 5 columns to accommodate Unit #
+
+**Files Modified:**
+- `src/ActivityBlock.jsx` - Unit # form field, table column, OCR prompt
+- `src/InspectorReport.jsx` - `addEquipmentToBlock` accepts unitNumber parameter, new `updateEquipmentUnitNumber` function
+
+---
+
+### Grading Equipment Dropdown Removal (February 3, 2026)
+
+**Removed duplicate Grading Equipment from ROW Conditions quality checks**
+- Grading equipment is already tracked in the Manpower & Equipment section
+- Removed `gradingEquipment` dropdown and `equipmentOther` text field from GradingLog quality checks
+- Removed corresponding fields from default data object
+
+**Files Modified:**
+- `src/GradingLog.jsx` - Removed quality check fields and default data
+
+---
 
 ### AI Agent "Watcher" System (February 2, 2026)
 
@@ -857,7 +938,7 @@ src/components/TenantSwitcher.jsx # Org switcher (for admin use)
   6. Comments
 - Minimum bend radius auto-calculation by pipe diameter
 - Weld ID linking to pipe string
-- Known issue: Section collapses on field changes (to be fixed)
+- Fixed: CollapsibleSection extracted to module level (was causing unmount/remount)
 
 ### Database Migrations (January 21, 2026)
 - `20260121_create_drilling_waste_logs.sql`
@@ -1003,4 +1084,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 2, 2026 (Welding Chief Dashboard with PDF & Digital Signature)*
+*Last Updated: February 4, 2026 (Shielded Input Architecture - 131 inputs across 12 files)*
