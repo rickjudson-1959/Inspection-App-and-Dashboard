@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { useActivityAudit } from './useActivityAudit'
 import DrillingWasteManagement from './DrillingWasteManagement'
 import HDDSteeringLog from './HDDSteeringLog'
@@ -41,7 +41,7 @@ const CollapsibleSection = ({ id, title, expanded, onToggle, color = '#495057', 
   </div>
 )
 
-function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday, logId, reportId }) {
+function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endKP, metersToday, logId, reportId, organizationId, mentorAuditor }) {
   // Collapsible section states
   const [expandedSections, setExpandedSections] = useState({
     boreInfo: false,
@@ -75,6 +75,42 @@ function HDDLog({ data, onChange, contractor, foreman, reportDate, startKP, endK
   // Refs for tracking original values
   const originalValuesRef = useRef({})
   const entryValuesRef = useRef({})
+
+  // Mentor alert for bore length validation
+  useEffect(() => {
+    if (!mentorAuditor || !data?.boreLength) return
+
+    const length = parseFloat(data.boreLength)
+    const alertId = `${logId}_boreLength_manual`
+
+    if (!isNaN(length) && (length < 1 || length > 500)) {
+      // Create manual alert for bore length outside typical range
+      const alert = {
+        id: alertId,
+        blockId: String(logId),
+        reportId,
+        activityType: 'HD Bores',
+        fieldKey: 'boreLength',
+        fieldValue: length,
+        alertType: 'threshold_breach',
+        severity: 'warning',
+        title: 'Bore Length Unusual',
+        message: `Bore length of ${length}m is outside the typical range of 1-500m. Verify bore length measurement and check if this is correct or an entry error.`,
+        recommendedAction: 'Verify bore length measurement with survey crew. Confirm bore length is correct or update if entry error.',
+        referenceDocument: 'Bore Crossing Design',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+        min: 1,
+        max: 500
+      }
+
+      mentorAuditor.addAlert(alert)
+    } else {
+      // Clear any existing bore length alerts if now within range
+      mentorAuditor.removeAlert(alertId)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data?.boreLength, logId, reportId])
 
   // Default structure
   const defaultData = {

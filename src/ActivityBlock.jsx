@@ -441,6 +441,9 @@ function ActivityBlock({
       return
     }
 
+    // Temporarily disabled mentor tips to avoid OpenAI API errors during threshold testing
+    // TODO: Re-enable after implementing server-side edge function for tip generation
+    /*
     // Check localStorage for "don't show again" preference
     const dismissed = localStorage.getItem(`mentor_tips_dismissed_${block.activityType}`)
     if (dismissed === 'true') return
@@ -451,6 +454,7 @@ function ActivityBlock({
         setShowMentorTips(true)
       }
     })
+    */
   }, [block.activityType, organizationId])
 
   // GPS KP Sync state
@@ -884,6 +888,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           metersToday={calculateMetersToday(block)}
           logId={block.id}
           reportId={reportId}
+          organizationId={organizationId}
+          mentorAuditor={mentor}
         />
       )
     }
