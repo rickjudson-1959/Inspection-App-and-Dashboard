@@ -1,20 +1,21 @@
-// UpdatePrompt.jsx - Shows a banner when a new app version is available
+// UpdatePrompt.jsx - Shows a subtle notification when app has been updated
 import { useRegisterSW } from 'virtual:pwa-register/react'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 function UpdatePrompt() {
   const [dismissed, setDismissed] = useState(false)
+  const [autoDismissed, setAutoDismissed] = useState(false)
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(swUrl, r) {
-      // Check for updates every 5 minutes
+      // Check for updates every 10 minutes (less frequent to reduce server load)
       if (r) {
         setInterval(() => {
           r.update()
-        }, 5 * 60 * 1000)
+        }, 10 * 60 * 1000)
       }
     },
     onRegisterError(error) {
@@ -22,28 +23,34 @@ function UpdatePrompt() {
     },
   })
 
+  // Auto-dismiss the banner after 15 seconds if user doesn't interact
+  useEffect(() => {
+    if (needRefresh && !dismissed) {
+      const timer = setTimeout(() => {
+        setAutoDismissed(true)
+      }, 15000)
+
+      return () => clearTimeout(timer)
+    }
+  }, [needRefresh, dismissed])
+
   const handleUpdate = async () => {
     try {
-      // Update the service worker and wait for it to complete
       await updateServiceWorker(true)
-      // If the page doesn't reload automatically, force it after a short delay
       setTimeout(() => {
         window.location.reload()
-      }, 1000)
+      }, 500)
     } catch (error) {
       console.error('Error updating service worker:', error)
-      // Force reload as fallback
       window.location.reload()
     }
   }
 
   const handleDismiss = () => {
     setDismissed(true)
-    // Reset after 30 minutes so they see it again if still on old version
-    setTimeout(() => setDismissed(false), 30 * 60 * 1000)
   }
 
-  if (!needRefresh || dismissed) {
+  if (!needRefresh || dismissed || autoDismissed) {
     return null
   }
 
@@ -55,14 +62,15 @@ function UpdatePrompt() {
       transform: 'translateX(-50%)',
       backgroundColor: '#1976d2',
       color: 'white',
-      padding: '12px 20px',
+      padding: '10px 18px',
       borderRadius: '8px',
       boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
       zIndex: 10000,
       display: 'flex',
       alignItems: 'center',
-      gap: '15px',
+      gap: '12px',
       maxWidth: '90vw',
+      fontSize: '14px',
       animation: 'slideUp 0.3s ease-out'
     }}>
       <style>{`
@@ -72,42 +80,43 @@ function UpdatePrompt() {
         }
       `}</style>
 
-      <span style={{ fontSize: '20px' }}>🔄</span>
+      <span style={{ fontSize: '18px' }}>✨</span>
 
       <div style={{ flex: 1 }}>
-        <strong style={{ display: 'block', marginBottom: '2px' }}>New Version Available</strong>
-        <span style={{ fontSize: '13px', opacity: 0.9 }}>Click update to get the latest features</span>
+        <span style={{ opacity: 0.95 }}>App updated. Refresh to see new features.</span>
       </div>
 
       <button
         onClick={handleUpdate}
         style={{
-          padding: '8px 16px',
+          padding: '6px 14px',
           backgroundColor: '#4caf50',
           color: 'white',
           border: 'none',
           borderRadius: '4px',
           cursor: 'pointer',
-          fontWeight: 'bold',
-          fontSize: '14px'
+          fontWeight: '500',
+          fontSize: '13px'
         }}
       >
-        Update Now
+        Refresh
       </button>
 
       <button
         onClick={handleDismiss}
         style={{
-          padding: '6px 10px',
+          padding: '4px 8px',
           backgroundColor: 'transparent',
           color: 'white',
-          border: '1px solid rgba(255,255,255,0.5)',
-          borderRadius: '4px',
+          border: 'none',
           cursor: 'pointer',
-          fontSize: '12px'
+          fontSize: '18px',
+          lineHeight: '1',
+          opacity: 0.8
         }}
+        title="Dismiss (will update on next visit)"
       >
-        Later
+        ×
       </button>
     </div>
   )

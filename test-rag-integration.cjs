@@ -96,10 +96,10 @@ async function testRAGIntegration() {
     console.error('   ERROR:', err.message)
   }
 
-  // 2. Check for recent daily tickets with coating data
-  console.log('\n2. Checking for daily_tickets with measurable data...')
+  // 2. Check for recent daily reports with coating data
+  console.log('\n2. Checking for daily_reports with measurable data...')
   try {
-    const { data: tickets } = await query('daily_tickets', {
+    const { data: tickets } = await query('daily_reports', {
       select: 'id,date,spread,activity_blocks',
       order: 'date.desc',
       limit: 10
