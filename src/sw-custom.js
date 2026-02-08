@@ -1,5 +1,5 @@
 /* eslint-disable no-undef */
-import { precacheAndRoute, cleanupOutdatedCaches } from 'workbox-precaching'
+import { precacheAndRoute, cleanupOutdatedCaches, createHandlerBoundToURL } from 'workbox-precaching'
 import { registerRoute, NavigationRoute } from 'workbox-routing'
 import { NetworkFirst, CacheFirst } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
@@ -32,19 +32,14 @@ precacheAndRoute(manifest)
 
 console.log('[SW Custom] Precached', manifest.length, 'assets')
 
-// Navigation requests (HTML pages) - serve from cache, fallback to network
+// Navigation requests - serve precached index.html for all navigations
 registerRoute(
-  ({ request }) => request.mode === 'navigate',
-  new NetworkFirst({
-    cacheName: 'egp-inspector-v2-pages',
-    networkTimeoutSeconds: 3,
-    plugins: [
-      new ExpirationPlugin({
-        maxEntries: 50,
-        maxAgeSeconds: 30 * 24 * 60 * 60, // 30 days
-      }),
-    ],
-  })
+  new NavigationRoute(
+    createHandlerBoundToURL('/index.html'),
+    {
+      denylist: [/^\/api/]
+    }
+  )
 )
 
 console.log('[SW Custom] Registered navigation route')
