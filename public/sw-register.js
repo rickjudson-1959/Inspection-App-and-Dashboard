@@ -1,6 +1,6 @@
 // Register service worker with auto-reload on control
 if ('serviceWorker' in navigator) {
-  // Handle controller change (when SW takes control)
+  // Set up controllerchange listener FIRST, before registration
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     console.log('[SW Reg] Controller changed - SW has taken control')
 
@@ -27,9 +27,20 @@ if ('serviceWorker' in navigator) {
 
       console.log('[SW Reg] Registration successful')
 
+      // Wait a bit for clients.claim() to complete
+      await new Promise(resolve => setTimeout(resolve, 100))
+
       // Check current control status
       if (navigator.serviceWorker.controller) {
-        console.log('[SW Reg] Page is already controlled by SW')
+        console.log('[SW Reg] Page is now controlled by SW')
+
+        // If we just got controlled and haven't reloaded yet, reload now
+        const hasReloaded = sessionStorage.getItem('sw-reloaded')
+        if (!hasReloaded) {
+          console.log('[SW Reg] Reloading to ensure SW controls all requests...')
+          sessionStorage.setItem('sw-reloaded', 'true')
+          window.location.reload()
+        }
       } else {
         console.log('[SW Reg] Page is not controlled yet, waiting for SW to activate...')
       }
