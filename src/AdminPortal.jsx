@@ -2852,7 +2852,7 @@ function AdminPortal() {
     return <div style={{ padding: '50px', textAlign: 'center' }}>Loading...</div>
   }
 
-  const roleOptions = ['inspector', 'chief_inspector', 'cm', 'pm', 'executive', 'admin', 'super_admin']
+  const roleOptions = ['inspector', 'asst_chief', 'chief_inspector', 'welding_chief', 'cm', 'pm', 'executive', 'admin', 'super_admin']
 
   return (
     <div style={{ fontFamily: 'Arial, sans-serif', minHeight: '100vh', backgroundColor: '#f5f5f5' }}>
@@ -5828,8 +5828,9 @@ function AdminPortal() {
                   }}
                 >
                   <option value="inspector">Inspector</option>
+                  <option value="asst_chief">Assistant Chief Inspector</option>
                   <option value="chief_inspector">Chief Inspector</option>
-                  <option value="assistant_chief_inspector">Assistant Chief Inspector</option>
+                  <option value="welding_chief">Welding Chief</option>
                   <option value="admin">Admin</option>
                   <option value="pm">Project Manager</option>
                   <option value="cm">Construction Manager</option>
