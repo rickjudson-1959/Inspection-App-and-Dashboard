@@ -6,31 +6,19 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
+      strategies: 'injectManifest',
+      srcDir: 'src',
+      filename: 'sw-custom.js',
       registerType: 'autoUpdate',
-      injectRegister: 'script', // Inject registration as inline script
+      injectRegister: 'script',
       devOptions: {
-        enabled: true
+        enabled: true,
+        type: 'module'
       },
-      workbox: {
+      injectManifest: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5 MB limit for large bundles
-        skipWaiting: true,
-        clientsClaim: true,
-        cleanupOutdatedCaches: true,
-        navigateFallback: '/index.html',
-        navigateFallbackDenylist: [/^\/api/],
-        runtimeCaching: [{
-          urlPattern: /^https:\/\/.*\.supabase\.co\/rest\/v1\/.*/i,
-          handler: 'NetworkFirst',
-          options: {
-            cacheName: 'supabase-api',
-            expiration: {
-              maxAgeSeconds: 86400
-            }
-          }
-        }],
-        // Add cache name with version to force cache invalidation
-        cacheId: 'egp-inspector-v2'
+        maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
+        injectionPoint: undefined
       },
       manifest: {
         name: 'EGP Daily Inspector Report',
