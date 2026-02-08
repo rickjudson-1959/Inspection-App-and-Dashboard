@@ -14,16 +14,20 @@ if ('serviceWorker' in navigator) {
         await registration.unregister()
       }
 
-      // Clear all caches to ensure fresh start
+      // Clear old caches only (not the new v2 caches)
       if ('caches' in window) {
         const cacheNames = await caches.keys()
-        console.log(`[SW] Clearing ${cacheNames.length} cache(s)`)
-        await Promise.all(
-          cacheNames.map(cacheName => {
-            console.log('[SW] Deleting cache:', cacheName)
-            return caches.delete(cacheName)
-          })
-        )
+        console.log(`[SW] Found ${cacheNames.length} cache(s)`)
+
+        for (const cacheName of cacheNames) {
+          // Only delete old caches, preserve egp-inspector-v2 caches
+          if (!cacheName.includes('egp-inspector-v2')) {
+            console.log('[SW] Deleting old cache:', cacheName)
+            await caches.delete(cacheName)
+          } else {
+            console.log('[SW] Preserving new cache:', cacheName)
+          }
+        }
       }
 
       // Small delay to ensure unregistration completes
