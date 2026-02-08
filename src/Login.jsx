@@ -92,23 +92,25 @@ function Login({ onLogin }) {
       }}>
         {/* Logo */}
         <div style={{ textAlign: 'center', marginBottom: '30px' }}>
-          <img 
-            src="/logo.png" 
-            alt="Pipe-Up Logo" 
-            style={{ 
-              width: '240px', 
+          <img
+            src="/logo.png"
+            alt="Pipe-Up Logo"
+            style={{
+              width: '240px',
               height: 'auto',
               marginBottom: '10px'
-            }} 
+            }}
           />
-          <p style={{ 
-            margin: 0, 
-            color: '#666', 
-            fontSize: '18px',
-            letterSpacing: '0.5px'
-          }}>
-            {mode === 'forgot' ? 'Reset Your Password' : 'Pipeline Inspector Portal'}
-          </p>
+          {mode === 'forgot' && (
+            <p style={{
+              margin: 0,
+              color: '#666',
+              fontSize: '18px',
+              letterSpacing: '0.5px'
+            }}>
+              Reset Your Password
+            </p>
+          )}
         </div>
 
         <form onSubmit={mode === 'forgot' ? handleForgotPassword : handleSubmit}>
@@ -319,7 +321,7 @@ function Login({ onLogin }) {
             fontSize: '12px',
             letterSpacing: '1px'
           }}>
-            CONNECT. LEARN. LEAD.
+            LEAD. CONNECT. LEARN.
           </p>
           <p style={{
             margin: '8px 0 0 0',
