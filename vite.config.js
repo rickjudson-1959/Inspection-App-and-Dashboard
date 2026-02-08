@@ -39,7 +39,7 @@ export default defineConfig({
         theme_color: '#1976d2',
         background_color: '#ffffff',
         display: 'standalone',
-        start_url: '/field-entry',
+        start_url: '/',
         icons: [
           {
             src: '/pwa-192x192.png',

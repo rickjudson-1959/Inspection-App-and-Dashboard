@@ -73,8 +73,16 @@ if ('serviceWorker' in navigator) {
   })
 
   // Handle controller change (when new SW takes control)
+  let refreshing = false
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     console.log('[SW] Controller changed - new service worker has taken control')
+
+    // Reload the page once when the new SW takes control (but only once)
+    if (!refreshing) {
+      refreshing = true
+      console.log('[SW] Reloading page to ensure SW controls all requests...')
+      window.location.reload()
+    }
   })
 
   // Log messages from service worker
