@@ -352,37 +352,59 @@
 
 ## 6. RECENT UPDATES (January/February 2026)
 
-### PWA Service Worker - Custom Implementation (February 8, 2026)
+### PWA Offline Mode - Working Implementation (February 8, 2026)
+
+**Version:** 2.0.0
+
+**Status:** WORKING - Full offline support for field inspectors
 
 **Custom Service Worker Architecture**
-- Migrated from auto-generated SW to custom `injectManifest` strategy
+- Custom `injectManifest` strategy with Workbox
 - Direct control over caching strategies and offline behavior
-- Fixed navigation route to serve precached `index.html` for SPA routing
+- Custom fetch handler serves cached `index.html` for all navigation requests
+- 18 assets precached for offline use (~5 MB)
 
 **Service Worker Files:**
 ```
 src/sw-custom.js          # Custom Workbox service worker with explicit routes
-public/sw-register.js     # Custom registration with SW control detection
+public/sw-register.js     # Simple registration script
+src/version.js            # App version constants for verification
 ```
 
 **Caching Strategies Implemented:**
 | Resource Type | Strategy | Cache Name | Configuration |
 |---------------|----------|------------|---------------|
-| Navigation | Precache | egp-inspector-v2-precache | Serves cached index.html for all routes |
+| Navigation | Custom Fetch | egp-inspector-v2-precache-v2 | Serves cached index.html for SPA routing |
 | API (Supabase) | NetworkFirst | egp-inspector-v2-api | 24-hour expiration |
 | Static Assets | CacheFirst | egp-inspector-v2-assets | 100 entries max, 30-day expiration |
 
 **Service Worker Lifecycle:**
-- `skipWaiting()` - Activates immediately on install
-- `clients.claim()` - Takes control of all pages on activation
-- Cleanup of outdated caches on activation
-- SKIP_WAITING message handler for manual updates
+- `skipWaiting()` in install event - Activates immediately
+- `clients.claim()` in activate event - Takes control of all pages
+- `cleanupOutdatedCaches()` - Removes old cache versions
+- Automatic updates via `registerType: 'autoUpdate'`
 
-**sw-register.js Features:**
-- Polling mechanism to detect SW control (100ms intervals, 3s timeout)
-- Auto-reload after SW takes control (first install only)
-- Session storage flag to prevent reload loops
-- `updateViaCache: 'none'` to ensure fresh SW fetches
+**Key Implementation Details:**
+```javascript
+// Install event - immediate activation
+self.addEventListener('install', (event) => {
+  self.skipWaiting()
+})
+
+// Activate event - claim all clients
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim())
+})
+
+// Navigation requests - serve cached index.html
+if (event.request.mode === 'navigate') {
+  event.respondWith(
+    caches.open(cacheNames.precache).then(cache => {
+      // Find and serve index.html from precache
+    })
+  )
+}
+```
 
 **Precaching Configuration (vite.config.js):**
 ```javascript
@@ -399,24 +421,26 @@ VitePWA({
 })
 ```
 
-**Known Issues (Active Troubleshooting):**
-- Service worker activates and claims clients successfully
-- Logs show `[SW Custom] Precached 18 assets` but cache remains empty
-- Install event appears to complete without actually caching files
-- Offline mode fails with ERR_INTERNET_DISCONNECTED
-- Issue persists across fresh installs and cache clears
-- Browser storage quota is adequate (7 MB used / 1972 MB available)
+**Version Indicator:**
+- Displayed on login page: `v2.0.0 (2026-02-08)`
+- Update `src/version.js` when deploying new versions
+- Allows easy verification that users have latest version
+
+**User Workflow for Offline Mode:**
+1. User signs in while online (required for authentication)
+2. Service worker caches app assets in background
+3. User can go offline - app continues to work
+4. Data saved to IndexedDB while offline
+5. Data syncs automatically when back online
 
 **Files Modified:**
-- `vite.config.js` - Switched to injectManifest strategy, disabled auto-registration
-- `index.html` - Added sw-register.js script tag
-- Created `src/sw-custom.js` - Custom service worker with Workbox
-- Created `public/sw-register.js` - Custom registration logic
-
-**Next Steps:**
-- Investigate why install event isn't populating cache
-- Add install event error logging to sw-custom.js
-- Test with DevTools cache disabled to force fresh install
+- `vite.config.js` - injectManifest strategy configuration
+- `index.html` - sw-register.js script tag
+- `src/sw-custom.js` - Custom service worker with Workbox
+- `public/sw-register.js` - Simplified registration script
+- `src/version.js` - Version constants (NEW)
+- `src/Login.jsx` - Version display (NEW)
+- `package.json` - Version bumped to 2.0.0
 
 ---
 
@@ -1012,4 +1036,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 8, 2026 (PWA Service Worker Custom Implementation)*
+*Last Updated: February 8, 2026 (PWA Offline Mode v2.0.0 - Working)*
