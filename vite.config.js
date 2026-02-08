@@ -7,7 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      injectRegister: null, // We'll handle registration manually
+      injectRegister: 'script', // Inject registration as inline script
       devOptions: {
         enabled: true
       },

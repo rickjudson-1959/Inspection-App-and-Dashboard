@@ -13,6 +13,40 @@
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="EGP Inspector" />
+
+    <!-- Force clear old service workers and caches on first load -->
+    <script>
+      (async function() {
+        if ('serviceWorker' in navigator) {
+          try {
+            const registrations = await navigator.serviceWorker.getRegistrations();
+            console.log('[SW Cleanup] Found', registrations.length, 'existing registration(s)');
+
+            for (const registration of registrations) {
+              console.log('[SW Cleanup] Unregistering:', registration.scope);
+              await registration.unregister();
+            }
+
+            if ('caches' in window) {
+              const cacheNames = await caches.keys();
+              console.log('[SW Cleanup] Clearing', cacheNames.length, 'cache(s)');
+
+              for (const cacheName of cacheNames) {
+                // Only clear old caches, not the new v2 caches
+                if (!cacheName.includes('egp-inspector-v2')) {
+                  console.log('[SW Cleanup] Deleting old cache:', cacheName);
+                  await caches.delete(cacheName);
+                }
+              }
+            }
+
+            console.log('[SW Cleanup] Cleanup complete');
+          } catch (error) {
+            console.error('[SW Cleanup] Error during cleanup:', error);
+          }
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
