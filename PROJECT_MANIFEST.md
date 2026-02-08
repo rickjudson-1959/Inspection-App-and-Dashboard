@@ -352,6 +352,74 @@
 
 ## 6. RECENT UPDATES (January/February 2026)
 
+### PWA Service Worker - Custom Implementation (February 8, 2026)
+
+**Custom Service Worker Architecture**
+- Migrated from auto-generated SW to custom `injectManifest` strategy
+- Direct control over caching strategies and offline behavior
+- Fixed navigation route to serve precached `index.html` for SPA routing
+
+**Service Worker Files:**
+```
+src/sw-custom.js          # Custom Workbox service worker with explicit routes
+public/sw-register.js     # Custom registration with SW control detection
+```
+
+**Caching Strategies Implemented:**
+| Resource Type | Strategy | Cache Name | Configuration |
+|---------------|----------|------------|---------------|
+| Navigation | Precache | egp-inspector-v2-precache | Serves cached index.html for all routes |
+| API (Supabase) | NetworkFirst | egp-inspector-v2-api | 24-hour expiration |
+| Static Assets | CacheFirst | egp-inspector-v2-assets | 100 entries max, 30-day expiration |
+
+**Service Worker Lifecycle:**
+- `skipWaiting()` - Activates immediately on install
+- `clients.claim()` - Takes control of all pages on activation
+- Cleanup of outdated caches on activation
+- SKIP_WAITING message handler for manual updates
+
+**sw-register.js Features:**
+- Polling mechanism to detect SW control (100ms intervals, 3s timeout)
+- Auto-reload after SW takes control (first install only)
+- Session storage flag to prevent reload loops
+- `updateViaCache: 'none'` to ensure fresh SW fetches
+
+**Precaching Configuration (vite.config.js):**
+```javascript
+VitePWA({
+  strategies: 'injectManifest',
+  srcDir: 'src',
+  filename: 'sw-custom.js',
+  registerType: 'autoUpdate',
+  injectRegister: false,
+  injectManifest: {
+    globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+    maximumFileSizeToCacheInBytes: 5 * 1024 * 1024
+  }
+})
+```
+
+**Known Issues (Active Troubleshooting):**
+- Service worker activates and claims clients successfully
+- Logs show `[SW Custom] Precached 18 assets` but cache remains empty
+- Install event appears to complete without actually caching files
+- Offline mode fails with ERR_INTERNET_DISCONNECTED
+- Issue persists across fresh installs and cache clears
+- Browser storage quota is adequate (7 MB used / 1972 MB available)
+
+**Files Modified:**
+- `vite.config.js` - Switched to injectManifest strategy, disabled auto-registration
+- `index.html` - Added sw-register.js script tag
+- Created `src/sw-custom.js` - Custom service worker with Workbox
+- Created `public/sw-register.js` - Custom registration logic
+
+**Next Steps:**
+- Investigate why install event isn't populating cache
+- Add install event error logging to sw-custom.js
+- Test with DevTools cache disabled to force fresh install
+
+---
+
 ### AI Agent "Watcher" System (February 2, 2026)
 
 **Pipe-Up AI Agent - Intelligent Ticket Analysis**
@@ -944,4 +1012,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 2, 2026 (AI Agent WPS/Material Validation)*
+*Last Updated: February 8, 2026 (PWA Service Worker Custom Implementation)*
