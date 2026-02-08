@@ -10,7 +10,7 @@ export default defineConfig({
       srcDir: 'src',
       filename: 'sw-custom.js',
       registerType: 'autoUpdate',
-      injectRegister: 'script',
+      injectRegister: false, // Use our custom registerSW.js instead
       devOptions: {
         enabled: true,
         type: 'module'
