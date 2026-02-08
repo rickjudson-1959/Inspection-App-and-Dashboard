@@ -14,6 +14,14 @@ self.addEventListener('activate', (event) => {
   console.log('[SW Custom] Service worker activated and claimed clients')
 })
 
+// Handle SKIP_WAITING message for updates
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    console.log('[SW Custom] Received SKIP_WAITING message, activating new version')
+    self.skipWaiting()
+  }
+})
+
 // Clean up old caches
 cleanupOutdatedCaches()
 

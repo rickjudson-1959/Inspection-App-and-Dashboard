@@ -1,53 +1,37 @@
-// Register service worker with auto-reload on control
+// sw-register.js - Custom registration handling first install and updates
 if ('serviceWorker' in navigator) {
-  // Set up controllerchange listener FIRST, before registration
+  // 1. Handle FIRST-TIME INSTALL (controllerchange from clients.claim())
+  let refreshing = false
   navigator.serviceWorker.addEventListener('controllerchange', () => {
-    console.log('[SW Reg] Controller changed - SW has taken control')
-
-    // Check if we've already reloaded for this session
-    const hasReloaded = sessionStorage.getItem('sw-reloaded')
-
-    if (!hasReloaded) {
-      console.log('[SW Reg] Reloading once to let SW control all requests...')
-      sessionStorage.setItem('sw-reloaded', 'true')
-      window.location.reload()
-    } else {
-      console.log('[SW Reg] Already reloaded, not reloading again')
-    }
+    if (refreshing) return
+    refreshing = true
+    console.log('[SW] Controller changed - reloading to let SW control requests')
+    window.location.reload()
   })
 
-  window.addEventListener('load', async () => {
-    try {
-      console.log('[SW Reg] Starting registration...')
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw-custom.js', {
+      scope: '/',
+      updateViaCache: 'none'
+    }).then((reg) => {
+      console.log('[SW] Registration successful')
 
-      const registration = await navigator.serviceWorker.register('/sw-custom.js', {
-        scope: '/',
-        updateViaCache: 'none'
+      // 2. Handle UPDATES (for returning users with existing SW)
+      reg.addEventListener('updatefound', () => {
+        const newWorker = reg.installing
+        console.log('[SW] Update found, installing new worker...')
+
+        newWorker.addEventListener('statechange', () => {
+          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+            // New version available, tell it to skip waiting
+            console.log('[SW] New version installed, activating...')
+            newWorker.postMessage({ type: 'SKIP_WAITING' })
+          }
+        })
       })
-
-      console.log('[SW Reg] Registration successful')
-
-      // Wait a bit for clients.claim() to complete
-      await new Promise(resolve => setTimeout(resolve, 100))
-
-      // Check current control status
-      if (navigator.serviceWorker.controller) {
-        console.log('[SW Reg] Page is now controlled by SW')
-
-        // If we just got controlled and haven't reloaded yet, reload now
-        const hasReloaded = sessionStorage.getItem('sw-reloaded')
-        if (!hasReloaded) {
-          console.log('[SW Reg] Reloading to ensure SW controls all requests...')
-          sessionStorage.setItem('sw-reloaded', 'true')
-          window.location.reload()
-        }
-      } else {
-        console.log('[SW Reg] Page is not controlled yet, waiting for SW to activate...')
-      }
-
-    } catch (error) {
-      console.error('[SW Reg] Registration failed:', error)
-    }
+    }).catch(error => {
+      console.error('[SW] Registration failed:', error)
+    })
   })
 }
 
