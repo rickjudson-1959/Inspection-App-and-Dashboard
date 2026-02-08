@@ -18,9 +18,11 @@ self.addEventListener('activate', (event) => {
 cleanupOutdatedCaches()
 
 // Precache all assets (injected by vite-plugin-pwa)
-precacheAndRoute(self.__WB_MANIFEST || [])
+// This self.__WB_MANIFEST will be replaced by vite-plugin-pwa with the actual file list
+const manifest = self.__WB_MANIFEST || []
+precacheAndRoute(manifest)
 
-console.log('[SW Custom] Precached', (self.__WB_MANIFEST || []).length, 'assets')
+console.log('[SW Custom] Precached', manifest.length, 'assets')
 
 // Navigation requests (HTML pages) - serve from cache, fallback to network
 registerRoute(
