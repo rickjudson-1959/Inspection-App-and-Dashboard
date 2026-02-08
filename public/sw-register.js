@@ -1,37 +1,57 @@
-// sw-register.js - Custom registration handling first install and updates
+// sw-register.js - Simplified polling approach
 if ('serviceWorker' in navigator) {
-  // 1. Handle FIRST-TIME INSTALL (controllerchange from clients.claim())
-  let refreshing = false
-  navigator.serviceWorker.addEventListener('controllerchange', () => {
-    if (refreshing) return
-    refreshing = true
-    console.log('[SW] Controller changed - reloading to let SW control requests')
-    window.location.reload()
-  })
+  const hasReloaded = sessionStorage.getItem('sw-reload-done')
 
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw-custom.js', {
-      scope: '/',
-      updateViaCache: 'none'
-    }).then((reg) => {
+  window.addEventListener('load', async () => {
+    try {
+      console.log('[SW] Registering service worker...')
+
+      const registration = await navigator.serviceWorker.register('/sw-custom.js', {
+        scope: '/',
+        updateViaCache: 'none'
+      })
+
       console.log('[SW] Registration successful')
 
-      // 2. Handle UPDATES (for returning users with existing SW)
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing
-        console.log('[SW] Update found, installing new worker...')
+      // If we already have a controller, we're good
+      if (navigator.serviceWorker.controller) {
+        console.log('[SW] Already controlled by SW')
+        return
+      }
 
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // New version available, tell it to skip waiting
-            console.log('[SW] New version installed, activating...')
-            newWorker.postMessage({ type: 'SKIP_WAITING' })
+      // Wait for SW to activate and claim
+      console.log('[SW] Waiting for SW to take control...')
+
+      // Poll for control every 100ms for up to 3 seconds
+      let attempts = 0
+      const checkInterval = setInterval(() => {
+        attempts++
+
+        if (navigator.serviceWorker.controller) {
+          console.log('[SW] SW now controls page')
+          clearInterval(checkInterval)
+
+          // Reload once to ensure SW intercepts all requests
+          if (!hasReloaded) {
+            console.log('[SW] Reloading page to activate offline mode...')
+            sessionStorage.setItem('sw-reload-done', 'true')
+            window.location.reload()
           }
-        })
-      })
-    }).catch(error => {
+        } else if (attempts > 30) {
+          // Give up after 3 seconds
+          console.log('[SW] SW did not take control, giving up')
+          clearInterval(checkInterval)
+        }
+      }, 100)
+
+    } catch (error) {
       console.error('[SW] Registration failed:', error)
-    })
+    }
+  })
+
+  // Clear the flag when user navigates away
+  window.addEventListener('beforeunload', () => {
+    sessionStorage.removeItem('sw-reload-done')
   })
 }
 
