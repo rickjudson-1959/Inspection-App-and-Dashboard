@@ -7,6 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      injectRegister: null, // We'll handle registration manually
       devOptions: {
         enabled: true
       },
@@ -27,7 +28,9 @@ export default defineConfig({
               maxAgeSeconds: 86400
             }
           }
-        }]
+        }],
+        // Add cache name with version to force cache invalidation
+        cacheId: 'egp-inspector-v2'
       },
       manifest: {
         name: 'EGP Daily Inspector Report',
