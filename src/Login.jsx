@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
+import { APP_VERSION, BUILD_DATE } from './version'
 
 function Login({ onLogin }) {
   const navigate = useNavigate()
@@ -306,19 +307,26 @@ function Login({ onLogin }) {
           )}
         </div>
 
-        <div style={{ 
-          textAlign: 'center', 
-          marginTop: '30px', 
-          paddingTop: '20px', 
-          borderTop: '1px solid #eee' 
+        <div style={{
+          textAlign: 'center',
+          marginTop: '30px',
+          paddingTop: '20px',
+          borderTop: '1px solid #eee'
         }}>
-          <p style={{ 
-            margin: 0, 
-            color: '#999', 
+          <p style={{
+            margin: 0,
+            color: '#999',
             fontSize: '12px',
             letterSpacing: '1px'
           }}>
             CONNECT. LEARN. LEAD.
+          </p>
+          <p style={{
+            margin: '8px 0 0 0',
+            color: '#ccc',
+            fontSize: '10px'
+          }}>
+            v{APP_VERSION} ({BUILD_DATE})
           </p>
         </div>
       </div>
