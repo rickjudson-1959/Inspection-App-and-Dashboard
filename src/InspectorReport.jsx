@@ -168,6 +168,24 @@ function InspectorReport() {
   // Trackable Items confirmation modal
   const [showTrackableItemsModal, setShowTrackableItemsModal] = useState(false)
 
+  // Welding activity types that require Welding Chief review
+  const WELDING_ACTIVITY_TYPES = [
+    'mainline welding',
+    'tie-in',
+    'tie-ins',
+    'welder testing log',
+    'welding',
+    'welding - tie-in',
+    'mainline weld'
+  ]
+
+  // Check if activity blocks contain welding activities
+  function hasWeldingActivities(blocks) {
+    return blocks?.some(block => {
+      const activityType = (block.activityType || '').toLowerCase()
+      return WELDING_ACTIVITY_TYPES.some(type => activityType.includes(type))
+    })
+  }
 
   // Add visitor
   function addVisitor() {
@@ -2755,6 +2773,36 @@ Important:
           updated_at: new Date().toISOString()
         }).eq('report_id', currentReportId)
 
+        // Reset welding review status if this is a welding report
+        if (hasWeldingActivities(activityBlocks)) {
+          try {
+            // Update existing welding review record to pending
+            const { data: existingReview } = await supabase
+              .from('welding_report_reviews')
+              .select('id')
+              .eq('report_id', currentReportId)
+              .single()
+
+            if (existingReview) {
+              await supabase.from('welding_report_reviews').update({
+                status: 'pending_review',
+                revision_notes: null,
+                updated_at: new Date().toISOString()
+              }).eq('report_id', currentReportId)
+            } else {
+              // Create new review record if doesn't exist
+              await supabase.from('welding_report_reviews').insert({
+                report_id: currentReportId,
+                organization_id: getOrgId(),
+                status: 'pending_review'
+              })
+            }
+            console.log('Reset welding review status to pending_review')
+          } catch (weldingReviewErr) {
+            console.warn('Could not update welding review record:', weldingReviewErr)
+          }
+        }
+
         alert(`Report updated successfully! ${changes.length} field(s) changed.\n\nThe report has been resubmitted for review.`)
 
         // Return to appropriate page based on role
@@ -2798,6 +2846,21 @@ Important:
           submitted_by_name: inspectorName || userProfile?.email,
           organization_id: getOrgId()
         })
+
+        // Create welding review record if report has welding activities
+        if (hasWeldingActivities(activityBlocks)) {
+          try {
+            await supabase.from('welding_report_reviews').insert({
+              report_id: ticketId,
+              organization_id: getOrgId(),
+              status: 'pending_review'
+            })
+            console.log('Created welding review record for report:', ticketId)
+          } catch (weldingReviewErr) {
+            // Non-blocking - table may not exist yet
+            console.warn('Could not create welding review record:', weldingReviewErr)
+          }
+        }
 
         // Save trackable items with the new report ID
         if (trackableItemsData && trackableItemsData.length > 0) {

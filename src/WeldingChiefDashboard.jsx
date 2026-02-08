@@ -36,6 +36,9 @@ import { downloadWeldingChiefPDF } from './weldingChiefPDF.js'
 // Import SignaturePad for digital signatures
 import SignaturePad from './components/SignaturePad.jsx'
 
+// Import Report Review components
+import WeldingReportReviewTab from './components/WeldingReportReviewTab.jsx'
+
 // ============================================================================
 // WELDING CHIEF DASHBOARD
 // February 2026 - Pipe-Up Pipeline Inspector SaaS
@@ -107,6 +110,9 @@ function WeldingChiefDashboard() {
   // Digital signature state
   const [showSignaturePad, setShowSignaturePad] = useState(false)
   const [pendingSignatureAction, setPendingSignatureAction] = useState(null) // 'download' when signing for PDF
+
+  // Pending review count for badge
+  const [pendingReviewCount, setPendingReviewCount] = useState(0)
 
   // Repair rate thresholds
   const REPAIR_RATE_THRESHOLDS = {
@@ -483,6 +489,14 @@ function WeldingChiefDashboard() {
           </button>
           <button onClick={() => setActiveTab('reports')} style={tabButtonStyle(activeTab === 'reports')}>
             📝 Daily Reports
+          </button>
+          <button onClick={() => setActiveTab('review')} style={tabButtonStyle(activeTab === 'review')}>
+            ✅ Report Review
+            {pendingReviewCount > 0 && (
+              <span style={{ marginLeft: '8px', backgroundColor: '#ffc107', color: '#000', padding: '2px 8px', borderRadius: '12px', fontSize: '12px' }}>
+                {pendingReviewCount}
+              </span>
+            )}
           </button>
           <button onClick={() => setActiveTab('certifications')} style={tabButtonStyle(activeTab === 'certifications')}>
             🎓 Certifications
@@ -1367,6 +1381,11 @@ function WeldingChiefDashboard() {
             </div>
           )}
         </div>
+      )}
+
+      {/* ============ REPORT REVIEW TAB ============ */}
+      {activeTab === 'review' && (
+        <WeldingReportReviewTab onPendingCountChange={setPendingReviewCount} />
       )}
 
       {/* ============ CERTIFICATIONS TAB ============ */}

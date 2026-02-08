@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 import { useOrgQuery } from './utils/queryHelpers.js'
+import NotificationBell from './components/NotificationBell.jsx'
 
 function MyReports({ user, onEditReport, onBack }) {
   const { addOrgFilter, organizationId, isReady } = useOrgQuery()
   const [reports, setReports] = useState([])
+  const [weldingReviews, setWeldingReviews] = useState({}) // { reportId: reviewData }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [filter, setFilter] = useState({
@@ -51,8 +53,31 @@ function MyReports({ user, onEditReport, onBack }) {
       const { data, error: fetchError } = await query
 
       if (fetchError) throw fetchError
-      
+
       setReports(data || [])
+
+      // Fetch welding reviews for these reports
+      if (data && data.length > 0) {
+        const reportIds = data.map(r => r.id)
+        try {
+          let reviewQuery = supabase
+            .from('welding_report_reviews')
+            .select('report_id, status, revision_notes, reviewed_at, reviewed_by_name, signature_image')
+            .in('report_id', reportIds)
+
+          const { data: reviews } = await reviewQuery
+
+          // Build a map of reportId -> review data
+          const reviewMap = {}
+          ;(reviews || []).forEach(r => {
+            reviewMap[r.report_id] = r
+          })
+          setWeldingReviews(reviewMap)
+        } catch (reviewErr) {
+          // Table may not exist yet, ignore
+          console.warn('Could not fetch welding reviews:', reviewErr)
+        }
+      }
     } catch (err) {
       console.error('Error fetching reports:', err)
       setError('Failed to load reports. Please try again.')
@@ -79,6 +104,12 @@ function MyReports({ user, onEditReport, onBack }) {
     if (filter.status) {
       if (filter.status === 'revision_requested') {
         filtered = filtered.filter(r => r.revision_requested)
+      } else if (filter.status === 'welding_revision') {
+        filtered = filtered.filter(r => weldingReviews[r.id]?.status === 'revision_requested')
+      } else if (filter.status === 'welding_approved') {
+        filtered = filtered.filter(r => weldingReviews[r.id]?.status === 'approved')
+      } else if (filter.status === 'welding_pending') {
+        filtered = filtered.filter(r => weldingReviews[r.id]?.status === 'pending_review')
       } else {
         filtered = filtered.filter(r => r.status === filter.status)
       }
@@ -155,6 +186,55 @@ function MyReports({ user, onEditReport, onBack }) {
   }
 
   function getStatusBadge(report) {
+    // Check for welding review status first
+    const weldingReview = weldingReviews[report.id]
+
+    if (weldingReview?.status === 'revision_requested') {
+      return (
+        <span style={{
+          background: '#dc3545',
+          color: 'white',
+          padding: '2px 8px',
+          borderRadius: '12px',
+          fontSize: '12px',
+          fontWeight: 'bold'
+        }}>
+          ⚠️ WELDING REVISION
+        </span>
+      )
+    }
+
+    if (weldingReview?.status === 'approved') {
+      return (
+        <span style={{
+          background: '#6f42c1',
+          color: 'white',
+          padding: '2px 8px',
+          borderRadius: '12px',
+          fontSize: '12px',
+          fontWeight: 'bold'
+        }}>
+          ✅ WELDING APPROVED
+        </span>
+      )
+    }
+
+    if (weldingReview?.status === 'pending_review') {
+      return (
+        <span style={{
+          background: '#ffc107',
+          color: '#000',
+          padding: '2px 8px',
+          borderRadius: '12px',
+          fontSize: '12px',
+          fontWeight: 'bold'
+        }}>
+          🔍 WELDING PENDING
+        </span>
+      )
+    }
+
+    // Fall back to regular revision status
     if (report.revision_requested) {
       return (
         <span style={{
@@ -169,16 +249,16 @@ function MyReports({ user, onEditReport, onBack }) {
         </span>
       )
     }
-    
+
     const statusColors = {
       'draft': { bg: '#6c757d', text: 'Draft' },
       'submitted': { bg: '#28a745', text: 'Submitted' },
       'approved': { bg: '#007bff', text: 'Approved' },
       'rejected': { bg: '#dc3545', text: 'Rejected' }
     }
-    
+
     const status = statusColors[report.status] || statusColors['submitted']
-    
+
     return (
       <span style={{
         background: status.bg,
@@ -194,6 +274,7 @@ function MyReports({ user, onEditReport, onBack }) {
 
   const filteredReports = getFilteredReports()
   const revisionRequestedCount = reports.filter(r => r.revision_requested).length
+  const weldingRevisionCount = reports.filter(r => weldingReviews[r.id]?.status === 'revision_requested').length
 
   // Styles
   const containerStyle = {
@@ -315,12 +396,15 @@ function MyReports({ user, onEditReport, onBack }) {
             {user?.email} • {reports.length} total reports
           </p>
         </div>
-        <button style={backButtonStyle} onClick={onBack}>
-          ← Back to New Report
-        </button>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <NotificationBell />
+          <button style={backButtonStyle} onClick={onBack}>
+            ← Back to New Report
+          </button>
+        </div>
       </div>
 
-      {/* Revision Requested Alert */}
+      {/* Revision Requested Alerts */}
       {revisionRequestedCount > 0 && (
         <div style={alertStyle}>
           <span style={{ fontSize: '20px' }}>⚠️</span>
@@ -328,6 +412,18 @@ function MyReports({ user, onEditReport, onBack }) {
             <strong>{revisionRequestedCount} report{revisionRequestedCount > 1 ? 's' : ''} require revision</strong>
             <p style={{ margin: '4px 0 0 0', fontSize: '13px' }}>
               An administrator has requested changes. Please review and update the flagged reports.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {weldingRevisionCount > 0 && (
+        <div style={{ ...alertStyle, background: '#f8d7da', border: '1px solid #dc3545' }}>
+          <span style={{ fontSize: '20px' }}>🔧</span>
+          <div>
+            <strong>{weldingRevisionCount} welding report{weldingRevisionCount > 1 ? 's' : ''} require revision</strong>
+            <p style={{ margin: '4px 0 0 0', fontSize: '13px' }}>
+              The Welding Chief has requested changes to your welding reports. Please review the feedback and resubmit.
             </p>
           </div>
         </div>
@@ -370,6 +466,9 @@ function MyReports({ user, onEditReport, onBack }) {
         >
           <option value="">All Status</option>
           <option value="revision_requested">⚠️ Revision Requested</option>
+          <option value="welding_revision">⚠️ Welding Revision Needed</option>
+          <option value="welding_pending">🔍 Welding Pending Review</option>
+          <option value="welding_approved">✅ Welding Approved</option>
           <option value="submitted">Submitted</option>
           <option value="approved">Approved</option>
           <option value="draft">Draft</option>
@@ -433,11 +532,13 @@ function MyReports({ user, onEditReport, onBack }) {
             </thead>
             <tbody>
               {filteredReports.map((report, index) => (
-                <tr 
+                <tr
                   key={report.id}
                   style={{
-                    background: report.revision_requested 
-                      ? '#fff8f8' 
+                    background: weldingReviews[report.id]?.status === 'revision_requested'
+                      ? '#fff0f0'
+                      : report.revision_requested
+                      ? '#fff8f8'
                       : index % 2 === 0 ? 'white' : '#f8f9fa'
                   }}
                 >
@@ -462,13 +563,23 @@ function MyReports({ user, onEditReport, onBack }) {
                   <td style={tdStyle}>
                     {getStatusBadge(report)}
                     {report.revision_requested && report.revision_notes && (
-                      <div style={{ 
-                        fontSize: '11px', 
-                        color: '#dc3545', 
+                      <div style={{
+                        fontSize: '11px',
+                        color: '#dc3545',
                         marginTop: '4px',
                         maxWidth: '150px'
                       }}>
                         "{report.revision_notes}"
+                      </div>
+                    )}
+                    {weldingReviews[report.id]?.status === 'revision_requested' && weldingReviews[report.id]?.revision_notes && (
+                      <div style={{
+                        fontSize: '11px',
+                        color: '#dc3545',
+                        marginTop: '4px',
+                        maxWidth: '150px'
+                      }}>
+                        Welding Chief: "{weldingReviews[report.id].revision_notes}"
                       </div>
                     )}
                   </td>
