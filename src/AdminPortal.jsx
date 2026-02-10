@@ -23,6 +23,7 @@ import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 import AgentAuditFindingsPanel from './components/AgentAuditFindingsPanel.jsx'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
+import MeetingAgendaGenerator from './components/MeetingAgendaGenerator.jsx'
 
 function AdminPortal() {
   const navigate = useNavigate()
@@ -2903,7 +2904,7 @@ function AdminPortal() {
       <div style={{ backgroundColor: 'white', borderBottom: '1px solid #ddd', padding: '0 20px' }}>
         <div style={{ display: 'flex', gap: '0', flexWrap: 'wrap' }}>
           {[
-            'overview', 'approvals', 'efficiency', 'mats', 'audit', 'setup', 'projects', 'users', 'reports',
+            'overview', 'approvals', 'efficiency', 'mats', 'audit', 'setup', 'projects', 'users', 'reports', 'agenda',
             ...(isSuperAdmin ? ['fleet', 'stats', 'handover'] : [])
           ].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '15px 25px', border: 'none', backgroundColor: activeTab === tab ? '#003366' : 'transparent', color: activeTab === tab ? 'white' : '#333', cursor: 'pointer', fontSize: '14px', fontWeight: activeTab === tab ? 'bold' : 'normal', position: 'relative' }}>
@@ -2911,6 +2912,7 @@ function AdminPortal() {
                tab === 'fleet' ? '🚀 Fleet Onboarding' :
                tab === 'stats' ? '📊 Usage Statistics' :
                tab === 'handover' ? '📦 Project Handover' :
+               tab === 'agenda' ? '📋 Meeting Agenda' :
                tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
@@ -5745,6 +5747,11 @@ function AdminPortal() {
               </>
             )}
           </div>
+        )}
+
+        {/* Meeting Agenda Generator Tab */}
+        {activeTab === 'agenda' && (
+          <MeetingAgendaGenerator />
         )}
 
         {/* Invite User Modal */}
