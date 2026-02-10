@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - February 2, 2026
+## Project Manifest - February 9, 2026
 
 ---
 
@@ -9,6 +9,46 @@
 **Client:** FortisBC EGP - Eagle Mountain Woodfibre Gas Pipeline
 **Production URL:** https://app.pipe-up.ca
 **Repository:** https://github.com/rickjudson-1959/Inspection-App-and-Dashboard
+
+### Project Simulation Status (Feb 2026)
+
+| Metric | Value | Status |
+|--------|-------|--------|
+| **Simulation Period** | Jan 1 - Feb 28, 2026 | Active |
+| **Overall Completion** | ~33% (1/3 complete) | Behind Schedule |
+| **Schedule Performance Index (SPI)** | 0.78 | At Risk |
+| **Cost Performance Index (CPI)** | 0.92 | Monitor |
+| **Welding Progress** | 30% behind baseline | Critical |
+| **Daily Reports Generated** | 60 days of data | Complete |
+| **Technical Overrides** | High frequency | Review Required |
+
+### Activity Progress Summary
+
+| Phase | Planned Progress | Actual Progress | Variance |
+|-------|-----------------|-----------------|----------|
+| Access | 45% | 43% | -2% |
+| Clearing | 42% | 39% | -3% |
+| Stripping | 38% | 33% | -5% |
+| Grading | 35% | 30% | -5% |
+| Stringing | 30% | 25% | -5% |
+| Bending | 25% | 20% | -5% |
+| **Welding - Mainline** | 20% | **14%** | **-30%** |
+| **Welding - Tie-in** | 10% | **6.5%** | **-35%** |
+| Coating | 18% | 14% | -4% |
+| Ditch | 22% | 17% | -5% |
+| Lower-in | 12% | 9% | -3% |
+| Backfill | 8% | 6% | -2% |
+| Cleanup | 5% | 3% | -2% |
+
+### Key Observations
+- Welding activities significantly behind due to:
+  - Material delivery delays (contractor)
+  - Weather holds (neutral - winter conditions)
+  - Coordination issues between spreads
+  - Equipment breakdowns (welding rigs)
+- Inertia Ratio averaging ~72% indicating systemic inefficiencies
+- High frequency of management drag events
+- Back-charge potential identified: ~$45,000 (contractor delays)
 
 ### Technology Stack
 | Component | Technology |

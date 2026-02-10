@@ -33,49 +33,61 @@ const EGP_PROJECT = {
   baselineFinish: '2026-06-30'
 }
 
-// Phase colors matching EVM Dashboard
+// Phase colors - 15 activities in construction sequence order
 const phaseColors = {
-  'Clearing': '#8B4513',
   'Access': '#A0522D',
-  'Topsoil': '#CD853F',
+  'Clearing': '#8B4513',
   'Stripping': '#D2691E',
   'Grading': '#DAA520',
   'Stringing': '#9370DB',
   'Bending': '#4169E1',
   'Welding': '#DC143C',
-  'Welding - Mainline': '#DC143C',
-  'Welding - Tie-in': '#FF6347',
+  'Tie-ins': '#FF6347',
+  'Tie-in Completion': '#DB7093',
   'Coating': '#FF8C00',
   'Ditch': '#32CD32',
   'Lower-in': '#1E90FF',
   'Backfill': '#8B008B',
-  'Tie-ins': '#C71585',
-  'Cleanup': '#20B2AA',
   'Cleanup - Machine': '#20B2AA',
-  'Cleanup - Final': '#3CB371',
-  'Hydrostatic Testing': '#FF1493',
-  'HDD': '#6A5ACD',
-  'HD Bores': '#7B68EE',
-  'Reclamation': '#228B22',
-  'Tunnel': '#4B0082'
+  'Cleanup - Final': '#3CB371'
 }
 
-// EGP Planned targets (realistic for 56km project)
+// 15-Activity Construction Sequence (NO Hydrostatic Test)
+const CONSTRUCTION_SEQUENCE = [
+  'Access',
+  'Clearing',
+  'Stripping',
+  'Grading',
+  'Stringing',
+  'Bending',
+  'Welding',
+  'Tie-ins',
+  'Tie-in Completion',
+  'Coating',
+  'Ditch',
+  'Lower-in',
+  'Backfill',
+  'Cleanup - Machine',
+  'Cleanup - Final'
+]
+
+// EGP Planned targets - 47.0 km total for all 15 activities
 const plannedTargets = {
+  'Access': { metres: 47000, costPerMetre: 35, rate: '500-800 m/day' },
   'Clearing': { metres: 47000, costPerMetre: 45, rate: '800-1,200 m/day' },
-  'Stripping': { metres: 47000, costPerMetre: 35, rate: '600-900 m/day' },
+  'Stripping': { metres: 47000, costPerMetre: 40, rate: '600-900 m/day' },
   'Grading': { metres: 47000, costPerMetre: 85, rate: '500-800 m/day' },
-  'Stringing': { metres: 47000, costPerMetre: 35, rate: '2,000-3,000 m/day' },
+  'Stringing': { metres: 47000, costPerMetre: 35, rate: '1,500-2,000 m/day' },
   'Bending': { metres: 47000, costPerMetre: 65, rate: '400-600 m/day' },
-  'Welding - Mainline': { metres: 47000, costPerMetre: 285, rate: '400-600 m/day' },
+  'Welding': { metres: 47000, costPerMetre: 320, rate: '300-500 m/day' },
+  'Tie-ins': { metres: 47000, costPerMetre: 350, rate: '200-400 m/day' },
+  'Tie-in Completion': { metres: 47000, costPerMetre: 380, rate: '150-250 m/day' },
   'Coating': { metres: 47000, costPerMetre: 95, rate: '500-800 m/day' },
   'Ditch': { metres: 47000, costPerMetre: 75, rate: '600-900 m/day' },
   'Lower-in': { metres: 47000, costPerMetre: 145, rate: '800-1,200 m/day' },
   'Backfill': { metres: 47000, costPerMetre: 55, rate: '1,000-1,500 m/day' },
-  'Cleanup': { metres: 47000, costPerMetre: 25, rate: '500-800 m/day' },
-  'Hydrostatic Testing': { metres: 47000, costPerMetre: 120, rate: 'Per section' },
-  'HDD': { metres: 2800, costPerMetre: 1250, rate: '50-150 m/day' },
-  'Tunnel': { metres: 9000, costPerMetre: 2850, rate: '15-25 m/day' }
+  'Cleanup - Machine': { metres: 47000, costPerMetre: 30, rate: '500-800 m/day' },
+  'Cleanup - Final': { metres: 47000, costPerMetre: 25, rate: '400-600 m/day' }
 }
 
 // Generate EGP-specific demo data
@@ -264,7 +276,7 @@ function Dashboard({ onBackToReport }) {
   const { addOrgFilter, organizationId, isReady, isSuperAdmin } = useOrgQuery()
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
-  const [dateRange, setDateRange] = useState(30)
+  const [dateRange, setDateRange] = useState(45)
   const [selectedCrewType, setSelectedCrewType] = useState('Welding')
   const [showEVM, setShowEVM] = useState(false)
 
@@ -396,7 +408,18 @@ function Dashboard({ onBackToReport }) {
     const totalCost = totalLabourHours * 85 + totalEquipmentHours * 165
     const avgDailyCost = totalCost / Math.max(Object.keys(dailyData).length, 1)
 
-    const phaseCompletion = Object.keys(phaseProgress).map(phase => ({
+    // Sort phases by construction sequence order
+    const sortedPhases = Object.keys(phaseProgress).sort((a, b) => {
+      const idxA = CONSTRUCTION_SEQUENCE.indexOf(a)
+      const idxB = CONSTRUCTION_SEQUENCE.indexOf(b)
+      // If not in sequence, put at end
+      if (idxA === -1 && idxB === -1) return a.localeCompare(b)
+      if (idxA === -1) return 1
+      if (idxB === -1) return -1
+      return idxA - idxB
+    })
+
+    const phaseCompletion = sortedPhases.map(phase => ({
       phase,
       actual: phaseProgress[phase],
       planned: plannedTargets[phase]?.metres || 47000,
@@ -1120,19 +1143,26 @@ function Dashboard({ onBackToReport }) {
             PROGRESS BY PHASE
           </div>
           <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '0 0 4px 4px', marginBottom: '20px', border: '1px solid #ddd' }}>
-            {/* Daily Progress Chart */}
+            {/* Daily Progress Chart - All activities in construction sequence */}
             <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '15px' }}>Daily Linear Metres by Phase</h4>
-            <ResponsiveContainer width="100%" height={280}>
+            <ResponsiveContainer width="100%" height={320}>
               <AreaChart data={metrics?.dailyArray || []}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                <YAxis tick={{ fontSize: 11 }} />
+                <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                <YAxis tick={{ fontSize: 10 }} />
                 <Tooltip />
-                <Legend wrapperStyle={{ fontSize: '11px' }} />
-                <Area type="monotone" dataKey="Clearing" stackId="1" fill="#8B4513" stroke="#8B4513" name="Clearing" />
-                <Area type="monotone" dataKey="Grading" stackId="1" fill="#DAA520" stroke="#DAA520" name="Grading" />
-                <Area type="monotone" dataKey="Ditch" stackId="1" fill="#32CD32" stroke="#32CD32" name="Ditch" />
-                <Area type="monotone" dataKey="Lower-in" stackId="1" fill="#1E90FF" stroke="#1E90FF" name="Lower-in" />
+                <Legend wrapperStyle={{ fontSize: '10px' }} />
+                {CONSTRUCTION_SEQUENCE.map((phase) => (
+                  <Area
+                    key={phase}
+                    type="monotone"
+                    dataKey={phase}
+                    stackId="1"
+                    fill={phaseColors[phase] || '#666'}
+                    stroke={phaseColors[phase] || '#666'}
+                    name={phase}
+                  />
+                ))}
               </AreaChart>
             </ResponsiveContainer>
 

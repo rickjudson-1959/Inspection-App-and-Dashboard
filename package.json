@@ -26,6 +26,7 @@
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
+    "dotenv": "^17.2.4",
     "openai": "^6.17.0",
     "vite": "^5.0.0"
   }

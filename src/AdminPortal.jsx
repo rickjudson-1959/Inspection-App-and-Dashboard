@@ -170,6 +170,7 @@ function AdminPortal() {
     { key: 'typical_drawings', label: 'Typical Drawings', icon: '📏' },
     { key: 'project_specs', label: 'Project Specifications', icon: '📑', supportsAddenda: true },
     { key: 'weld_procedures', label: 'Weld Procedures (WPS)', icon: '🔧', supportsAddenda: true },
+    { key: 'contractor_schedule', label: 'Contractor Schedule', icon: '📅', supportsAddenda: true },
     { key: 'erp', label: 'Emergency Response Plan (ERP)', icon: '🚨' },
     { key: 'emp', label: 'Environmental Management Plan (EMP)', icon: '🌿' },
     { key: 'itp', label: 'Inspection & Test Plan (ITP)', icon: '✅', requiresSignOff: true, supportsAddenda: true }
