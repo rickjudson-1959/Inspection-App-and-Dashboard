@@ -1007,25 +1007,32 @@ function AdminPortal() {
         newDocData.document_hash = currentDoc.document_hash
       }
 
-      // Insert new document record
-      const { error: insertError } = await supabase
+      // Insert new document record and get the inserted doc back
+      const { data: insertedDoc, error: insertError } = await supabase
         .from('project_documents')
         .insert(newDocData)
+        .select()
+        .single()
 
       if (insertError) throw insertError
 
       // Refresh documents list
-      fetchGovernanceData(selectedOrgForSetup)
+      await fetchGovernanceData(selectedOrgForSetup)
 
       const versionMsg = newVersion > 1 ? ` (Rev ${newVersion - 1})` : ''
       const resetMsg = resetSignatures ? ' Signatures have been reset.' : ''
-      setGovernanceMessage({ type: 'success', text: `Document uploaded successfully${versionMsg}!${resetMsg}` })
+      setGovernanceMessage({ type: 'success', text: `Document uploaded successfully${versionMsg}!${resetMsg} Indexing for AI...` })
+
+      // Auto-index the document for AI
+      if (insertedDoc) {
+        setUploadingVaultDoc(null) // Allow UI to update
+        await autoIndexDocument(insertedDoc)
+      }
     } catch (err) {
       console.error('Error uploading vault document:', err)
       setGovernanceMessage({ type: 'error', text: 'Upload failed: ' + err.message })
+      setUploadingVaultDoc(null)
     }
-
-    setUploadingVaultDoc(null)
   }
 
   // Handle ITP reset prompt response
@@ -1091,7 +1098,69 @@ function AdminPortal() {
     setUploadingAddendum(null)
   }
 
-  // Process document for AI Agent (generate embeddings)
+  // Auto-index document after upload with helpful error guidance
+  async function autoIndexDocument(doc) {
+    const orgId = doc.organization_id || selectedOrgForSetup || organizationId
+    if (!doc || !orgId) return
+
+    console.log('[AI Auto-Index] Starting for:', doc.file_name)
+    setProcessingDocForAI(doc.id)
+
+    try {
+      const { data, error } = await supabase.functions.invoke('process-document', {
+        body: {
+          document_id: doc.id,
+          organization_id: orgId
+        }
+      })
+
+      if (error) throw error
+      if (data?.error) throw new Error(data.error)
+
+      // Update indexed docs state
+      setIndexedDocs(prev => ({
+        ...prev,
+        [doc.id]: data?.chunks_processed || 1
+      }))
+
+      const chunks = data?.chunks_processed || 0
+      if (chunks > 0) {
+        setGovernanceMessage({
+          type: 'success',
+          text: `✅ Document uploaded and indexed! ${chunks} sections are now searchable by the AI Agent.`
+        })
+      } else {
+        setGovernanceMessage({
+          type: 'warning',
+          text: `⚠️ Document uploaded but no text could be extracted. Try uploading a .txt or .md version for AI search.`
+        })
+      }
+    } catch (err) {
+      console.error('[AI Auto-Index] Error:', err)
+      const errorMsg = err.message || 'Unknown error'
+
+      // Provide helpful guidance based on error type
+      let guidance = ''
+      if (errorMsg.includes('timeout') || errorMsg.includes('546')) {
+        guidance = 'The file is too large. Convert to .txt using: Open in Preview → Edit → Select All → Copy → Paste into TextEdit → Save as .txt'
+      } else if (errorMsg.includes('extract') || errorMsg.includes('text')) {
+        guidance = 'Could not extract text from this file. Try uploading a .txt, .md, or text-based PDF instead.'
+      } else if (doc.file_name.toLowerCase().endsWith('.pdf')) {
+        guidance = 'PDF text extraction failed. Use pdftotext or save as .txt from the original application.'
+      } else {
+        guidance = 'Try converting the document to .txt format for reliable AI indexing.'
+      }
+
+      setGovernanceMessage({
+        type: 'warning',
+        text: `⚠️ Document uploaded but AI indexing failed. ${guidance}`
+      })
+    }
+
+    setProcessingDocForAI(null)
+  }
+
+  // Process document for AI Agent (generate embeddings) - manual trigger
   async function processDocumentForAI(doc) {
     // Use doc's organization_id for global docs, otherwise use selected org
     const orgId = doc.organization_id || selectedOrgForSetup || organizationId
@@ -1132,9 +1201,19 @@ function AdminPortal() {
       })
     } catch (err) {
       console.error('Error processing document for AI:', err)
+      const errorMsg = err.message || 'Unknown error'
+
+      // Provide helpful guidance based on error type
+      let guidance = ''
+      if (errorMsg.includes('timeout') || errorMsg.includes('546') || errorMsg.includes('non-2xx')) {
+        guidance = ' The file may be too large. Try converting to .txt format.'
+      } else if (errorMsg.includes('extract') || errorMsg.includes('text')) {
+        guidance = ' Try uploading a .txt or text-based version instead.'
+      }
+
       setGovernanceMessage({
         type: 'error',
-        text: 'AI processing failed: ' + (err.message || 'Unknown error')
+        text: `AI indexing failed: ${errorMsg}${guidance}`
       })
     }
 
@@ -1494,8 +1573,9 @@ function AdminPortal() {
       const newVersion = existingDoc ? (existingDoc.version_number || 1) + 1 : 1
 
       // If existing doc, update it; otherwise insert new
+      let docToIndex = null
       if (existingDoc) {
-        const { error: updateError } = await supabase
+        const { data: updatedDoc, error: updateError } = await supabase
           .from('project_documents')
           .update({
             file_name: file.name,
@@ -1504,11 +1584,14 @@ function AdminPortal() {
             uploaded_by: userProfile?.id
           })
           .eq('id', existingDoc.id)
+          .select()
+          .single()
 
         if (updateError) throw updateError
+        docToIndex = updatedDoc
       } else {
         // Insert as global document (null org_id for global, or use a system org)
-        const { error: insertError } = await supabase
+        const { data: insertedDoc, error: insertError } = await supabase
           .from('project_documents')
           .insert({
             organization_id: selectedOrgForSetup || organizationId, // Use current org as owner but mark global
@@ -1519,19 +1602,27 @@ function AdminPortal() {
             is_global: true,
             uploaded_by: userProfile?.id
           })
+          .select()
+          .single()
 
         if (insertError) throw insertError
+        docToIndex = insertedDoc
       }
 
       // Refresh documents
-      fetchGovernanceData(selectedOrgForSetup)
-      setGovernanceMessage({ type: 'success', text: 'Technical resource uploaded successfully!' })
+      await fetchGovernanceData(selectedOrgForSetup)
+      setGovernanceMessage({ type: 'success', text: 'Technical resource uploaded! Indexing for AI...' })
+
+      // Auto-index the document
+      if (docToIndex) {
+        setUploadingVaultDoc(null) // Allow UI to update
+        await autoIndexDocument(docToIndex)
+      }
     } catch (err) {
       console.error('Error uploading library document:', err)
       setGovernanceMessage({ type: 'error', text: 'Upload failed: ' + err.message })
+      setUploadingVaultDoc(null)
     }
-
-    setUploadingVaultDoc(null)
   }
 
   // Delete library document (super_admin only)
@@ -4134,7 +4225,7 @@ function AdminPortal() {
                                   <span style={{ textDecoration: 'underline' }}>Replace</span>
                                   <input
                                     type="file"
-                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg"
+                                    accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg,.txt,.md,.csv"
                                     onChange={(e) => {
                                       if (e.target.files[0]) handleVaultFileSelect(e.target.files[0], cat.key)
                                     }}
@@ -4155,7 +4246,7 @@ function AdminPortal() {
                                     </span>
                                     <input
                                       type="file"
-                                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg"
+                                      accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg,.txt,.md,.csv"
                                       onChange={(e) => {
                                         if (e.target.files[0]) uploadAddendum(e.target.files[0], doc)
                                       }}
@@ -4233,7 +4324,7 @@ function AdminPortal() {
                                 {uploadingVaultDoc === cat.key ? '⏳ Uploading...' : '📤 Upload Document'}
                                 <input
                                   type="file"
-                                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg"
+                                  accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.dwg,.txt,.md,.csv"
                                   onChange={(e) => {
                                     if (e.target.files[0]) handleVaultFileSelect(e.target.files[0], cat.key)
                                   }}
