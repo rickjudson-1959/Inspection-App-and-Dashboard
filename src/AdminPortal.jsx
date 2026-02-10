@@ -166,17 +166,17 @@ function AdminPortal() {
   const [processingDocForAI, setProcessingDocForAI] = useState(null)
   const [indexedDocs, setIndexedDocs] = useState({}) // { docId: chunkCount }
 
-  // Document vault categories
+  // Document vault categories - all support addenda (supporting documents)
   const documentVaultCategories = [
-    { key: 'prime_contract', label: 'Prime Contract', icon: '📜' },
-    { key: 'scope_of_work', label: 'Scope of Work (SOW)', icon: '📋' },
-    { key: 'ifc_drawings', label: 'IFC Drawings', icon: '📐' },
-    { key: 'typical_drawings', label: 'Typical Drawings', icon: '📏' },
+    { key: 'prime_contract', label: 'Prime Contract', icon: '📜', supportsAddenda: true },
+    { key: 'scope_of_work', label: 'Scope of Work (SOW)', icon: '📋', supportsAddenda: true },
+    { key: 'ifc_drawings', label: 'IFC Drawings', icon: '📐', supportsAddenda: true },
+    { key: 'typical_drawings', label: 'Typical Drawings', icon: '📏', supportsAddenda: true },
     { key: 'project_specs', label: 'Project Specifications', icon: '📑', supportsAddenda: true },
     { key: 'weld_procedures', label: 'Weld Procedures (WPS)', icon: '🔧', supportsAddenda: true },
     { key: 'contractor_schedule', label: 'Contractor Schedule', icon: '📅', supportsAddenda: true },
-    { key: 'erp', label: 'Emergency Response Plan (ERP)', icon: '🚨' },
-    { key: 'emp', label: 'Environmental Management Plan (EMP)', icon: '🌿' },
+    { key: 'erp', label: 'Emergency Response Plan (ERP)', icon: '🚨', supportsAddenda: true },
+    { key: 'emp', label: 'Environmental Management Plan (EMP)', icon: '🌿', supportsAddenda: true },
     { key: 'itp', label: 'Inspection & Test Plan (ITP)', icon: '✅', requiresSignOff: true, supportsAddenda: true }
   ]
 
