@@ -162,6 +162,10 @@ function AdminPortal() {
   const [overviewDocs, setOverviewDocs] = useState([])
   const [loadingOverviewDocs, setLoadingOverviewDocs] = useState(false)
 
+  // AI Document Processing
+  const [processingDocForAI, setProcessingDocForAI] = useState(null)
+  const [indexedDocs, setIndexedDocs] = useState({}) // { docId: chunkCount }
+
   // Document vault categories
   const documentVaultCategories = [
     { key: 'prime_contract', label: 'Prime Contract', icon: '📜' },
@@ -849,6 +853,23 @@ function AdminPortal() {
 
       setProjectDocuments(vaultDocs || [])
 
+      // Fetch AI indexing status for vault documents
+      if (vaultDocs && vaultDocs.length > 0) {
+        const docIds = vaultDocs.map(d => d.id)
+        const { data: embeddings } = await supabase
+          .from('document_embeddings')
+          .select('source_id')
+          .in('source_id', docIds)
+
+        if (embeddings) {
+          const indexedMap = {}
+          embeddings.forEach(e => {
+            indexedMap[e.source_id] = (indexedMap[e.source_id] || 0) + 1
+          })
+          setIndexedDocs(indexedMap)
+        }
+      }
+
       // Fetch global library documents (technical resources)
       const { data: globalDocs } = await supabase
         .from('project_documents')
@@ -858,6 +879,25 @@ function AdminPortal() {
         .order('created_at', { ascending: false })
 
       setGlobalLibraryDocs(globalDocs || [])
+
+      // Also fetch indexed status for global library docs
+      if (globalDocs && globalDocs.length > 0) {
+        const globalDocIds = globalDocs.map(d => d.id)
+        const { data: globalEmbeddings } = await supabase
+          .from('document_embeddings')
+          .select('source_id')
+          .in('source_id', globalDocIds)
+
+        if (globalEmbeddings) {
+          setIndexedDocs(prev => {
+            const updated = { ...prev }
+            globalEmbeddings.forEach(e => {
+              updated[e.source_id] = (updated[e.source_id] || 0) + 1
+            })
+            return updated
+          })
+        }
+      }
     } catch (err) {
       console.error('Error fetching governance data:', err)
       setConfigExists(false)
@@ -1049,6 +1089,56 @@ function AdminPortal() {
     }
 
     setUploadingAddendum(null)
+  }
+
+  // Process document for AI Agent (generate embeddings)
+  async function processDocumentForAI(doc) {
+    // Use doc's organization_id for global docs, otherwise use selected org
+    const orgId = doc.organization_id || selectedOrgForSetup || organizationId
+    if (!doc || !orgId) {
+      setGovernanceMessage({ type: 'error', text: 'No organization selected' })
+      return
+    }
+
+    console.log('[AI Index] Processing document:', doc.file_name, 'for org:', orgId, 'global:', doc.is_global)
+    setProcessingDocForAI(doc.id)
+    setGovernanceMessage({ type: 'info', text: `Processing "${doc.file_name}" for AI...` })
+
+    try {
+      const { data, error } = await supabase.functions.invoke('process-document', {
+        body: {
+          document_id: doc.id,
+          organization_id: orgId
+        }
+      })
+
+      console.log('[AI Index] Response:', data, error)
+
+      if (error) throw error
+
+      if (data?.error) {
+        throw new Error(data.error)
+      }
+
+      // Update indexed docs state
+      setIndexedDocs(prev => ({
+        ...prev,
+        [doc.id]: data?.chunks_processed || 1
+      }))
+
+      setGovernanceMessage({
+        type: 'success',
+        text: `AI processing complete! ${data?.chunks_processed || 0} sections indexed for "${doc.file_name}"`
+      })
+    } catch (err) {
+      console.error('Error processing document for AI:', err)
+      setGovernanceMessage({
+        type: 'error',
+        text: 'AI processing failed: ' + (err.message || 'Unknown error')
+      })
+    }
+
+    setProcessingDocForAI(null)
   }
 
   // Check if a vault category has a document
@@ -4074,6 +4164,25 @@ function AdminPortal() {
                                     />
                                   </label>
                                 )}
+
+                                {/* Process for AI Agent button */}
+                                <button
+                                  onClick={() => processDocumentForAI(doc)}
+                                  disabled={processingDocForAI === doc.id}
+                                  style={{
+                                    fontSize: '11px',
+                                    color: indexedDocs[doc.id] ? '#16a34a' : (processingDocForAI === doc.id ? '#999' : '#6366f1'),
+                                    backgroundColor: indexedDocs[doc.id] ? '#dcfce7' : 'transparent',
+                                    border: indexedDocs[doc.id] ? '1px solid #86efac' : 'none',
+                                    borderRadius: indexedDocs[doc.id] ? '4px' : '0',
+                                    cursor: processingDocForAI === doc.id ? 'not-allowed' : 'pointer',
+                                    textDecoration: indexedDocs[doc.id] ? 'none' : 'underline',
+                                    padding: indexedDocs[doc.id] ? '2px 6px' : 0
+                                  }}
+                                  title={indexedDocs[doc.id] ? `Indexed: ${indexedDocs[doc.id]} section(s) - Click to re-index` : 'Index this document for AI Agent search'}
+                                >
+                                  {processingDocForAI === doc.id ? '⏳ Processing...' : (indexedDocs[doc.id] ? `✅ Indexed (${indexedDocs[doc.id]})` : '🤖 Index for AI')}
+                                </button>
                               </div>
                             </div>
                           ) : (
@@ -4785,7 +4894,7 @@ function AdminPortal() {
                                 Replace
                                 <input
                                   type="file"
-                                  accept=".pdf,.doc,.docx"
+                                  accept=".pdf,.doc,.docx,.txt,.md,.csv"
                                   onChange={(e) => {
                                     if (e.target.files[0]) uploadLibraryDocument(e.target.files[0], cat.key)
                                   }}
@@ -4806,6 +4915,22 @@ function AdminPortal() {
                                 }}
                               >
                                 Remove
+                              </button>
+                              <button
+                                onClick={() => processDocumentForAI(doc)}
+                                disabled={processingDocForAI === doc.id}
+                                style={{
+                                  padding: '4px 10px',
+                                  fontSize: '11px',
+                                  backgroundColor: indexedDocs[doc.id] ? '#dcfce7' : '#e0e7ff',
+                                  color: indexedDocs[doc.id] ? '#16a34a' : '#4f46e5',
+                                  border: indexedDocs[doc.id] ? '1px solid #86efac' : '1px solid #a5b4fc',
+                                  borderRadius: '4px',
+                                  cursor: processingDocForAI === doc.id ? 'not-allowed' : 'pointer'
+                                }}
+                                title={indexedDocs[doc.id] ? `Indexed: ${indexedDocs[doc.id]} section(s)` : 'Index for AI Agent search'}
+                              >
+                                {processingDocForAI === doc.id ? '⏳...' : (indexedDocs[doc.id] ? `✅ ${indexedDocs[doc.id]}` : '🤖 Index')}
                               </button>
                             </div>
                           )}
@@ -4831,7 +4956,7 @@ function AdminPortal() {
                               {uploadingVaultDoc === cat.key ? '⏳ Uploading...' : '📤 Upload Document'}
                               <input
                                 type="file"
-                                accept=".pdf,.doc,.docx"
+                                accept=".pdf,.doc,.docx,.txt,.md,.csv"
                                 onChange={(e) => {
                                   if (e.target.files[0]) uploadLibraryDocument(e.target.files[0], cat.key)
                                 }}
