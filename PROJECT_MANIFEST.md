@@ -493,6 +493,26 @@ VitePWA({
 
 ---
 
+### Document Sync Health Widget Improvements (February 11, 2026)
+
+**Enhanced Document Sync Health Widget (Admin Portal → Overview)**
+- Rejected documents alert now shows actual document names (up to 5)
+- Displays owner comments/feedback for rejected documents
+- Internal documents alert shows document names (up to 3 inline)
+- Alerts are now clickable - navigates directly to Setup tab
+- Hover effects indicate interactivity (background change, slight scale)
+- "Click to view" hint text added to alerts
+
+**User Experience:**
+1. See rejected document names and owner feedback at a glance
+2. Click alert → Taken directly to Setup tab to address issues
+3. No more guessing which documents need attention
+
+**Files Modified:**
+- `src/AdminPortal.jsx` - Enhanced overviewSyncStats to include document arrays, clickable alerts with document lists
+
+---
+
 ### PWA Update Prompt Fix (February 11, 2026)
 
 **Issue:** Update prompt was not displaying when users returned after being signed out for days.
@@ -1411,4 +1431,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 11, 2026 (PWA Update Prompt Fix)*
+*Last Updated: February 11, 2026 (Document Sync Health Widget Improvements)*
