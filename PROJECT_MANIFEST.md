@@ -554,6 +554,34 @@ src/components/AIAgentStatusIcon.jsx
 
 ---
 
+### Admin Portal Navigation Improvements (February 11, 2026)
+
+**Return to Dashboard Buttons**
+- Added consistent "← Return to Dashboard" button to all Admin Portal tabs
+- Allows users to easily navigate back to the overview from any tab
+- Styled with gray background (#6c757d) for secondary action appearance
+
+**Tabs Updated:**
+| Tab | Description |
+|-----|-------------|
+| approvals | Pending report approvals |
+| efficiency | Shadow Audit Dashboard |
+| mats | Mat Inventory |
+| audit | Compliance Audit Trail |
+| setup | Client Setup |
+| projects | Project Management |
+| users | User Management |
+| reports | Inspector Reports |
+| fleet | Fleet Onboarding (Super Admin) |
+| stats | Usage Statistics (Super Admin) |
+| handover | Project Handover & Closeout (Super Admin) |
+| agenda | Meeting Agenda Generator |
+
+**Files Modified:**
+- `src/AdminPortal.jsx` - Added return button to 12 tabs
+
+---
+
 ### Session Handling & Auth Improvements (February 11, 2026)
 
 **Better Token Refresh Failure Handling**
@@ -1292,4 +1320,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 11, 2026 (Welding Chief Report Review Feature)*
+*Last Updated: February 11, 2026 (Admin Portal Navigation Improvements)*
