@@ -422,15 +422,20 @@ function AdminPortal() {
         transmitted: 0,
         acknowledged: 0,
         rejected: 0,
-        percentages: { internal: 0, transmitted: 0, acknowledged: 0, rejected: 0 }
+        percentages: { internal: 0, transmitted: 0, acknowledged: 0, rejected: 0 },
+        rejectedDocs: [],
+        internalDocs: []
       }
     }
 
+    const rejectedDocs = overviewDocs.filter(d => d.sync_status === 'rejected')
+    const internalDocs = overviewDocs.filter(d => !d.sync_status || d.sync_status === 'internal')
+
     const counts = {
-      internal: overviewDocs.filter(d => !d.sync_status || d.sync_status === 'internal').length,
+      internal: internalDocs.length,
       transmitted: overviewDocs.filter(d => d.sync_status === 'transmitted').length,
       acknowledged: overviewDocs.filter(d => d.sync_status === 'acknowledged').length,
-      rejected: overviewDocs.filter(d => d.sync_status === 'rejected').length
+      rejected: rejectedDocs.length
     }
 
     const total = overviewDocs.length
@@ -443,7 +448,9 @@ function AdminPortal() {
         transmitted: total > 0 ? Math.round((counts.transmitted / total) * 100) : 0,
         acknowledged: total > 0 ? Math.round((counts.acknowledged / total) * 100) : 0,
         rejected: total > 0 ? Math.round((counts.rejected / total) * 100) : 0
-      }
+      },
+      rejectedDocs,
+      internalDocs
     }
   }, [overviewDocs])
 
@@ -3384,44 +3391,80 @@ function AdminPortal() {
                   </span>
                 </div>
 
-                {/* Critical Alerts */}
+                {/* Critical Alerts - Rejected Documents */}
                 {overviewSyncStats.rejected > 0 && (
-                  <div style={{
-                    marginBottom: '15px',
-                    padding: '12px 15px',
-                    backgroundColor: '#fee2e2',
-                    borderRadius: '6px',
-                    border: '1px solid #fecaca',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px'
-                  }}>
-                    <span style={{ fontSize: '20px' }}>🚨</span>
-                    <div>
-                      <div style={{ fontWeight: 'bold', color: '#dc2626', fontSize: '14px' }}>
-                        Action Required: {overviewSyncStats.rejected} Owner Rejection{overviewSyncStats.rejected !== 1 ? 's' : ''}
+                  <div
+                    onClick={() => setActiveTab('setup')}
+                    style={{
+                      marginBottom: '15px',
+                      padding: '12px 15px',
+                      backgroundColor: '#fee2e2',
+                      borderRadius: '6px',
+                      border: '1px solid #fecaca',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fecaca'; e.currentTarget.style.transform = 'scale(1.01)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fee2e2'; e.currentTarget.style.transform = 'scale(1)' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                      <span style={{ fontSize: '20px' }}>🚨</span>
+                      <div>
+                        <div style={{ fontWeight: 'bold', color: '#dc2626', fontSize: '14px' }}>
+                          Action Required: {overviewSyncStats.rejected} Owner Rejection{overviewSyncStats.rejected !== 1 ? 's' : ''}
+                        </div>
+                        <div style={{ fontSize: '11px', color: '#991b1b' }}>
+                          New revision(s) required immediately • Click to view
+                        </div>
                       </div>
-                      <div style={{ fontSize: '11px', color: '#991b1b' }}>
-                        New revision(s) required immediately
-                      </div>
+                    </div>
+                    <div style={{ marginLeft: '30px', fontSize: '12px', color: '#b91c1c' }}>
+                      {overviewSyncStats.rejectedDocs.slice(0, 5).map((doc, idx) => (
+                        <div key={doc.id} style={{ padding: '2px 0' }}>
+                          • {doc.document_name || doc.category}
+                          {doc.owner_comments && <span style={{ fontStyle: 'italic', marginLeft: '8px' }}>"{doc.owner_comments}"</span>}
+                        </div>
+                      ))}
+                      {overviewSyncStats.rejectedDocs.length > 5 && (
+                        <div style={{ padding: '2px 0', fontStyle: 'italic' }}>
+                          +{overviewSyncStats.rejectedDocs.length - 5} more...
+                        </div>
+                      )}
                     </div>
                   </div>
                 )}
 
+                {/* Warning - Internal Documents Pending Transmittal */}
                 {overviewSyncStats.internal > 0 && (
-                  <div style={{
-                    marginBottom: '15px',
-                    padding: '10px 15px',
-                    backgroundColor: '#fef9c3',
-                    borderRadius: '6px',
-                    border: '1px solid #fde68a',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '10px'
-                  }}>
-                    <span style={{ fontSize: '16px' }}>📤</span>
-                    <div style={{ fontSize: '13px', color: '#a16207' }}>
-                      <strong>{overviewSyncStats.internal}</strong> document{overviewSyncStats.internal !== 1 ? 's' : ''} pending transmittal to Owner
+                  <div
+                    onClick={() => setActiveTab('setup')}
+                    style={{
+                      marginBottom: '15px',
+                      padding: '10px 15px',
+                      backgroundColor: '#fef9c3',
+                      borderRadius: '6px',
+                      border: '1px solid #fde68a',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s'
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#fde68a'; e.currentTarget.style.transform = 'scale(1.01)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#fef9c3'; e.currentTarget.style.transform = 'scale(1)' }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '16px' }}>📤</span>
+                      <div style={{ fontSize: '13px', color: '#a16207' }}>
+                        <strong>{overviewSyncStats.internal}</strong> document{overviewSyncStats.internal !== 1 ? 's' : ''} pending transmittal to Owner • Click to view
+                      </div>
+                    </div>
+                    <div style={{ marginLeft: '26px', fontSize: '11px', color: '#92400e' }}>
+                      {overviewSyncStats.internalDocs.slice(0, 3).map((doc, idx) => (
+                        <span key={doc.id}>
+                          {doc.document_name || doc.category}{idx < Math.min(overviewSyncStats.internalDocs.length, 3) - 1 ? ', ' : ''}
+                        </span>
+                      ))}
+                      {overviewSyncStats.internalDocs.length > 3 && (
+                        <span style={{ fontStyle: 'italic' }}> +{overviewSyncStats.internalDocs.length - 3} more</span>
+                      )}
                     </div>
                   </div>
                 )}
