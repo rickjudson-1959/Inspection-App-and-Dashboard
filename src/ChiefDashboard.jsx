@@ -35,6 +35,24 @@ import {
   calculateMTDProgress
 } from './chiefReportHelpers.js'
 
+// Welding activity types - exclude these from Chief Dashboard (handled by Welding Chief)
+const WELDING_ACTIVITY_TYPES = [
+  'mainline welding',
+  'tie-in',
+  'tie-ins',
+  'welder testing',
+  'welding'
+]
+
+// Helper to check if a report contains welding activities
+function hasWeldingActivities(report) {
+  const blocks = report?.activity_blocks || []
+  return blocks.some(block => {
+    const activityType = (block.activityType || '').toLowerCase()
+    return WELDING_ACTIVITY_TYPES.some(type => activityType.includes(type))
+  })
+}
+
 // ============================================================================
 // CHIEF DASHBOARD - REGULATORY SUMMARY ENGINE v2.0
 // January 2026 - Pipe-Up Pipeline Inspector SaaS
@@ -169,7 +187,10 @@ function ChiefDashboard() {
       for (const status of (statusData || [])) {
         let ticketQuery = supabase.from('daily_reports').select('*').eq('id', status.report_id).single()
         const { data: ticket } = await ticketQuery
-        if (ticket) reportsWithData.push({ ...status, ticket })
+        // Exclude welding reports - those go to Welding Chief
+        if (ticket && !hasWeldingActivities(ticket)) {
+          reportsWithData.push({ ...status, ticket })
+        }
       }
       setPendingReports(reportsWithData)
     } catch (err) { console.error('Error:', err) }
@@ -177,15 +198,19 @@ function ChiefDashboard() {
 
   async function fetchApprovedReports() {
     try {
-      let query = supabase.from('report_status').select('*').eq('status', 'approved').order('reviewed_at', { ascending: false }).limit(10)
+      let query = supabase.from('report_status').select('*').eq('status', 'approved').order('reviewed_at', { ascending: false }).limit(20)
       query = addOrgFilter(query)
       const { data: statusData } = await query
       const reportsWithData = []
       for (const status of (statusData || [])) {
         const { data: ticket } = await supabase.from('daily_reports').select('*').eq('id', status.report_id).single()
-        if (ticket) reportsWithData.push({ ...status, ticket })
+        // Exclude welding reports - those go to Welding Chief
+        if (ticket && !hasWeldingActivities(ticket)) {
+          reportsWithData.push({ ...status, ticket })
+        }
       }
-      setApprovedReports(reportsWithData)
+      // Limit to 10 after filtering
+      setApprovedReports(reportsWithData.slice(0, 10))
     } catch (err) { console.error('Error:', err) }
   }
 
@@ -197,7 +222,10 @@ function ChiefDashboard() {
       const reportsWithData = []
       for (const status of (statusData || [])) {
         const { data: ticket } = await supabase.from('daily_reports').select('*').eq('id', status.report_id).single()
-        if (ticket) reportsWithData.push({ ...status, ticket })
+        // Exclude welding reports - those go to Welding Chief
+        if (ticket && !hasWeldingActivities(ticket)) {
+          reportsWithData.push({ ...status, ticket })
+        }
       }
       setRejectedReports(reportsWithData)
     } catch (err) { console.error('Error:', err) }

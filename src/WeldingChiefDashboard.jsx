@@ -39,6 +39,24 @@ import SignaturePad from './components/SignaturePad.jsx'
 // Import Report Review components
 import WeldingReportReviewTab from './components/WeldingReportReviewTab.jsx'
 
+// Welding activity types - only show reports containing these activities
+const WELDING_ACTIVITY_TYPES = [
+  'mainline welding',
+  'tie-in',
+  'tie-ins',
+  'welder testing',
+  'welding'
+]
+
+// Helper to check if a report contains welding activities
+function hasWeldingActivities(report) {
+  const blocks = report?.activity_blocks || []
+  return blocks.some(block => {
+    const activityType = (block.activityType || '').toLowerCase()
+    return WELDING_ACTIVITY_TYPES.some(type => activityType.includes(type))
+  })
+}
+
 // ============================================================================
 // WELDING CHIEF DASHBOARD
 // February 2026 - Pipe-Up Pipeline Inspector SaaS
@@ -216,23 +234,26 @@ function WeldingChiefDashboard() {
 
       if (error) throw error
 
-      // Extract all detailed data
-      const comments = extractWeldingComments(reports || [])
+      // Filter to only include reports with welding activities
+      const weldingReports = (reports || []).filter(hasWeldingActivities)
+
+      // Extract all detailed data from welding reports only
+      const comments = extractWeldingComments(weldingReports)
       setWeldingComments(comments)
 
-      const activities = extractDetailedWeldingActivities(reports || [])
+      const activities = extractDetailedWeldingActivities(weldingReports)
       setDetailedActivities(activities)
 
-      const welds = extractIndividualWelds(reports || [])
+      const welds = extractIndividualWelds(weldingReports)
       setIndividualWelds(welds)
 
-      const repairs = extractAllRepairs(reports || [])
+      const repairs = extractAllRepairs(weldingReports)
       setAllRepairs(repairs)
 
-      const tieIns = extractTieInData(reports || [])
+      const tieIns = extractTieInData(weldingReports)
       setTieInRecords(tieIns)
 
-      const locations = aggregateProductionByLocation(reports || [])
+      const locations = aggregateProductionByLocation(weldingReports)
       setProductionByLocation(locations)
     } catch (err) {
       console.error('Error loading reports data:', err)
@@ -275,11 +296,14 @@ function WeldingChiefDashboard() {
 
       if (error) throw error
 
-      // Extract all detailed data
-      const activities = extractDetailedWeldingActivities(reports || [])
-      const repairs = extractAllRepairs(reports || [])
-      const tieIns = extractTieInData(reports || [])
-      const comments = extractWeldingComments(reports || [])
+      // Filter to only include reports with welding activities
+      const weldingReports = (reports || []).filter(hasWeldingActivities)
+
+      // Extract all detailed data from welding reports only
+      const activities = extractDetailedWeldingActivities(weldingReports)
+      const repairs = extractAllRepairs(weldingReports)
+      const tieIns = extractTieInData(weldingReports)
+      const comments = extractWeldingComments(weldingReports)
       const summary = await getDailyWeldSummary(supabase, getOrgId(), reportDate)
       const welderStats = await aggregateWelderStats(supabase, getOrgId())
       const aiLogs = await fetchWeldingAILogs(supabase, getOrgId(), 50)
