@@ -593,6 +593,29 @@ src/components/AIAgentStatusIcon.jsx
 
 ---
 
+### AI Agent Logs Query Fixes (February 11, 2026)
+
+**Database Column Corrections**
+- Fixed 400 Bad Request errors on `ai_agent_logs` queries in Welding Chief Dashboard
+- Table uses array-based ticket tracking and date ranges, not single-ticket columns
+
+**Column Mapping Corrections:**
+| Incorrect | Correct |
+|-----------|---------|
+| `ticket_id` | `ticket_ids` (UUID array) |
+| `ticket_date` | `date_range_start` / `date_range_end` |
+| `analyzed_at` | `created_at` |
+
+**Query Changes:**
+- Select: `ticket_id, ticket_date` → `ticket_ids, date_range_start, date_range_end`
+- Filter: `.eq('ticket_date', date)` → `.lte('date_range_start', date).gte('date_range_end', date)`
+- Order: `.order('analyzed_at', ...)` → `.order('created_at', ...)`
+
+**Files Modified:**
+- `src/weldingChiefHelpers.js` - Fixed three query locations (lines 264, 421-425, 546)
+
+---
+
 ### AI Document Search & RAG System (February 10-11, 2026)
 
 **Document Processing for AI Agent Search**
@@ -1195,4 +1218,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 11, 2026 (Session Handling & AssistantChiefDashboard Fixes)*
+*Last Updated: February 11, 2026 (AI Agent Logs Query Fixes)*
