@@ -261,9 +261,9 @@ export function getWeldingAIFlags(aiLogs) {
       if (weldingFlagTypes.includes(flag.type)) {
         flags.push({
           ...flag,
-          ticket_id: log.ticket_id,
-          ticket_date: log.ticket_date,
-          analyzed_at: log.analyzed_at,
+          ticket_id: flag.ticket_id || (log.ticket_ids && log.ticket_ids[0]),
+          ticket_date: flag.ticket_date || log.date_range_start,
+          analyzed_at: log.created_at,
           log_id: log.id
         })
       }
@@ -420,8 +420,9 @@ export async function getDailyWeldSummary(supabaseClient, orgId, date) {
     try {
       let alertQuery = supabaseClient
         .from('ai_agent_logs')
-        .select('id, ticket_id, ticket_date, analysis_result')
-        .eq('ticket_date', date)
+        .select('id, ticket_ids, date_range_start, date_range_end, analysis_result')
+        .lte('date_range_start', date)
+        .gte('date_range_end', date)
 
       if (orgId) {
         alertQuery = alertQuery.eq('organization_id', orgId)
@@ -543,7 +544,7 @@ export async function fetchWeldingAILogs(supabaseClient, orgId, limit = 50) {
     let query = supabaseClient
       .from('ai_agent_logs')
       .select('*')
-      .order('analyzed_at', { ascending: false })
+      .order('created_at', { ascending: false })
       .limit(limit)
 
     if (orgId) {
