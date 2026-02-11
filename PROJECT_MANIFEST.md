@@ -554,6 +554,45 @@ src/components/AIAgentStatusIcon.jsx
 
 ---
 
+### Session Handling & Auth Improvements (February 11, 2026)
+
+**Better Token Refresh Failure Handling**
+- AuthContext now handles auth events explicitly: `SIGNED_IN`, `TOKEN_REFRESHED`, `SIGNED_OUT`, `USER_UPDATED`, `PASSWORD_RECOVERY`
+- When Supabase token refresh fails (400 error), users see a friendly message instead of silent logout
+- Session error state (`sessionError`) tracks why sessions end
+- Login page displays session expiry with yellow warning banner
+- Console logging for auth events aids debugging (`[Auth] Event: ...`)
+
+**New Auth Context Exports:**
+- `sessionError` - String describing why session ended (e.g., "Your session has expired")
+- `clearSessionError()` - Function to clear the error after displaying
+
+**Files Modified:**
+- `src/AuthContext.jsx` - Event-based auth handling, session error tracking
+- `src/Login.jsx` - Session error display with warning styling
+
+---
+
+### AssistantChiefDashboard Fixes (February 11, 2026)
+
+**Database Query Fixes**
+- Fixed `column daily_reports.status does not exist` error
+- Removed invalid `.eq('status', 'submitted')` filter (daily_reports table has no status column)
+- Changed to date-based filtering (last 30 days) for recent reports
+- Updated stats label from "Pending Review" to "Recent Reports (30d)"
+- Disabled review submission feature with placeholder message (requires schema updates)
+
+**Table Reference Corrections**
+- `inspection_reports` → `daily_reports`
+- `profiles` → `user_profiles`
+- `report_date` → `date` column
+- Disabled features for non-existent tables: `assistant_chief_reviews`, `inspector_assignments`
+
+**Files Modified:**
+- `src/AssistantChiefDashboard.jsx` - Query fixes, graceful feature degradation
+
+---
+
 ### AI Document Search & RAG System (February 10-11, 2026)
 
 **Document Processing for AI Agent Search**
@@ -1156,4 +1195,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 11, 2026 (AI Document Search & RAG System)*
+*Last Updated: February 11, 2026 (Session Handling & AssistantChiefDashboard Fixes)*
