@@ -493,6 +493,32 @@ VitePWA({
 
 ---
 
+### PWA Update Prompt Fix (February 11, 2026)
+
+**Issue:** Update prompt was not displaying when users returned after being signed out for days.
+
+**Root Cause:** The `UpdatePrompt.jsx` component existed but was never imported into `App.jsx`.
+
+**Fix Applied:**
+- Added `UpdatePrompt` component to `App.jsx` so it renders on all pages including login
+- Component now checks for updates immediately on app load (not just after interval)
+- Reduced update check interval from 10 minutes to 5 minutes
+- Removed auto-dismiss behavior - prompt stays until user interacts with it
+- Added console logging (`[PWA] New version available!`) for debugging
+
+**Files Modified:**
+- `src/App.jsx` - Import and render UpdatePrompt component
+- `src/components/UpdatePrompt.jsx` - Immediate update check, faster interval, no auto-dismiss
+
+**Update Prompt Behavior:**
+1. App loads → Service worker registers → Immediate update check
+2. If new version available → Blue banner appears at bottom of screen
+3. User clicks "Refresh" → App updates and reloads
+4. User clicks "×" → Banner dismissed (will show again on next visit)
+5. Background checks continue every 5 minutes
+
+---
+
 ### AI Agent "Watcher" System (February 2, 2026)
 
 **Pipe-Up AI Agent - Intelligent Ticket Analysis**
@@ -1385,4 +1411,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 11, 2026 (AI Agent Available to All Users)*
+*Last Updated: February 11, 2026 (PWA Update Prompt Fix)*
