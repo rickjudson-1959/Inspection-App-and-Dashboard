@@ -3744,6 +3744,7 @@ function AdminPortal() {
         {/* ==================== PENDING APPROVALS TAB ==================== */}
         {activeTab === 'approvals' && (
           <div>
+            <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
             <h2>📋 Pending Approvals</h2>
             <p style={{ color: '#666' }}>Reports submitted by inspectors awaiting your approval</p>
             
@@ -3800,12 +3801,16 @@ function AdminPortal() {
 
         {/* ==================== SHADOW EFFICIENCY AUDIT TAB ==================== */}
         {activeTab === 'efficiency' && (
-          <ShadowAuditDashboard />
+          <div>
+            <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
+            <ShadowAuditDashboard />
+          </div>
         )}
 
         {/* ==================== MAT INVENTORY TAB ==================== */}
         {activeTab === 'mats' && (
           <div>
+            <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
             <h2>🛤️ Mat Inventory</h2>
             <p style={{ color: '#666' }}>Current mat deployment across the project</p>
 
@@ -3911,12 +3916,16 @@ function AdminPortal() {
 
         {/* ==================== AUDIT LOG TAB ==================== */}
         {activeTab === 'audit' && (
-          <ComplianceAuditTrail />
+          <div>
+            <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
+            <ComplianceAuditTrail />
+          </div>
         )}
 
         {/* ==================== SETUP TAB ==================== */}
         {activeTab === 'setup' && (
           <div>
+            <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
             <h2>⚙️ Client Setup</h2>
             <p style={{ color: '#666', marginBottom: '20px' }}>Add new clients and import rate sheets</p>
             
@@ -5380,6 +5389,7 @@ function AdminPortal() {
 
         {activeTab === 'projects' && (
           <div>
+            <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
             <h2>Projects</h2>
             {isSuperAdmin && (
               <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '8px', marginBottom: '20px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)' }}>
@@ -5422,6 +5432,7 @@ function AdminPortal() {
 
         {activeTab === 'users' && (
           <div>
+            <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <h2 style={{ margin: 0 }}>Users</h2>
@@ -5538,6 +5549,7 @@ function AdminPortal() {
 
         {activeTab === 'reports' && (
           <div>
+            <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
             <h2>Inspector Reports</h2>
             <p style={{ color: '#666' }}>View and edit all inspector reports. Click Edit to modify any report.</p>
             <div style={{ display: 'flex', gap: '20px', marginTop: '20px', marginBottom: '20px' }}>
@@ -5649,6 +5661,7 @@ function AdminPortal() {
         {/* Fleet Onboarding Tab - Super Admin Only */}
         {activeTab === 'fleet' && isSuperAdmin && (
           <div>
+            <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
             <h2>🚀 Fleet Onboarding</h2>
             <p style={{ color: '#666', marginBottom: '30px' }}>Provision new organizations and their admin users for the Pipe-Up platform.</p>
 
@@ -5799,6 +5812,7 @@ function AdminPortal() {
         {/* Usage Statistics Tab - Super Admin Only */}
         {activeTab === 'stats' && isSuperAdmin && (
           <div>
+            <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
                 <h2>📊 Usage Statistics</h2>
@@ -5902,6 +5916,7 @@ function AdminPortal() {
         {/* Project Handover & Closeout Tab - Super Admin Only */}
         {activeTab === 'handover' && isSuperAdmin && (
           <div>
+            <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
             <div style={{ marginBottom: '20px' }}>
               <h2>📦 Project Handover & Closeout</h2>
               <p style={{ color: '#666', margin: 0 }}>Generate final handover packages for project completion.</p>
@@ -6272,7 +6287,10 @@ function AdminPortal() {
 
         {/* Meeting Agenda Generator Tab */}
         {activeTab === 'agenda' && (
-          <MeetingAgendaGenerator />
+          <div>
+            <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
+            <MeetingAgendaGenerator />
+          </div>
         )}
 
         {/* Invite User Modal */}
