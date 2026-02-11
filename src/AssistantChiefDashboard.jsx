@@ -240,32 +240,21 @@ function AssistantChiefDashboard() {
     try {
       // Fetch reports pending review (submitted but not yet approved by Chief)
       let pendingQuery = supabase
-        .from('inspection_reports')
-        .select(`
-          *,
-          inspector:profiles!inspection_reports_inspector_id_fkey(full_name, email)
-        `)
+        .from('daily_reports')
+        .select('*')
         .eq('status', 'submitted')
-        .order('report_date', { ascending: false })
+        .order('date', { ascending: false })
       pendingQuery = addOrgFilter(pendingQuery)
-      const { data: pending } = await pendingQuery
+      const { data: pending, error: pendingError } = await pendingQuery
 
+      if (pendingError) {
+        console.error('Error fetching pending reports:', pendingError)
+      }
       setPendingReports(pending || [])
 
-      // Fetch reports I've reviewed today
-      const today = new Date().toISOString().split('T')[0]
-      let reviewedQuery = supabase
-        .from('assistant_chief_reviews')
-        .select(`
-          *,
-          report:inspection_reports(id, report_date, inspector_id, kp_start, kp_end)
-        `)
-        .eq('reviewer_id', userProfile?.id)
-        .gte('reviewed_at', today)
-      reviewedQuery = addOrgFilter(reviewedQuery)
-      const { data: reviewed } = await reviewedQuery
-
-      setReviewedByMe(reviewed || [])
+      // Note: assistant_chief_reviews table not yet created
+      // For now, just set empty array
+      setReviewedByMe([])
     } catch (err) {
       console.error('Error fetching reports:', err)
     }
@@ -276,32 +265,20 @@ function AssistantChiefDashboard() {
     if (!selectedReport) return
 
     try {
-      // Save review to assistant_chief_reviews table
+      // Update report with assistant review notes directly on daily_reports
+      // Note: assistant_chief_reviews table not yet created
       const { error } = await supabase
-        .from('assistant_chief_reviews')
-        .insert({
-          report_id: selectedReport.id,
-          reviewer_id: userProfile?.id,
-          reviewer_name: userProfile?.full_name,
-          status: reviewStatus,
-          notes: reviewNotes,
-          reviewed_at: new Date().toISOString(),
-          organization_id: getOrgId()
+        .from('daily_reports')
+        .update({
+          assistant_review_status: reviewStatus,
+          assistant_review_notes: reviewNotes,
+          assistant_reviewer_name: userProfile?.full_name,
+          assistant_reviewed_at: new Date().toISOString()
         })
+        .eq('id', selectedReport.id)
 
       if (error) throw error
-      
-      // If needs revision, update report status
-      if (reviewStatus === 'needs_revision') {
-        await supabase
-          .from('inspection_reports')
-          .update({ 
-            assistant_review_status: 'needs_revision',
-            assistant_review_notes: reviewNotes
-          })
-          .eq('id', selectedReport.id)
-      }
-      
+
       alert('Review submitted successfully!')
       setSelectedReport(null)
       setReviewNotes('')
@@ -320,7 +297,7 @@ function AssistantChiefDashboard() {
   async function fetchInspectors() {
     try {
       const { data } = await supabase
-        .from('profiles')
+        .from('user_profiles')
         .select('id, full_name, email, role')
         .eq('role', 'inspector')
         .order('full_name')
@@ -332,55 +309,15 @@ function AssistantChiefDashboard() {
   }
 
   async function fetchAssignments() {
-    try {
-      let assignQuery = supabase
-        .from('inspector_assignments')
-        .select(`
-          *,
-          inspector:profiles(full_name, email)
-        `)
-        .eq('assignment_date', assignmentDate)
-        .order('created_at', { ascending: false })
-      assignQuery = addOrgFilter(assignQuery)
-      const { data } = await assignQuery
-
-      setAssignments(data || [])
-    } catch (err) {
-      console.error('Error fetching assignments:', err)
-    }
+    // Note: inspector_assignments table not yet created
+    // For now, just set empty array to prevent errors
+    setAssignments([])
   }
 
   async function saveAssignment() {
-    if (!newAssignment.inspector_id || !newAssignment.activity) {
-      alert('Please select an inspector and activity')
-      return
-    }
-
-    try {
-      const { error } = await supabase
-        .from('inspector_assignments')
-        .insert({
-          inspector_id: newAssignment.inspector_id,
-          activity: newAssignment.activity,
-          kp_start: newAssignment.kp_start ? parseFloat(newAssignment.kp_start) : null,
-          kp_end: newAssignment.kp_end ? parseFloat(newAssignment.kp_end) : null,
-          notes: newAssignment.notes,
-          assignment_date: assignmentDate,
-          assigned_by: userProfile?.id,
-          created_at: new Date().toISOString(),
-          organization_id: getOrgId()
-        })
-      
-      if (error) throw error
-      
-      alert('Assignment saved!')
-      setShowAssignmentModal(false)
-      setNewAssignment({ inspector_id: '', activity: '', kp_start: '', kp_end: '', notes: '' })
-      fetchAssignments()
-    } catch (err) {
-      console.error('Error saving assignment:', err)
-      alert('Error: ' + err.message)
-    }
+    // Note: inspector_assignments table not yet created
+    alert('Inspector assignment feature coming soon. Please coordinate assignments directly with inspectors.')
+    setShowAssignmentModal(false)
   }
 
   // =============================================
@@ -529,11 +466,11 @@ function AssistantChiefDashboard() {
 
       let safetyQuery = supabase
         .from('daily_reports')
-        .select('id, report_date, safety_notes, inspector_name')
-        .gte('report_date', weekAgo.toISOString().split('T')[0])
+        .select('id, date, safety_notes, inspector_name')
+        .gte('date', weekAgo.toISOString().split('T')[0])
         .not('safety_notes', 'is', null)
         .neq('safety_notes', '')
-        .order('report_date', { ascending: false })
+        .order('date', { ascending: false })
       safetyQuery = addOrgFilter(safetyQuery)
       const { data: safetyNotes } = await safetyQuery
 
@@ -542,9 +479,9 @@ function AssistantChiefDashboard() {
       // 7. Fetch recent inspector environmental notes
       let envQuery = supabase
         .from('daily_reports')
-        .select('id, report_date, land_environment, inspector_name, wildlife_sighting')
-        .gte('report_date', weekAgo.toISOString().split('T')[0])
-        .order('report_date', { ascending: false })
+        .select('id, date, land_environment, inspector_name, wildlife_sighting')
+        .gte('date', weekAgo.toISOString().split('T')[0])
+        .order('date', { ascending: false })
       envQuery = addOrgFilter(envQuery)
       const { data: envNotes } = await envQuery
 
@@ -925,8 +862,8 @@ function AssistantChiefDashboard() {
       // 6. Get inspector reports for today (summary)
       let inspQuery = supabase
         .from('daily_reports')
-        .select('id, inspector_name, report_date, safety_notes, land_environment')
-        .eq('report_date', reportDate)
+        .select('id, inspector_name, date, safety_notes, land_environment')
+        .eq('date', reportDate)
       inspQuery = addOrgFilter(inspQuery)
       const { data: inspReports } = await inspQuery
 
@@ -1766,34 +1703,34 @@ function AssistantChiefDashboard() {
 
       // Pending reports
       let pendingQuery = supabase
-        .from('inspection_reports')
+        .from('daily_reports')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'submitted')
       pendingQuery = addOrgFilter(pendingQuery)
       const { count: pendingCount } = await pendingQuery
 
-      // My reviews today
-      let reviewedQuery = supabase
-        .from('assistant_chief_reviews')
-        .select('*', { count: 'exact', head: true })
-        .eq('reviewer_id', userProfile?.id)
-        .gte('reviewed_at', today)
-      reviewedQuery = addOrgFilter(reviewedQuery)
-      const { count: reviewedCount } = await reviewedQuery
+      // Note: assistant_chief_reviews table not yet created - set to 0
+      const reviewedCount = 0
 
-      // Open deficiencies
-      let deficiencyQuery = supabase
-        .from('contractor_deficiencies')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'open')
-      deficiencyQuery = addOrgFilter(deficiencyQuery)
-      const { count: deficiencyCount } = await deficiencyQuery
+      // Open deficiencies - wrap in try/catch in case table doesn't exist
+      let deficiencyCount = 0
+      try {
+        let deficiencyQuery = supabase
+          .from('contractor_deficiencies')
+          .select('*', { count: 'exact', head: true })
+          .eq('status', 'open')
+        deficiencyQuery = addOrgFilter(deficiencyQuery)
+        const { count } = await deficiencyQuery
+        deficiencyCount = count || 0
+      } catch (e) {
+        console.log('contractor_deficiencies table not available')
+      }
 
-      // Active inspectors (with assignments today)
+      // Note: inspector_assignments table not yet created - count inspectors instead
       let inspectorQuery = supabase
-        .from('inspector_assignments')
-        .select('inspector_id', { count: 'exact', head: true })
-        .eq('assignment_date', today)
+        .from('user_profiles')
+        .select('id', { count: 'exact', head: true })
+        .eq('role', 'inspector')
       inspectorQuery = addOrgFilter(inspectorQuery)
       const { count: inspectorCount } = await inspectorQuery
 
@@ -2073,7 +2010,7 @@ function AssistantChiefDashboard() {
                   <tbody>
                     {pendingReports.map(report => (
                       <tr key={report.id} style={{ backgroundColor: selectedReport?.id === report.id ? '#e7f3ff' : 'transparent' }}>
-                        <td style={tdStyle}>{report.report_date}</td>
+                        <td style={tdStyle}>{report.date}</td>
                         <td style={tdStyle}>{report.inspector?.full_name || 'Unknown'}</td>
                         <td style={{ ...tdStyle, fontFamily: 'monospace' }}>
                           {report.kp_start?.toFixed(3)} - {report.kp_end?.toFixed(3)}
@@ -2102,7 +2039,7 @@ function AssistantChiefDashboard() {
                 <div style={cardHeaderStyle('#2c5282')}>
                   <h2 style={{ margin: 0, fontSize: '18px' }}>✍️ Review Report</h2>
                   <p style={{ margin: '5px 0 0 0', fontSize: '12px', opacity: 0.8 }}>
-                    {selectedReport.report_date} • {selectedReport.inspector?.full_name}
+                    {selectedReport.date} • {selectedReport.inspector?.full_name}
                   </p>
                 </div>
                 <div style={{ padding: '20px' }}>
@@ -2439,7 +2376,7 @@ function AssistantChiefDashboard() {
                     {inspectorSafetyNotes.slice(0, 5).map(note => (
                       <div key={note.id} style={{ padding: '10px 15px', borderBottom: '1px solid #eee', fontSize: '13px' }}>
                         <span style={badgeStyle('#dc3545')}>SAFETY</span>
-                        <span style={{ marginLeft: '10px', color: '#666' }}>{note.report_date} - {note.inspector_name}</span>
+                        <span style={{ marginLeft: '10px', color: '#666' }}>{note.date} - {note.inspector_name}</span>
                         <p style={{ margin: '5px 0 0 0', color: '#333' }}>{note.safety_notes?.substring(0, 150)}...</p>
                       </div>
                     ))}
@@ -2943,7 +2880,7 @@ function AssistantChiefDashboard() {
                       {inspectorSafetyNotes.map(note => (
                         <div key={note.id} style={{ padding: '12px 15px', borderBottom: '1px solid #eee', borderLeft: '3px solid #dc3545' }}>
                           <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>
-                            <strong>{note.inspector_name}</strong> • {note.report_date}
+                            <strong>{note.inspector_name}</strong> • {note.date}
                           </div>
                           <p style={{ margin: 0, fontSize: '14px' }}>{note.safety_notes}</p>
                         </div>
@@ -2960,7 +2897,7 @@ function AssistantChiefDashboard() {
                       {inspectorEnvironmentNotes.map(note => (
                         <div key={note.id} style={{ padding: '12px 15px', borderBottom: '1px solid #eee', borderLeft: '3px solid #28a745' }}>
                           <div style={{ fontSize: '12px', color: '#666', marginBottom: '5px' }}>
-                            <strong>{note.inspector_name}</strong> • {note.report_date}
+                            <strong>{note.inspector_name}</strong> • {note.date}
                           </div>
                           {note.land_environment && <p style={{ margin: '0 0 5px 0', fontSize: '14px' }}>{note.land_environment}</p>}
                           {note.wildlife_sighting?.sightings?.length > 0 && (
