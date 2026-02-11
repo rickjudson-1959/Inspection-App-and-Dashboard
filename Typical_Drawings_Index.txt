@@ -1,0 +1,391 @@
+# Typical Drawings Index
+# Project: Pipeline Construction
+# Purpose: This index allows AI search to find specific drawings by title, number, or description
+
+## How to Use This Index
+When an inspector asks about a specific drawing, crossing type, or construction detail,
+search this index to find the relevant drawing number and page. The inspector can then
+access the drawing in the Typical Drawings section of the Project Document Vault.
+
+---
+
+## Drawing Register
+
+### TYP-1000 - Crossing Watercourse Bore
+- Page: 2
+- Drawing Number: TYP-1000
+- Title: Crossing Watercourse Bore
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: watercourse, bore, crossing, water crossing, stream crossing, river crossing, HDD, horizontal directional drill
+- Description: Typical drawing showing watercourse bore crossing details for pipeline installation under waterways.
+
+### TYP-1001 - Crossing Watercourse Open Cut
+- Page: 3
+- Drawing Number: TYP-1001
+- Title: Crossing Watercourse Open Cut
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: watercourse, open cut, crossing, water crossing, stream crossing, river crossing, trench
+- Description: Typical drawing showing open cut watercourse crossing details for pipeline installation through waterways.
+
+### TYP-1002 - Crossing Road Bore
+- Page: 4
+- Drawing Number: TYP-1002
+- Title: Crossing Road Bore
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: road, bore, crossing, road crossing, highway crossing, HDD, casing
+- Description: Typical drawing showing road bore crossing details for pipeline installation under roadways.
+
+### TYP-1003 - Crossing Road Open Cut
+- Page: 5
+- Drawing Number: TYP-1003
+- Title: Crossing Road Open Cut
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: road, open cut, crossing, road crossing, highway crossing, trench
+- Description: Typical drawing showing open cut road crossing details for pipeline installation through roadways.
+
+### TYP-1004 - Crossing Pipeline Bore
+- Page: 6
+- Drawing Number: TYP-1004
+- Title: Crossing Pipeline Bore
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: pipeline, bore, crossing, foreign pipeline, existing pipeline, HDD
+- Description: Typical drawing showing pipeline bore crossing details for installation under existing pipelines.
+
+### TYP-1005 - Crossing Pipeline Open Cut
+- Page: 7
+- Drawing Number: TYP-1005
+- Title: Crossing Pipeline Open Cut
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: pipeline, open cut, crossing, foreign pipeline, existing pipeline, trench
+- Description: Typical drawing showing open cut pipeline crossing details for installation across existing pipelines.
+
+### TYP-1006 - Crossing Railway Bore
+- Page: 8
+- Drawing Number: TYP-1006
+- Title: Crossing Railway Bore
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: railway, railroad, bore, crossing, rail crossing, HDD, casing
+- Description: Typical drawing showing railway bore crossing details for pipeline installation under railway tracks.
+
+### TYP-1007 - Crossing Railway Open Cut
+- Page: 9
+- Drawing Number: TYP-1007
+- Title: Crossing Railway Open Cut
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: railway, railroad, open cut, crossing, rail crossing, trench
+- Description: Typical drawing showing open cut railway crossing details for pipeline installation across railway tracks.
+
+### TYP-1008 - Crossing Cable / Telecom Bore
+- Page: 10
+- Drawing Number: TYP-1008
+- Title: Crossing Cable / Telecom Bore
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: cable, telecom, telecommunications, bore, crossing, utility crossing, fiber optic, communication
+- Description: Typical drawing showing cable/telecom bore crossing details for pipeline installation under communication cables.
+
+### TYP-1009 - Crossing Cable / Telecom Open Cut
+- Page: 11
+- Drawing Number: TYP-1009
+- Title: Crossing Cable / Telecom Open Cut
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: cable, telecom, telecommunications, open cut, crossing, utility crossing, fiber optic, communication
+- Description: Typical drawing showing open cut cable/telecom crossing details for pipeline installation.
+
+### TYP-1010 - Crossing Power Line
+- Page: 12
+- Drawing Number: TYP-1010
+- Title: Crossing Power Line
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: power line, electrical, crossing, overhead, transmission line, electrical crossing
+- Description: Typical drawing showing power line crossing details and clearance requirements.
+
+### TYP-1011 - Ditch Detail Normal Conditions
+- Page: 13
+- Drawing Number: TYP-1011
+- Title: Ditch Detail Normal Conditions
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: ditch, trench, normal, standard, excavation, depth of cover, backfill
+- Description: Typical drawing showing standard ditch/trench details for normal soil conditions.
+
+### TYP-1012 - Ditch Detail Shallow Bedrock
+- Page: 14
+- Drawing Number: TYP-1012
+- Title: Ditch Detail Shallow Bedrock
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: ditch, trench, bedrock, rock, excavation, shallow rock, blasting
+- Description: Typical drawing showing ditch details for areas with shallow bedrock conditions.
+
+### TYP-1013 - Ditch Detail With Floatation Control
+- Page: 15
+- Drawing Number: TYP-1013
+- Title: Ditch Detail With Floatation Control
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: ditch, trench, floatation, buoyancy, swamp, wetland, water table, weights
+- Description: Typical drawing showing ditch details with floatation control measures for high water table areas.
+
+### TYP-1014 - Ditch Detail Agriculture Land
+- Page: 16
+- Drawing Number: TYP-1014
+- Title: Ditch Detail Agriculture Land
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: ditch, trench, agriculture, farmland, topsoil, subsoil, cultivation
+- Description: Typical drawing showing ditch details for agricultural land with topsoil/subsoil separation.
+
+### TYP-1015 - Ditch Detail At Tie-In Location
+- Page: 17
+- Drawing Number: TYP-1015
+- Title: Ditch Detail At Tie-In Location
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: ditch, trench, tie-in, connection, weld, bell hole
+- Description: Typical drawing showing ditch details at tie-in/connection locations.
+
+### TYP-1016 - Ditch Detail Parallel to Foreign Pipeline
+- Page: 18
+- Drawing Number: TYP-1016
+- Title: Ditch Detail Parallel to Foreign Pipeline
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: ditch, trench, parallel, foreign pipeline, existing pipeline, separation, clearance
+- Description: Typical drawing showing ditch details when running parallel to existing pipelines.
+
+### TYP-1017 - Transition Detail (Depth Increase)
+- Page: 19
+- Drawing Number: TYP-1017
+- Title: Transition Detail (Depth Increase)
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: transition, depth, increase, grade change, slope
+- Description: Typical drawing showing transition details where cover depth increases.
+
+### TYP-1018 - Transition Detail (Depth Decrease)
+- Page: 20
+- Drawing Number: TYP-1018
+- Title: Transition Detail (Depth Decrease)
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: transition, depth, decrease, grade change, slope
+- Description: Typical drawing showing transition details where cover depth decreases.
+
+### TYP-1019 - Valve Site (Base Drawing)
+- Page: 21
+- Drawing Number: TYP-1019
+- Title: Valve Site (Base Drawing)
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: valve, valve site, mainline valve, MLV, block valve, base drawing
+- Description: Typical base drawing for valve site installation details.
+
+### TYP-1020 - Valve Site Grading Detail
+- Page: 22
+- Drawing Number: TYP-1020
+- Title: Valve Site Grading Detail
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: valve, valve site, grading, earthwork, pad, drainage
+- Description: Typical drawing showing valve site grading and earthwork details.
+
+### TYP-1021 - Cathodic Protection Ground Bed
+- Page: 23
+- Drawing Number: TYP-1021
+- Title: Cathodic Protection Ground Bed
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: cathodic protection, CP, ground bed, anode, corrosion protection, impressed current
+- Description: Typical drawing showing cathodic protection ground bed installation details.
+
+### TYP-1022 - Cathodic Protection Test Station
+- Page: 24
+- Drawing Number: TYP-1022
+- Title: Cathodic Protection Test Station
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: cathodic protection, CP, test station, test lead, pipe-to-soil potential, monitoring
+- Description: Typical drawing showing cathodic protection test station installation details.
+
+### TYP-1023 - Bonding Detail (Electrical)
+- Page: 25
+- Drawing Number: TYP-1023
+- Title: Bonding Detail (Electrical)
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: bonding, electrical, grounding, foreign pipeline, electrical continuity, isolation
+- Description: Typical drawing showing electrical bonding details between pipelines.
+
+### TYP-1024 - Insulating Joint
+- Page: 26
+- Drawing Number: TYP-1024
+- Title: Insulating Joint
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: insulating joint, isolation, electrical isolation, monolithic insulating joint, MIJ
+- Description: Typical drawing showing insulating joint installation details.
+
+### TYP-1025 - Pipeline Marker
+- Page: 27
+- Drawing Number: TYP-1025
+- Title: Pipeline Marker
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: marker, pipeline marker, sign, warning sign, ROW marker, post
+- Description: Typical drawing showing pipeline marker/sign installation details.
+
+### TYP-1026 - Pipeline Warning Tape
+- Page: 28
+- Drawing Number: TYP-1026
+- Title: Pipeline Warning Tape
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: warning tape, caution tape, locating tape, buried pipeline, marker tape
+- Description: Typical drawing showing warning tape installation above pipeline.
+
+### TYP-1027 - Temporary Fencing
+- Page: 29
+- Drawing Number: TYP-1027
+- Title: Temporary Fencing
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: fence, temporary fence, construction fence, security, barrier
+- Description: Typical drawing showing temporary fencing installation during construction.
+
+### TYP-1028 - Permanent Fencing
+- Page: 30
+- Drawing Number: TYP-1028
+- Title: Permanent Fencing
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: fence, permanent fence, chain link, security fence, valve site fence
+- Description: Typical drawing showing permanent fencing installation details.
+
+### TYP-1029 - Silt Fence
+- Page: 31
+- Drawing Number: TYP-1029
+- Title: Silt Fence
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: silt fence, erosion control, sediment control, environmental, runoff
+- Description: Typical drawing showing silt fence installation for erosion control.
+
+### TYP-1030 - Straw Bale Barrier
+- Page: 32
+- Drawing Number: TYP-1030
+- Title: Straw Bale Barrier
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: straw bale, erosion control, sediment control, environmental, runoff, hay bale
+- Description: Typical drawing showing straw bale barrier installation for erosion control.
+
+### TYP-1031 - Erosion Control Blanket
+- Page: 33
+- Drawing Number: TYP-1031
+- Title: Erosion Control Blanket
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: erosion control blanket, ECB, matting, slope stabilization, revegetation
+- Description: Typical drawing showing erosion control blanket installation details.
+
+### TYP-1032 - Rock Check Dam
+- Page: 34
+- Drawing Number: TYP-1032
+- Title: Rock Check Dam
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: rock check dam, erosion control, sediment control, drainage, water flow control
+- Description: Typical drawing showing rock check dam installation for erosion control.
+
+### TYP-1033 - Riprap Detail
+- Page: 35
+- Drawing Number: TYP-1033
+- Title: Riprap Detail
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: riprap, rock armor, erosion protection, bank stabilization, scour protection
+- Description: Typical drawing showing riprap installation for erosion protection.
+
+### TYP-1034 - Temporary Water Crossing
+- Page: 36
+- Drawing Number: TYP-1034
+- Title: Temporary Water Crossing
+- Revision: A
+- Date: 17-SEPTEMBER-2015
+- Keywords: temporary crossing, water crossing, equipment crossing, flume, culvert, construction access
+- Description: Typical drawing showing temporary water crossing for construction equipment access.
+
+---
+
+## Quick Reference by Category
+
+### Crossings
+- Watercourse: TYP-1000 (Bore), TYP-1001 (Open Cut)
+- Road: TYP-1002 (Bore), TYP-1003 (Open Cut)
+- Pipeline: TYP-1004 (Bore), TYP-1005 (Open Cut)
+- Railway: TYP-1006 (Bore), TYP-1007 (Open Cut)
+- Cable/Telecom: TYP-1008 (Bore), TYP-1009 (Open Cut)
+- Power Line: TYP-1010
+- Temporary Water: TYP-1034
+
+### Ditch/Trench Details
+- Normal: TYP-1011
+- Shallow Bedrock: TYP-1012
+- Floatation Control: TYP-1013
+- Agriculture: TYP-1014
+- Tie-In Location: TYP-1015
+- Parallel to Pipeline: TYP-1016
+- Depth Transition: TYP-1017 (Increase), TYP-1018 (Decrease)
+
+### Valve Sites
+- Base Drawing: TYP-1019
+- Grading Detail: TYP-1020
+
+### Cathodic Protection
+- Ground Bed: TYP-1021
+- Test Station: TYP-1022
+- Bonding: TYP-1023
+- Insulating Joint: TYP-1024
+
+### Markers & Signage
+- Pipeline Marker: TYP-1025
+- Warning Tape: TYP-1026
+
+### Fencing
+- Temporary: TYP-1027
+- Permanent: TYP-1028
+
+### Erosion Control
+- Silt Fence: TYP-1029
+- Straw Bale: TYP-1030
+- Erosion Blanket: TYP-1031
+- Rock Check Dam: TYP-1032
+- Riprap: TYP-1033
+
+---
+
+## Usage Instructions for AI Agent
+
+When an inspector asks about a drawing:
+1. Search this index for matching keywords or drawing numbers
+2. Return the drawing number, title, and page number
+3. Direct the inspector to access the Typical Drawings in the Project Document Vault
+4. The page number corresponds to the page in the Typical Drawings PDF
+
+Example queries this index helps answer:
+- "What's the drawing for a road bore crossing?" → TYP-1002, Page 4
+- "Show me erosion control details" → TYP-1029 through TYP-1033
+- "What's the typical for a watercourse crossing?" → TYP-1000 (Bore) or TYP-1001 (Open Cut)
+- "Where can I find ditch details for farmland?" → TYP-1014, Page 16
+- "What's the drawing number for cathodic protection test stations?" → TYP-1022, Page 24

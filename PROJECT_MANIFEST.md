@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - February 9, 2026
+## Project Manifest - February 11, 2026
 
 ---
 
@@ -385,7 +385,14 @@
 ├── 20260201_create_handovers_bucket.sql      # Handover ZIP storage
 ├── 20260201_create_ai_agent_tables.sql       # AI agent logs
 ├── 20260202_create_wps_material_specs.sql    # WPS material validation
+├── 20260202_create_document_embeddings_only.sql  # Vector embeddings table
+├── 20260210_add_contractor_schedule_category.sql # Contractor schedule category
 └── [other migrations]
+
+/supabase/functions/
+├── process-document/index.ts    # Document text extraction & embedding
+├── process-ticket-ai/index.ts   # AI ticket analysis
+└── mentor-nlq/index.ts          # Natural language query (Ask the Agent)
 ```
 
 ---
@@ -547,6 +554,72 @@ src/components/AIAgentStatusIcon.jsx
 
 ---
 
+### AI Document Search & RAG System (February 10-11, 2026)
+
+**Document Processing for AI Agent Search**
+- RAG (Retrieval-Augmented Generation) architecture for document queries
+- Documents processed, chunked, and embedded for semantic search
+- AI Agent can search both Project Document Vault and Technical Resource Library
+
+**Edge Function: `process-document`**
+- Extracts text from PDF, DOCX, and plain text files
+- Multiple PDF extraction methods (BT/ET blocks, text streams, readable strings)
+- DOCX extraction via XML text element parsing
+- Text chunking with 2000-char chunks and 300-char overlap
+- Parallel embedding generation (batch size 5) for performance
+- 50-second timeout protection for large documents
+- Stores embeddings in `document_embeddings` table
+
+**Vector Search Architecture**
+- OpenAI `text-embedding-ada-002` model for embeddings (1536 dimensions)
+- PostgreSQL pgvector extension for similarity search
+- `match_documents` RPC function with configurable threshold (0.6 default)
+- Dual search: Organization-specific + Global library documents
+- Global documents use fixed org ID: `00000000-0000-0000-0000-000000000001`
+
+**Auto-Indexing on Upload**
+- Documents automatically indexed when uploaded via Admin Portal
+- Visual feedback: Green badge shows indexed chunk count
+- Error guidance for failed indexing (suggests .txt conversion for PDFs)
+
+**Re-Index Buttons (Admin Portal)**
+- "Re-index All Library Documents for AI" - Technical Resource Library
+- "Re-index All Vault Documents for AI" - Project Document Vault
+- Progress indicator during re-indexing
+- Updates document `is_global` and `organization_id` for proper search
+
+**Drawing Index System**
+- `Typical_Drawings_Index.txt` - Searchable metadata for 35 typical drawings
+- Contains drawing numbers, titles, page numbers, and rich keywords
+- Allows AI to find specific drawings (e.g., "road bore crossing" → TYP-1002, Page 4)
+- Quick reference sections by category (Crossings, Ditch, Valve Sites, etc.)
+
+**New Database Table: `document_embeddings`**
+```
+id, organization_id, source_type, source_id, source_url
+document_name, document_category, chunk_index, chunk_text
+embedding (vector 1536), metadata (JSONB)
+created_at, updated_at
+```
+
+**New Edge Functions:**
+```
+supabase/functions/process-document/index.ts   # Document processing & embedding
+supabase/functions/mentor-nlq/index.ts         # Natural language query handler
+```
+
+**New Migration:**
+```
+supabase/migrations/20260210_add_contractor_schedule_category.sql
+```
+
+**Files Modified:**
+- `src/AdminPortal.jsx` - Auto-indexing, re-index buttons, visual feedback
+- Accept attributes updated for `.txt,.md,.csv` uploads
+- All vault categories now support addenda (supporting documents)
+
+---
+
 ### Organization Filtering Fix (February 2, 2026)
 
 **Super Admin Data Filtering**
@@ -564,13 +637,17 @@ src/components/AIAgentStatusIcon.jsx
 ### Document Control & Project Handover System (February 1, 2026)
 
 **Project Document Vault (Admin Portal → Setup)**
-- 9 document categories with traffic light status indicators:
+- 10 document categories with traffic light status indicators:
   - Prime Contract, Scope of Work, IFC Drawings, Typical Drawings
-  - Project Specifications, Weld Procedures (WPS), ERP, EMP, ITP
+  - Project Specifications, Weld Procedures (WPS), Contractor Schedule
+  - ERP, EMP, ITP
 - Green dot = uploaded, Red dot = missing
 - Version control with automatic revision tracking (Rev 0, Rev 1, Rev 2...)
 - Document history modal showing all versions with timestamps
-- Addenda support for Project Specs, Weld Procedures, and ITP
+- Addenda (supporting documents) support for ALL categories
+- Auto-indexing for AI search on upload
+- "Re-index All Vault Documents" button for batch processing
+- Visual indicator showing indexed chunk count per document
 
 **ITP Sign-off Matrix & Digital Signatures**
 - Three required sign-offs: Chief Welding Inspector, Chief Inspector, Construction Manager
@@ -615,6 +692,9 @@ src/components/AIAgentStatusIcon.jsx
 - Read-only access for all users
 - Super Admin: Upload, Replace, Delete capabilities
 - Documents marked as `is_global: true` for cross-org access
+- AI-indexed for semantic search via "Ask the Agent" feature
+- "Re-index All Library Documents" button for batch processing
+- Available across all organizations (independent of org selection)
 
 **New Database Tables:**
 ```
@@ -1076,4 +1156,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 8, 2026 (PWA Offline Mode v2.0.0 - Working)*
+*Last Updated: February 11, 2026 (AI Document Search & RAG System)*

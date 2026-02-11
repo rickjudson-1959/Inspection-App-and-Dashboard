@@ -165,6 +165,8 @@ function AdminPortal() {
   // AI Document Processing
   const [processingDocForAI, setProcessingDocForAI] = useState(null)
   const [indexedDocs, setIndexedDocs] = useState({}) // { docId: chunkCount }
+  const [reindexingAllLibrary, setReindexingAllLibrary] = useState(false)
+  const [reindexProgress, setReindexProgress] = useState({ current: 0, total: 0 })
 
   // Document vault categories - all support addenda (supporting documents)
   const documentVaultCategories = [
@@ -288,6 +290,11 @@ function AdminPortal() {
       setSelectedOrgForSetup(organizationId)
     }
   }, [organizationId])
+
+  // Fetch global library docs on mount (independent of org selection)
+  useEffect(() => {
+    fetchGlobalLibraryDocs()
+  }, [])
 
   async function fetchData() {
     setLoading(true)
@@ -784,6 +791,42 @@ function AdminPortal() {
     setLoadingStats(false)
   }
 
+  // Fetch global library documents (Technical Resource Library) - independent of org selection
+  async function fetchGlobalLibraryDocs() {
+    try {
+      // Fetch all documents in library categories (regardless of is_global flag for backwards compatibility)
+      const libraryCategories = ['api_1169', 'csa_z662', 'pipeline_authority_ref', 'inspector_playbook', 'rules_of_thumb']
+      const { data: globalDocs } = await supabase
+        .from('project_documents')
+        .select('*')
+        .in('category', libraryCategories)
+        .order('created_at', { ascending: false })
+
+      setGlobalLibraryDocs(globalDocs || [])
+
+      // Fetch indexed status for global library docs
+      if (globalDocs && globalDocs.length > 0) {
+        const globalDocIds = globalDocs.map(d => d.id)
+        const { data: globalEmbeddings } = await supabase
+          .from('document_embeddings')
+          .select('source_id')
+          .in('source_id', globalDocIds)
+
+        if (globalEmbeddings) {
+          setIndexedDocs(prev => {
+            const updated = { ...prev }
+            globalEmbeddings.forEach(e => {
+              updated[e.source_id] = (updated[e.source_id] || 0) + 1
+            })
+            return updated
+          })
+        }
+      }
+    } catch (err) {
+      console.error('Error fetching global library docs:', err)
+    }
+  }
+
   // Fetch Project Governance data from contract_config table
   async function fetchGovernanceData(orgId) {
     if (!orgId) return
@@ -1100,7 +1143,10 @@ function AdminPortal() {
 
   // Auto-index document after upload with helpful error guidance
   async function autoIndexDocument(doc) {
-    const orgId = doc.organization_id || selectedOrgForSetup || organizationId
+    // Use GLOBAL_ORG_ID for global documents (Technical Resource Library)
+    // This ensures AI can find them since mentor-nlq searches with this ID
+    const GLOBAL_ORG_ID = '00000000-0000-0000-0000-000000000001'
+    const orgId = doc.is_global ? GLOBAL_ORG_ID : (doc.organization_id || selectedOrgForSetup || organizationId)
     if (!doc || !orgId) return
 
     console.log('[AI Auto-Index] Starting for:', doc.file_name)
@@ -1162,8 +1208,10 @@ function AdminPortal() {
 
   // Process document for AI Agent (generate embeddings) - manual trigger
   async function processDocumentForAI(doc) {
-    // Use doc's organization_id for global docs, otherwise use selected org
-    const orgId = doc.organization_id || selectedOrgForSetup || organizationId
+    // Use GLOBAL_ORG_ID for global documents (Technical Resource Library)
+    // This ensures AI can find them since mentor-nlq searches with this ID
+    const GLOBAL_ORG_ID = '00000000-0000-0000-0000-000000000001'
+    const orgId = doc.is_global ? GLOBAL_ORG_ID : (doc.organization_id || selectedOrgForSetup || organizationId)
     if (!doc || !orgId) {
       setGovernanceMessage({ type: 'error', text: 'No organization selected' })
       return
@@ -1218,6 +1266,192 @@ function AdminPortal() {
     }
 
     setProcessingDocForAI(null)
+  }
+
+  // Re-index all Technical Resource Library documents with correct GLOBAL_ORG_ID
+  async function reindexAllLibraryDocuments() {
+    if (!isSuperAdmin) {
+      setGovernanceMessage({ type: 'error', text: 'Only Super Admins can re-index library documents' })
+      return
+    }
+
+    setReindexingAllLibrary(true)
+    setGovernanceMessage({ type: 'info', text: 'Finding library documents...' })
+
+    // Fetch all documents in technical library categories directly from database
+    // This catches documents regardless of is_global flag
+    const libraryCategories = ['api_1169', 'csa_z662', 'pipeline_authority_ref', 'inspector_playbook', 'rules_of_thumb']
+    const { data: docsToIndex, error: fetchError } = await supabase
+      .from('project_documents')
+      .select('*')
+      .in('category', libraryCategories)
+
+    if (fetchError) {
+      console.error('Error fetching library documents:', fetchError)
+      setGovernanceMessage({ type: 'error', text: 'Failed to fetch library documents' })
+      setReindexingAllLibrary(false)
+      return
+    }
+
+    if (!docsToIndex || docsToIndex.length === 0) {
+      setGovernanceMessage({ type: 'warning', text: 'No library documents found to re-index' })
+      setReindexingAllLibrary(false)
+      return
+    }
+
+    setReindexProgress({ current: 0, total: docsToIndex.length })
+    setGovernanceMessage({ type: 'info', text: `Re-indexing ${docsToIndex.length} library documents for AI search...` })
+
+    const GLOBAL_ORG_ID = '00000000-0000-0000-0000-000000000001'
+    let successCount = 0
+    let errorCount = 0
+
+    for (let i = 0; i < docsToIndex.length; i++) {
+      const doc = docsToIndex[i]
+      setReindexProgress({ current: i + 1, total: docsToIndex.length })
+
+      try {
+        console.log(`[Re-index] Processing ${i + 1}/${docsToIndex.length}: ${doc.file_name}`)
+
+        // First, update the document to have correct is_global and organization_id
+        await supabase
+          .from('project_documents')
+          .update({
+            is_global: true,
+            organization_id: GLOBAL_ORG_ID
+          })
+          .eq('id', doc.id)
+
+        // Then re-index for AI
+        const { data, error } = await supabase.functions.invoke('process-document', {
+          body: {
+            document_id: doc.id,
+            organization_id: GLOBAL_ORG_ID
+          }
+        })
+
+        if (error) throw error
+        if (data?.error) throw new Error(data.error)
+
+        // Update indexed docs state
+        setIndexedDocs(prev => ({
+          ...prev,
+          [doc.id]: data?.chunks_processed || 1
+        }))
+
+        successCount++
+        console.log(`[Re-index] Success: ${doc.file_name} - ${data?.chunks_processed || 0} chunks`)
+      } catch (err) {
+        console.error(`[Re-index] Error processing ${doc.file_name}:`, err)
+        errorCount++
+      }
+    }
+
+    setReindexingAllLibrary(false)
+    setReindexProgress({ current: 0, total: 0 })
+
+    // Refresh to show updated documents
+    await fetchGlobalLibraryDocs()
+
+    if (errorCount === 0) {
+      setGovernanceMessage({
+        type: 'success',
+        text: `✅ Successfully re-indexed ${successCount} library documents for AI search!`
+      })
+    } else {
+      setGovernanceMessage({
+        type: 'warning',
+        text: `Re-indexed ${successCount} documents. ${errorCount} failed (may need .txt conversion).`
+      })
+    }
+  }
+
+  // Re-index all Project Document Vault documents for the selected organization
+  async function reindexAllVaultDocuments() {
+    const orgId = selectedOrgForSetup || organizationId
+    if (!orgId) {
+      setGovernanceMessage({ type: 'error', text: 'No organization selected' })
+      return
+    }
+
+    setReindexingAllLibrary(true)
+    setGovernanceMessage({ type: 'info', text: 'Finding vault documents...' })
+
+    // Fetch all documents for this organization's vault (excluding global library docs)
+    const vaultCategories = documentVaultCategories.map(c => c.key)
+    const { data: docsToIndex, error: fetchError } = await supabase
+      .from('project_documents')
+      .select('*')
+      .eq('organization_id', orgId)
+      .in('category', vaultCategories)
+
+    if (fetchError) {
+      console.error('Error fetching vault documents:', fetchError)
+      setGovernanceMessage({ type: 'error', text: 'Failed to fetch vault documents' })
+      setReindexingAllLibrary(false)
+      return
+    }
+
+    if (!docsToIndex || docsToIndex.length === 0) {
+      setGovernanceMessage({ type: 'warning', text: 'No vault documents found to re-index' })
+      setReindexingAllLibrary(false)
+      return
+    }
+
+    setReindexProgress({ current: 0, total: docsToIndex.length })
+    setGovernanceMessage({ type: 'info', text: `Re-indexing ${docsToIndex.length} vault documents for AI search...` })
+
+    let successCount = 0
+    let errorCount = 0
+
+    for (let i = 0; i < docsToIndex.length; i++) {
+      const doc = docsToIndex[i]
+      setReindexProgress({ current: i + 1, total: docsToIndex.length })
+
+      try {
+        console.log(`[Re-index Vault] Processing ${i + 1}/${docsToIndex.length}: ${doc.file_name}`)
+
+        const { data, error } = await supabase.functions.invoke('process-document', {
+          body: {
+            document_id: doc.id,
+            organization_id: orgId
+          }
+        })
+
+        if (error) throw error
+        if (data?.error) throw new Error(data.error)
+
+        // Update indexed docs state
+        setIndexedDocs(prev => ({
+          ...prev,
+          [doc.id]: data?.chunks_processed || 1
+        }))
+
+        successCount++
+        console.log(`[Re-index Vault] Success: ${doc.file_name} - ${data?.chunks_processed || 0} chunks`)
+      } catch (err) {
+        console.error(`[Re-index Vault] Error processing ${doc.file_name}:`, err)
+        errorCount++
+      }
+    }
+
+    setReindexingAllLibrary(false)
+    setReindexProgress({ current: 0, total: 0 })
+
+    // Refresh to show updated documents
+    await fetchGovernanceData(orgId)
+
+    if (errorCount === 0) {
+      setGovernanceMessage({
+        type: 'success',
+        text: `✅ Successfully re-indexed ${successCount} vault documents for AI search!`
+      })
+    } else {
+      setGovernanceMessage({
+        type: 'warning',
+        text: `Re-indexed ${successCount} documents. ${errorCount} failed (may need .txt conversion).`
+      })
+    }
   }
 
   // Check if a vault category has a document
@@ -1590,11 +1824,13 @@ function AdminPortal() {
         if (updateError) throw updateError
         docToIndex = updatedDoc
       } else {
-        // Insert as global document (null org_id for global, or use a system org)
+        // Insert as global document with GLOBAL_ORG_ID so AI can find it
+        // This ID must match GLOBAL_ORG_ID in mentor-nlq function
+        const GLOBAL_ORG_ID = '00000000-0000-0000-0000-000000000001'
         const { data: insertedDoc, error: insertError } = await supabase
           .from('project_documents')
           .insert({
-            organization_id: selectedOrgForSetup || organizationId, // Use current org as owner but mark global
+            organization_id: GLOBAL_ORG_ID,
             category: category,
             file_name: file.name,
             file_url: urlData.publicUrl,
@@ -4040,6 +4276,38 @@ function AdminPortal() {
                     </div>
                   </div>
 
+                  {/* Re-index All Vault Documents Button */}
+                  {projectDocuments.length > 0 && (
+                    <div style={{ marginBottom: '15px' }}>
+                      <button
+                        onClick={reindexAllVaultDocuments}
+                        disabled={reindexingAllLibrary}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: reindexingAllLibrary ? '#9ca3af' : '#10b981',
+                          color: 'white',
+                          border: 'none',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: 'bold',
+                          cursor: reindexingAllLibrary ? 'not-allowed' : 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px'
+                        }}
+                      >
+                        {reindexingAllLibrary ? (
+                          <>⏳ Re-indexing... ({reindexProgress.current}/{reindexProgress.total})</>
+                        ) : (
+                          <>🔄 Re-index All Vault Documents for AI</>
+                        )}
+                      </button>
+                      <p style={{ fontSize: '10px', color: '#666', marginTop: '4px', marginBottom: 0 }}>
+                        Re-indexes all documents so the AI Agent can search them.
+                      </p>
+                    </div>
+                  )}
+
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '15px' }}>
                     {documentVaultCategories.map(cat => {
                       const doc = getVaultDocument(cat.key)
@@ -4912,6 +5180,42 @@ function AdminPortal() {
               <p style={{ fontSize: '13px', color: '#666', marginBottom: '20px' }}>
                 Industry standards and reference materials available to all inspectors across projects.
               </p>
+
+              {/* Re-index All Button for Super Admins */}
+              {isSuperAdmin && (
+                <div style={{ marginBottom: '20px' }}>
+                  <button
+                    onClick={reindexAllLibraryDocuments}
+                    disabled={reindexingAllLibrary}
+                    style={{
+                      padding: '10px 20px',
+                      backgroundColor: reindexingAllLibrary ? '#9ca3af' : '#8b5cf6',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      fontWeight: 'bold',
+                      cursor: reindexingAllLibrary ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px'
+                    }}
+                  >
+                    {reindexingAllLibrary ? (
+                      <>
+                        ⏳ Re-indexing... ({reindexProgress.current}/{reindexProgress.total})
+                      </>
+                    ) : (
+                      <>
+                        🔄 Re-index All Library Documents for AI
+                      </>
+                    )}
+                  </button>
+                  <p style={{ fontSize: '11px', color: '#666', marginTop: '6px' }}>
+                    Re-indexes all documents so the AI Agent can search them. Use after uploading new documents.
+                  </p>
+                </div>
+              )}
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '15px' }}>
                 {technicalLibraryCategories.map(cat => {
