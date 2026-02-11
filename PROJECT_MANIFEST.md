@@ -366,6 +366,7 @@
     ├── AIAgentStatusIcon.jsx    # AI Watcher status indicator (Feb 2026)
     ├── AskTheAgentPanel.jsx     # Document search Q&A panel (Feb 2026)
     ├── NotificationBell.jsx     # Notification dropdown (Feb 2026)
+    ├── ProjectCalendar.jsx      # Meeting scheduling calendar (Feb 2026)
     ├── MapDashboard.jsx
     ├── OfflineStatusBar.jsx     # PWA status indicator (Jan 2026)
     └── [supporting components]
@@ -389,6 +390,7 @@
 ├── 20260202_create_wps_material_specs.sql    # WPS material validation
 ├── 20260202_create_document_embeddings_only.sql  # Vector embeddings table
 ├── 20260210_add_contractor_schedule_category.sql # Contractor schedule category
+├── 20260211_create_calendar_events.sql           # Project calendar events (Feb 2026)
 └── [other migrations]
 
 /supabase/functions/
@@ -401,6 +403,86 @@
 ---
 
 ## 6. RECENT UPDATES (January/February 2026)
+
+### Project Calendar Feature (February 11, 2026)
+
+**Meeting Scheduling for Non-Inspector Roles**
+- Full-featured calendar for scheduling meetings, milestones, and project events
+- Available on all non-inspector dashboards: Admin Portal, Chief, Assistant Chief, Welding Chief, CMT
+
+**Calendar Views:**
+- Month view with clickable date cells
+- List view showing upcoming events
+- Toggle between views with view selector
+
+**Event Types Supported:**
+| Type | Color | Description |
+|------|-------|-------------|
+| Meeting | Blue (#3b82f6) | Team meetings, client calls |
+| Milestone | Purple (#8b5cf6) | Project milestones |
+| Inspection | Green (#10b981) | Scheduled inspections |
+| Audit | Orange (#f59e0b) | Compliance audits |
+| Training | Cyan (#06b6d4) | Training sessions |
+| Safety | Red (#ef4444) | Safety meetings, toolbox talks |
+| Other | Gray (#6b7280) | General events |
+
+**Virtual Meeting Integration:**
+- Support for Zoom and Microsoft Teams meetings
+- Paste meeting link and passcode
+- Meeting details displayed in event view
+- One-click join meeting button
+
+**Help Callout Included:**
+- Step-by-step guide explaining how to set up meetings:
+  1. Create meeting in Zoom or Teams first
+  2. Click "+ New Event" in calendar
+  3. Select Zoom or Microsoft Teams as platform
+  4. Paste meeting link and optional passcode
+  5. Add attendees (optional)
+  6. Save the event
+
+**Attendee Management:**
+- Add attendees by email
+- Manage attendee list before saving
+- Remove attendees with one click
+
+**Database Schema (`calendar_events` table):**
+```
+id, organization_id, created_by, created_by_name
+title, description, event_type
+start_time, end_time, all_day, timezone
+location_type (in_person, virtual, hybrid)
+location_address, meeting_platform, meeting_link, meeting_id, meeting_passcode
+attendees (JSONB array), send_invitations, reminder_minutes
+is_recurring, recurrence_rule, parent_event_id
+status (scheduled, cancelled, completed)
+color, metadata, created_at, updated_at
+```
+
+**RLS Policies:**
+- Users can view/create events in their organization
+- Users can update their own events or with admin/chief roles
+- Users can delete their own events or with admin roles
+
+**Files Created:**
+- `src/components/ProjectCalendar.jsx` - Calendar component (~900 lines)
+- `supabase/migrations/20260211_create_calendar_events.sql` - Database migration
+
+**Files Modified:**
+- `src/AdminPortal.jsx` - Calendar tab added
+- `src/ChiefDashboard.jsx` - Calendar tab added
+- `src/AssistantChiefDashboard.jsx` - Calendar tab added
+- `src/WeldingChiefDashboard.jsx` - Calendar tab added
+- `src/Dashboard.jsx` - Calendar tab added
+
+**Deployment:**
+```bash
+# Run the migration
+npx supabase db push
+# Or manually in Supabase Dashboard SQL editor
+```
+
+---
 
 ### PWA Offline Mode - Working Implementation (February 8, 2026)
 
@@ -1484,4 +1566,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 11, 2026 (Power BI / SAP Data Export API)*
+*Last Updated: February 11, 2026 (Project Calendar Feature)*
