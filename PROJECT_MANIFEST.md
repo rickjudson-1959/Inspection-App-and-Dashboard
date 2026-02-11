@@ -563,7 +563,7 @@ src/components/AIAgentStatusIcon.jsx
 - Inspectors can see AI feedback on their work and search project documents
 
 **AIAgentStatusIcon on All Dashboard Headers**
-- Added to MyReports, InspectorReport, and Dashboard (CMT) headers
+- Now present on ALL dashboards: Admin Portal, Chief Dashboard, Assistant Chief Dashboard, Welding Chief Dashboard, NDT Auditor Dashboard, CMT Dashboard, MyReports, InspectorReport
 - Shows real-time AI analysis status with color-coded indicators
 - Click to view detailed analysis results and flagged issues
 
@@ -584,11 +584,13 @@ src/components/AIAgentStatusIcon.jsx
 - Uses RAG-based semantic search across indexed documents
 - Panel stays visible while scrolling, can be closed when done
 - Context-aware: passes current activity type to improve search relevance
+- High z-index (10001) ensures panel appears above all other UI elements
 
 **Files Modified:**
 - `src/MyReports.jsx` - AIAgentStatusIcon, AI flags fetch and display
 - `src/InspectorReport.jsx` - AIAgentStatusIcon, AskTheAgentPanel integration
 - `src/Dashboard.jsx` - AIAgentStatusIcon in header
+- `src/NDTAuditorDashboard.jsx` - AIAgentStatusIcon in sidebar
 
 **Components Used:**
 - `src/components/AIAgentStatusIcon.jsx` - Real-time AI status indicator
