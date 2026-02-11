@@ -580,6 +580,27 @@ src/components/AIAgentStatusIcon.jsx
 **Files Modified:**
 - `src/AdminPortal.jsx` - Added return button to 12 tabs
 
+**Header Navigation Links - Return to Admin Portal**
+- Fixed back buttons on pages accessible from Admin Portal header buttons
+- Previously used `navigate(-1)` (browser history) or navigated to wrong pages
+- Now consistently return to Admin Portal (`/admin`)
+
+**Pages Updated:**
+| Page | Route | Previous Behavior | Fixed |
+|------|-------|-------------------|-------|
+| Inspector Invoicing | `/inspector-invoicing` | → Daily Inspector Report | → Admin Portal |
+| Reconciliation | `/reconciliation` | → Browser history | → Admin Portal |
+| Change Orders | `/changes` | → Browser history | → Admin Portal |
+| Contractor LEMs | `/contractor-lems` | → Browser history | → Admin Portal |
+| EVM Dashboard | `/evm-dashboard` | → Browser history | → Admin Portal |
+
+**Additional Files Modified:**
+- `src/InspectorInvoicingDashboard.jsx`
+- `src/ReconciliationDashboard.jsx`
+- `src/ChangeManagement.jsx`
+- `src/ContractorLEMs.jsx`
+- `src/EVMDashboard.jsx`
+
 ---
 
 ### Session Handling & Auth Improvements (February 11, 2026)
@@ -1320,4 +1341,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 11, 2026 (Admin Portal Navigation Improvements)*
+*Last Updated: February 11, 2026 (Admin Portal Header Navigation Fixes)*
