@@ -5,6 +5,7 @@ import ProtectedRoute, { getLandingPage } from './ProtectedRoute.jsx'
 import { OrgProvider } from './contexts/OrgContext.jsx'
 import { supabase } from './supabase'
 import OfflineStatusBar from './components/OfflineStatusBar.jsx'
+import UpdatePrompt from './components/UpdatePrompt.jsx'
 
 // ============================================================================
 // Multi-Tenant App with Org-Scoped Routing
@@ -316,6 +317,7 @@ function App() {
     <AuthProvider>
       <Router>
         <OfflineStatusBar />
+        <UpdatePrompt />
         <Routes>
           {/* Public routes */}
           <Route path="/login" element={<Login />} />

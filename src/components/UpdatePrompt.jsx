@@ -1,38 +1,42 @@
-// UpdatePrompt.jsx - Shows a subtle notification when app has been updated
+// UpdatePrompt.jsx - Shows a notification when app has been updated
+// This component MUST be mounted in App.jsx to show on all pages including login
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { useState, useEffect } from 'react'
 
 function UpdatePrompt() {
   const [dismissed, setDismissed] = useState(false)
-  const [autoDismissed, setAutoDismissed] = useState(false)
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(swUrl, r) {
-      // Check for updates every 10 minutes (less frequent to reduce server load)
+      console.log('[PWA] Service worker registered:', swUrl)
       if (r) {
+        // Check for updates immediately on registration
+        r.update()
+
+        // Then check every 5 minutes for updates
         setInterval(() => {
+          console.log('[PWA] Checking for updates...')
           r.update()
-        }, 10 * 60 * 1000)
+        }, 5 * 60 * 1000)
       }
     },
     onRegisterError(error) {
-      console.log('SW registration error', error)
+      console.log('[PWA] SW registration error:', error)
     },
+    onNeedRefresh() {
+      console.log('[PWA] New version available!')
+    }
   })
 
-  // Auto-dismiss the banner after 15 seconds if user doesn't interact
+  // Log when needRefresh changes
   useEffect(() => {
-    if (needRefresh && !dismissed) {
-      const timer = setTimeout(() => {
-        setAutoDismissed(true)
-      }, 15000)
-
-      return () => clearTimeout(timer)
+    if (needRefresh) {
+      console.log('[PWA] Update prompt should be visible now')
     }
-  }, [needRefresh, dismissed])
+  }, [needRefresh])
 
   const handleUpdate = async () => {
     try {
@@ -50,7 +54,7 @@ function UpdatePrompt() {
     setDismissed(true)
   }
 
-  if (!needRefresh || dismissed || autoDismissed) {
+  if (!needRefresh || dismissed) {
     return null
   }
 
