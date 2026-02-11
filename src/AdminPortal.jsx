@@ -3268,6 +3268,57 @@ function AdminPortal() {
     XLSX.writeFile(wb, `${PROJECT_SHORT}_Master_Production_${today}.xlsx`)
   }
 
+  // Export Owner Data (Power BI / SAP ready)
+  async function exportOwnerData(dataType, format) {
+    try {
+      // Calculate date range (last 30 days by default)
+      const endDate = new Date().toISOString().split('T')[0]
+      const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+      const url = `https://aatvckalnvojlykfgnmz.supabase.co/functions/v1/export-project-data?organization_id=${organizationId}&type=${dataType}&format=${format}&start_date=${startDate}&end_date=${endDate}`
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Export failed: ${response.statusText}`)
+      }
+
+      if (format === 'csv') {
+        // Download CSV file
+        const blob = await response.blob()
+        const downloadUrl = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = downloadUrl
+        a.download = `${dataType}_export_${endDate}.csv`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(downloadUrl)
+      } else {
+        // Download JSON file
+        const data = await response.json()
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' })
+        const downloadUrl = window.URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = downloadUrl
+        a.download = `${dataType}_export_${endDate}.json`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        window.URL.revokeObjectURL(downloadUrl)
+      }
+    } catch (err) {
+      console.error('Export error:', err)
+      alert('Export failed: ' + err.message)
+    }
+  }
+
   // Format date helper
   const formatDate = (dateStr) => {
     if (!dateStr) return ''
@@ -5698,6 +5749,135 @@ function AdminPortal() {
                 </table>
               </div>
             )}
+
+            {/* ========== DATA EXPORTS FOR POWER BI / SAP ========== */}
+            <div style={{
+              marginTop: '40px',
+              padding: '25px',
+              backgroundColor: '#f0f9ff',
+              borderRadius: '8px',
+              border: '1px solid #0ea5e9'
+            }}>
+              <h3 style={{ margin: '0 0 10px 0', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                📊 Data Exports for Owner Systems
+                <span style={{ fontSize: '11px', padding: '3px 8px', backgroundColor: '#0ea5e9', color: 'white', borderRadius: '4px' }}>Power BI / SAP Ready</span>
+              </h3>
+              <p style={{ color: '#0c4a6e', fontSize: '13px', marginBottom: '20px' }}>
+                Export structured data for Power BI dashboards or SAP project controls. All exports use SAP-compatible field names and activity codes.
+              </p>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
+                {/* Progress Export */}
+                <div style={{ backgroundColor: 'white', padding: '15px', borderRadius: '6px', border: '1px solid #e0f2fe' }}>
+                  <div style={{ fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>📈 Progress Data</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '10px' }}>
+                    Activity progress, KP ranges, crew sizes, labour/equipment hours
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => exportOwnerData('progress', 'json')}
+                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      JSON
+                    </button>
+                    <button
+                      onClick={() => exportOwnerData('progress', 'csv')}
+                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      CSV
+                    </button>
+                  </div>
+                </div>
+
+                {/* Welding Export */}
+                <div style={{ backgroundColor: 'white', padding: '15px', borderRadius: '6px', border: '1px solid #e0f2fe' }}>
+                  <div style={{ fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>🔧 Welding Data</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '10px' }}>
+                    Weld IDs, WPS numbers, welder IDs, NDT results, materials
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => exportOwnerData('welding', 'json')}
+                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      JSON
+                    </button>
+                    <button
+                      onClick={() => exportOwnerData('welding', 'csv')}
+                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      CSV
+                    </button>
+                  </div>
+                </div>
+
+                {/* Cost Export */}
+                <div style={{ backgroundColor: 'white', padding: '15px', borderRadius: '6px', border: '1px solid #e0f2fe' }}>
+                  <div style={{ fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>💰 Cost Data</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '10px' }}>
+                    Labour hours, equipment hours, cost codes by activity
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => exportOwnerData('cost', 'json')}
+                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      JSON
+                    </button>
+                    <button
+                      onClick={() => exportOwnerData('cost', 'csv')}
+                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      CSV
+                    </button>
+                  </div>
+                </div>
+
+                {/* EVM Export */}
+                <div style={{ backgroundColor: 'white', padding: '15px', borderRadius: '6px', border: '1px solid #e0f2fe' }}>
+                  <div style={{ fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>📉 EVM Data</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '10px' }}>
+                    WBS elements, earned value, SPI/CPI metrics
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button
+                      onClick={() => exportOwnerData('evm', 'json')}
+                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      JSON
+                    </button>
+                    <button
+                      onClick={() => exportOwnerData('evm', 'csv')}
+                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      CSV
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Full Export */}
+              <div style={{ display: 'flex', gap: '15px', alignItems: 'center', paddingTop: '15px', borderTop: '1px solid #bae6fd' }}>
+                <button
+                  onClick={() => exportOwnerData('all', 'json')}
+                  style={{ padding: '12px 24px', fontSize: '13px', fontWeight: 'bold', backgroundColor: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                >
+                  📦 Export All Data (JSON)
+                </button>
+                <div style={{ fontSize: '11px', color: '#64748b' }}>
+                  <strong>Power BI:</strong> Use JSON endpoint directly or import JSON file<br/>
+                  <strong>SAP:</strong> Use CSV exports for project controls import
+                </div>
+              </div>
+
+              {/* API Endpoint Info */}
+              <div style={{ marginTop: '20px', padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '6px', fontSize: '11px', fontFamily: 'monospace' }}>
+                <div style={{ fontWeight: 'bold', marginBottom: '5px', color: '#475569' }}>API Endpoint (for Power BI direct connection):</div>
+                <code style={{ color: '#0369a1', wordBreak: 'break-all' }}>
+                  {`${window.location.origin.replace('localhost:5173', 'aatvckalnvojlykfgnmz.supabase.co')}/functions/v1/export-project-data?organization_id=${organizationId}&type=all&format=json`}
+                </code>
+              </div>
+            </div>
           </div>
         )}
 
