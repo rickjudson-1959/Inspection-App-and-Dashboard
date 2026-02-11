@@ -616,6 +616,43 @@ src/components/AIAgentStatusIcon.jsx
 
 ---
 
+### Chief / Welding Chief Report Separation (February 11, 2026)
+
+**Report Routing by Activity Type**
+- Reports are now routed to the appropriate dashboard based on activity type
+- Welding Chief Dashboard only shows reports with welding activities
+- Chief Dashboard shows all other reports (excludes welding reports)
+
+**Welding Activity Detection (Prefix Matching):**
+| Activity Prefix | Examples |
+|-----------------|----------|
+| `welding -` | Welding - Mainline, Welding - Section Crew, Welding - Poor Boy, Welding - Tie-in |
+| `mainline welding` | Mainline Welding |
+| `welder testing` | Welder Testing Log |
+
+**Why Prefix Matching?**
+- Previous `includes()` matching caused false positives
+- "Tie-In Completion" was incorrectly matching "tie-in" (welding activity)
+- Changed to `startsWith()` for precise activity type detection
+
+**Helper Function:**
+```javascript
+function hasWeldingActivities(report) {
+  const blocks = report?.activity_blocks || []
+  return blocks.some(block => {
+    const activityType = (block.activityType || '').toLowerCase()
+    return WELDING_ACTIVITY_PREFIXES.some(prefix => activityType.startsWith(prefix))
+  })
+}
+```
+
+**Files Modified:**
+- `src/ChiefDashboard.jsx` - Excludes welding reports from review queues
+- `src/WeldingChiefDashboard.jsx` - Filters to only welding reports
+- `src/components/WeldingReportReviewTab.jsx` - Precise welding activity matching
+
+---
+
 ### AI Document Search & RAG System (February 10-11, 2026)
 
 **Document Processing for AI Agent Search**
@@ -1218,4 +1255,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 11, 2026 (AI Agent Logs Query Fixes)*
+*Last Updated: February 11, 2026 (Chief / Welding Chief Report Separation)*
