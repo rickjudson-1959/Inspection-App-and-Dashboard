@@ -238,17 +238,20 @@ function AssistantChiefDashboard() {
   async function fetchPendingReports() {
     setReviewLoading(true)
     try {
-      // Fetch reports pending review (submitted but not yet approved by Chief)
+      // Fetch recent reports for review (last 30 days)
+      // Note: daily_reports table doesn't have a status column
+      // Use report_status table for status tracking if needed
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
       let pendingQuery = supabase
         .from('daily_reports')
         .select('*')
-        .eq('status', 'submitted')
+        .gte('date', thirtyDaysAgo)
         .order('date', { ascending: false })
       pendingQuery = addOrgFilter(pendingQuery)
       const { data: pending, error: pendingError } = await pendingQuery
 
       if (pendingError) {
-        console.error('Error fetching pending reports:', pendingError)
+        console.error('Error fetching reports:', pendingError)
       }
       setPendingReports(pending || [])
 
@@ -264,31 +267,13 @@ function AssistantChiefDashboard() {
   async function submitReview() {
     if (!selectedReport) return
 
-    try {
-      // Update report with assistant review notes directly on daily_reports
-      // Note: assistant_chief_reviews table not yet created
-      const { error } = await supabase
-        .from('daily_reports')
-        .update({
-          assistant_review_status: reviewStatus,
-          assistant_review_notes: reviewNotes,
-          assistant_reviewer_name: userProfile?.full_name,
-          assistant_reviewed_at: new Date().toISOString()
-        })
-        .eq('id', selectedReport.id)
-
-      if (error) throw error
-
-      alert('Review submitted successfully!')
-      setSelectedReport(null)
-      setReviewNotes('')
-      setReviewStatus('reviewed')
-      fetchPendingReports()
-      fetchStats()
-    } catch (err) {
-      console.error('Error submitting review:', err)
-      alert('Error: ' + err.message)
-    }
+    // Note: Assistant Chief review functionality requires database schema updates
+    // The daily_reports table doesn't have assistant_review columns yet
+    // TODO: Create assistant_chief_reviews table or add columns to daily_reports
+    alert('Review submission feature coming soon. The database schema for assistant chief reviews is being set up.')
+    setSelectedReport(null)
+    setReviewNotes('')
+    setReviewStatus('reviewed')
   }
 
   // =============================================
@@ -1700,12 +1685,14 @@ function AssistantChiefDashboard() {
   async function fetchStats() {
     try {
       const today = new Date().toISOString().split('T')[0]
+      const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
-      // Pending reports
+      // Recent reports (last 30 days)
+      // Note: daily_reports table doesn't have a status column
       let pendingQuery = supabase
         .from('daily_reports')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'submitted')
+        .gte('date', thirtyDaysAgo)
       pendingQuery = addOrgFilter(pendingQuery)
       const { count: pendingCount } = await pendingQuery
 
@@ -1852,7 +1839,7 @@ function AssistantChiefDashboard() {
         <div style={{ maxWidth: '1400px', margin: '0 auto', display: 'flex', gap: '40px', justifyContent: 'center' }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#ffc107' }}>{stats.pendingReview}</div>
-            <div style={{ fontSize: '12px', color: '#666' }}>Pending Review</div>
+            <div style={{ fontSize: '12px', color: '#666' }}>Recent Reports (30d)</div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#28a745' }}>{stats.reviewedToday}</div>
