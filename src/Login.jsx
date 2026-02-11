@@ -1,10 +1,12 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
+import { useAuth } from './AuthContext'
 import { APP_VERSION, BUILD_DATE } from './version'
 
 function Login({ onLogin }) {
   const navigate = useNavigate()
+  const { sessionError, clearSessionError } = useAuth()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -12,6 +14,15 @@ function Login({ onLogin }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
   const [mode, setMode] = useState('login') // 'login', 'signup', 'forgot'
+
+  // Show session error if there is one (e.g., session expired)
+  useEffect(() => {
+    if (sessionError) {
+      setError(sessionError)
+      // Clear the session error from context after displaying it
+      clearSessionError()
+    }
+  }, [sessionError, clearSessionError])
 
   async function handleForgotPassword(e) {
     e.preventDefault()
@@ -204,12 +215,18 @@ function Login({ onLogin }) {
           {error && (
             <div style={{
               padding: '14px',
-              backgroundColor: error.includes('Check your email') ? '#d4edda' : '#fff5f5',
-              color: error.includes('Check your email') ? '#155724' : '#c53030',
+              backgroundColor: error.includes('Check your email') ? '#d4edda'
+                : error.includes('session has expired') ? '#fff3cd'
+                : '#fff5f5',
+              color: error.includes('Check your email') ? '#155724'
+                : error.includes('session has expired') ? '#856404'
+                : '#c53030',
               borderRadius: '8px',
               marginBottom: '20px',
               fontSize: '18px',
-              border: error.includes('Check your email') ? '1px solid #c3e6cb' : '1px solid #feb2b2'
+              border: error.includes('Check your email') ? '1px solid #c3e6cb'
+                : error.includes('session has expired') ? '1px solid #ffc107'
+                : '1px solid #feb2b2'
             }}>
               {error}
             </div>
