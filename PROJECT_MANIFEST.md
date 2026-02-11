@@ -650,6 +650,43 @@ function hasWeldingActivities(report) {
 - `src/ChiefDashboard.jsx` - Excludes welding reports from review queues
 - `src/WeldingChiefDashboard.jsx` - Filters to only welding reports
 - `src/components/WeldingReportReviewTab.jsx` - Precise welding activity matching
+- `src/InspectorReport.jsx` - Auto-creates `welding_report_reviews` record on submit (uses prefix matching)
+
+---
+
+### Welding Chief Report Review Feature (February 2026)
+
+**Complete Feature Implementation**
+- Welding Chief can review, approve (with digital signature), or request revision on welding reports
+- Inspectors receive notifications when reports are sent back for revision
+- MyReports page shows welding review status with color-coded badges
+
+**Database Tables:**
+| Table | Purpose |
+|-------|---------|
+| `welding_report_reviews` | Tracks review status, signatures, revision notes |
+| `user_notifications` | Notification system for inspectors |
+
+**Components Created:**
+- `src/components/WeldingReportReviewTab.jsx` - Review queue with Pending/Approved/Revision tabs
+- `src/components/WeldingReportViewer.jsx` - Full report viewer with approve/reject actions
+- `src/components/NotificationBell.jsx` - Header notification dropdown
+- `src/hooks/useNotifications.js` - Real-time notification hook with Supabase subscriptions
+
+**Auto-Create Review Records:**
+- When inspector submits a welding report, a `welding_report_reviews` record is auto-created
+- When inspector resubmits after revision, status resets to `pending_review`
+
+**Notification Flow:**
+1. Welding Chief clicks "Request Revision" with feedback notes
+2. System creates `user_notifications` record for the inspector
+3. Inspector sees notification via NotificationBell in MyReports
+4. Clicking notification navigates to the report for editing
+
+**Files Modified:**
+- `src/InspectorReport.jsx` - Auto-create/reset welding review records
+- `src/MyReports.jsx` - Shows welding review status, includes NotificationBell
+- `supabase/migrations/20260210_welding_report_reviews.sql` - Database schema
 
 ---
 
@@ -1255,4 +1292,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 11, 2026 (Chief / Welding Chief Report Separation)*
+*Last Updated: February 11, 2026 (Welding Chief Report Review Feature)*
