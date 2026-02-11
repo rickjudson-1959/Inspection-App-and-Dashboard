@@ -363,9 +363,11 @@
     ├── TrackableItemsTracker.jsx
     ├── SignaturePad.jsx         # Digital signature capture (ITP sign-offs)
     ├── TenantSwitcher.jsx       # Organization switcher dropdown
-    ├── AIAgentStatusIcon.jsx    # AI Watcher status indicator (NEW - Feb 2026)
+    ├── AIAgentStatusIcon.jsx    # AI Watcher status indicator (Feb 2026)
+    ├── AskTheAgentPanel.jsx     # Document search Q&A panel (Feb 2026)
+    ├── NotificationBell.jsx     # Notification dropdown (Feb 2026)
     ├── MapDashboard.jsx
-    ├── OfflineStatusBar.jsx     # PWA status indicator (NEW - Jan 2026)
+    ├── OfflineStatusBar.jsx     # PWA status indicator (Jan 2026)
     └── [supporting components]
 
 /supabase/migrations/
@@ -551,6 +553,46 @@ src/components/AIAgentStatusIcon.jsx
 **Files Modified:**
 - `src/AdminPortal.jsx` - AI Agent icon in header, flagged ticket modal
 - `src/utils/queryHelpers.js` - Fixed isReady() for org filtering
+
+---
+
+### AI Agent Available to All Users (February 11, 2026)
+
+**Expanded AI Agent Access**
+- AI Agent features now available to all users, not just administrators
+- Inspectors can see AI feedback on their work and search project documents
+
+**AIAgentStatusIcon on All Dashboard Headers**
+- Added to MyReports, InspectorReport, and Dashboard (CMT) headers
+- Shows real-time AI analysis status with color-coded indicators
+- Click to view detailed analysis results and flagged issues
+
+**AI Flags Display on MyReports Page (`src/MyReports.jsx`)**
+- New "AI Insights" column in the reports table
+- Fetches AI flags from `ai_agent_logs` matching report dates
+- Displays flags inline with severity-coded styling:
+  - 🚨 Critical (red) - Immediate attention required
+  - ⚠️ Warning (yellow) - Review recommended
+  - ℹ️ Info (gray) - Informational notes
+- Shows up to 3 flags per report with "+N more" indicator
+- Helps inspectors understand AI feedback on their submissions
+
+**Document Search on InspectorReport Page (`src/InspectorReport.jsx`)**
+- New "🔍 Doc Search" button in the header toolbar
+- Opens floating panel with AskTheAgentPanel component
+- Allows inspectors to search specs, standards, and procedures in the field
+- Uses RAG-based semantic search across indexed documents
+- Panel stays visible while scrolling, can be closed when done
+- Context-aware: passes current activity type to improve search relevance
+
+**Files Modified:**
+- `src/MyReports.jsx` - AIAgentStatusIcon, AI flags fetch and display
+- `src/InspectorReport.jsx` - AIAgentStatusIcon, AskTheAgentPanel integration
+- `src/Dashboard.jsx` - AIAgentStatusIcon in header
+
+**Components Used:**
+- `src/components/AIAgentStatusIcon.jsx` - Real-time AI status indicator
+- `src/components/AskTheAgentPanel.jsx` - Document search Q&A interface
 
 ---
 
@@ -1341,4 +1383,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 11, 2026 (Admin Portal Header Navigation Fixes)*
+*Last Updated: February 11, 2026 (AI Agent Available to All Users)*

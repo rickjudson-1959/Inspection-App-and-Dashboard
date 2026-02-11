@@ -8,6 +8,8 @@ import jsPDF from 'jspdf'
 import { supabase } from './supabase'
 import { useOrgQuery } from './utils/queryHelpers.js'
 import { useOrgPath } from './contexts/OrgContext.jsx'
+import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
+import AskTheAgentPanel from './components/AskTheAgentPanel.jsx'
 
 // Offline mode imports
 import { syncManager, chainageCache, useOnlineStatus, useSyncStatus } from './offline'
@@ -164,6 +166,9 @@ function InspectorReport() {
 
   // Collapsible sections
   const [trackableItemsExpanded, setTrackableItemsExpanded] = useState(false)
+
+  // Document search panel
+  const [showDocSearch, setShowDocSearch] = useState(false)
   
   // Trackable Items confirmation modal
   const [showTrackableItemsModal, setShowTrackableItemsModal] = useState(false)
@@ -6428,6 +6433,23 @@ Important:
           </button>
 
           <button
+            onClick={() => setShowDocSearch(!showDocSearch)}
+            style={{
+              padding: '8px 12px',
+              backgroundColor: showDocSearch ? '#4f46e5' : '#8b5cf6',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px'
+            }}
+          >
+            🔍 {showDocSearch ? 'Close Search' : 'Doc Search'}
+          </button>
+
+          <AIAgentStatusIcon organizationId={organizationId} />
+
+          <button
             onClick={signOut}
             style={{ padding: '8px 12px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
           >
@@ -6435,6 +6457,60 @@ Important:
           </button>
         </div>
       </div>
+
+      {/* Document Search Panel - Floating */}
+      {showDocSearch && (
+        <div style={{
+          position: 'fixed',
+          top: '120px',
+          right: '20px',
+          width: '380px',
+          maxHeight: 'calc(100vh - 160px)',
+          backgroundColor: 'white',
+          borderRadius: '12px',
+          boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
+          zIndex: 1000,
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column'
+        }}>
+          <div style={{
+            padding: '12px 16px',
+            background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+            color: 'white',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center'
+          }}>
+            <div>
+              <div style={{ fontWeight: 'bold', fontSize: '14px' }}>🔍 Document Search</div>
+              <div style={{ fontSize: '11px', opacity: 0.9 }}>Search specs, standards & procedures</div>
+            </div>
+            <button
+              onClick={() => setShowDocSearch(false)}
+              style={{
+                background: 'rgba(255,255,255,0.2)',
+                border: 'none',
+                color: 'white',
+                width: '28px',
+                height: '28px',
+                borderRadius: '50%',
+                cursor: 'pointer',
+                fontSize: '16px'
+              }}
+            >
+              ×
+            </button>
+          </div>
+          <div style={{ padding: '12px', overflowY: 'auto', flex: 1 }}>
+            <AskTheAgentPanel
+              activityType={activityBlocks[0]?.activityType || ''}
+              organizationId={organizationId}
+              blockId={activityBlocks[0]?.id || 'main'}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Pipeline Map Section */}
       {showMap && (

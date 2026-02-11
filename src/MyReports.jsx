@@ -2,11 +2,13 @@ import React, { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 import { useOrgQuery } from './utils/queryHelpers.js'
 import NotificationBell from './components/NotificationBell.jsx'
+import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 
 function MyReports({ user, onEditReport, onBack }) {
   const { addOrgFilter, organizationId, isReady } = useOrgQuery()
   const [reports, setReports] = useState([])
   const [weldingReviews, setWeldingReviews] = useState({}) // { reportId: reviewData }
+  const [aiFlags, setAiFlags] = useState({}) // { reportId: [flags] }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [filter, setFilter] = useState({
@@ -76,6 +78,39 @@ function MyReports({ user, onEditReport, onBack }) {
         } catch (reviewErr) {
           // Table may not exist yet, ignore
           console.warn('Could not fetch welding reviews:', reviewErr)
+        }
+
+        // Fetch AI flags for reports in the same date range
+        try {
+          const reportDates = data.map(r => r.report_date).filter(Boolean)
+          if (reportDates.length > 0) {
+            const { data: aiLogs, error: aiErr } = await supabase
+              .from('ai_agent_logs')
+              .select('analysis_result, created_at')
+              .eq('organization_id', organizationId)
+              .order('created_at', { ascending: false })
+              .limit(10)
+
+            if (!aiErr && aiLogs) {
+              // Extract flags and group by date
+              const flagsByDate = {}
+              aiLogs.forEach(log => {
+                const flags = log.analysis_result?.flags || []
+                flags.forEach(flag => {
+                  if (flag.ticket_date && reportDates.includes(flag.ticket_date)) {
+                    if (!flagsByDate[flag.ticket_date]) {
+                      flagsByDate[flag.ticket_date] = []
+                    }
+                    flagsByDate[flag.ticket_date].push(flag)
+                  }
+                })
+              })
+              setAiFlags(flagsByDate)
+            }
+          }
+        } catch (aiErr) {
+          // Table may not exist yet, ignore
+          console.warn('Could not fetch AI flags:', aiErr)
         }
       }
     } catch (err) {
@@ -183,6 +218,54 @@ function MyReports({ user, onEditReport, onBack }) {
   function getSortIcon(field) {
     if (sortField !== field) return '↕️'
     return sortDirection === 'asc' ? '↑' : '↓'
+  }
+
+  function getAiFlagsForReport(report) {
+    // Get AI flags matching this report's date
+    return aiFlags[report.report_date] || []
+  }
+
+  function renderAiFlags(flags) {
+    if (!flags || flags.length === 0) return null
+
+    const severityColors = {
+      critical: { bg: '#fee2e2', border: '#fca5a5', text: '#dc2626', icon: '🚨' },
+      warning: { bg: '#fef9c3', border: '#fde047', text: '#ca8a04', icon: '⚠️' },
+      info: { bg: '#f3f4f6', border: '#d1d5db', text: '#6b7280', icon: 'ℹ️' }
+    }
+
+    return (
+      <div style={{ marginTop: '8px' }}>
+        {flags.slice(0, 3).map((flag, idx) => {
+          const colors = severityColors[flag.severity] || severityColors.info
+          return (
+            <div
+              key={idx}
+              style={{
+                padding: '6px 10px',
+                marginBottom: '4px',
+                backgroundColor: colors.bg,
+                border: `1px solid ${colors.border}`,
+                borderRadius: '4px',
+                fontSize: '11px'
+              }}
+            >
+              <div style={{ fontWeight: 'bold', color: colors.text, marginBottom: '2px' }}>
+                {colors.icon} {flag.type?.replace(/_/g, ' ').toUpperCase()}
+              </div>
+              <div style={{ color: '#374151', lineHeight: '1.3' }}>
+                {flag.message}
+              </div>
+            </div>
+          )
+        })}
+        {flags.length > 3 && (
+          <div style={{ fontSize: '10px', color: '#6b7280', fontStyle: 'italic' }}>
+            +{flags.length - 3} more flag{flags.length - 3 > 1 ? 's' : ''}
+          </div>
+        )}
+      </div>
+    )
   }
 
   function getStatusBadge(report) {
@@ -397,6 +480,7 @@ function MyReports({ user, onEditReport, onBack }) {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <AIAgentStatusIcon organizationId={organizationId} />
           <NotificationBell />
           <button style={backButtonStyle} onClick={onBack}>
             ← Back to New Report
@@ -520,6 +604,7 @@ function MyReports({ user, onEditReport, onBack }) {
                   Date {getSortIcon('report_date')}
                 </th>
                 <th style={thStyle}>Activity</th>
+                <th style={thStyle}>AI Insights</th>
                 <th style={thStyle}>KP Range</th>
                 <th style={thStyle}>Spread</th>
                 <th style={thStyle}>Pipeline</th>
@@ -547,6 +632,15 @@ function MyReports({ user, onEditReport, onBack }) {
                   </td>
                   <td style={tdStyle}>
                     {getActivitySummary(report)}
+                  </td>
+                  <td style={{ ...tdStyle, minWidth: '180px' }}>
+                    {(() => {
+                      const flags = getAiFlagsForReport(report)
+                      if (flags.length === 0) {
+                        return <span style={{ color: '#9ca3af', fontSize: '12px' }}>—</span>
+                      }
+                      return renderAiFlags(flags)
+                    })()}
                   </td>
                   <td style={{ ...tdStyle, fontFamily: 'monospace' }}>
                     {getKPRange(report)}
