@@ -24,6 +24,7 @@ import AgentAuditFindingsPanel from './components/AgentAuditFindingsPanel.jsx'
 import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import MeetingAgendaGenerator from './components/MeetingAgendaGenerator.jsx'
+import ProjectCalendar from './components/ProjectCalendar.jsx'
 
 function AdminPortal() {
   const navigate = useNavigate()
@@ -3380,7 +3381,7 @@ function AdminPortal() {
       <div style={{ backgroundColor: 'white', borderBottom: '1px solid #ddd', padding: '0 20px' }}>
         <div style={{ display: 'flex', gap: '0', flexWrap: 'wrap' }}>
           {[
-            'overview', 'approvals', 'efficiency', 'mats', 'audit', 'setup', 'projects', 'users', 'reports', 'agenda',
+            'overview', 'approvals', 'efficiency', 'mats', 'audit', 'setup', 'projects', 'users', 'reports', 'agenda', 'calendar',
             ...(isSuperAdmin ? ['fleet', 'stats', 'handover'] : [])
           ].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '15px 25px', border: 'none', backgroundColor: activeTab === tab ? '#003366' : 'transparent', color: activeTab === tab ? 'white' : '#333', cursor: 'pointer', fontSize: '14px', fontWeight: activeTab === tab ? 'bold' : 'normal', position: 'relative' }}>
@@ -3389,6 +3390,7 @@ function AdminPortal() {
                tab === 'stats' ? '📊 Usage Statistics' :
                tab === 'handover' ? '📦 Project Handover' :
                tab === 'agenda' ? '📋 Meeting Agenda' :
+               tab === 'calendar' ? '📅 Calendar' :
                tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
@@ -6513,6 +6515,14 @@ function AdminPortal() {
           <div>
             <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
             <MeetingAgendaGenerator />
+          </div>
+        )}
+
+        {/* Calendar Tab */}
+        {activeTab === 'calendar' && (
+          <div>
+            <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
+            <ProjectCalendar />
           </div>
         )}
 

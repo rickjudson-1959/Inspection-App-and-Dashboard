@@ -10,6 +10,7 @@ import TenantSwitcher from './components/TenantSwitcher.jsx'
 import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 import AgentAuditFindingsPanel from './components/AgentAuditFindingsPanel.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
+import ProjectCalendar from './components/ProjectCalendar.jsx'
 
 // Import helper functions
 import {
@@ -1078,6 +1079,7 @@ function ChiefDashboard() {
           <button onClick={() => setActiveTab('gallery')} style={tabButtonStyle(activeTab === 'gallery')}>📷 Photo Gallery</button>
           <button onClick={() => setActiveTab('personnel')} style={tabButtonStyle(activeTab === 'personnel')}>👷 Personnel</button>
           <button onClick={() => setActiveTab('efficiency')} style={tabButtonStyle(activeTab === 'efficiency')}>📊 Efficiency</button>
+          <button onClick={() => setActiveTab('calendar')} style={tabButtonStyle(activeTab === 'calendar')}>📅 Calendar</button>
         </div>
       </div>
 
@@ -1553,6 +1555,13 @@ function ChiefDashboard() {
       {activeTab === 'efficiency' && (
         <div style={{ padding: '30px' }}>
           <ShadowAuditDashboard />
+        </div>
+      )}
+
+      {/* ============ CALENDAR TAB ============ */}
+      {activeTab === 'calendar' && (
+        <div style={{ padding: '30px' }}>
+          <ProjectCalendar />
         </div>
       )}
 

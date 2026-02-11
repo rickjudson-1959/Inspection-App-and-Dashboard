@@ -13,6 +13,7 @@ import { MetricInfoIcon, MetricIntegrityModal, useMetricIntegrityModal } from '.
 import { useOrgQuery } from './utils/queryHelpers.js'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
+import ProjectCalendar from './components/ProjectCalendar.jsx'
 
 // ============================================================================
 // CMT DASHBOARD - Eagle Mountain - Woodfibre Gas Pipeline (EGP)
@@ -698,7 +699,8 @@ function Dashboard({ onBackToReport }) {
               { id: 'quality', label: '✅ Quality' },
               { id: 'crews', label: '👷 Crews' },
               { id: 'photos', label: '📷 Photos' },
-              { id: 'reports', label: '📄 Reports' }
+              { id: 'reports', label: '📄 Reports' },
+              { id: 'calendar', label: '📅 Calendar' }
             ].map(tab => (
               <button
                 key={tab.id}
@@ -1563,6 +1565,11 @@ function Dashboard({ onBackToReport }) {
             )}
           </div>
         </>
+      )}
+
+      {/* CALENDAR TAB */}
+      {activeTab === 'calendar' && (
+        <ProjectCalendar />
       )}
 
       {/* Footer */}

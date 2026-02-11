@@ -12,6 +12,7 @@ import TenantSwitcher from './components/TenantSwitcher.jsx'
 import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 import AgentAuditFindingsPanel from './components/AgentAuditFindingsPanel.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
+import ProjectCalendar from './components/ProjectCalendar.jsx'
 
 // Weather API Key
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
@@ -1880,6 +1881,9 @@ function AssistantChiefDashboard() {
           <button style={tabStyle(activeTab === 'efficiency')} onClick={() => setActiveTab('efficiency')}>
             📊 Efficiency
           </button>
+          <button style={tabStyle(activeTab === 'calendar')} onClick={() => setActiveTab('calendar')}>
+            📅 Calendar
+          </button>
         </div>
       </div>
 
@@ -3388,6 +3392,13 @@ function AssistantChiefDashboard() {
         {/* ============================================= */}
         {activeTab === 'efficiency' && (
           <ShadowAuditDashboard />
+        )}
+
+        {/* ============================================= */}
+        {/* CALENDAR TAB */}
+        {/* ============================================= */}
+        {activeTab === 'calendar' && (
+          <ProjectCalendar />
         )}
       </div>
 

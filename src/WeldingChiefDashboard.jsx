@@ -38,6 +38,7 @@ import SignaturePad from './components/SignaturePad.jsx'
 
 // Import Report Review components
 import WeldingReportReviewTab from './components/WeldingReportReviewTab.jsx'
+import ProjectCalendar from './components/ProjectCalendar.jsx'
 
 // Welding activity prefixes - only show reports with activities starting with these
 // "Welding - Mainline", "Welding - Section Crew", "Welding - Tie-in", "Welder Testing", etc.
@@ -532,6 +533,9 @@ function WeldingChiefDashboard() {
           </button>
           <button onClick={() => setActiveTab('dailyreport')} style={tabButtonStyle(activeTab === 'dailyreport')}>
             📄 Generate Report
+          </button>
+          <button onClick={() => setActiveTab('calendar')} style={tabButtonStyle(activeTab === 'calendar')}>
+            📅 Calendar
           </button>
         </div>
       </div>
@@ -1782,6 +1786,13 @@ function WeldingChiefDashboard() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* ============ CALENDAR TAB ============ */}
+      {activeTab === 'calendar' && (
+        <div style={{ padding: '30px' }}>
+          <ProjectCalendar />
         </div>
       )}
 
