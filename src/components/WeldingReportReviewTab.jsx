@@ -11,14 +11,11 @@ import WeldingReportViewer from './WeldingReportViewer.jsx'
  */
 
 // Welding activity types that require Welding Chief review
-const WELDING_ACTIVITY_TYPES = [
+// These are activity types that START with "Welding" or are welder-specific
+const WELDING_ACTIVITY_PREFIXES = [
+  'welding -',      // Welding - Mainline, Welding - Section Crew, Welding - Poor Boy, Welding - Tie-in
   'mainline welding',
-  'tie-in',
-  'tie-ins',
-  'welder testing log',
-  'welding',
-  'welding - tie-in',
-  'mainline weld'
+  'welder testing'  // Welder Testing Log
 ]
 
 function WeldingReportReviewTab({ onPendingCountChange }) {
@@ -67,7 +64,8 @@ function WeldingReportReviewTab({ onPendingCountChange }) {
     const blocks = report.activity_blocks || []
     return blocks.some(block => {
       const activityType = (block.activityType || '').toLowerCase()
-      return WELDING_ACTIVITY_TYPES.some(type => activityType.includes(type))
+      // Check if activity type STARTS with any welding prefix
+      return WELDING_ACTIVITY_PREFIXES.some(prefix => activityType.startsWith(prefix))
     })
   }
 

@@ -35,13 +35,12 @@ import {
   calculateMTDProgress
 } from './chiefReportHelpers.js'
 
-// Welding activity types - exclude these from Chief Dashboard (handled by Welding Chief)
-const WELDING_ACTIVITY_TYPES = [
+// Welding activity prefixes - exclude reports with activities starting with these (handled by Welding Chief)
+// "Welding - Mainline", "Welding - Section Crew", "Welding - Tie-in", "Welder Testing", etc.
+const WELDING_ACTIVITY_PREFIXES = [
+  'welding -',       // Welding - Mainline, Welding - Section Crew, Welding - Poor Boy, Welding - Tie-in
   'mainline welding',
-  'tie-in',
-  'tie-ins',
-  'welder testing',
-  'welding'
+  'welder testing'   // Welder Testing Log
 ]
 
 // Helper to check if a report contains welding activities
@@ -49,7 +48,8 @@ function hasWeldingActivities(report) {
   const blocks = report?.activity_blocks || []
   return blocks.some(block => {
     const activityType = (block.activityType || '').toLowerCase()
-    return WELDING_ACTIVITY_TYPES.some(type => activityType.includes(type))
+    // Check if activity type STARTS with any welding prefix
+    return WELDING_ACTIVITY_PREFIXES.some(prefix => activityType.startsWith(prefix))
   })
 }
 

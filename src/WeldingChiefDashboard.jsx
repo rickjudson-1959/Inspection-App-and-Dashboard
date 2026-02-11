@@ -39,13 +39,12 @@ import SignaturePad from './components/SignaturePad.jsx'
 // Import Report Review components
 import WeldingReportReviewTab from './components/WeldingReportReviewTab.jsx'
 
-// Welding activity types - only show reports containing these activities
-const WELDING_ACTIVITY_TYPES = [
+// Welding activity prefixes - only show reports with activities starting with these
+// "Welding - Mainline", "Welding - Section Crew", "Welding - Tie-in", "Welder Testing", etc.
+const WELDING_ACTIVITY_PREFIXES = [
+  'welding -',       // Welding - Mainline, Welding - Section Crew, Welding - Poor Boy, Welding - Tie-in
   'mainline welding',
-  'tie-in',
-  'tie-ins',
-  'welder testing',
-  'welding'
+  'welder testing'   // Welder Testing Log
 ]
 
 // Helper to check if a report contains welding activities
@@ -53,7 +52,8 @@ function hasWeldingActivities(report) {
   const blocks = report?.activity_blocks || []
   return blocks.some(block => {
     const activityType = (block.activityType || '').toLowerCase()
-    return WELDING_ACTIVITY_TYPES.some(type => activityType.includes(type))
+    // Check if activity type STARTS with any welding prefix
+    return WELDING_ACTIVITY_PREFIXES.some(prefix => activityType.startsWith(prefix))
   })
 }
 
