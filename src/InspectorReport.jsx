@@ -168,22 +168,19 @@ function InspectorReport() {
   // Trackable Items confirmation modal
   const [showTrackableItemsModal, setShowTrackableItemsModal] = useState(false)
 
-  // Welding activity types that require Welding Chief review
-  const WELDING_ACTIVITY_TYPES = [
+  // Welding activity prefixes that require Welding Chief review
+  // Uses startsWith() to avoid false positives (e.g., "Tie-In Completion" matching "tie-in")
+  const WELDING_ACTIVITY_PREFIXES = [
+    'welding -',       // Welding - Mainline, Welding - Section Crew, Welding - Poor Boy, Welding - Tie-in
     'mainline welding',
-    'tie-in',
-    'tie-ins',
-    'welder testing log',
-    'welding',
-    'welding - tie-in',
-    'mainline weld'
+    'welder testing'   // Welder Testing Log
   ]
 
   // Check if activity blocks contain welding activities
   function hasWeldingActivities(blocks) {
     return blocks?.some(block => {
       const activityType = (block.activityType || '').toLowerCase()
-      return WELDING_ACTIVITY_TYPES.some(type => activityType.includes(type))
+      return WELDING_ACTIVITY_PREFIXES.some(prefix => activityType.startsWith(prefix))
     })
   }
 
