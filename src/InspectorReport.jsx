@@ -6469,7 +6469,7 @@ Important:
           backgroundColor: 'white',
           borderRadius: '12px',
           boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
-          zIndex: 1000,
+          zIndex: 10001,
           overflow: 'hidden',
           display: 'flex',
           flexDirection: 'column'

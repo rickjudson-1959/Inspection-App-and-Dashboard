@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
-import { useOrgPath } from './contexts/OrgContext.jsx'
+import { useOrgPath, useOrg } from './contexts/OrgContext.jsx'
+import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 import { supabase } from './supabase'
 import {
   PRECISION_MAP,
@@ -28,6 +29,8 @@ function NDTAuditorDashboard() {
   const [searchParams] = useSearchParams()
   const { signOut, userProfile } = useAuth()
   const { orgPath } = useOrgPath()
+  const { currentOrg } = useOrg()
+  const organizationId = currentOrg?.id
   
   // Read-only mode for Chief Inspector or Welding Chief cross-linking
   const userRole = userProfile?.role || userProfile?.user_role
@@ -721,6 +724,9 @@ function NDTAuditorDashboard() {
                   : '← Chief Dashboard'}
             </button>
           )}
+          <div style={{ marginBottom: '8px' }}>
+            <AIAgentStatusIcon organizationId={organizationId} />
+          </div>
           <button
             onClick={signOut}
             style={{ width: '100%', padding: '12px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
