@@ -293,7 +293,7 @@ function ContractorLEMs() {
           <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>{filteredLems.length} field logs</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
-          <button onClick={() => navigate(-1)} style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Back</button>
+          <button onClick={() => navigate(orgPath('/admin'))} style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Admin Portal</button>
           <button onClick={() => navigate(orgPath('/reconciliation'))} style={{ padding: '10px 20px', backgroundColor: '#f39c12', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Reconciliation</button>
           <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign Out</button>
         </div>

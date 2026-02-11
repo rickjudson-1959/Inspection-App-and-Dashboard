@@ -6,6 +6,7 @@ import {
 } from 'recharts'
 import { supabase } from './supabase'
 import { useOrgQuery } from './utils/queryHelpers.js'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 import { calculateVAAC, aggregateValueLostByParty } from './shadowAuditUtils.js'
 import { MetricInfoIcon, MetricIntegrityModal, useMetricIntegrityModal } from './components/MetricIntegrityInfo.jsx'
 
@@ -424,6 +425,7 @@ function generateHealthAssessment(metrics) {
 function EVMDashboard() {
   const navigate = useNavigate()
   const { addOrgFilter } = useOrgQuery()
+  const { orgPath } = useOrgPath()
   const [loading, setLoading] = useState(true)
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0])
   const [activeTab, setActiveTab] = useState('overview')
@@ -531,8 +533,8 @@ function EVMDashboard() {
     <div style={{ padding: '20px', maxWidth: '1800px', margin: '0 auto', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
       {/* Header */}
       <div style={{ marginBottom: '20px' }}>
-        <button onClick={() => navigate(-1)} style={{ background: 'none', border: 'none', color: '#007bff', cursor: 'pointer', fontSize: '14px', marginBottom: '10px' }}>
-          ← Back to Dashboard
+        <button onClick={() => navigate(orgPath('/admin'))} style={{ background: 'none', border: 'none', color: '#007bff', cursor: 'pointer', fontSize: '14px', marginBottom: '10px' }}>
+          ← Return to Admin Portal
         </button>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px' }}>
           <div>

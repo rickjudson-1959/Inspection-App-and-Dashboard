@@ -232,11 +232,11 @@ export default function InspectorInvoicingDashboard() {
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
-          <button 
-            onClick={() => navigate(orgPath('/inspector'))}
+          <button
+            onClick={() => navigate(orgPath('/admin'))}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}
           >
-            ← Back to Daily Inspector Report
+            ← Return to Admin Portal
           </button>
           <h1 style={{ margin: 0, fontSize: '28px', color: '#111827' }}>
             {isAdmin ? '📋 Inspector Invoicing' : '📋 My Timesheets & Invoices'}

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
 import { useOrgQuery } from './utils/queryHelpers.js'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 
 const PROJECT_NAME = "Clearwater Pipeline - Demo Project"
 
@@ -27,6 +28,7 @@ const STATUS_OPTIONS = [
 export default function ChangeManagement() {
   const navigate = useNavigate()
   const { addOrgFilter, getOrgId, organizationId, isReady } = useOrgQuery()
+  const { orgPath } = useOrgPath()
   const [changes, setChanges] = useState([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -234,8 +236,8 @@ export default function ChangeManagement() {
           <h1 style={{ fontSize: '20px', fontWeight: 'bold', margin: 0 }}>{PROJECT_NAME}</h1>
           <p style={{ fontSize: '14px', color: '#d8b4fe', margin: '4px 0 0 0' }}>Change Order Management</p>
         </div>
-        <button onClick={() => navigate(-1)} style={{ backgroundColor: '#7c3aed', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' }}>
-          ← Back
+        <button onClick={() => navigate(orgPath('/admin'))} style={{ backgroundColor: '#6c757d', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' }}>
+          ← Return to Admin Portal
         </button>
       </div>
 
