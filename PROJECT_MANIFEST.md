@@ -394,7 +394,8 @@
 /supabase/functions/
 ├── process-document/index.ts    # Document text extraction & embedding
 ├── process-ticket-ai/index.ts   # AI ticket analysis
-└── mentor-nlq/index.ts          # Natural language query (Ask the Agent)
+├── mentor-nlq/index.ts          # Natural language query (Ask the Agent)
+└── export-project-data/index.ts # Power BI / SAP data export API (Feb 2026)
 ```
 
 ---
@@ -490,6 +491,58 @@ VitePWA({
 - `src/version.js` - Version constants (NEW)
 - `src/Login.jsx` - Version display (NEW)
 - `package.json` - Version bumped to 2.0.0
+
+---
+
+### Power BI / SAP Data Export API (February 11, 2026)
+
+**Owner Data Export System**
+- New Supabase Edge Function for structured data exports
+- Supports both Power BI (JSON) and SAP/Project Controls (CSV) formats
+- SAP-compatible field names and WBS activity codes
+
+**Export Types Available:**
+| Type | Description | Key Fields |
+|------|-------------|------------|
+| `progress` | Activity progress by KP | PROJECT_ID, ACTIVITY_CODE, START_KP, END_KP, LENGTH_M, CREW_SIZE, LABOUR_HOURS |
+| `welding` | Weld records with NDT | WELD_ID, WPS_NUMBER, WELDER_ID, MATERIAL_GRADE, NDT_STATUS, RT_RESULT, UT_RESULT |
+| `cost` | Labour/equipment costs | COST_CODE, COST_CATEGORY, QUANTITY, UNIT, CONTRACTOR, SPREAD |
+| `evm` | Earned value metrics | WBS_ELEMENT, PLANNED_VALUE, EARNED_VALUE, SPI, CPI, PERCENT_COMPLETE |
+| `all` | Complete dataset | All of the above |
+
+**SAP Activity Code Mapping:**
+```
+ACC-100 (Access), CLR-200 (Clearing), GRD-300 (Grading)
+WLD-500 (Welding - Mainline), WLD-530 (Welding - Tie-in)
+COT-600 (Coating), DTH-700 (Ditch), LOW-800 (Lower-in)
+```
+
+**Admin Portal UI (Reports Tab):**
+- "Data Exports for Owner Systems" section
+- One-click JSON/CSV export buttons for each data type
+- API endpoint URL displayed for Power BI direct connection
+- Date range: Last 30 days by default
+
+**API Endpoint:**
+```
+GET /functions/v1/export-project-data
+  ?organization_id={uuid}
+  &type={progress|welding|cost|evm|all}
+  &format={json|csv}
+  &start_date={YYYY-MM-DD}
+  &end_date={YYYY-MM-DD}
+```
+
+**Files Created:**
+- `supabase/functions/export-project-data/index.ts` - Edge Function
+
+**Files Modified:**
+- `src/AdminPortal.jsx` - Export UI and exportOwnerData function
+
+**Deployment:**
+```bash
+npx supabase functions deploy export-project-data
+```
 
 ---
 
@@ -1431,4 +1484,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 11, 2026 (Document Sync Health Widget Improvements)*
+*Last Updated: February 11, 2026 (Power BI / SAP Data Export API)*
