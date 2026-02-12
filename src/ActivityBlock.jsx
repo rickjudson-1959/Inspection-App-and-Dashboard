@@ -2085,8 +2085,9 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           />
         </div>
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '10px' }}>
-          <label style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', borderRadius: '4px', cursor: ocrProcessing ? 'wait' : 'pointer', fontSize: '14px', opacity: ocrProcessing ? 0.7 : 1 }}>
-            {ocrProcessing ? '⏳ Processing...' : '📷 Scan Ticket (OCR)'}
+          {/* Take Photo with Camera */}
+          <label style={{ padding: '10px 20px', backgroundColor: '#28a745', color: 'white', borderRadius: '4px', cursor: ocrProcessing ? 'wait' : 'pointer', fontSize: '14px', opacity: ocrProcessing ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {ocrProcessing ? '⏳ Processing...' : '📷 Take Photo'}
             <input
               type="file"
               accept="image/*"
@@ -2100,7 +2101,25 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               disabled={ocrProcessing}
             />
           </label>
+          {/* Upload from Gallery/Files */}
+          <label style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', borderRadius: '4px', cursor: ocrProcessing ? 'wait' : 'pointer', fontSize: '14px', opacity: ocrProcessing ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
+            {ocrProcessing ? '⏳ Processing...' : '📁 Upload Photo'}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => {
+                if (e.target.files[0]) {
+                  processTicketOCR(block.id, e.target.files[0])
+                }
+              }}
+              style={{ display: 'none' }}
+              disabled={ocrProcessing}
+            />
+          </label>
         </div>
+        <p style={{ fontSize: '12px', color: '#666', margin: '5px 0 0 0' }}>
+          Take a photo of the contractor's ticket or upload an existing image. AI will extract labour and equipment data.
+        </p>
         {ocrError && (
           <p style={{ color: '#dc3545', fontSize: '13px', margin: '10px 0' }}>{ocrError}</p>
         )}
