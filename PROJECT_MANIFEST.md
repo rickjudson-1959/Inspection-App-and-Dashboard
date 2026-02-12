@@ -405,6 +405,53 @@
 
 ## 6. RECENT UPDATES (January/February 2026)
 
+### Auto Cache Clearing on Version Update (February 12, 2026)
+
+**Automatic Cache & Data Cleanup on App Updates**
+- When users visit the app with an outdated version, caches are automatically cleared and the page reloads
+- Solves login issues caused by legacy cached data
+- Full-screen "Updating App..." overlay with spinner during the process
+
+**What Gets Cleared:**
+| Item | Action |
+|------|--------|
+| Service Worker Caches | All caches deleted |
+| Service Workers | Unregistered |
+| localStorage | Cleared (except preserved keys) |
+| sessionStorage | Cleared |
+| IndexedDB | Non-Supabase databases deleted |
+
+**What Gets Preserved (No Data Loss):**
+| Key | Purpose |
+|-----|---------|
+| `sb-*-auth-token` | Supabase authentication (stays logged in) |
+| `pipeup_inspector_draft` | Unsaved report drafts |
+| `pipeup_login_time` | Login session tracking |
+| `customDelayReasons` | User's custom delay reasons |
+| `tour_completed_*` | Tour completion flags |
+| `mentor_tips_dismissed_*` | Activity block tip dismissals |
+
+**Version Detection:**
+- App version stored in localStorage (`pipe_up_app_version`)
+- On page load, compares stored version to `APP_VERSION` from `src/version.js`
+- If mismatch detected → auto-clear and reload
+- First-time users get version stored without clearing
+
+**User Experience:**
+1. User visits app with old version cached
+2. Full-screen overlay appears: "Updating App..."
+3. Caches clear automatically (preserving drafts and auth)
+4. Page reloads with fresh assets
+5. User continues working with latest version
+
+**Files Modified:**
+- `src/components/UpdatePrompt.jsx` - Auto-clear logic, preserve keys
+- `src/version.js` - Bumped to 2.2.0
+
+**Current Version:** 2.2.0
+
+---
+
 ### Guided Tour System (February 12, 2026)
 
 **Interactive Onboarding for New Users**
@@ -576,7 +623,7 @@ npx supabase db push
 
 ### PWA Offline Mode - Working Implementation (February 8, 2026)
 
-**Version:** 2.0.0
+**Version:** 2.2.0 (Updated February 12, 2026)
 
 **Status:** WORKING - Full offline support for field inspectors
 
@@ -644,9 +691,10 @@ VitePWA({
 ```
 
 **Version Indicator:**
-- Displayed on login page: `v2.0.0 (2026-02-08)`
+- Displayed on login page: `v2.2.0 (2026-02-12)`
 - Update `src/version.js` when deploying new versions
 - Allows easy verification that users have latest version
+- **Auto-cache clearing:** When version mismatch detected, caches clear automatically (see "Auto Cache Clearing" section above)
 
 **User Workflow for Offline Mode:**
 1. User signs in while online (required for authentication)
@@ -1656,4 +1704,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 12, 2026 (Guided Tour System)*
+*Last Updated: February 12, 2026 (Auto Cache Clearing on Version Update)*
