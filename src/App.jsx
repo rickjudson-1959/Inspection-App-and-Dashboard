@@ -142,7 +142,7 @@ function OrgRoutes() {
 
       {/* NDT Auditor */}
       <Route path="ndt-auditor" element={
-        <ProtectedRoute allowedRoles={['ndt_auditor', 'chief', 'chief_inspector', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['ndt_auditor', 'welding_chief', 'chief', 'chief_inspector', 'admin', 'super_admin']}>
           <NDTAuditorDashboard />
         </ProtectedRoute>
       } />
