@@ -6,9 +6,12 @@ import { APP_VERSION, BUILD_DATE } from '../version.js'
 
 const VERSION_STORAGE_KEY = 'pipe_up_app_version'
 
-// Keys to preserve during cache clear (Supabase auth tokens)
+// Keys to preserve during cache clear (auth + user data)
 const PRESERVE_KEYS = [
-  'sb-gkwbvwsuoazmarsqsjhs-auth-token'
+  'sb-gkwbvwsuoazmarsqsjhs-auth-token',  // Supabase auth token
+  'pipeup_inspector_draft',               // Unsaved report drafts
+  'pipeup_login_time',                    // Login session tracking
+  'customDelayReasons'                    // User's custom delay reasons
 ]
 
 // Clear all caches and legacy data
@@ -46,13 +49,24 @@ async function clearAllCaches() {
     }
   }
 
-  // 3. Clear localStorage except preserved keys
+  // 3. Clear localStorage except preserved keys and prefixes
   try {
     const preserved = {}
+
+    // Preserve exact key matches
     PRESERVE_KEYS.forEach(key => {
       const value = localStorage.getItem(key)
       if (value) preserved[key] = value
     })
+
+    // Preserve keys matching certain prefixes (tour completions, etc.)
+    const PRESERVE_PREFIXES = ['tour_completed_', 'mentor_tips_dismissed_']
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i)
+      if (PRESERVE_PREFIXES.some(prefix => key?.startsWith(prefix))) {
+        preserved[key] = localStorage.getItem(key)
+      }
+    }
 
     localStorage.clear()
     console.log('[UpdatePrompt] localStorage cleared')
@@ -61,7 +75,7 @@ async function clearAllCaches() {
     Object.entries(preserved).forEach(([key, value]) => {
       localStorage.setItem(key, value)
     })
-    console.log('[UpdatePrompt] Preserved auth tokens restored')
+    console.log('[UpdatePrompt] Preserved user data restored:', Object.keys(preserved).length, 'items')
   } catch (error) {
     console.error('[UpdatePrompt] Error clearing localStorage:', error)
   }
