@@ -926,7 +926,7 @@ function Dashboard({ onBackToReport }) {
                 <div style={{ display: 'grid', gridTemplateColumns: '300px 1fr', gap: '20px', alignItems: 'center' }}>
                   {/* Pie Chart */}
                   <div style={{ height: '200px' }}>
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} minHeight={0}>
                       <PieChart>
                         <Pie
                           data={[
@@ -1125,7 +1125,7 @@ function Dashboard({ onBackToReport }) {
 
             {/* Daily Cost Chart */}
             <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '15px' }}>Daily Labour & Equipment Hours</h4>
-            <ResponsiveContainer width="100%" height={250}>
+            <ResponsiveContainer width="100%" height={250} minWidth={0}>
               <ComposedChart data={metrics?.dailyArray || []}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} />
@@ -1149,7 +1149,7 @@ function Dashboard({ onBackToReport }) {
           <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '0 0 4px 4px', marginBottom: '20px', border: '1px solid #ddd' }}>
             {/* Daily Progress Chart - All activities in construction sequence */}
             <h4 style={{ fontSize: '14px', fontWeight: 'bold', marginBottom: '15px' }}>Daily Linear Metres by Phase</h4>
-            <ResponsiveContainer width="100%" height={320}>
+            <ResponsiveContainer width="100%" height={320} minWidth={0}>
               <AreaChart data={metrics?.dailyArray || []}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis dataKey="date" tick={{ fontSize: 10 }} />
@@ -1230,7 +1230,7 @@ function Dashboard({ onBackToReport }) {
               ].map((item, idx) => (
                 <div key={idx} style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '8px' }}>
                   <div style={{ fontSize: '12px', fontWeight: 'bold', color: item.color, marginBottom: '10px' }}>{item.label}</div>
-                  <ResponsiveContainer width="100%" height={120}>
+                  <ResponsiveContainer width="100%" height={120} minWidth={0}>
                     <BarChart data={[
                       { name: 'Crew 1', value: item.values[0] },
                       { name: 'Crew 2', value: item.values[1] }

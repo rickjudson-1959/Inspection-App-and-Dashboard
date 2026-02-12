@@ -2,6 +2,7 @@ import './App.css'
 import { saveTieInTicket } from './saveLogic.js'
 import { useAuth } from './AuthContext.jsx'
 import React, { useState, useEffect, useRef, useCallback } from 'react'
+import GuidedTour, { useGuidedTour, TourHelpButton, TOUR_STEPS } from './components/GuidedTour.jsx'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
@@ -69,6 +70,9 @@ function InspectorReport() {
   const isOnline = useOnlineStatus()
   const { pendingCount, syncStatus } = useSyncStatus()
   const [offlineSaveSuccess, setOfflineSaveSuccess] = useState(false)
+
+  // Guided tour
+  const { runTour, stepIndex, handleTourCallback, startTour } = useGuidedTour('inspectorReport', TOUR_STEPS.inspectorReport)
 
   // Edit mode
   const editReportId = searchParams.get('edit')
@@ -6298,14 +6302,24 @@ Important:
         </div>
       )}
 
+      {/* Guided Tour */}
+      <GuidedTour
+        steps={TOUR_STEPS.inspectorReport}
+        run={runTour}
+        stepIndex={stepIndex}
+        onCallback={handleTourCallback}
+      />
+
       {/* Header */}
-      <div style={{ 
-        backgroundColor: isEditMode ? '#856404' : '#003366', 
-        color: 'white', 
-        padding: '15px', 
-        borderRadius: '8px', 
-        marginBottom: '20px'
-      }}>
+      <div
+        data-tour="header"
+        style={{
+          backgroundColor: isEditMode ? '#856404' : '#003366',
+          color: 'white',
+          padding: '15px',
+          borderRadius: '8px',
+          marginBottom: '20px'
+        }}>
         {/* Top row - Title */}
         <div style={{ textAlign: 'center', marginBottom: '10px' }}>
           <h1 style={{ margin: 0, fontSize: '16px' }}>{PROJECT_NAME}</h1>
@@ -6433,6 +6447,7 @@ Important:
           </button>
 
           <button
+            data-tour="doc-search"
             onClick={() => setShowDocSearch(!showDocSearch)}
             style={{
               padding: '8px 12px',
@@ -6446,6 +6461,8 @@ Important:
           >
             🔍 {showDocSearch ? 'Close Search' : 'Doc Search'}
           </button>
+
+          <TourHelpButton onClick={startTour} />
 
           <AIAgentStatusIcon organizationId={organizationId} />
 
@@ -6610,7 +6627,7 @@ Important:
       )}
 
       {/* SECTION 1: HEADER */}
-      <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #dee2e6' }}>
+      <div data-tour="date-picker" style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #dee2e6' }}>
         <div style={{ borderBottom: '2px solid #007bff', paddingBottom: '10px', marginBottom: '15px' }}>
           <h2 style={{ margin: 0, color: '#333' }}>REPORT INFORMATION</h2>
         </div>
@@ -6699,7 +6716,7 @@ Important:
       </div>
 
       {/* SECTION 2: WEATHER */}
-      <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #dee2e6' }}>
+      <div data-tour="weather" style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #dee2e6' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '2px solid #007bff', paddingBottom: '10px', marginBottom: '15px' }}>
           <h2 style={{ margin: 0, color: '#333' }}>WEATHER</h2>
           <button
@@ -6794,16 +6811,18 @@ Important:
       />
 
       {/* ACTIVITIES SECTION HEADER */}
-      <div style={{ 
-        backgroundColor: '#007bff', 
-        padding: '15px 20px', 
-        borderRadius: '8px', 
-        marginBottom: '20px', 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-      }}>
+      <div
+        data-tour="activity-blocks"
+        style={{
+          backgroundColor: '#007bff',
+          padding: '15px 20px',
+          borderRadius: '8px',
+          marginBottom: '20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+        }}>
         <div>
           <h2 style={{ margin: 0, color: 'white' }}>📋 ACTIVITIES ({activityBlocks.length})</h2>
           <p style={{ margin: '5px 0 0 0', color: 'rgba(255,255,255,0.8)', fontSize: '13px' }}>
@@ -6811,15 +6830,16 @@ Important:
           </p>
         </div>
         <button
+          data-tour="add-activity"
           onClick={addActivityBlock}
-          style={{ 
-            padding: '12px 24px', 
-            backgroundColor: '#28a745', 
-            color: 'white', 
-            border: 'none', 
-            borderRadius: '6px', 
-            cursor: 'pointer', 
-            fontSize: '15px', 
+          style={{
+            padding: '12px 24px',
+            backgroundColor: '#28a745',
+            color: 'white',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontSize: '15px',
             fontWeight: 'bold',
             boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
           }}
@@ -6968,7 +6988,7 @@ Important:
       </div>
 
       {/* SAFETY / ENVIRONMENT / COMMENTS */}
-      <div style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #dee2e6' }}>
+      <div data-tour="safety-section" style={{ backgroundColor: '#f8f9fa', padding: '20px', borderRadius: '8px', marginBottom: '20px', border: '1px solid #dee2e6' }}>
         <div style={{ borderBottom: '2px solid #28a745', paddingBottom: '10px', marginBottom: '15px' }}>
           <h2 style={{ margin: 0, color: '#333' }}>SAFETY / ENVIRONMENT / COMMENTS</h2>
         </div>
@@ -7226,7 +7246,7 @@ Important:
 
 
       {/* SAVE BUTTONS */}
-      <div style={{ backgroundColor: '#e9ecef', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
+      <div data-tour="save-button" style={{ backgroundColor: '#e9ecef', padding: '20px', borderRadius: '8px', marginBottom: '20px' }}>
         {/* Draft Status Indicator */}
         {draftSaved && !isEditMode && (
           <div style={{ 
