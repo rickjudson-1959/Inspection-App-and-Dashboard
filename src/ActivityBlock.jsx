@@ -412,6 +412,7 @@ function ActivityBlock({
   const [currentEquipment, setCurrentEquipment] = useState({ type: '', hours: '', count: '', unitNumber: '' })
   const [ocrProcessing, setOcrProcessing] = useState(false)
   const [ocrError, setOcrError] = useState(null)
+  const [showTicketPhoto, setShowTicketPhoto] = useState(false)
   
   // Collapsible QA sections state (for Access activity)
   const [expandedSections, setExpandedSections] = useState({})
@@ -688,7 +689,10 @@ function ActivityBlock({
   const processTicketOCR = async (blockId, imageFile) => {
     setOcrProcessing(true)
     setOcrError(null)
-    
+
+    // Save the photo to the block first
+    updateBlock(blockId, 'ticketPhoto', imageFile)
+
     try {
       const reader = new FileReader()
       const base64Promise = new Promise((resolve, reject) => {
@@ -696,7 +700,7 @@ function ActivityBlock({
         reader.onerror = reject
         reader.readAsDataURL(imageFile)
       })
-      
+
       const base64Image = await base64Promise
       
       const response = await fetch('https://api.anthropic.com/v1/messages', {
@@ -2122,6 +2126,105 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
         </p>
         {ocrError && (
           <p style={{ color: '#dc3545', fontSize: '13px', margin: '10px 0' }}>{ocrError}</p>
+        )}
+
+        {/* Show ticket photo if one exists */}
+        {block.ticketPhoto && (
+          <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#d4edda', borderRadius: '6px', border: '1px solid #c3e6cb' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
+              <span style={{ color: '#155724', fontSize: '13px', fontWeight: 'bold' }}>
+                ✓ Ticket photo attached: {block.ticketPhoto.name || 'Photo'}
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setShowTicketPhoto(true)}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#007bff',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  👁️ View Photo
+                </button>
+                <button
+                  type="button"
+                  onClick={() => updateBlock(block.id, 'ticketPhoto', null)}
+                  style={{
+                    padding: '6px 12px',
+                    backgroundColor: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px'
+                  }}
+                >
+                  ✕ Remove
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Ticket Photo Modal */}
+        {showTicketPhoto && block.ticketPhoto && (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.85)',
+              zIndex: 10000,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '20px'
+            }}
+            onClick={() => setShowTicketPhoto(false)}
+          >
+            <div style={{
+              backgroundColor: 'white',
+              padding: '15px',
+              borderRadius: '8px',
+              maxWidth: '95vw',
+              maxHeight: '90vh',
+              display: 'flex',
+              flexDirection: 'column'
+            }} onClick={e => e.stopPropagation()}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                <h3 style={{ margin: 0, fontSize: '16px' }}>📋 Contractor Ticket Photo</h3>
+                <button
+                  onClick={() => setShowTicketPhoto(false)}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#dc3545',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  ✕ Close
+                </button>
+              </div>
+              <div style={{ overflow: 'auto', flex: 1 }}>
+                <img
+                  src={URL.createObjectURL(block.ticketPhoto)}
+                  alt="Contractor Ticket"
+                  style={{ maxWidth: '100%', maxHeight: 'calc(90vh - 100px)', objectFit: 'contain' }}
+                />
+              </div>
+            </div>
+          </div>
         )}
       </div>
 
