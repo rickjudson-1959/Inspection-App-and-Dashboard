@@ -2,9 +2,13 @@
 // This component MUST be mounted in App.jsx to show on all pages including login
 import { useRegisterSW } from 'virtual:pwa-register/react'
 import { useState, useEffect } from 'react'
+import { APP_VERSION, BUILD_DATE } from '../version.js'
+
+const VERSION_STORAGE_KEY = 'pipe_up_app_version'
 
 function UpdatePrompt() {
   const [dismissed, setDismissed] = useState(false)
+  const [versionMismatch, setVersionMismatch] = useState(false)
 
   const {
     needRefresh: [needRefresh, setNeedRefresh],
@@ -31,6 +35,21 @@ function UpdatePrompt() {
     }
   })
 
+  // Check for version mismatch on mount
+  useEffect(() => {
+    const storedVersion = localStorage.getItem(VERSION_STORAGE_KEY)
+    console.log(`[UpdatePrompt] Current version: ${APP_VERSION}, Stored version: ${storedVersion}`)
+
+    if (storedVersion && storedVersion !== APP_VERSION) {
+      console.log('[UpdatePrompt] Version mismatch detected - showing update prompt')
+      setVersionMismatch(true)
+    } else if (!storedVersion) {
+      // First time user - store the version
+      localStorage.setItem(VERSION_STORAGE_KEY, APP_VERSION)
+      console.log('[UpdatePrompt] First visit - version stored')
+    }
+  }, [])
+
   // Log when needRefresh changes
   useEffect(() => {
     if (needRefresh) {
@@ -38,23 +57,36 @@ function UpdatePrompt() {
     }
   }, [needRefresh])
 
+  // Show prompt if either service worker detects update OR version mismatch
+  const shouldShow = needRefresh || versionMismatch
+
   const handleUpdate = async () => {
     try {
-      await updateServiceWorker(true)
+      // Update stored version before reload
+      localStorage.setItem(VERSION_STORAGE_KEY, APP_VERSION)
+
+      if (needRefresh) {
+        await updateServiceWorker(true)
+      }
+
       setTimeout(() => {
         window.location.reload()
       }, 500)
     } catch (error) {
       console.error('Error updating service worker:', error)
+      localStorage.setItem(VERSION_STORAGE_KEY, APP_VERSION)
       window.location.reload()
     }
   }
 
   const handleDismiss = () => {
+    // Store current version so prompt doesn't show again until next update
+    localStorage.setItem(VERSION_STORAGE_KEY, APP_VERSION)
     setDismissed(true)
+    setVersionMismatch(false)
   }
 
-  if (!needRefresh || dismissed) {
+  if (!shouldShow || dismissed) {
     return null
   }
 
