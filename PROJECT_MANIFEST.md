@@ -365,6 +365,7 @@
     ├── TenantSwitcher.jsx       # Organization switcher dropdown
     ├── AIAgentStatusIcon.jsx    # AI Watcher status indicator (Feb 2026)
     ├── AskTheAgentPanel.jsx     # Document search Q&A panel (Feb 2026)
+    ├── GuidedTour.jsx           # Interactive guided tours (Feb 2026)
     ├── NotificationBell.jsx     # Notification dropdown (Feb 2026)
     ├── ProjectCalendar.jsx      # Meeting scheduling calendar (Feb 2026)
     ├── MapDashboard.jsx
@@ -403,6 +404,47 @@
 ---
 
 ## 6. RECENT UPDATES (January/February 2026)
+
+### Guided Tour System (February 12, 2026)
+
+**Interactive Onboarding for New Users**
+- Step-by-step guided tours help users learn the application
+- Built with react-joyride library
+- Auto-starts on first visit, remembers completion in localStorage
+- "? Tour" button allows users to restart the tour anytime
+
+**Inspector Report Tour (8 Steps):**
+| Step | Target | Description |
+|------|--------|-------------|
+| 1 | Header | Welcome and introduction to the report |
+| 2 | Report Info | Date picker, inspector name, spread selection |
+| 3 | Weather | Weather conditions and auto-fetch feature |
+| 4 | Safety | Safety notes and observations section |
+| 5 | Activities | Activity blocks area overview |
+| 6 | Add Activity | How to add new activity blocks |
+| 7 | Save Button | Submitting and saving reports |
+| 8 | Doc Search | AI-powered document search feature |
+
+**Technical Implementation:**
+- `src/components/GuidedTour.jsx` - Reusable tour component
+- `useGuidedTour()` hook for state management
+- `TourHelpButton` component for restart button
+- `TOUR_STEPS` object for defining tour content
+- `data-tour` attributes on target elements
+
+**Future Tours Planned:**
+- Chief Dashboard tour
+- Admin Portal tour
+- Other role-specific dashboards
+
+**Files Created:**
+- `src/components/GuidedTour.jsx`
+
+**Files Modified:**
+- `src/InspectorReport.jsx` - Tour integration
+- `package.json` - Added react-joyride dependency
+
+---
 
 ### Project Calendar Feature (February 11, 2026)
 
@@ -1614,4 +1656,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 12, 2026 (God Mode Access Control)*
+*Last Updated: February 12, 2026 (Guided Tour System)*
