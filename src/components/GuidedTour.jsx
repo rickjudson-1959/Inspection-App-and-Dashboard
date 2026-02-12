@@ -214,6 +214,12 @@ export const TOUR_STEPS = {
       title: 'Document Search',
       content: 'Need to reference project documents? Use the AI-powered document search to quickly find specifications, procedures, and standards.',
       placement: 'left'
+    },
+    {
+      target: '[data-tour="contractor-ticket"]',
+      title: 'Daily Contractor Ticket Photos',
+      content: 'When uploading or taking photos of contractor tickets, make sure your photos are in .JPG or .PNG format. Other formats may not process correctly with the AI text recognition.',
+      placement: 'top'
     }
   ],
 

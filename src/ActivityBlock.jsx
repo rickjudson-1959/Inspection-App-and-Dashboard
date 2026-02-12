@@ -2072,7 +2072,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
       </div>
 
       {/* Daily Contractor Ticket */}
-      <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#e7f3ff', borderRadius: '8px' }}>
+      <div data-tour="contractor-ticket" style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#e7f3ff', borderRadius: '8px' }}>
         <h4 style={{ margin: '0 0 15px 0', color: '#004085' }}>📋 Daily Contractor Ticket</h4>
         <div style={{ marginBottom: '10px' }}>
           <label style={{ fontWeight: 'bold', marginRight: '10px' }}>Ticket #:</label>
