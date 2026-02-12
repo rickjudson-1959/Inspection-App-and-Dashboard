@@ -1686,7 +1686,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
             style={{ width: '100%', padding: '10px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
           />
         </div>
-        <div style={{ overflow: 'hidden', minWidth: 0 }}>
+        <div style={{ minWidth: 0 }}>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>
             Start KP
             {status.suggestedStartKP && !block.startKP && (
@@ -1754,7 +1754,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
             </button>
           </div>
         </div>
-        <div style={{ overflow: 'hidden', minWidth: 0 }}>
+        <div style={{ minWidth: 0 }}>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>
             End KP
           </label>
