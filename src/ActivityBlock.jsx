@@ -1640,7 +1640,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
       </div>
 
       {/* Activity Type & Basic Info */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '15px', marginBottom: '20px', overflow: 'hidden' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px', marginBottom: '20px', overflow: 'visible' }}>
         <div style={{ overflow: 'hidden', minWidth: 0 }}>
           <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '5px' }}>Activity Type *</label>
           <select
@@ -1736,7 +1736,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               disabled={syncingKP}
               title="Sync from GPS"
               style={{
-                padding: '8px 12px',
+                padding: '8px 10px',
                 backgroundColor: syncingKP ? '#6c757d' : '#17a2b8',
                 color: 'white',
                 border: 'none',
@@ -1746,7 +1746,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                 whiteSpace: 'nowrap',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px'
+                gap: '4px',
+                flexShrink: 0
               }}
             >
               {syncingKP ? '...' : 'GPS'}
@@ -1799,7 +1800,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               disabled={syncingKP}
               title="Sync from GPS"
               style={{
-                padding: '8px 12px',
+                padding: '8px 10px',
                 backgroundColor: syncingKP ? '#6c757d' : '#17a2b8',
                 color: 'white',
                 border: 'none',
@@ -1809,7 +1810,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                 whiteSpace: 'nowrap',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '4px'
+                gap: '4px',
+                flexShrink: 0
               }}
             >
               {syncingKP ? '...' : 'GPS'}
