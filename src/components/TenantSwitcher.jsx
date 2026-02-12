@@ -9,8 +9,9 @@ export default function TenantSwitcher({ compact = false }) {
     switchOrganization
   } = useOrg()
 
-  // Only show if user has multiple orgs or is super_admin
-  if (!isSuperAdmin && memberships.length <= 1) {
+  // Only show for super_admin (God Mode)
+  // Regular users (including admins) stay in their assigned organization
+  if (!isSuperAdmin) {
     return null
   }
 
