@@ -1561,7 +1561,11 @@ function ChiefDashboard() {
       {/* ============ CALENDAR TAB ============ */}
       {activeTab === 'calendar' && (
         <div style={{ padding: '30px' }}>
-          <ProjectCalendar />
+          <ProjectCalendar
+            organizationId={getOrgId()}
+            userId={userProfile?.user_id}
+            userName={userProfile?.full_name}
+          />
         </div>
       )}
 

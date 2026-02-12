@@ -6522,7 +6522,11 @@ function AdminPortal() {
         {activeTab === 'calendar' && (
           <div>
             <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
-            <ProjectCalendar />
+            <ProjectCalendar
+              organizationId={getOrgId()}
+              userId={userProfile?.user_id}
+              userName={userProfile?.full_name}
+            />
           </div>
         )}
 

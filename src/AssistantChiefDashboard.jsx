@@ -3398,7 +3398,11 @@ function AssistantChiefDashboard() {
         {/* CALENDAR TAB */}
         {/* ============================================= */}
         {activeTab === 'calendar' && (
-          <ProjectCalendar />
+          <ProjectCalendar
+            organizationId={getOrgId()}
+            userId={userProfile?.user_id}
+            userName={userProfile?.full_name}
+          />
         )}
       </div>
 

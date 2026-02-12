@@ -95,12 +95,45 @@ function ProjectCalendar({ organizationId, userId, userName }) {
 
   async function fetchOrgUsers() {
     try {
-      const { data } = await supabase
-        .from('user_profiles')
-        .select('user_id, full_name, email, role')
+      // Get users through memberships table
+      const { data, error } = await supabase
+        .from('memberships')
+        .select('user_id')
         .eq('organization_id', organizationId)
 
-      setOrgUsers(data || [])
+      if (error) {
+        console.error('Error fetching memberships:', error)
+        return
+      }
+
+      console.log('[Calendar] Memberships found:', data?.length || 0)
+
+      if (!data || data.length === 0) {
+        setOrgUsers([])
+        return
+      }
+
+      // Get user profiles for these members
+      const userIds = data.map(m => m.user_id)
+      const { data: profiles, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id, full_name, email, role')
+        .in('id', userIds)
+
+      if (profileError) {
+        console.error('Error fetching profiles:', profileError)
+        return
+      }
+
+      console.log('[Calendar] Users loaded:', profiles?.length || 0)
+      // Map id to user_id for consistency
+      const users = (profiles || []).map(p => ({
+        user_id: p.id,
+        full_name: p.full_name,
+        email: p.email,
+        role: p.role
+      }))
+      setOrgUsers(users)
     } catch (err) {
       console.error('Error fetching users:', err)
     }
@@ -996,42 +1029,48 @@ function ProjectCalendar({ organizationId, userId, userName }) {
                     </span>
                   ))}
                 </div>
-                <select
-                  onChange={(e) => {
-                    if (e.target.value) {
-                      const user = orgUsers.find(u => u.user_id === e.target.value)
-                      if (user && !formData.attendees.find(a => a.user_id === user.user_id)) {
-                        setFormData({
-                          ...formData,
-                          attendees: [...formData.attendees, {
-                            user_id: user.user_id,
-                            email: user.email,
-                            name: user.full_name,
-                            rsvp: 'pending'
-                          }]
-                        })
+{orgUsers.length === 0 ? (
+                  <p style={{ fontSize: '12px', color: '#6b7280', margin: 0 }}>
+                    No team members found. You can still create the event.
+                  </p>
+                ) : (
+                  <select
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        const user = orgUsers.find(u => u.user_id === e.target.value)
+                        if (user && !formData.attendees.find(a => a.user_id === user.user_id)) {
+                          setFormData({
+                            ...formData,
+                            attendees: [...formData.attendees, {
+                              user_id: user.user_id,
+                              email: user.email,
+                              name: user.full_name,
+                              rsvp: 'pending'
+                            }]
+                          })
+                        }
+                        e.target.value = ''
                       }
-                      e.target.value = ''
+                    }}
+                    style={{
+                      width: '100%',
+                      padding: '10px 12px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '6px',
+                      fontSize: '14px'
+                    }}
+                  >
+                    <option value="">+ Add attendee ({orgUsers.length} available)...</option>
+                    {orgUsers
+                      .filter(u => !formData.attendees.find(a => a.user_id === u.user_id))
+                      .map(user => (
+                        <option key={user.user_id} value={user.user_id}>
+                          {user.full_name} ({user.role})
+                        </option>
+                      ))
                     }
-                  }}
-                  style={{
-                    width: '100%',
-                    padding: '10px 12px',
-                    border: '1px solid #d1d5db',
-                    borderRadius: '6px',
-                    fontSize: '14px'
-                  }}
-                >
-                  <option value="">+ Add attendee...</option>
-                  {orgUsers
-                    .filter(u => !formData.attendees.find(a => a.user_id === u.user_id))
-                    .map(user => (
-                      <option key={user.user_id} value={user.user_id}>
-                        {user.full_name} ({user.role})
-                      </option>
-                    ))
-                  }
-                </select>
+                  </select>
+                )}
               </div>
 
               {/* Send Invitations */}

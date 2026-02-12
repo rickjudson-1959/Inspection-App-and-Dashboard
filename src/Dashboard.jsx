@@ -1569,7 +1569,11 @@ function Dashboard({ onBackToReport }) {
 
       {/* CALENDAR TAB */}
       {activeTab === 'calendar' && (
-        <ProjectCalendar />
+        <ProjectCalendar
+          organizationId={organizationId}
+          userId={userProfile?.user_id}
+          userName={userProfile?.full_name}
+        />
       )}
 
       {/* Footer */}
