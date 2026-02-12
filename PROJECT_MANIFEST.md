@@ -484,6 +484,54 @@ npx supabase db push
 
 ---
 
+### Welding Chief NDT Auditor Access (February 12, 2026)
+
+**Cross-Dashboard Access**
+- Welding Chiefs can now access the NDT Auditor Dashboard
+- Read-only mode automatically enabled for Welding Chiefs
+- Navigation button "🔬 NDT Auditor" added to Welding Chief Dashboard header
+
+**Route Permission Update:**
+- Added `welding_chief` to allowed roles for `/ndt-auditor` route
+- Welding Chiefs can view but not edit NDT inspection data
+
+**What Welding Chiefs Can View:**
+- Weld review queue with pending/completed NDT inspections
+- RT/UT inspection parameters and results
+- Contractor submissions and technical data
+- Interpretation results and disagreements
+
+**Files Modified:**
+- `src/App.jsx` - Added welding_chief to ndt-auditor route permissions
+- `src/WeldingChiefDashboard.jsx` - Fixed NDT Auditor navigation button URL
+
+---
+
+### God Mode Restricted to Super Admin (February 12, 2026)
+
+**TenantSwitcher Access Control**
+- Organization switcher (God Mode) now only visible to `super_admin` users
+- Regular admins no longer see the organization dropdown
+- Admins stay in their assigned organization without ability to switch
+
+**Security Model:**
+| Role | Can Switch Organizations | Sees TenantSwitcher |
+|------|--------------------------|---------------------|
+| `super_admin` | Yes (all orgs) | Yes |
+| `admin` | No (own org only) | No |
+| `chief_inspector` | No (own org only) | No |
+| Other roles | No (own org only) | No |
+
+**Data Access Unchanged:**
+- Admins can still only query data from organizations they have memberships for
+- RLS policies continue to enforce organization-scoped access
+- This change only affects UI visibility of the switcher
+
+**Files Modified:**
+- `src/components/TenantSwitcher.jsx` - Restricted to super_admin only
+
+---
+
 ### PWA Offline Mode - Working Implementation (February 8, 2026)
 
 **Version:** 2.0.0
@@ -1566,4 +1614,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 11, 2026 (Project Calendar Feature)*
+*Last Updated: February 12, 2026 (God Mode Access Control)*
