@@ -233,10 +233,10 @@ export default function InspectorInvoicingDashboard() {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
         <div>
           <button
-            onClick={() => navigate(orgPath('/admin'))}
+            onClick={() => navigate(-1)}
             style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', color: '#6b7280', marginBottom: '8px' }}
           >
-            ← Return to Admin Portal
+            ← Back
           </button>
           <h1 style={{ margin: 0, fontSize: '28px', color: '#111827' }}>
             {isAdmin ? '📋 Inspector Invoicing' : '📋 My Timesheets & Invoices'}
