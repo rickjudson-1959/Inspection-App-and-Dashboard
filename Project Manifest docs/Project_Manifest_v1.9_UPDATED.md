@@ -292,6 +292,34 @@ Clearing, Access, Topsoil (with horizon separation tracking), Grading, Stringing
 
 ## 6. RECENT UPDATES (January/February 2026)
 
+### Simplified Shadow Audit - Exception-Based Flagging (February 12, 2026)
+
+**Replaced per-row status columns with on-demand flag button**
+
+The shadow audit / efficiency tracking system was too complex for field inspectors — every labour and equipment row showed a 3-button status toggle and a "Productive" hours column, making it look like every row required interaction.
+
+**Before:** 2 extra columns per row (Field Status + Productive) always visible on every entry.
+
+**After:** Clean tables with a small pencil button per row. Tapping it expands a detail panel with:
+- **Working** / **Downtime** / **Standby** status buttons (friendly labels replacing ACTIVE/SYNC_DELAY/MANAGEMENT_DRAG)
+- Reason dropdown and custom text input (only when Downtime or Standby selected)
+- Productive hours field (auto-calculated, editable)
+- Mandatory contractor issue detail when applicable
+
+Flagged rows show an amber (Downtime) or red (Standby) indicator. Unflagged rows stay clean — no extra fields visible.
+
+**What stayed the same:**
+- Crew-wide "Report Site Condition" toggle (unchanged)
+- Verification Summary (billed vs productive hours comparison)
+- All underlying data structures (`productionStatus`, `shadowEffectiveHours`, `dragReason`)
+- Dashboard calculations and shadow audit utilities
+- Previous UI archived as git tag `v2.3.6-shadow-audit-full` for rollback
+
+**Files Modified:**
+- `src/ActivityBlock.jsx` — Replaced inline status/productive columns with flag button + expandable detail panel for both labour and equipment tables
+
+---
+
 ### OCR Improvements - Individual Entries & Multi-Page Tickets (February 12, 2026)
 
 **Improved AI extraction from contractor daily ticket photos**
@@ -1324,4 +1352,4 @@ npx vercel ls
 ---
 
 **Manifest Generated**: January 20, 2026
-**Last Updated**: February 12, 2026 (OCR Improvements - Individual Entries & Multi-Page Tickets)
+**Last Updated**: February 12, 2026 (Simplified Shadow Audit - Exception-Based Flagging)
