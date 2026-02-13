@@ -728,9 +728,16 @@ function ActivityBlock({
   "ticketNumber": "string or null",
   "contractor": "string or null",
   "foreman": "string or null",
-  "labour": [{"classification": "string", "rt": number, "ot": number, "count": number}],
-  "equipment": [{"type": "string", "hours": number, "count": number, "unitNumber": "string or null"}]
+  "labour": [{"name": "employee full name", "classification": "string", "rt": number, "ot": number, "count": 1}],
+  "equipment": [{"type": "string", "hours": number, "count": 1, "unitNumber": "string or null"}]
 }
+
+CRITICAL - Individual Entries Required:
+- List EVERY person as a SEPARATE entry with their full name. Do NOT group workers together.
+- If the ticket shows "John Smith - Labourer - 10hrs" and "Mike Jones - Labourer - 10hrs", return TWO separate entries, not one entry with count: 2.
+- List EVERY piece of equipment as a SEPARATE entry. Do NOT group equipment together.
+- Each entry must have count: 1. Never use count > 1.
+- Extract the employee's full name exactly as written on the ticket.
 
 For equipment unitNumber, extract the unit number, asset ID, or fleet number if visible on the ticket (e.g., "U-1234", "EQ-507", "Unit 42").
 
@@ -758,7 +765,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
         if (data.labour && Array.isArray(data.labour)) {
           data.labour.forEach(l => {
             if (l.classification) {
-              addLabourToBlock(blockId, '', l.classification, l.rt || 0, l.ot || 0, 0, l.count || 1)
+              addLabourToBlock(blockId, l.name || '', l.classification, l.rt || 0, l.ot || 0, 0, 1)
             }
           })
         }
@@ -766,7 +773,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
         if (data.equipment && Array.isArray(data.equipment)) {
           data.equipment.forEach(e => {
             if (e.type) {
-              addEquipmentToBlock(blockId, e.type, e.hours || 0, e.count || 1, e.unitNumber || '')
+              addEquipmentToBlock(blockId, e.type, e.hours || 0, 1, e.unitNumber || '')
             }
           })
         }

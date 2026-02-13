@@ -304,7 +304,12 @@ function InspectorReport({
   "workDescription": "brief description of work performed if visible"
 }
 
-Important:
+CRITICAL - Individual Entries Required:
+- List EVERY person as a SEPARATE entry with their full name. Do NOT group workers together.
+- If the ticket shows "John Smith - Labourer - 10hrs" and "Mike Jones - Labourer - 10hrs", return TWO separate entries, not one entry with count: 2.
+- List EVERY piece of equipment as a SEPARATE entry. Do NOT group equipment together.
+- Each entry must have count: 1. Never use count > 1.
+- Extract the employee's full name exactly as written on the ticket.
 - Extract ALL personnel entries you can read
 - Extract ALL equipment entries you can read
 - Use standard classification names where possible
