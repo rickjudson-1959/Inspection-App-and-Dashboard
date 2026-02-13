@@ -362,6 +362,28 @@
 
 ## 6. RECENT UPDATES (January/February 2026)
 
+### OCR Improvements - Individual Entries & Multi-Page Tickets (February 12, 2026)
+
+**Improved AI extraction from contractor daily ticket photos**
+
+Two enhancements to the OCR ticket scanning feature:
+
+1. **Individual labour and equipment entries** — Updated AI prompts in both `ActivityBlock.jsx` and `InspectorReport.jsx` to require each person listed as a separate entry with their full name, instead of grouping workers together (e.g., "3 General Labourers"). Same for equipment — each piece listed individually. Employee names are now passed through to the labour form fields.
+
+2. **Multi-page ticket support** — Contractor tickets that span multiple pages can now be processed in a single OCR scan:
+   - "Upload Photo(s)" button accepts multiple file selection
+   - All page images sent to Claude in a single API call
+   - AI combines labour and equipment data from all pages into one unified list without duplicating entries
+   - `max_tokens` increased from 2000 to 4000 for larger multi-page responses
+   - All pages uploaded to Supabase storage on save (named `ticket_..._p1.jpg`, `ticket_..._p2.jpg`, etc.)
+   - First photo preserved as `ticketPhoto` for backward compatibility
+
+**Files Modified:**
+- `src/ActivityBlock.jsx` — Updated OCR prompt, `processTicketOCR()` accepts multiple files, multi-select upload UI
+- `src/InspectorReport.jsx` — Updated OCR prompt, multi-page photo upload on save
+
+---
+
 ### Build Optimization - Vendor Chunk Splitting (February 12, 2026)
 
 **Fixed Vite build warnings and optimized bundle size**
@@ -1111,4 +1133,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 12, 2026 (Build Optimization - Vendor Chunk Splitting)*
+*Last Updated: February 12, 2026 (OCR Improvements - Individual Entries & Multi-Page Tickets)*
