@@ -76,6 +76,7 @@ function InspectorReport() {
 
   // Edit mode
   const editReportId = searchParams.get('edit')
+  console.log('[InspectorReport] Mounted/rendered with editReportId:', editReportId, 'URL:', window.location.href)
   const [isEditMode, setIsEditMode] = useState(false)
   const [originalReportData, setOriginalReportData] = useState(null)
   const [loadingReport, setLoadingReport] = useState(false)
@@ -1492,10 +1493,21 @@ Important:
 
   // Load report for editing
   useEffect(() => {
+    console.log('[Edit Mode] useEffect triggered:', { editReportId, hasUserProfile: !!userProfile })
+
     async function loadReportForEdit() {
-      if (!editReportId) return
-      if (!userProfile) return // Wait for user profile to load
-      
+      console.log('[Edit Mode] loadReportForEdit called:', { editReportId, userProfile: userProfile?.full_name })
+
+      if (!editReportId) {
+        console.log('[Edit Mode] No editReportId, skipping')
+        return
+      }
+      if (!userProfile) {
+        console.log('[Edit Mode] No userProfile yet, waiting...')
+        return
+      }
+
+      console.log('[Edit Mode] Loading report:', editReportId)
       setLoadingReport(true)
       try {
         const { data: report, error } = await supabase
@@ -1503,6 +1515,8 @@ Important:
           .select('*')
           .eq('id', editReportId)
           .single()
+
+        console.log('[Edit Mode] Query result:', { report: report?.id, error })
 
         if (error) throw error
         if (!report) {
