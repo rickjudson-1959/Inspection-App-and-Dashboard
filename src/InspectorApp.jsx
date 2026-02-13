@@ -67,16 +67,18 @@ function InspectorApp({ user, onSignOut }) {
       }
 
       // Verify the user owns this report or is an admin
-      if (report.inspector_email !== user?.email) {
+      const isOwner = report.created_by === user?.id
+
+      if (!isOwner) {
         // Check if user is admin/chief
         const { data: profile } = await supabase
           .from('user_profiles')
           .select('role')
           .eq('id', user?.id)
           .single()
-        
-        const isAdmin = profile?.role && ['admin', 'chief_inspector', 'assistant_chief'].includes(profile.role)
-        
+
+        const isAdmin = profile?.role && ['admin', 'chief_inspector', 'assistant_chief', 'welding_chief'].includes(profile.role)
+
         if (!isAdmin) {
           throw new Error('You do not have permission to edit this report')
         }

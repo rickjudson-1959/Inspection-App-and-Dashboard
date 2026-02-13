@@ -110,7 +110,8 @@
       "Bash(source:*)",
       "Bash(mdfind:*)",
       "Bash(brew install:*)",
-      "Bash(pdftotext:*)"
+      "Bash(pdftotext:*)",
+      "WebFetch(domain:app.pipe-up.ca)"
     ]
   }
 }
