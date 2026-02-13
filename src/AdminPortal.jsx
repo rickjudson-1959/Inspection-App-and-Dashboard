@@ -22,6 +22,7 @@ import SignaturePad from './components/SignaturePad.jsx'
 import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 import AgentAuditFindingsPanel from './components/AgentAuditFindingsPanel.jsx'
 import JSZip from 'jszip'
+import jsPDF from 'jspdf'
 import { saveAs } from 'file-saver'
 import MeetingAgendaGenerator from './components/MeetingAgendaGenerator.jsx'
 import ProjectCalendar from './components/ProjectCalendar.jsx'
@@ -1977,7 +1978,6 @@ function AdminPortal() {
       const selectedDocs = projectDocuments.filter(d => transmittalForm.selectedDocIds.includes(d.id))
 
       // Build PDF using jsPDF
-      const { jsPDF } = await import('jspdf')
       const doc = new jsPDF()
 
       // Header
