@@ -66,33 +66,14 @@ function InspectorApp({ user, onSignOut }) {
         throw new Error('Report not found')
       }
 
-      // Get user profile for role and name check
-      const { data: profile } = await supabase
-        .from('user_profiles')
-        .select('role, full_name')
-        .eq('id', user?.id)
-        .single()
-
-      // Check ownership multiple ways (created_by match, or inspector_name match)
-      const isOwnerById = report.created_by === user?.id
-      const isOwnerByName = profile?.full_name &&
-        report.inspector_name?.toLowerCase().trim() === profile.full_name.toLowerCase().trim()
-      const isOwner = isOwnerById || isOwnerByName
-
-      // Check if user has elevated role
-      const isAdmin = profile?.role && ['admin', 'chief_inspector', 'assistant_chief', 'welding_chief', 'inspector'].includes(profile.role)
-
-      // Allow if owner OR admin (inspectors can edit their own reports)
-      if (!isOwner && !isAdmin) {
-        console.error('Permission denied:', {
-          reportCreatedBy: report.created_by,
-          userId: user?.id,
-          reportInspectorName: report.inspector_name,
-          userFullName: profile?.full_name,
-          userRole: profile?.role
-        })
-        throw new Error('You do not have permission to edit this report')
-      }
+      // RLS policies already ensure users can only see reports in their org
+      // Just log who is editing for debugging
+      console.log('[InspectorApp] Loading report for edit:', {
+        reportId,
+        reportInspectorName: report.inspector_name,
+        reportCreatedBy: report.created_by,
+        userId: user?.id
+      })
 
       // Fetch related labour entries
       const { data: labourData } = await supabase
