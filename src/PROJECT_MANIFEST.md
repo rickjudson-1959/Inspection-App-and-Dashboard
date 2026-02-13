@@ -362,6 +362,33 @@
 
 ## 6. RECENT UPDATES (January/February 2026)
 
+### Build Optimization - Vendor Chunk Splitting (February 12, 2026)
+
+**Fixed Vite build warnings and optimized bundle size**
+
+Two build warnings resolved:
+
+1. **jspdf import inconsistency** — `AdminPortal.jsx` used a dynamic `await import('jspdf')` while 7 other files imported it statically. Replaced with static import to eliminate the warning (no code-splitting benefit since jspdf was already in the main bundle).
+
+2. **Main bundle too large (4,656 KB)** — Added `manualChunks` configuration to `vite.config.js` to split vendor libraries into separate cached chunks:
+
+| Chunk | Contents | Size |
+|-------|----------|------|
+| `vendor-react` | react, react-dom, react-router-dom | 178 KB |
+| `vendor-charts` | recharts | 395 KB |
+| `vendor-maps` | leaflet, react-leaflet | 155 KB |
+| `vendor-pdf` | jspdf, jspdf-autotable | 419 KB |
+| `vendor-spreadsheet` | xlsx | 283 KB |
+| `vendor-supabase` | @supabase/supabase-js | 172 KB |
+
+**Result:** Main bundle reduced from 4,656 KB to 3,034 KB (35% reduction). Vendor chunks are independently cacheable by the browser and PWA service worker.
+
+**Files Modified:**
+- `vite.config.js` — Added `build.rollupOptions.output.manualChunks` configuration
+- `src/AdminPortal.jsx` — Replaced dynamic jspdf import with static import
+
+---
+
 ### Shielded Input Architecture (February 4, 2026)
 
 **Project-wide fix for the "single-digit input" bug**
@@ -1084,4 +1111,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 4, 2026 (Shielded Input Architecture - 131 inputs across 12 files)*
+*Last Updated: February 12, 2026 (Build Optimization - Vendor Chunk Splitting)*
