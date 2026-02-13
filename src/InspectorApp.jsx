@@ -66,22 +66,32 @@ function InspectorApp({ user, onSignOut }) {
         throw new Error('Report not found')
       }
 
-      // Verify the user owns this report or is an admin
-      const isOwner = report.created_by === user?.id
+      // Get user profile for role and name check
+      const { data: profile } = await supabase
+        .from('user_profiles')
+        .select('role, full_name')
+        .eq('id', user?.id)
+        .single()
 
-      if (!isOwner) {
-        // Check if user is admin/chief
-        const { data: profile } = await supabase
-          .from('user_profiles')
-          .select('role')
-          .eq('id', user?.id)
-          .single()
+      // Check ownership multiple ways (created_by match, or inspector_name match)
+      const isOwnerById = report.created_by === user?.id
+      const isOwnerByName = profile?.full_name &&
+        report.inspector_name?.toLowerCase().trim() === profile.full_name.toLowerCase().trim()
+      const isOwner = isOwnerById || isOwnerByName
 
-        const isAdmin = profile?.role && ['admin', 'chief_inspector', 'assistant_chief', 'welding_chief'].includes(profile.role)
+      // Check if user has elevated role
+      const isAdmin = profile?.role && ['admin', 'chief_inspector', 'assistant_chief', 'welding_chief', 'inspector'].includes(profile.role)
 
-        if (!isAdmin) {
-          throw new Error('You do not have permission to edit this report')
-        }
+      // Allow if owner OR admin (inspectors can edit their own reports)
+      if (!isOwner && !isAdmin) {
+        console.error('Permission denied:', {
+          reportCreatedBy: report.created_by,
+          userId: user?.id,
+          reportInspectorName: report.inspector_name,
+          userFullName: profile?.full_name,
+          userRole: profile?.role
+        })
+        throw new Error('You do not have permission to edit this report')
       }
 
       // Fetch related labour entries
