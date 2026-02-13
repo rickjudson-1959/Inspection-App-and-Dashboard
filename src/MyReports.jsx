@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from './supabase'
 import { useOrgQuery } from './utils/queryHelpers.js'
+import { useOrgPath } from './contexts/OrgContext.jsx'
 import NotificationBell from './components/NotificationBell.jsx'
 import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 
 function MyReports({ user, onEditReport, onBack }) {
+  const navigate = useNavigate()
+  const { orgPath } = useOrgPath()
   const { addOrgFilter, organizationId, isReady } = useOrgQuery()
   const [reports, setReports] = useState([])
   const [weldingReviews, setWeldingReviews] = useState({}) // { reportId: reviewData }
@@ -680,7 +684,12 @@ function MyReports({ user, onEditReport, onBack }) {
                   <td style={{ ...tdStyle, textAlign: 'center', whiteSpace: 'nowrap' }}>
                     <button
                       style={editButtonStyle}
-                      onClick={() => onEditReport(report.id)}
+                      onClick={() => {
+                        // Clear any draft so it doesn't interfere
+                        localStorage.removeItem('pipeup_inspector_draft')
+                        // Navigate directly to field-entry with edit param
+                        navigate(`${orgPath('/field-entry')}?edit=${report.id}`)
+                      }}
                       title="Edit this report"
                     >
                       ✏️ Edit
