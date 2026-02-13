@@ -101,12 +101,13 @@ function InspectorApp({ user, onSignOut }) {
         photos: photosData || []
       }
 
+      // Navigate FIRST so URL is updated before InspectorReport mounts
+      navigate(`${orgPath('/inspector')}?edit=${reportId}`, { replace: true })
+
+      // Then set state to trigger the render
       setEditReportId(reportId)
       setEditReportData(fullReport)
       setView('edit')
-
-      // Navigate with query param so InspectorReport detects edit mode
-      navigate(`${orgPath('/inspector')}?edit=${reportId}`, { replace: true })
       
     } catch (err) {
       console.error('Error loading report:', err)
