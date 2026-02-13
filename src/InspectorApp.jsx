@@ -119,6 +119,8 @@ function InspectorApp({ user, onSignOut }) {
   }
 
   function handleEditReport(reportId) {
+    // Clear any saved draft so it doesn't interfere with loading the report
+    localStorage.removeItem('pipeup_inspector_draft')
     loadReportForEdit(reportId)
   }
 
