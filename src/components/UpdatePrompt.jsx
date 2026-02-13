@@ -133,6 +133,28 @@ function UpdatePrompt() {
     }
   })
 
+  // AUTO-UPDATE when service worker detects new version
+  useEffect(() => {
+    if (needRefresh && !isClearing) {
+      console.log('[UpdatePrompt] Service worker detected new version - AUTO UPDATING')
+      setIsClearing(true)
+
+      clearAllCaches().then(() => {
+        localStorage.setItem(VERSION_STORAGE_KEY, APP_VERSION)
+        console.log('[UpdatePrompt] Caches cleared, applying service worker update...')
+
+        updateServiceWorker(true).then(() => {
+          setTimeout(() => {
+            window.location.reload()
+          }, 500)
+        }).catch(() => {
+          // If SW update fails, just reload
+          window.location.reload()
+        })
+      })
+    }
+  }, [needRefresh, isClearing, updateServiceWorker])
+
   // Check for version mismatch on mount - AUTO CLEAR AND RELOAD
   useEffect(() => {
     const storedVersion = localStorage.getItem(VERSION_STORAGE_KEY)

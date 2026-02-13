@@ -405,6 +405,40 @@
 
 ## 6. RECENT UPDATES (January/February 2026)
 
+### My Reports Edit & Ticket Photo Fixes (February 12, 2026)
+
+**Version:** 2.3.6
+
+**Edit Report Navigation Bug Fix**
+- Fixed critical bug where selecting a report from the "My Reports" dropdown didn't load the report for editing
+- Root cause: Dropdown was navigating to `/inspector?edit=xxx` (wrong) instead of `${orgPath('/field-entry')}?edit=xxx` (correct)
+- The edit parameter wasn't being recognized because it went to the wrong route without the org prefix
+- Now properly navigates to `/default/field-entry?edit=xxx` (or appropriate org slug)
+
+**Ticket Photo Preservation**
+- Added `savedTicketPhotoUrl` and `savedTicketPhotoName` fields to activity blocks when editing
+- Existing ticket photos now display when editing a report (fetched from Supabase storage)
+- Fixed bug where re-saving a report without uploading a NEW photo would overwrite the existing photo reference with null
+- ActivityBlock component now handles both new File uploads and saved URL references
+
+**InspectorReport Props Support**
+- InspectorReport now accepts optional props: `editReportId`, `editReportData`, `editMode`
+- Props take priority over URL parameters (for use when rendered inside InspectorApp)
+- Added `populateFormFromReport()` helper function for consistent form population
+
+**Auto-Update on Service Worker Detection**
+- When service worker detects a new version (`needRefresh` = true), app now automatically updates
+- Previously required user to click "Update Now" button
+- Clears caches and reloads without user interaction
+- Ensures users always get the latest version
+
+**Files Modified:**
+- `src/InspectorReport.jsx` - Props support, ticket photo URL loading, form population helper
+- `src/ActivityBlock.jsx` - Handle both File and URL for ticket photo display
+- `src/components/UpdatePrompt.jsx` - Auto-update on needRefresh
+
+---
+
 ### Auto Cache Clearing on Version Update (February 12, 2026)
 
 **Automatic Cache & Data Cleanup on App Updates**
@@ -448,7 +482,7 @@
 - `src/components/UpdatePrompt.jsx` - Auto-clear logic, preserve keys
 - `src/version.js` - Bumped to 2.2.0
 
-**Current Version:** 2.2.0
+**Current Version:** 2.3.6
 
 ---
 
@@ -623,7 +657,7 @@ npx supabase db push
 
 ### PWA Offline Mode - Working Implementation (February 8, 2026)
 
-**Version:** 2.2.0 (Updated February 12, 2026)
+**Version:** 2.3.6 (Updated February 12, 2026)
 
 **Status:** WORKING - Full offline support for field inspectors
 
@@ -691,7 +725,7 @@ VitePWA({
 ```
 
 **Version Indicator:**
-- Displayed on login page: `v2.2.0 (2026-02-12)`
+- Displayed on login page: `v2.3.6 (2026-02-12)`
 - Update `src/version.js` when deploying new versions
 - Allows easy verification that users have latest version
 - **Auto-cache clearing:** When version mismatch detected, caches clear automatically (see "Auto Cache Clearing" section above)
@@ -1704,4 +1738,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 12, 2026 (Auto Cache Clearing on Version Update)*
+*Last Updated: February 12, 2026 (My Reports Edit & Ticket Photo Fixes - v2.3.6)*

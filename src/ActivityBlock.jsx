@@ -2128,12 +2128,12 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           <p style={{ color: '#dc3545', fontSize: '13px', margin: '10px 0' }}>{ocrError}</p>
         )}
 
-        {/* Show ticket photo if one exists */}
-        {block.ticketPhoto && (
+        {/* Show ticket photo if one exists (either new upload or saved from database) */}
+        {(block.ticketPhoto || block.savedTicketPhotoUrl) && (
           <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#d4edda', borderRadius: '6px', border: '1px solid #c3e6cb' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
               <span style={{ color: '#155724', fontSize: '13px', fontWeight: 'bold' }}>
-                ✓ Ticket photo attached: {block.ticketPhoto.name || 'Photo'}
+                ✓ Ticket photo attached: {block.ticketPhoto?.name || block.savedTicketPhotoName || 'Photo'}
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
@@ -2153,7 +2153,11 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                 </button>
                 <button
                   type="button"
-                  onClick={() => updateBlock(block.id, 'ticketPhoto', null)}
+                  onClick={() => {
+                    updateBlock(block.id, 'ticketPhoto', null)
+                    updateBlock(block.id, 'savedTicketPhotoUrl', null)
+                    updateBlock(block.id, 'savedTicketPhotoName', null)
+                  }}
                   style={{
                     padding: '6px 12px',
                     backgroundColor: '#dc3545',
@@ -2172,7 +2176,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
         )}
 
         {/* Ticket Photo Modal */}
-        {showTicketPhoto && block.ticketPhoto && (
+        {showTicketPhoto && (block.ticketPhoto || block.savedTicketPhotoUrl) && (
           <div
             style={{
               position: 'fixed',
@@ -2218,7 +2222,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               </div>
               <div style={{ overflow: 'auto', flex: 1 }}>
                 <img
-                  src={URL.createObjectURL(block.ticketPhoto)}
+                  src={block.ticketPhoto ? URL.createObjectURL(block.ticketPhoto) : block.savedTicketPhotoUrl}
                   alt="Contractor Ticket"
                   style={{ maxWidth: '100%', maxHeight: 'calc(90vh - 100px)', objectFit: 'contain' }}
                 />

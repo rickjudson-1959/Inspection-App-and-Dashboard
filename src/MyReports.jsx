@@ -688,7 +688,9 @@ function MyReports({ user, onEditReport, onBack }) {
                         // Clear any draft so it doesn't interfere
                         localStorage.removeItem('pipeup_inspector_draft')
                         // Navigate directly to field-entry with edit param
-                        navigate(`${orgPath('/field-entry')}?edit=${report.id}`)
+                        const targetUrl = `${orgPath('/field-entry')}?edit=${report.id}`
+                        console.log('[MyReports] Edit clicked, navigating to:', targetUrl)
+                        navigate(targetUrl)
                       }}
                       title="Edit this report"
                     >

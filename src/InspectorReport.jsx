@@ -58,7 +58,17 @@ const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 // Constants now imported from constants.js
 
 
-function InspectorReport() {
+import { APP_VERSION } from './version.js'
+
+function InspectorReport({
+  editReportId: editReportIdProp,
+  editReportData: editReportDataProp,
+  editMode: editModeProp
+} = {}) {
+  // Log version only once on mount
+  useEffect(() => {
+    console.log('[InspectorReport] Component mounted, version:', APP_VERSION)
+  }, [])
   const { signOut, userProfile } = useAuth()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -74,9 +84,10 @@ function InspectorReport() {
   // Guided tour
   const { runTour, stepIndex, handleTourCallback, startTour } = useGuidedTour('inspectorReport', TOUR_STEPS.inspectorReport)
 
-  // Edit mode
-  const editReportId = searchParams.get('edit')
-  console.log('[InspectorReport] Mounted/rendered with editReportId:', editReportId, 'URL:', window.location.href)
+  // Edit mode - prefer props from InspectorApp, fallback to URL params
+  const editReportIdFromUrl = searchParams.get('edit')
+  const editReportId = editReportIdProp || editReportIdFromUrl
+  console.log('[InspectorReport] editReportId:', editReportId, '(prop:', editReportIdProp, ', url:', editReportIdFromUrl, ')')
   const [isEditMode, setIsEditMode] = useState(false)
   const [originalReportData, setOriginalReportData] = useState(null)
   const [loadingReport, setLoadingReport] = useState(false)
@@ -1491,12 +1502,120 @@ Important:
     fetchPreviousReports()
   }, [userProfile])
 
+  // Helper function to populate form from report data
+  function populateFormFromReport(report) {
+    console.log('[Edit Mode] Populating form from report:', report.id)
+
+    // Store original for comparison
+    setOriginalReportData(report)
+    setIsEditMode(true)
+    setCurrentReportId(parseInt(report.id, 10))
+
+    // Populate all fields from report
+    setSelectedDate(report.report_date || report.date || '')
+    setInspectorName(report.inspector_name || '')
+    setSpread(report.spread || '')
+    setAfe(report.afe || '')
+    setPipeline(report.pipeline || '')
+    setWeather(report.weather || '')
+    setPrecipitation(report.precipitation || '')
+    setTempHigh(report.temp_high || '')
+    setTempLow(report.temp_low || '')
+    setWindSpeed(report.wind_speed || '')
+    setRowCondition(report.row_condition || '')
+    setStartTime(report.start_time || '')
+    setStopTime(report.stop_time || '')
+    setSafetyNotes(report.safety_notes || '')
+    setSafetyRecognitionData(report.safety_recognition || { enabled: false, cards: [] })
+    setLandEnvironment(report.land_environment || '')
+    setWildlifeSightingData(report.wildlife_sighting || { enabled: false, sightings: [] })
+    setGeneralComments(report.general_comments || '')
+    setVisitors(report.visitors || [])
+    setInspectorMileage(report.inspector_mileage || '')
+    setInspectorEquipment(report.inspector_equipment || [])
+    setUnitPriceItemsEnabled(report.unit_price_items_enabled || false)
+    setUnitPriceData(report.unit_price_data || { items: [], comments: '' })
+
+    // Load activity blocks
+    console.log('[Edit Mode] Activity blocks from report:', report.activity_blocks?.length, report.activity_blocks)
+    if (report.activity_blocks && report.activity_blocks.length > 0) {
+      const loadedChainageReasons = {}
+      const loadedBlocks = report.activity_blocks.map((block, idx) => {
+        const blockId = block.id || `block-${Date.now()}-${idx}`
+
+        // Restore chainage reasons from saved data
+        if (block.chainageOverlapReason || block.chainageGapReason) {
+          loadedChainageReasons[blockId] = {
+            overlapReason: block.chainageOverlapReason || '',
+            gapReason: block.chainageGapReason || ''
+          }
+        }
+
+        // Generate URL for existing ticket photo
+        let savedTicketPhotoUrl = null
+        console.log('[Edit Mode] Block ticketPhoto field:', block.ticketPhoto, 'type:', typeof block.ticketPhoto)
+        if (block.ticketPhoto && typeof block.ticketPhoto === 'string') {
+          const { data } = supabase.storage
+            .from('ticket-photos')
+            .getPublicUrl(block.ticketPhoto)
+          savedTicketPhotoUrl = data?.publicUrl || null
+          console.log('[Edit Mode] Loaded ticket photo URL:', savedTicketPhotoUrl)
+        }
+
+        return {
+          id: blockId,
+          activityType: block.activityType || '',
+          contractor: block.contractor || '',
+          foreman: block.foreman || '',
+          startKP: block.startKP || '',
+          endKP: block.endKP || '',
+          workDescription: block.workDescription || '',
+          labourEntries: block.labourEntries || [],
+          equipmentEntries: block.equipmentEntries || [],
+          qualityData: block.qualityData || {},
+          workPhotos: block.workPhotos || [],  // Preserve existing work photos metadata
+          ticketPhoto: null,  // For new uploads
+          savedTicketPhotoUrl: savedTicketPhotoUrl,  // URL for existing photo
+          savedTicketPhotoName: block.ticketPhoto || null,  // Filename for display
+          timeLostReason: block.timeLostReason || 'None',
+          timeLostHours: block.timeLostHours || '',
+          timeLostDetails: block.timeLostDetails || '',
+          metersToday: block.metersToday || '',
+          metersPrevious: block.metersPrevious || '',
+          ticketNumber: block.ticketNumber || '',
+          weldData: block.weldData || null,
+          bendingData: block.bendingData || null,
+          stringingData: block.stringingData || null,
+          coatingData: block.coatingData || null,
+          clearingData: block.clearingData || null,
+          counterboreData: block.counterboreData || null,
+          hddData: block.hddData || null,
+          pilingData: block.pilingData || null,
+          hydrovacData: block.hydrovacData || null,
+          welderTestingData: block.welderTestingData || null,
+          hydrotestData: block.hydrotestData || null,
+          tieInCompletionData: block.tieInCompletionData || null,
+          ditchData: block.ditchData || null,
+          gradingData: block.gradingData || null,
+          cleaningLogData: block.cleaningLogData || null,
+          machineCleanupData: block.machineCleanupData || null,
+          finalCleanupData: block.finalCleanupData || null
+        }
+      })
+      setActivityBlocks(loadedBlocks)
+      setChainageReasons(loadedChainageReasons)
+    }
+
+    setLoadingReport(false)
+    console.log('[Edit Mode] Form populated successfully')
+  }
+
   // Load report for editing
   useEffect(() => {
-    console.log('[Edit Mode] useEffect triggered:', { editReportId, hasUserProfile: !!userProfile })
+    console.log('[Edit Mode] useEffect triggered:', { editReportId, editReportDataProp: !!editReportDataProp, hasUserProfile: !!userProfile })
 
     async function loadReportForEdit() {
-      console.log('[Edit Mode] loadReportForEdit called:', { editReportId, userProfile: userProfile?.full_name })
+      console.log('[Edit Mode] loadReportForEdit called:', { editReportId, editReportDataProp: !!editReportDataProp, userProfile: userProfile?.full_name })
 
       if (!editReportId) {
         console.log('[Edit Mode] No editReportId, skipping')
@@ -1507,7 +1626,14 @@ Important:
         return
       }
 
-      console.log('[Edit Mode] Loading report:', editReportId)
+      // If editReportDataProp was passed (from InspectorApp), use it directly
+      if (editReportDataProp) {
+        console.log('[Edit Mode] Using editReportDataProp from parent')
+        populateFormFromReport(editReportDataProp)
+        return
+      }
+
+      console.log('[Edit Mode] Loading report from database:', editReportId)
       setLoadingReport(true)
       try {
         const { data: report, error } = await supabase
@@ -1562,101 +1688,16 @@ Important:
           }
         }
 
-        // Store original for comparison
-        setOriginalReportData(report)
-        setIsEditMode(true)
-        setCurrentReportId(parseInt(editReportId, 10))
+        // Use the helper function to populate form
+        populateFormFromReport(report)
 
-        // Populate all fields from report
-        setSelectedDate(report.date || '')
-        setInspectorName(report.inspector_name || '')
-        setSpread(report.spread || '')
-        setAfe(report.afe || '')
-        setPipeline(report.pipeline || '')
-        setWeather(report.weather || '')
-        setPrecipitation(report.precipitation || '')
-        setTempHigh(report.temp_high || '')
-        setTempLow(report.temp_low || '')
-        setWindSpeed(report.wind_speed || '')
-        setRowCondition(report.row_condition || '')
-        setStartTime(report.start_time || '')
-        setStopTime(report.stop_time || '')
-        setSafetyNotes(report.safety_notes || '')
-        setSafetyRecognitionData(report.safety_recognition || { enabled: false, cards: [] })
-        setLandEnvironment(report.land_environment || '')
-        setWildlifeSightingData(report.wildlife_sighting || { enabled: false, sightings: [] })
-        setGeneralComments(report.general_comments || '')
-        setVisitors(report.visitors || [])
-        setInspectorMileage(report.inspector_mileage || '')
-        setInspectorEquipment(report.inspector_equipment || [])
-        setUnitPriceItemsEnabled(report.unit_price_items_enabled || false)
-        setUnitPriceData(report.unit_price_data || { items: [], comments: '' })
-
-        // Load activity blocks
-        if (report.activity_blocks && report.activity_blocks.length > 0) {
-          const loadedChainageReasons = {}
-          const loadedBlocks = report.activity_blocks.map((block, idx) => {
-            const blockId = block.id || `block-${Date.now()}-${idx}`
-            
-            // Restore chainage reasons from saved data
-            if (block.chainageOverlapReason || block.chainageGapReason) {
-              loadedChainageReasons[blockId] = {
-                overlapReason: block.chainageOverlapReason || '',
-                gapReason: block.chainageGapReason || ''
-              }
-            }
-            
-            return {
-              id: blockId,
-              activityType: block.activityType || '',
-              contractor: block.contractor || '',
-              foreman: block.foreman || '',
-              startKP: block.startKP || '',
-              endKP: block.endKP || '',
-              workDescription: block.workDescription || '',
-              labourEntries: block.labourEntries || [],
-              equipmentEntries: block.equipmentEntries || [],
-              qualityData: block.qualityData || {},
-              workPhotos: [],  // Photos can't be re-loaded easily
-              ticketPhoto: null,
-              timeLostReason: block.timeLostReason || 'None',
-              timeLostHours: block.timeLostHours || '',
-              timeLostDetails: block.timeLostDetails || '',
-              metersToday: block.metersToday || '',
-              metersPrevious: block.metersPrevious || '',
-              ticketNumber: block.ticketNumber || '',
-              weldData: block.weldData || null,
-              bendingData: block.bendingData || null,
-              stringingData: block.stringingData || null,
-              coatingData: block.coatingData || null,
-              clearingData: block.clearingData || null,
-              counterboreData: block.counterboreData || null,
-              hddData: block.hddData || null,
-              pilingData: block.pilingData || null,
-              hydrovacData: block.hydrovacData || null,
-              welderTestingData: block.welderTestingData || null,
-              hydrotestData: block.hydrotestData || null,
-              tieInCompletionData: block.tieInCompletionData || null,
-              ditchData: block.ditchData || null,
-              gradingData: block.gradingData || null,
-              cleaningLogData: block.cleaningLogData || null,
-              machineCleanupData: block.machineCleanupData || null,
-              finalCleanupData: block.finalCleanupData || null
-            }
-          })
-          setActivityBlocks(loadedBlocks)
-          setChainageReasons(loadedChainageReasons)
-        }
-
-        console.log('Report loaded for editing:', report.id)
-        
         // Check if this report needs revision and show the notes
         const { data: statusData } = await supabase
           .from('report_status')
           .select('status, revision_notes')
           .eq('report_id', report.id)
           .maybeSingle()
-        
+
         if (statusData?.status === 'revision_requested' && statusData?.revision_notes) {
           setTimeout(() => {
             alert(`⚠️ REVISION REQUESTED\n\nThe Chief Inspector has requested changes to this report:\n\n"${statusData.revision_notes}"\n\nPlease make the necessary corrections and save the report.`)
@@ -1665,12 +1706,12 @@ Important:
       } catch (err) {
         console.error('Error loading report:', err)
         alert('Error loading report: ' + err.message)
+        setLoadingReport(false)
       }
-      setLoadingReport(false)
     }
 
     loadReportForEdit()
-  }, [editReportId, userProfile])
+  }, [editReportId, editReportDataProp, userProfile])
 
   // Fetch weather
   async function fetchWeather() {
@@ -2568,10 +2609,11 @@ Important:
       const processedBlocks = []
       
       for (const block of activityBlocks) {
-        let ticketPhotoFileName = null
+        // Preserve existing ticket photo filename, or null if none
+        let ticketPhotoFileName = block.savedTicketPhotoName || null
         const workPhotoData = []
 
-        // Upload ticket photo
+        // Upload NEW ticket photo (if user uploaded/took a new one)
         if (block.ticketPhoto) {
           const fileExt = block.ticketPhoto.name.split('.').pop()
           ticketPhotoFileName = `ticket_${Date.now()}_${block.id}.${fileExt}`
@@ -2580,7 +2622,11 @@ Important:
             .upload(ticketPhotoFileName, block.ticketPhoto)
           if (uploadError) {
             console.error('Ticket photo upload error:', uploadError)
+          } else {
+            console.log('[Save] Uploaded new ticket photo:', ticketPhotoFileName)
           }
+        } else if (ticketPhotoFileName) {
+          console.log('[Save] Preserving existing ticket photo:', ticketPhotoFileName)
         }
 
         // Upload work photos
@@ -6401,7 +6447,11 @@ Important:
             <select
               onChange={(e) => {
                 if (e.target.value) {
-                  navigate(`/inspector?edit=${e.target.value}`)
+                  // Clear any draft so it doesn't interfere
+                  localStorage.removeItem('pipeup_inspector_draft')
+                  const targetUrl = `${orgPath('/field-entry')}?edit=${e.target.value}`
+                  console.log('[InspectorReport] Loading report from dropdown:', targetUrl)
+                  navigate(targetUrl)
                 }
               }}
               style={{
