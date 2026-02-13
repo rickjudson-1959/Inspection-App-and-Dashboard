@@ -104,9 +104,9 @@ function InspectorApp({ user, onSignOut }) {
       setEditReportId(reportId)
       setEditReportData(fullReport)
       setView('edit')
-      
-      // Update URL with query param that InspectorReport expects
-      window.history.pushState({}, '', orgPath(`/inspector?edit=${reportId}`))
+
+      // Navigate with query param so InspectorReport detects edit mode
+      navigate(`${orgPath('/inspector')}?edit=${reportId}`, { replace: true })
       
     } catch (err) {
       console.error('Error loading report:', err)
@@ -125,14 +125,14 @@ function InspectorApp({ user, onSignOut }) {
     setView('new')
     setEditReportId(null)
     setEditReportData(null)
-    window.history.pushState({}, '', orgPath('/inspector'))
+    navigate(orgPath('/inspector'), { replace: true })
   }
 
   function handleViewMyReports() {
     setView('myreports')
     setEditReportId(null)
     setEditReportData(null)
-    window.history.pushState({}, '', orgPath('/my-reports'))
+    navigate(orgPath('/my-reports'), { replace: true })
   }
 
   function handleSaveComplete(savedReportId) {
