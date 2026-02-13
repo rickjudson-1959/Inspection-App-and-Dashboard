@@ -2618,8 +2618,27 @@ CRITICAL - Individual Entries Required:
         let ticketPhotoFileName = block.savedTicketPhotoName || null
         const workPhotoData = []
 
-        // Upload NEW ticket photo (if user uploaded/took a new one)
-        if (block.ticketPhoto) {
+        // Upload NEW ticket photo(s) (if user uploaded/took new ones)
+        if (block.ticketPhotos && block.ticketPhotos.length > 1) {
+          // Multi-page ticket: upload all pages
+          const uploadedNames = []
+          for (let i = 0; i < block.ticketPhotos.length; i++) {
+            const file = block.ticketPhotos[i]
+            const fileExt = file.name.split('.').pop()
+            const fileName = `ticket_${Date.now()}_${block.id}_p${i + 1}.${fileExt}`
+            const { error: uploadError } = await supabase.storage
+              .from('ticket-photos')
+              .upload(fileName, file)
+            if (uploadError) {
+              console.error(`Ticket photo page ${i + 1} upload error:`, uploadError)
+            } else {
+              uploadedNames.push(fileName)
+              console.log(`[Save] Uploaded ticket photo page ${i + 1}:`, fileName)
+            }
+          }
+          // Store first photo as ticketPhoto for backward compat, all as JSON array in ticketPhotos
+          ticketPhotoFileName = uploadedNames[0] || ticketPhotoFileName
+        } else if (block.ticketPhoto) {
           const fileExt = block.ticketPhoto.name.split('.').pop()
           ticketPhotoFileName = `ticket_${Date.now()}_${block.id}.${fileExt}`
           const { error: uploadError } = await supabase.storage

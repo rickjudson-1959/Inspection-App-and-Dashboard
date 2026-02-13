@@ -685,24 +685,36 @@ function ActivityBlock({
     return ''
   }
 
-  // OCR Processing for contractor tickets
-  const processTicketOCR = async (blockId, imageFile) => {
+  // OCR Processing for contractor tickets (supports multiple pages)
+  const processTicketOCR = async (blockId, imageFiles) => {
+    const files = Array.isArray(imageFiles) ? imageFiles : [imageFiles]
     setOcrProcessing(true)
     setOcrError(null)
 
-    // Save the photo to the block first
-    updateBlock(blockId, 'ticketPhoto', imageFile)
+    // Save the photos to the block (first file as ticketPhoto for backward compat, all as ticketPhotos array)
+    updateBlock(blockId, 'ticketPhoto', files[0])
+    if (files.length > 1) {
+      updateBlock(blockId, 'ticketPhotos', files)
+    }
 
     try {
-      const reader = new FileReader()
-      const base64Promise = new Promise((resolve, reject) => {
-        reader.onload = () => resolve(reader.result.split(',')[1])
-        reader.onerror = reject
-        reader.readAsDataURL(imageFile)
-      })
+      // Convert all images to base64
+      const imageContents = await Promise.all(files.map(file => {
+        return new Promise((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve({
+            type: 'image',
+            source: { type: 'base64', media_type: file.type, data: reader.result.split(',')[1] }
+          })
+          reader.onerror = reject
+          reader.readAsDataURL(file)
+        })
+      }))
 
-      const base64Image = await base64Promise
-      
+      const pageNote = files.length > 1
+        ? `\n\nThis ticket spans ${files.length} pages/photos. Combine ALL labour and equipment from ALL pages into a single unified list. Do not duplicate entries that appear on multiple pages.`
+        : ''
+
       const response = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: {
@@ -713,14 +725,11 @@ function ActivityBlock({
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 2000,
+          max_tokens: 4000,
           messages: [{
             role: 'user',
             content: [
-              {
-                type: 'image',
-                source: { type: 'base64', media_type: imageFile.type, data: base64Image }
-              },
+              ...imageContents,
               {
                 type: 'text',
                 text: `Extract labour and equipment data from this contractor daily ticket. Return JSON only:
@@ -742,7 +751,7 @@ CRITICAL - Individual Entries Required:
 For equipment unitNumber, extract the unit number, asset ID, or fleet number if visible on the ticket (e.g., "U-1234", "EQ-507", "Unit 42").
 
 Match classifications to: ${labourClassifications.slice(0, 20).join(', ')}...
-Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
+Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
               }
             ]
           }]
@@ -2112,15 +2121,16 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
               disabled={ocrProcessing}
             />
           </label>
-          {/* Upload from Gallery/Files */}
+          {/* Upload from Gallery/Files - supports multiple pages */}
           <label style={{ padding: '10px 20px', backgroundColor: '#17a2b8', color: 'white', borderRadius: '4px', cursor: ocrProcessing ? 'wait' : 'pointer', fontSize: '14px', opacity: ocrProcessing ? 0.7 : 1, display: 'flex', alignItems: 'center', gap: '6px' }}>
-            {ocrProcessing ? '⏳ Processing...' : '📁 Upload Photo'}
+            {ocrProcessing ? '⏳ Processing...' : '📁 Upload Photo(s)'}
             <input
               type="file"
               accept="image/*"
+              multiple
               onChange={(e) => {
-                if (e.target.files[0]) {
-                  processTicketOCR(block.id, e.target.files[0])
+                if (e.target.files?.length) {
+                  processTicketOCR(block.id, Array.from(e.target.files))
                 }
               }}
               style={{ display: 'none' }}
@@ -2129,7 +2139,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           </label>
         </div>
         <p style={{ fontSize: '12px', color: '#666', margin: '5px 0 0 0' }}>
-          Take a photo of the contractor's ticket or upload an existing image. AI will extract labour and equipment data.
+          Take a photo or upload images of the contractor's ticket. For multi-page tickets, select all pages at once — AI will combine data from all pages.
         </p>
         {ocrError && (
           <p style={{ color: '#dc3545', fontSize: '13px', margin: '10px 0' }}>{ocrError}</p>
@@ -2140,7 +2150,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
           <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#d4edda', borderRadius: '6px', border: '1px solid #c3e6cb' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
               <span style={{ color: '#155724', fontSize: '13px', fontWeight: 'bold' }}>
-                ✓ Ticket photo attached: {block.ticketPhoto?.name || block.savedTicketPhotoName || 'Photo'}
+                ✓ Ticket photo{block.ticketPhotos?.length > 1 ? `s (${block.ticketPhotos.length} pages)` : ''} attached: {block.ticketPhoto?.name || block.savedTicketPhotoName || 'Photo'}
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
@@ -2162,6 +2172,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...`
                   type="button"
                   onClick={() => {
                     updateBlock(block.id, 'ticketPhoto', null)
+                    updateBlock(block.id, 'ticketPhotos', null)
                     updateBlock(block.id, 'savedTicketPhotoUrl', null)
                     updateBlock(block.id, 'savedTicketPhotoName', null)
                   }}
