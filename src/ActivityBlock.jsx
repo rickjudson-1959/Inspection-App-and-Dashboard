@@ -414,6 +414,12 @@ function ActivityBlock({
   const [ocrError, setOcrError] = useState(null)
   const [showTicketPhoto, setShowTicketPhoto] = useState(false)
   
+  // Track which labour/equipment rows have their flag panel open
+  const [openFlagRows, setOpenFlagRows] = useState({})
+  const toggleFlagRow = (entryId) => {
+    setOpenFlagRows(prev => ({ ...prev, [entryId]: !prev[entryId] }))
+  }
+
   // Collapsible QA sections state (for Access activity)
   const [expandedSections, setExpandedSections] = useState({})
   
@@ -2527,7 +2533,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
 
         {block.labourEntries.length > 0 && (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '750px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '550px' }}>
               <thead>
                 <tr style={{ backgroundColor: '#c3e6cb' }}>
                   <th style={{ padding: '8px', textAlign: 'left' }}>Employee</th>
@@ -2536,8 +2542,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                   <th style={{ padding: '8px', textAlign: 'center', width: '45px' }}>OT</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '55px' }}>JH</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}>Cnt</th>
-                  <th style={{ padding: '8px', textAlign: 'center', width: '80px', backgroundColor: '#e8f4ea' }} title="Field Activity Status">Field Status</th>
-                  <th style={{ padding: '8px', textAlign: 'center', width: '55px', backgroundColor: '#e8f4ea' }} title="Productive Hours">Productive</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
                 </tr>
               </thead>
@@ -2568,29 +2573,23 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                           />
                         </td>
                         <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.count}</td>
-                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f9fa' }}>
-                          <ProductionStatusToggle
-                            value={prodStatus}
-                            onChange={(status) => updateLabourProductionStatus(block.id, entry.id, status)}
-                          />
-                        </td>
-                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f9fa' }}>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? entry.shadowEffectiveHours : shadowHours.toFixed(1)}
-                            onChange={(e) => updateLabourShadowHours(block.id, entry.id, e.target.value)}
+                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
+                          <button
+                            type="button"
+                            onClick={() => toggleFlagRow(entry.id)}
+                            title={prodStatus !== 'ACTIVE' ? `Flagged: ${prodStatus === 'SYNC_DELAY' ? 'Downtime' : 'Standby'}` : 'Flag downtime or standby'}
                             style={{
-                              width: '45px',
-                              padding: '4px',
-                              border: `1px solid ${statusConfig?.color || '#ced4da'}`,
-                              borderRadius: '3px',
-                              textAlign: 'center',
-                              fontSize: '12px',
-                              backgroundColor: entry.shadowEffectiveHours !== null ? '#fff3cd' : '#fff'
+                              padding: '4px 8px',
+                              fontSize: '13px',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              backgroundColor: prodStatus === 'MANAGEMENT_DRAG' ? '#dc3545' : prodStatus === 'SYNC_DELAY' ? '#ffc107' : openFlagRows[entry.id] ? '#6c757d' : '#e9ecef',
+                              color: prodStatus !== 'ACTIVE' || openFlagRows[entry.id] ? 'white' : '#666'
                             }}
-                            title={entry.shadowEffectiveHours !== null ? 'Manual override' : 'Auto-calculated'}
-                          />
+                          >
+                            {prodStatus === 'MANAGEMENT_DRAG' ? '!' : prodStatus === 'SYNC_DELAY' ? '!' : '\u270E'}
+                          </button>
                         </td>
                         <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
                           <button
@@ -2601,128 +2600,100 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                           </button>
                         </td>
                       </tr>
-                      {/* Drag Reason Row - shown when status is not ACTIVE */}
-                      {prodStatus !== 'ACTIVE' && (
-                        <tr style={{ backgroundColor: statusConfig?.color === '#ffc107' ? '#fffbf0' : '#fff5f5' }}>
-                          <td colSpan={9} style={{ padding: '6px 8px', borderBottom: '1px solid #dee2e6' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: '11px', fontWeight: 'bold', color: statusConfig?.color }}>
-                                Delay Reason:
-                              </span>
-                              <select
-                                value={dragReasonCategories.some(r => r.label === entry.dragReason) ? entry.dragReason : '_custom'}
-                                onChange={(e) => {
-                                  if (e.target.value !== '_custom') {
-                                    updateLabourDragReason(block.id, entry.id, e.target.value)
-                                  }
-                                }}
-                                style={{
-                                  padding: '4px 8px',
-                                  border: `1px solid ${statusConfig?.color || '#ced4da'}`,
-                                  borderRadius: '4px',
-                                  fontSize: '12px'
-                                }}
-                              >
-                                <option value="">-- Select common reason --</option>
-                                {dragReasonCategories.map(r => (
-                                  <option key={r.value} value={r.label}>
-                                    {r.label} {r.responsibleParty === 'contractor' ? '🔧' : r.responsibleParty === 'owner' ? '🏛️' : ''}
-                                  </option>
+                      {/* Flag Detail Row - shown when flag button is clicked or entry is already flagged */}
+                      {(openFlagRows[entry.id] || prodStatus !== 'ACTIVE') && (
+                        <tr style={{ backgroundColor: prodStatus === 'MANAGEMENT_DRAG' ? '#fff5f5' : prodStatus === 'SYNC_DELAY' ? '#fffbf0' : '#f8f9fa' }}>
+                          <td colSpan={8} style={{ padding: '10px 12px', borderBottom: '1px solid #dee2e6' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#333' }}>Status:</span>
+                                {[
+                                  { value: 'ACTIVE', label: 'Working', color: '#28a745' },
+                                  { value: 'SYNC_DELAY', label: 'Downtime', color: '#ffc107' },
+                                  { value: 'MANAGEMENT_DRAG', label: 'Standby', color: '#dc3545' }
+                                ].map(s => (
+                                  <button
+                                    key={s.value}
+                                    type="button"
+                                    onClick={() => {
+                                      updateLabourProductionStatus(block.id, entry.id, s.value)
+                                      if (s.value === 'ACTIVE') {
+                                        setOpenFlagRows(prev => ({ ...prev, [entry.id]: false }))
+                                      }
+                                    }}
+                                    style={{
+                                      padding: '5px 12px',
+                                      fontSize: '12px',
+                                      fontWeight: prodStatus === s.value ? 'bold' : 'normal',
+                                      backgroundColor: prodStatus === s.value ? s.color : '#e9ecef',
+                                      color: prodStatus === s.value ? 'white' : '#333',
+                                      border: `1px solid ${prodStatus === s.value ? s.color : '#ced4da'}`,
+                                      borderRadius: '4px',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    {s.label}
+                                  </button>
                                 ))}
-                                <option value="_custom">-- Or type custom below --</option>
-                              </select>
-                              {/* Custom reason input - only show value if it's NOT from the predefined list */}
-                              {(() => {
-                                const isFromList = dragReasonCategories.some(r => r.label === entry.dragReason)
-                                return (
-                                  <>
-                                    <span style={{ fontSize: '11px', color: '#666' }}>or</span>
-                                    <input
+                                {prodStatus !== 'ACTIVE' && (
+                                  <span style={{ fontSize: '11px', color: '#666', marginLeft: '8px' }}>
+                                    Productive hrs: <input
                                       type="text"
-                                      value={isFromList ? '' : (entry.dragReason || '')}
-                                      onChange={(e) => updateLabourDragReason(block.id, entry.id, e.target.value)}
-                                      onBlur={(e) => {
-                                        if (e.target.value.trim()) {
-                                          saveCustomReason(e.target.value)
-                                        }
-                                      }}
-                                      placeholder="Type custom reason..."
-                                      style={{
-                                        flex: 1,
-                                        padding: '4px 8px',
-                                        border: `1px solid ${statusConfig?.color || '#ced4da'}`,
-                                        borderRadius: '4px',
-                                        fontSize: '12px',
-                                        minWidth: '150px',
-                                        maxWidth: '250px'
-                                      }}
+                                      inputMode="decimal"
+                                      value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? entry.shadowEffectiveHours : shadowHours.toFixed(1)}
+                                      onChange={(e) => updateLabourShadowHours(block.id, entry.id, e.target.value)}
+                                      style={{ width: '45px', padding: '3px', border: '1px solid #ced4da', borderRadius: '3px', textAlign: 'center', fontSize: '12px' }}
                                     />
-                                  </>
-                                )
-                              })()}
-                              {/* Responsible Party Badge - auto-assigned based on drag reason */}
+                                  </span>
+                                )}
+                              </div>
+                              {prodStatus !== 'ACTIVE' && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#333' }}>Reason:</span>
+                                  <select
+                                    value={dragReasonCategories.some(r => r.label === entry.dragReason) ? entry.dragReason : '_custom'}
+                                    onChange={(e) => { if (e.target.value !== '_custom') updateLabourDragReason(block.id, entry.id, e.target.value) }}
+                                    style={{ padding: '4px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '12px' }}
+                                  >
+                                    <option value="">-- Select reason --</option>
+                                    {dragReasonCategories.map(r => (
+                                      <option key={r.value} value={r.label}>{r.label} {r.responsibleParty === 'contractor' ? '🔧' : r.responsibleParty === 'owner' ? '🏛️' : ''}</option>
+                                    ))}
+                                    <option value="_custom">-- Custom --</option>
+                                  </select>
+                                  <input
+                                    type="text"
+                                    value={dragReasonCategories.some(r => r.label === entry.dragReason) ? '' : (entry.dragReason || '')}
+                                    onChange={(e) => updateLabourDragReason(block.id, entry.id, e.target.value)}
+                                    onBlur={(e) => { if (e.target.value.trim()) saveCustomReason(e.target.value) }}
+                                    placeholder="Or type custom reason..."
+                                    style={{ flex: 1, padding: '4px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '12px', minWidth: '150px', maxWidth: '250px' }}
+                                  />
+                                  {(() => {
+                                    const party = getResponsibleParty(entry.dragReason)
+                                    if (!party) return null
+                                    return <span style={{ padding: '3px 8px', fontSize: '10px', fontWeight: 'bold', borderRadius: '12px', backgroundColor: party.bgColor, color: party.color, border: `1px solid ${party.color}`, whiteSpace: 'nowrap' }}>{party.icon} {party.label}</span>
+                                  })()}
+                                </div>
+                              )}
                               {(() => {
                                 const party = getResponsibleParty(entry.dragReason)
-                                if (!party) return null
+                                const needsNote = reasonRequiresNote(entry.dragReason) && prodStatus === 'MANAGEMENT_DRAG'
+                                if (!needsNote) return null
+                                const isContractor = party?.label === 'Contractor'
                                 return (
-                                  <span
-                                    style={{
-                                      padding: '3px 8px',
-                                      fontSize: '10px',
-                                      fontWeight: 'bold',
-                                      borderRadius: '12px',
-                                      backgroundColor: party.bgColor,
-                                      color: party.color,
-                                      border: `1px solid ${party.color}`,
-                                      whiteSpace: 'nowrap'
-                                    }}
-                                    title={`Accountability: ${party.label}`}
-                                  >
-                                    {party.icon} {party.label}
-                                  </span>
+                                  <div style={{ padding: '8px', backgroundColor: '#f8d7da', borderRadius: '4px', border: '1px solid #dc3545' }}>
+                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#721c24', marginBottom: '4px' }}>
+                                      {isContractor ? '🔧 Contractor Issue Detail' : 'Issue Detail'} <span style={{ color: '#dc3545' }}>* Required</span>
+                                    </label>
+                                    <input type="text" value={entry.contractorDragNote || ''} onChange={(e) => updateLabourContractorNote(block.id, entry.id, e.target.value)}
+                                      placeholder={isContractor ? "e.g., Ditch sloughing at KP 12+500, Foreman absent from ROW..." : "Describe the specific issue..."}
+                                      style={{ width: '100%', padding: '6px 8px', border: entry.contractorDragNote?.trim() ? '1px solid #28a745' : '2px solid #dc3545', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }}
+                                    />
+                                  </div>
                                 )
                               })()}
                             </div>
-                            {/* Mandatory Note - required when contractor issue + Standby status */}
-                            {(() => {
-                              const party = getResponsibleParty(entry.dragReason)
-                              const needsNote = reasonRequiresNote(entry.dragReason) && prodStatus === 'MANAGEMENT_DRAG'
-                              if (!needsNote) return null
-                              const isContractor = party?.label === 'Contractor'
-                              return (
-                                <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#f8d7da', borderRadius: '4px', border: '1px solid #dc3545' }}>
-                                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#721c24', marginBottom: '4px' }}>
-                                    {isContractor ? '🔧 Contractor Issue Detail' : '📝 Issue Detail'} <span style={{ color: '#dc3545' }}>* Required</span>
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={entry.contractorDragNote || ''}
-                                    onChange={(e) => updateLabourContractorNote(block.id, entry.id, e.target.value)}
-                                    placeholder={isContractor
-                                      ? "e.g., Ditch sloughing at KP 12+500, Foreman absent from ROW, Grade 2% off spec..."
-                                      : "Describe the specific issue..."
-                                    }
-                                    style={{
-                                      width: '100%',
-                                      padding: '6px 8px',
-                                      border: entry.contractorDragNote?.trim() ? '1px solid #28a745' : '2px solid #dc3545',
-                                      borderRadius: '4px',
-                                      fontSize: '12px',
-                                      boxSizing: 'border-box',
-                                      backgroundColor: entry.contractorDragNote?.trim() ? '#fff' : '#fff5f5'
-                                    }}
-                                  />
-                                  {!entry.contractorDragNote?.trim() && (
-                                    <p style={{ margin: '4px 0 0 0', fontSize: '10px', color: '#dc3545' }}>
-                                      {isContractor
-                                        ? 'Explain the specific contractor failure for accountability tracking'
-                                        : 'Please provide details for this issue'
-                                      }
-                                    </p>
-                                  )}
-                                </div>
-                              )
-                            })()}
                           </td>
                         </tr>
                       )}
@@ -2794,15 +2765,14 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
 
         {block.equipmentEntries.length > 0 && (
           <div style={{ overflowX: 'auto' }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '550px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '450px' }}>
               <thead>
                 <tr style={{ backgroundColor: '#b8daff' }}>
                   <th style={{ padding: '8px', textAlign: 'left' }}>Equipment</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '80px' }}>Unit #</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '60px' }}>Hours</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '50px' }}>Count</th>
-                  <th style={{ padding: '8px', textAlign: 'center', width: '80px', backgroundColor: '#d4e6f7' }} title="Field Activity Status">Field Status</th>
-                  <th style={{ padding: '8px', textAlign: 'center', width: '55px', backgroundColor: '#d4e6f7' }} title="Productive Hours">Productive</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
                 </tr>
               </thead>
@@ -2834,29 +2804,23 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                         </td>
                         <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.hours}</td>
                         <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.count}</td>
-                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f9fa' }}>
-                          <ProductionStatusToggle
-                            value={prodStatus}
-                            onChange={(status) => updateEquipmentProductionStatus(block.id, entry.id, status)}
-                          />
-                        </td>
-                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#f8f9fa' }}>
-                          <input
-                            type="text"
-                            inputMode="decimal"
-                            value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? entry.shadowEffectiveHours : shadowHours.toFixed(1)}
-                            onChange={(e) => updateEquipmentShadowHours(block.id, entry.id, e.target.value)}
+                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
+                          <button
+                            type="button"
+                            onClick={() => toggleFlagRow(`eq_${entry.id}`)}
+                            title={prodStatus !== 'ACTIVE' ? `Flagged: ${prodStatus === 'SYNC_DELAY' ? 'Downtime' : 'Standby'}` : 'Flag downtime or standby'}
                             style={{
-                              width: '45px',
-                              padding: '4px',
-                              border: `1px solid ${statusConfig?.color || '#ced4da'}`,
-                              borderRadius: '3px',
-                              textAlign: 'center',
-                              fontSize: '12px',
-                              backgroundColor: entry.shadowEffectiveHours !== null ? '#fff3cd' : '#fff'
+                              padding: '4px 8px',
+                              fontSize: '13px',
+                              border: 'none',
+                              borderRadius: '4px',
+                              cursor: 'pointer',
+                              backgroundColor: prodStatus === 'MANAGEMENT_DRAG' ? '#dc3545' : prodStatus === 'SYNC_DELAY' ? '#ffc107' : openFlagRows[`eq_${entry.id}`] ? '#6c757d' : '#e9ecef',
+                              color: prodStatus !== 'ACTIVE' || openFlagRows[`eq_${entry.id}`] ? 'white' : '#666'
                             }}
-                            title={entry.shadowEffectiveHours !== null ? 'Manual override' : 'Auto-calculated'}
-                          />
+                          >
+                            {prodStatus === 'MANAGEMENT_DRAG' ? '!' : prodStatus === 'SYNC_DELAY' ? '!' : '\u270E'}
+                          </button>
                         </td>
                         <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
                           <button
@@ -2867,128 +2831,100 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                           </button>
                         </td>
                       </tr>
-                      {/* Drag Reason Row - shown when status is not ACTIVE */}
-                      {prodStatus !== 'ACTIVE' && (
-                        <tr style={{ backgroundColor: statusConfig?.color === '#ffc107' ? '#fffbf0' : '#fff5f5' }}>
-                          <td colSpan={7} style={{ padding: '6px 8px', borderBottom: '1px solid #dee2e6' }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                              <span style={{ fontSize: '11px', fontWeight: 'bold', color: statusConfig?.color }}>
-                                Delay Reason:
-                              </span>
-                              <select
-                                value={dragReasonCategories.some(r => r.label === entry.dragReason) ? entry.dragReason : '_custom'}
-                                onChange={(e) => {
-                                  if (e.target.value !== '_custom') {
-                                    updateEquipmentDragReason(block.id, entry.id, e.target.value)
-                                  }
-                                }}
-                                style={{
-                                  padding: '4px 8px',
-                                  border: `1px solid ${statusConfig?.color || '#ced4da'}`,
-                                  borderRadius: '4px',
-                                  fontSize: '12px'
-                                }}
-                              >
-                                <option value="">-- Select common reason --</option>
-                                {dragReasonCategories.map(r => (
-                                  <option key={r.value} value={r.label}>
-                                    {r.label} {r.responsibleParty === 'contractor' ? '🔧' : r.responsibleParty === 'owner' ? '🏛️' : ''}
-                                  </option>
+                      {/* Flag Detail Row - shown when flag button is clicked or entry is already flagged */}
+                      {(openFlagRows[`eq_${entry.id}`] || prodStatus !== 'ACTIVE') && (
+                        <tr style={{ backgroundColor: prodStatus === 'MANAGEMENT_DRAG' ? '#fff5f5' : prodStatus === 'SYNC_DELAY' ? '#fffbf0' : '#f8f9fa' }}>
+                          <td colSpan={6} style={{ padding: '10px 12px', borderBottom: '1px solid #dee2e6' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#333' }}>Status:</span>
+                                {[
+                                  { value: 'ACTIVE', label: 'Working', color: '#28a745' },
+                                  { value: 'SYNC_DELAY', label: 'Downtime', color: '#ffc107' },
+                                  { value: 'MANAGEMENT_DRAG', label: 'Standby', color: '#dc3545' }
+                                ].map(s => (
+                                  <button
+                                    key={s.value}
+                                    type="button"
+                                    onClick={() => {
+                                      updateEquipmentProductionStatus(block.id, entry.id, s.value)
+                                      if (s.value === 'ACTIVE') {
+                                        setOpenFlagRows(prev => ({ ...prev, [`eq_${entry.id}`]: false }))
+                                      }
+                                    }}
+                                    style={{
+                                      padding: '5px 12px',
+                                      fontSize: '12px',
+                                      fontWeight: prodStatus === s.value ? 'bold' : 'normal',
+                                      backgroundColor: prodStatus === s.value ? s.color : '#e9ecef',
+                                      color: prodStatus === s.value ? 'white' : '#333',
+                                      border: `1px solid ${prodStatus === s.value ? s.color : '#ced4da'}`,
+                                      borderRadius: '4px',
+                                      cursor: 'pointer'
+                                    }}
+                                  >
+                                    {s.label}
+                                  </button>
                                 ))}
-                                <option value="_custom">-- Or type custom below --</option>
-                              </select>
-                              {/* Custom reason input - only show value if it's NOT from the predefined list */}
-                              {(() => {
-                                const isFromList = dragReasonCategories.some(r => r.label === entry.dragReason)
-                                return (
-                                  <>
-                                    <span style={{ fontSize: '11px', color: '#666' }}>or</span>
-                                    <input
+                                {prodStatus !== 'ACTIVE' && (
+                                  <span style={{ fontSize: '11px', color: '#666', marginLeft: '8px' }}>
+                                    Productive hrs: <input
                                       type="text"
-                                      value={isFromList ? '' : (entry.dragReason || '')}
-                                      onChange={(e) => updateEquipmentDragReason(block.id, entry.id, e.target.value)}
-                                      onBlur={(e) => {
-                                        if (e.target.value.trim()) {
-                                          saveCustomReason(e.target.value)
-                                        }
-                                      }}
-                                      placeholder="Type custom reason..."
-                                      style={{
-                                        flex: 1,
-                                        padding: '4px 8px',
-                                        border: `1px solid ${statusConfig?.color || '#ced4da'}`,
-                                        borderRadius: '4px',
-                                        fontSize: '12px',
-                                        minWidth: '150px',
-                                        maxWidth: '250px'
-                                      }}
+                                      inputMode="decimal"
+                                      value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? entry.shadowEffectiveHours : shadowHours.toFixed(1)}
+                                      onChange={(e) => updateEquipmentShadowHours(block.id, entry.id, e.target.value)}
+                                      style={{ width: '45px', padding: '3px', border: '1px solid #ced4da', borderRadius: '3px', textAlign: 'center', fontSize: '12px' }}
                                     />
-                                  </>
-                                )
-                              })()}
-                              {/* Responsible Party Badge - auto-assigned based on drag reason */}
+                                  </span>
+                                )}
+                              </div>
+                              {prodStatus !== 'ACTIVE' && (
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                  <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#333' }}>Reason:</span>
+                                  <select
+                                    value={dragReasonCategories.some(r => r.label === entry.dragReason) ? entry.dragReason : '_custom'}
+                                    onChange={(e) => { if (e.target.value !== '_custom') updateEquipmentDragReason(block.id, entry.id, e.target.value) }}
+                                    style={{ padding: '4px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '12px' }}
+                                  >
+                                    <option value="">-- Select reason --</option>
+                                    {dragReasonCategories.map(r => (
+                                      <option key={r.value} value={r.label}>{r.label} {r.responsibleParty === 'contractor' ? '🔧' : r.responsibleParty === 'owner' ? '🏛️' : ''}</option>
+                                    ))}
+                                    <option value="_custom">-- Custom --</option>
+                                  </select>
+                                  <input
+                                    type="text"
+                                    value={dragReasonCategories.some(r => r.label === entry.dragReason) ? '' : (entry.dragReason || '')}
+                                    onChange={(e) => updateEquipmentDragReason(block.id, entry.id, e.target.value)}
+                                    onBlur={(e) => { if (e.target.value.trim()) saveCustomReason(e.target.value) }}
+                                    placeholder="Or type custom reason..."
+                                    style={{ flex: 1, padding: '4px 8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '12px', minWidth: '150px', maxWidth: '250px' }}
+                                  />
+                                  {(() => {
+                                    const party = getResponsibleParty(entry.dragReason)
+                                    if (!party) return null
+                                    return <span style={{ padding: '3px 8px', fontSize: '10px', fontWeight: 'bold', borderRadius: '12px', backgroundColor: party.bgColor, color: party.color, border: `1px solid ${party.color}`, whiteSpace: 'nowrap' }}>{party.icon} {party.label}</span>
+                                  })()}
+                                </div>
+                              )}
                               {(() => {
                                 const party = getResponsibleParty(entry.dragReason)
-                                if (!party) return null
+                                const needsNote = reasonRequiresNote(entry.dragReason) && prodStatus === 'MANAGEMENT_DRAG'
+                                if (!needsNote) return null
+                                const isContractor = party?.label === 'Contractor'
                                 return (
-                                  <span
-                                    style={{
-                                      padding: '3px 8px',
-                                      fontSize: '10px',
-                                      fontWeight: 'bold',
-                                      borderRadius: '12px',
-                                      backgroundColor: party.bgColor,
-                                      color: party.color,
-                                      border: `1px solid ${party.color}`,
-                                      whiteSpace: 'nowrap'
-                                    }}
-                                    title={`Accountability: ${party.label}`}
-                                  >
-                                    {party.icon} {party.label}
-                                  </span>
+                                  <div style={{ padding: '8px', backgroundColor: '#f8d7da', borderRadius: '4px', border: '1px solid #dc3545' }}>
+                                    <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#721c24', marginBottom: '4px' }}>
+                                      {isContractor ? '🔧 Contractor Issue Detail' : 'Issue Detail'} <span style={{ color: '#dc3545' }}>* Required</span>
+                                    </label>
+                                    <input type="text" value={entry.contractorDragNote || ''} onChange={(e) => updateEquipmentContractorNote(block.id, entry.id, e.target.value)}
+                                      placeholder={isContractor ? "e.g., Equipment not maintained, Inadequate rigging, Operator error..." : "Describe the specific issue..."}
+                                      style={{ width: '100%', padding: '6px 8px', border: entry.contractorDragNote?.trim() ? '1px solid #28a745' : '2px solid #dc3545', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box' }}
+                                    />
+                                  </div>
                                 )
                               })()}
                             </div>
-                            {/* Mandatory Note - required when contractor issue + Standby status */}
-                            {(() => {
-                              const party = getResponsibleParty(entry.dragReason)
-                              const needsNote = reasonRequiresNote(entry.dragReason) && prodStatus === 'MANAGEMENT_DRAG'
-                              if (!needsNote) return null
-                              const isContractor = party?.label === 'Contractor'
-                              return (
-                                <div style={{ marginTop: '8px', padding: '8px', backgroundColor: '#f8d7da', borderRadius: '4px', border: '1px solid #dc3545' }}>
-                                  <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', color: '#721c24', marginBottom: '4px' }}>
-                                    {isContractor ? '🔧 Contractor Issue Detail' : '📝 Issue Detail'} <span style={{ color: '#dc3545' }}>* Required</span>
-                                  </label>
-                                  <input
-                                    type="text"
-                                    value={entry.contractorDragNote || ''}
-                                    onChange={(e) => updateEquipmentContractorNote(block.id, entry.id, e.target.value)}
-                                    placeholder={isContractor
-                                      ? "e.g., Equipment not maintained, Inadequate rigging, Operator error..."
-                                      : "Describe the specific issue..."
-                                    }
-                                    style={{
-                                      width: '100%',
-                                      padding: '6px 8px',
-                                      border: entry.contractorDragNote?.trim() ? '1px solid #28a745' : '2px solid #dc3545',
-                                      borderRadius: '4px',
-                                      fontSize: '12px',
-                                      boxSizing: 'border-box',
-                                      backgroundColor: entry.contractorDragNote?.trim() ? '#fff' : '#fff5f5'
-                                    }}
-                                  />
-                                  {!entry.contractorDragNote?.trim() && (
-                                    <p style={{ margin: '4px 0 0 0', fontSize: '10px', color: '#dc3545' }}>
-                                      {isContractor
-                                        ? 'Explain the specific contractor failure for accountability tracking'
-                                        : 'Please provide details for this issue'
-                                      }
-                                    </p>
-                                  )}
-                                </div>
-                              )
-                            })()}
                           </td>
                         </tr>
                       )}
