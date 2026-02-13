@@ -1513,16 +1513,37 @@ Important:
 
         // Check if this inspector owns this report (unless they're admin/chief)
         const userRole = userProfile?.role
-        const isAdminOrChief = ['super_admin', 'admin', 'chief_inspector'].includes(userRole)
-        
-        if (!isAdminOrChief) {
-          const reportInspector = (report.inspector_name || '').toLowerCase()
-          const userName = (userProfile.full_name || '').toLowerCase()
-          const userEmail = (userProfile.email || '').toLowerCase()
+        const isAdminOrChief = ['super_admin', 'admin', 'chief_inspector', 'assistant_chief', 'welding_chief'].includes(userRole)
 
-          if (reportInspector !== userName && reportInspector !== userEmail) {
+        if (!isAdminOrChief) {
+          const reportInspector = (report.inspector_name || '').toLowerCase().trim()
+          const userName = (userProfile.full_name || '').toLowerCase().trim()
+          const userEmail = (userProfile.email || '').toLowerCase().trim()
+          const userId = userProfile?.id
+
+          // Check ownership multiple ways
+          const ownsById = report.created_by === userId
+          const ownsByName = reportInspector && userName && (
+            reportInspector === userName ||
+            reportInspector.includes(userName) ||
+            userName.includes(reportInspector)
+          )
+          const ownsByEmail = reportInspector === userEmail
+
+          console.log('[Edit Permission Check]', {
+            reportInspector,
+            userName,
+            userEmail,
+            userId,
+            reportCreatedBy: report.created_by,
+            ownsById,
+            ownsByName,
+            ownsByEmail
+          })
+
+          if (!ownsById && !ownsByName && !ownsByEmail) {
             alert('You can only edit your own reports.')
-            navigate(orgPath('/inspector'))
+            navigate(orgPath('/field-entry'))
             return
           }
         }
