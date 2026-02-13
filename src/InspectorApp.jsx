@@ -38,12 +38,12 @@ function InspectorApp({ user, onSignOut }) {
   }, [])
 
   function checkUrlForEditLink() {
-    const path = window.location.pathname
-    const match = path.match(/\/report\/edit\/([a-zA-Z0-9-]+)/)
-    
-    if (match) {
-      const reportId = match[1]
-      loadReportForEdit(reportId)
+    // Check URL query params for edit=reportId
+    const urlParams = new URLSearchParams(window.location.search)
+    const editId = urlParams.get('edit')
+
+    if (editId) {
+      loadReportForEdit(editId)
     }
   }
 
@@ -105,8 +105,8 @@ function InspectorApp({ user, onSignOut }) {
       setEditReportData(fullReport)
       setView('edit')
       
-      // Update URL without reload
-      window.history.pushState({}, '', orgPath(`/report/edit/${reportId}`))
+      // Update URL with query param that InspectorReport expects
+      window.history.pushState({}, '', orgPath(`/inspector?edit=${reportId}`))
       
     } catch (err) {
       console.error('Error loading report:', err)
