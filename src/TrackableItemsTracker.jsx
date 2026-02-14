@@ -230,7 +230,10 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
         query = addOrgFilter(query)
         const { data } = await query
 
-        if (data) setItems(data)
+        if (data) {
+          setItems(data)
+          if (onDataChange) onDataChange(data)
+        }
       }
 
       // Calculate summary totals for each type

@@ -3309,6 +3309,25 @@ CRITICAL - Individual Entries Required:
     const contentWidth = pageWidth - (margin * 2)
     let y = 0
 
+    // Fetch trackable items from DB if not already loaded (component may not be mounted)
+    let pdfTrackableItems = trackableItemsData
+    if ((!pdfTrackableItems || pdfTrackableItems.length === 0) && currentReportId) {
+      try {
+        let query = supabase
+          .from('trackable_items')
+          .select('*')
+          .eq('report_id', currentReportId)
+          .order('created_at', { ascending: true })
+        query = addOrgFilter(query)
+        const { data } = await query
+        if (data && data.length > 0) {
+          pdfTrackableItems = data
+        }
+      } catch (err) {
+        console.warn('Could not fetch trackable items for PDF:', err)
+      }
+    }
+
     // Generate unique document ID and timestamp for legal compliance
     const documentId = `${PROJECT_SHORT}-RPT-${currentReportId || Date.now()}-${Date.now().toString(36).toUpperCase()}`
     const generationTimestamp = new Date().toISOString()
@@ -5851,12 +5870,12 @@ CRITICAL - Individual Entries Required:
     // ═══════════════════════════════════════════════════════════
     // TRACKABLE ITEMS
     // ═══════════════════════════════════════════════════════════
-    if (trackableItemsData && trackableItemsData.length > 0) {
+    if (pdfTrackableItems && pdfTrackableItems.length > 0) {
       checkPageBreak(30)
       addSectionHeader('TRACKABLE ITEMS', [111, 66, 193]) // Purple
-      
+
       // Group items by type
-      const groupedItems = trackableItemsData.reduce((acc, item) => {
+      const groupedItems = pdfTrackableItems.reduce((acc, item) => {
         const type = item.item_type || 'other'
         if (!acc[type]) acc[type] = []
         acc[type].push(item)
