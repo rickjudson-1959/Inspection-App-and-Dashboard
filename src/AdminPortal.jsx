@@ -928,7 +928,7 @@ function AdminPortal() {
         .from('project_documents')
         .select('*')
         .eq('is_global', true)
-        .in('category', ['api_1169', 'csa_z662', 'pipeline_authority_ref', 'inspector_playbook', 'rules_of_thumb'])
+        .in('category', ['api_1169', 'csa_z662', 'pipeline_authority_ref', 'inspector_playbook', 'rules_of_thumb', 'field_guide'])
         .order('created_at', { ascending: false })
 
       setGlobalLibraryDocs(globalDocs || [])
