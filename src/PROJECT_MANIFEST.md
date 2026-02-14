@@ -362,6 +362,26 @@
 
 ## 6. RECENT UPDATES (January/February 2026)
 
+### Technical Resource Library - Field Guide & Supporting Docs (February 14, 2026)
+
+**Added standalone Field Guide resource and supporting document capability**
+
+- Added `field_guide` as 6th standalone category in the Technical Resource Library
+- Pipe-Up Field Guide (agent knowledge base) indexed for AI search (19 sections, 31K chars)
+- **Add Supporting Doc** button added to every library item (super_admin only)
+- Supporting docs use existing addendum pattern (`is_addendum`, `parent_document_id`)
+- Supporting docs displayed in both Admin Portal and Inspector Reference Library views
+- New `uploadLibrarySupportingDoc()` function with auto-indexing for AI search
+- Added `field_guide` to DB `valid_category` constraint
+- Storage RLS policy updated to allow authenticated uploads to `documents` bucket
+
+**Files Modified:**
+```
+src/AdminPortal.jsx          # New category, upload function, supporting doc UI
+src/ReferenceLibrary.jsx     # New category, supporting docs display
+supabase/migrations/20260214_add_field_guide_category.sql
+```
+
 ### PDF Export - Complete Data Coverage (February 12, 2026)
 
 **Ensured every field from the inspector's report appears in the PDF export**
@@ -736,15 +756,19 @@ src/weldingChiefPDF.js          # PDF generation with signature support
 - Handover history with download links
 
 **Technical Resource Library (Admin Portal → Setup)**
-- 5 global reference document categories:
+- 6 global reference document categories:
   - API 1169 - Pipeline Construction Inspection
   - CSA Z662 - Oil & Gas Pipeline Systems
   - Practical Guide for Pipeline Construction Inspectors
   - Pipeline Inspector's Playbook
   - Pipeline Rules of Thumb
+  - Pipe-Up Field Guide (Agent knowledge base)
 - Read-only access for all users
 - Super Admin: Upload, Replace, Delete capabilities
+- **Add Supporting Doc** button on each library item (super_admin)
+- Supporting documents displayed under parent in both Admin and Inspector views
 - Documents marked as `is_global: true` for cross-org access
+- AI indexing via `process-document` edge function for RAG search
 
 **New Database Tables:**
 ```
@@ -1206,4 +1230,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 12, 2026 (PDF Export - Complete Data Coverage)*
+*Last Updated: February 14, 2026 (Technical Resource Library - Field Guide & Supporting Docs)*
