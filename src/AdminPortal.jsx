@@ -197,7 +197,8 @@ function AdminPortal() {
     { key: 'csa_z662', label: 'CSA Z662 - Oil & Gas Pipeline Systems', icon: '📗', description: 'Canadian standards for pipeline systems' },
     { key: 'pipeline_authority_ref', label: 'Practical Guide for Pipeline Construction Inspectors', icon: '📕', description: 'Comprehensive field guide for pipeline construction inspection best practices.' },
     { key: 'inspector_playbook', label: "Pipeline Inspector's Playbook", icon: '📙', description: 'Essential playbook for pipeline inspection procedures and techniques.' },
-    { key: 'rules_of_thumb', label: 'Pipeline Rules of Thumb', icon: '📓', description: 'Quick reference guide with practical rules and calculations for pipeline work.' }
+    { key: 'rules_of_thumb', label: 'Pipeline Rules of Thumb', icon: '📓', description: 'Quick reference guide with practical rules and calculations for pipeline work.' },
+    { key: 'field_guide', label: 'Pipe-Up Field Guide', icon: '📒', description: 'Agent knowledge base covering report fields, activity types, and quality requirements.' }
   ]
 
   // State for global library documents
@@ -804,7 +805,7 @@ function AdminPortal() {
   async function fetchGlobalLibraryDocs() {
     try {
       // Fetch all documents in library categories (regardless of is_global flag for backwards compatibility)
-      const libraryCategories = ['api_1169', 'csa_z662', 'pipeline_authority_ref', 'inspector_playbook', 'rules_of_thumb']
+      const libraryCategories = ['api_1169', 'csa_z662', 'pipeline_authority_ref', 'inspector_playbook', 'rules_of_thumb', 'field_guide']
       const { data: globalDocs } = await supabase
         .from('project_documents')
         .select('*')
@@ -1777,11 +1778,17 @@ function AdminPortal() {
 
   // Technical Library helpers
   function getLibraryDocument(category) {
-    return globalLibraryDocs.find(d => d.category === category)
+    return globalLibraryDocs.find(d => d.category === category && !d.is_addendum)
   }
 
   function hasLibraryDocument(category) {
-    return globalLibraryDocs.some(d => d.category === category)
+    return globalLibraryDocs.some(d => d.category === category && !d.is_addendum)
+  }
+
+  function getLibraryAddenda(parentDocId) {
+    return globalLibraryDocs
+      .filter(d => d.parent_document_id === parentDocId)
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
   }
 
   // Upload global library document (super_admin only)
@@ -1893,6 +1900,65 @@ function AdminPortal() {
       console.error('Error deleting library document:', err)
       setGovernanceMessage({ type: 'error', text: 'Failed to remove document: ' + err.message })
     }
+  }
+
+  // Upload supporting document for a library resource (super_admin only)
+  async function uploadLibrarySupportingDoc(file, parentDoc) {
+    if (!isSuperAdmin || !file || !parentDoc) return
+
+    setUploadingAddendum(parentDoc.id)
+    setGovernanceMessage(null)
+
+    try {
+      const GLOBAL_ORG_ID = '00000000-0000-0000-0000-000000000001'
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${parentDoc.category}_supporting_${Date.now()}.${fileExt}`
+      const filePath = `technical-library/${parentDoc.category}/addenda/${fileName}`
+
+      const { error: uploadError } = await supabase.storage
+        .from('documents')
+        .upload(filePath, file)
+
+      if (uploadError) throw uploadError
+
+      const { data: urlData } = supabase.storage
+        .from('documents')
+        .getPublicUrl(filePath)
+
+      const existingAddenda = getLibraryAddenda(parentDoc.id)
+
+      const { data: insertedDoc, error: insertError } = await supabase
+        .from('project_documents')
+        .insert({
+          organization_id: GLOBAL_ORG_ID,
+          category: parentDoc.category,
+          file_name: file.name,
+          file_url: urlData.publicUrl,
+          version_number: existingAddenda.length + 1,
+          is_current: true,
+          is_addendum: true,
+          is_global: true,
+          parent_document_id: parentDoc.id,
+          uploaded_by: userProfile?.id
+        })
+        .select()
+        .single()
+
+      if (insertError) throw insertError
+
+      await fetchGlobalLibraryDocs()
+      setGovernanceMessage({ type: 'success', text: 'Supporting document added!' })
+
+      if (insertedDoc) {
+        setUploadingAddendum(null)
+        await autoIndexDocument(insertedDoc)
+      }
+    } catch (err) {
+      console.error('Error uploading library supporting doc:', err)
+      setGovernanceMessage({ type: 'error', text: 'Upload failed: ' + err.message })
+    }
+
+    setUploadingAddendum(null)
   }
 
   // ==================== CUSTOM DOCUMENT FIELDS (Owner DC) ====================
@@ -5432,8 +5498,54 @@ function AdminPortal() {
                               >
                                 {processingDocForAI === doc.id ? '⏳...' : (indexedDocs[doc.id] ? `✅ ${indexedDocs[doc.id]}` : '🤖 Index')}
                               </button>
+                              <label style={{
+                                padding: '4px 10px',
+                                fontSize: '11px',
+                                backgroundColor: '#f3f4f6',
+                                color: '#007bff',
+                                borderRadius: '4px',
+                                cursor: uploadingAddendum === doc.id ? 'not-allowed' : 'pointer',
+                                border: '1px solid #d1d5db'
+                              }}>
+                                {uploadingAddendum === doc.id ? '⏳...' : '+ Supporting Doc'}
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx,.txt,.md,.csv"
+                                  onChange={(e) => {
+                                    if (e.target.files[0]) uploadLibrarySupportingDoc(e.target.files[0], doc)
+                                  }}
+                                  disabled={uploadingAddendum === doc.id}
+                                  style={{ display: 'none' }}
+                                />
+                              </label>
                             </div>
                           )}
+                          {/* Supporting Documents List */}
+                          {(() => {
+                            const addenda = getLibraryAddenda(doc.id)
+                            if (addenda.length === 0) return null
+                            return (
+                              <div style={{ marginTop: '8px', paddingLeft: '10px', borderLeft: '2px solid #dee2e6' }}>
+                                <div style={{ fontSize: '10px', color: '#666', marginBottom: '4px' }}>Supporting Documents:</div>
+                                {addenda.map((add) => (
+                                  <a
+                                    key={add.id}
+                                    href={add.file_url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    style={{
+                                      display: 'block',
+                                      fontSize: '10px',
+                                      color: '#007bff',
+                                      marginBottom: '2px'
+                                    }}
+                                  >
+                                    └ {add.file_name}
+                                  </a>
+                                ))}
+                              </div>
+                            )
+                          })()}
                         </div>
                       ) : (
                         <div>

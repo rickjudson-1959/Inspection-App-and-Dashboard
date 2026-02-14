@@ -18,7 +18,8 @@ function ReferenceLibrary() {
     { key: 'csa_z662', label: 'CSA Z662 - Oil & Gas Pipeline Systems', icon: '📗', description: 'Canadian standards for design, construction, operation, and maintenance of oil and gas pipeline systems.' },
     { key: 'pipeline_authority_ref', label: 'Practical Guide for Pipeline Construction Inspectors', icon: '📕', description: 'Comprehensive field guide for pipeline construction inspection best practices.' },
     { key: 'inspector_playbook', label: "Pipeline Inspector's Playbook", icon: '📙', description: 'Essential playbook for pipeline inspection procedures and techniques.' },
-    { key: 'rules_of_thumb', label: 'Pipeline Rules of Thumb', icon: '📓', description: 'Quick reference guide with practical rules and calculations for pipeline work.' }
+    { key: 'rules_of_thumb', label: 'Pipeline Rules of Thumb', icon: '📓', description: 'Quick reference guide with practical rules and calculations for pipeline work.' },
+    { key: 'field_guide', label: 'Pipe-Up Field Guide', icon: '📒', description: 'Agent knowledge base covering report fields, activity types, and quality requirements.' }
   ]
 
   useEffect(() => {
@@ -32,7 +33,7 @@ function ReferenceLibrary() {
         .from('project_documents')
         .select('*')
         .eq('is_global', true)
-        .in('category', ['api_1169', 'csa_z662', 'pipeline_authority_ref', 'inspector_playbook', 'rules_of_thumb'])
+        .in('category', ['api_1169', 'csa_z662', 'pipeline_authority_ref', 'inspector_playbook', 'rules_of_thumb', 'field_guide'])
         .order('created_at', { ascending: false })
 
       if (error) throw error
@@ -44,7 +45,13 @@ function ReferenceLibrary() {
   }
 
   function getDocument(category) {
-    return libraryDocs.find(d => d.category === category)
+    return libraryDocs.find(d => d.category === category && !d.is_addendum)
+  }
+
+  function getAddenda(parentDocId) {
+    return libraryDocs
+      .filter(d => d.parent_document_id === parentDocId)
+      .sort((a, b) => new Date(a.created_at) - new Date(b.created_at))
   }
 
   return (
@@ -172,6 +179,35 @@ function ReferenceLibrary() {
                       <div>File: {doc.file_name}</div>
                       <div>Version: {doc.version_number || 1} • Updated: {new Date(doc.created_at).toLocaleDateString()}</div>
                     </div>
+                    {/* Supporting Documents */}
+                    {(() => {
+                      const addenda = getAddenda(doc.id)
+                      if (addenda.length === 0) return null
+                      return (
+                        <div style={{ marginTop: '12px', paddingLeft: '12px', borderLeft: '3px solid #e5e7eb' }}>
+                          <div style={{ fontSize: '12px', color: '#6b7280', marginBottom: '6px', fontWeight: '600' }}>Supporting Documents:</div>
+                          {addenda.map((add) => (
+                            <a
+                              key={add.id}
+                              href={add.file_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{
+                                display: 'block',
+                                fontSize: '12px',
+                                color: '#6366f1',
+                                marginBottom: '4px',
+                                textDecoration: 'none'
+                              }}
+                              onMouseOver={(e) => e.target.style.textDecoration = 'underline'}
+                              onMouseOut={(e) => e.target.style.textDecoration = 'none'}
+                            >
+                              └ {add.file_name}
+                            </a>
+                          ))}
+                        </div>
+                      )
+                    })()}
                   </div>
                 ) : (
                   <div style={{
