@@ -4,8 +4,8 @@ import { useAuth } from './AuthContext.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 
 // ============================================================================
-// CHUNK 3: MASTER SWITCHER - Super Admin "God Mode"
-// Only visible to super_admin users
+// CHUNK 3: MASTER SWITCHER - Admin "God Mode"
+// Visible to admin and super_admin users
 // Add to any dashboard header: <MasterSwitcher compact />
 // ============================================================================
 
@@ -27,9 +27,9 @@ function MasterSwitcher({ compact = true }) {
   const { orgPath } = useOrgPath()
   const [isOpen, setIsOpen] = useState(false)
   
-  // Only show for super_admin (God Mode restricted)
+  // Show for super_admin and admin users (God Mode)
   const userRole = userProfile?.user_role || userProfile?.role
-  if (userRole !== 'super_admin') {
+  if (userRole !== 'super_admin' && userRole !== 'admin') {
     return null
   }
   

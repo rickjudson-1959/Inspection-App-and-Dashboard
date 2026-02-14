@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
 import { supabase } from './supabase'
 import jsPDF from 'jspdf'
-import MasterSwitcher from './MasterSwitcher.jsx'
 import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
 import { useOrgQuery } from './utils/queryHelpers.js'
 import TenantSwitcher from './components/TenantSwitcher.jsx'
@@ -1054,10 +1053,6 @@ function ChiefDashboard() {
               }
             }}
           />
-          {/* Only show GOD MODE for super_admin */}
-          {(userProfile?.role === 'super_admin' || userProfile?.user_role === 'super_admin') && (
-            <MasterSwitcher compact />
-          )}
           <button onClick={() => navigate(orgPath('/inspector-invoicing'))} style={{ padding: '10px 16px', backgroundColor: '#8b5cf6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Inspector Invoicing</button>
           <button onClick={() => navigate(orgPath('/dashboard'))} style={{ padding: '10px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>View CMT Stats</button>
           <button onClick={() => navigate(orgPath('/auditor-dashboard'))} style={{ padding: '10px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>NDT Queue</button>

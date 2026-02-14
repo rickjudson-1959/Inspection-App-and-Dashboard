@@ -691,14 +691,14 @@ function NDTAuditorDashboard() {
         
         {/* Navigation */}
         <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '15px', borderTop: '1px solid #333', backgroundColor: '#16213e' }}>
-          {/* Only show back button for super_admin/chiefs/welding_chief accessing via god mode */}
-          {(userRole === 'super_admin' || userRole === 'chief_inspector' || userRole === 'chief' || userRole === 'welding_chief') && (
+          {/* Only show back button for admin/super_admin/chiefs/welding_chief accessing via god mode */}
+          {(userRole === 'super_admin' || userRole === 'admin' || userRole === 'chief_inspector' || userRole === 'chief' || userRole === 'welding_chief') && (
             <button
               onClick={() => {
                 // Navigate based on where user came from or their role
                 if (fromPage === 'welding-chief') {
                   navigate(orgPath('/welding-chief'))
-                } else if (userRole === 'super_admin') {
+                } else if (userRole === 'super_admin' || userRole === 'admin') {
                   navigate(orgPath('/admin'))
                 } else if (userRole === 'welding_chief') {
                   navigate(orgPath('/welding-chief'))
@@ -719,7 +719,7 @@ function NDTAuditorDashboard() {
             >
               {fromPage === 'welding-chief' || userRole === 'welding_chief'
                 ? '← Welding Chief Dashboard'
-                : userRole === 'super_admin'
+                : userRole === 'super_admin' || userRole === 'admin'
                   ? '← Admin Dashboard'
                   : '← Chief Dashboard'}
             </button>
