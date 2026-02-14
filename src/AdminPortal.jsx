@@ -1290,7 +1290,7 @@ function AdminPortal() {
 
     // Fetch all documents in technical library categories directly from database
     // This catches documents regardless of is_global flag
-    const libraryCategories = ['api_1169', 'csa_z662', 'pipeline_authority_ref', 'inspector_playbook', 'rules_of_thumb']
+    const libraryCategories = ['api_1169', 'csa_z662', 'pipeline_authority_ref', 'inspector_playbook', 'rules_of_thumb', 'field_guide']
     const { data: docsToIndex, error: fetchError } = await supabase
       .from('project_documents')
       .select('*')
@@ -1862,7 +1862,8 @@ function AdminPortal() {
       }
 
       // Refresh documents
-      await fetchGovernanceData(selectedOrgForSetup)
+      await fetchGlobalLibraryDocs()
+      if (selectedOrgForSetup) await fetchGovernanceData(selectedOrgForSetup)
       setGovernanceMessage({ type: 'success', text: 'Technical resource uploaded! Indexing for AI...' })
 
       // Auto-index the document
