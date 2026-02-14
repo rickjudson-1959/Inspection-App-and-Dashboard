@@ -292,6 +292,51 @@ Clearing, Access, Topsoil (with horizon separation tracking), Grading, Stringing
 
 ## 6. RECENT UPDATES (January/February 2026)
 
+### PDF Export - Complete Data Coverage (February 12, 2026)
+
+**Ensured every field from the inspector's report appears in the PDF export**
+
+After auditing every form field against the PDF generation code, found and fixed multiple gaps:
+
+**Missing fields added:**
+- **AFE / Contract #** — Added to Report Info header alongside Date, Inspector, Spread, Pipeline
+- **ROW Condition** — Added to Weather Conditions section
+- **Unit Price Items** — Entire new section with table (category, item, qty, unit, KP location, notes) + comments + summary count
+- **Hydrostatic Testing** — Replaced placeholder text with actual data fields: test section, test pressure (kPa), hold time (hrs), water source, result (color-coded pass/fail), pressure drop (PSI)
+
+**Text truncation removed (full content now renders):**
+- Work Description — was limited to 4 lines
+- Safety Notes, Land & Environment, General Comments — were limited to 3 lines each
+- Time Lost Details — was truncated to 95 characters
+- Safety Recognition cards — situation (3 lines), potential outcome (2 lines), comments (2 lines)
+- Wildlife Sightings — activity and notes were limited to 2 lines each
+- Trackable Items — descriptions (2 lines) and notes (1 line)
+
+All long text sections now use per-line `checkPageBreak()` so content flows across pages properly.
+
+**Files Modified:**
+- `src/InspectorReport.jsx` — `exportToPDF()` function: added AFE, ROW Condition, Unit Price Items section, hydrotest data, removed all `.slice()` truncation
+
+---
+
+### God Mode Access for Company Admins (February 12, 2026)
+
+**Extended MasterSwitcher God Mode to company admin users**
+
+Previously God Mode (the dashboard quick-jump dropdown) was restricted to `super_admin` only. Now company `admin` users also have access for their respective organization.
+
+- MasterSwitcher component role check updated to allow both `admin` and `super_admin`
+- Removed MasterSwitcher from ChiefDashboard — only AdminPortal renders it
+- NDT Auditor back-button navigation updated to recognize `admin` role for God Mode routing
+- TenantSwitcher (org switching) remains `super_admin` only — admins stay within their own org
+
+**Files Modified:**
+- `src/MasterSwitcher.jsx` — Role check includes `admin`
+- `src/ChiefDashboard.jsx` — Removed MasterSwitcher import and render
+- `src/NDTAuditorDashboard.jsx` — Back button includes `admin` role
+
+---
+
 ### Simplified Shadow Audit - Exception-Based Flagging (February 12, 2026)
 
 **Replaced per-row status columns with on-demand flag button**
@@ -1352,4 +1397,4 @@ npx vercel ls
 ---
 
 **Manifest Generated**: January 20, 2026
-**Last Updated**: February 12, 2026 (Simplified Shadow Audit - Exception-Based Flagging)
+**Last Updated**: February 12, 2026 (PDF Export - Complete Data Coverage)
