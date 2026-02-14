@@ -7107,23 +7107,6 @@ CRITICAL - Individual Entries Required:
             Add activities for each crew you're inspecting today
           </p>
         </div>
-        <button
-          data-tour="add-activity"
-          onClick={addActivityBlock}
-          style={{
-            padding: '12px 24px',
-            backgroundColor: '#28a745',
-            color: 'white',
-            border: 'none',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '15px',
-            fontWeight: 'bold',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-          }}
-        >
-          + Add Activity
-        </button>
       </div>
 
       {/* ACTIVITY BLOCKS */}

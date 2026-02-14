@@ -236,20 +236,6 @@ function InspectorApp({ user, onSignOut }) {
       }}>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
-            onClick={handleBackToNew}
-            style={{
-              background: view === 'new' || view === 'edit' ? '#D35F28' : 'transparent',
-              color: 'white',
-              border: '1px solid rgba(255,255,255,0.3)',
-              padding: '8px 16px',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: view === 'new' ? 'bold' : 'normal'
-            }}
-          >
-            {view === 'edit' ? '✏️ Editing Report' : '📝 New Report'}
-          </button>
-          <button
             onClick={() => navigate(orgPath('/inspector-invoicing'))}
             style={{
               background: '#8b5cf6',
