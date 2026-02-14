@@ -3460,19 +3460,21 @@ CRITICAL - Individual Entries Required:
     // REPORT INFO - Two column layout
     // ═══════════════════════════════════════════════════════════
     setColor(BRAND.grayLight, 'fill')
-    doc.roundedRect(margin, y, contentWidth, 28, 2, 2, 'F')
+    doc.roundedRect(margin, y, contentWidth, 34, 2, 2, 'F')
     setColor(BRAND.grayMid, 'draw')
-    doc.roundedRect(margin, y, contentWidth, 28, 2, 2, 'S')
-    
+    doc.roundedRect(margin, y, contentWidth, 34, 2, 2, 'S')
+
     const leftCol = margin + 5
     const rightCol = pageWidth / 2 + 5
-    
+
     y += 6
     addField('Date', selectedDate, leftCol, 28)
     addField('Inspector', inspectorName, rightCol, 28)
     y += 6
     addField('Spread', spread, leftCol, 28)
     addField('Pipeline', pipeline, rightCol, 28)
+    y += 6
+    addField('AFE / Contract #', afe || 'N/A', leftCol, 40)
     y += 6
     addField('Start Time', startTime, leftCol, 28)
     addField('End Time', stopTime, rightCol, 28)
@@ -3484,13 +3486,15 @@ CRITICAL - Individual Entries Required:
     addSectionHeader('WEATHER CONDITIONS', BRAND.blue)
     
     setColor(BRAND.blueLight, 'fill')
-    doc.roundedRect(margin, y, contentWidth, 16, 2, 2, 'F')
+    doc.roundedRect(margin, y, contentWidth, 22, 2, 2, 'F')
     y += 5
     addField('Conditions', weather, leftCol, 30)
     addField('Precipitation', `${precipitation || '0'} mm`, rightCol, 35)
     y += 6
     addField('High / Low', `${tempHigh || '--'}°C / ${tempLow || '--'}°C`, leftCol, 30)
     addField('Wind', `${windSpeed || '--'} km/h`, rightCol, 35)
+    y += 6
+    addField('ROW Condition', rowCondition || 'N/A', leftCol, 35)
     y += 8
 
     // ═══════════════════════════════════════════════════════════
@@ -3562,8 +3566,12 @@ CRITICAL - Individual Entries Required:
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(9)
         const lines = doc.splitTextToSize(block.workDescription, contentWidth - 6)
-        doc.text(lines.slice(0, 4), margin + 3, y)
-        y += Math.min(lines.length, 4) * 4 + 2
+        lines.forEach(line => {
+          checkPageBreak(5)
+          doc.text(line, margin + 3, y)
+          y += 4
+        })
+        y += 2
       }
 
       // Quality Checks
@@ -5529,15 +5537,38 @@ CRITICAL - Individual Entries Required:
         y += 3
       }
 
-      // Hydrostatic Testing Log (placeholder - minimal data)
+      // Hydrostatic Testing Log
       if (block.activityType === 'Hydrostatic Testing' && block.hydrotestData) {
-        checkPageBreak(20)
+        const ht = block.hydrotestData
+        checkPageBreak(35)
         addSubHeader('Hydrostatic Testing', '#e8eaf6')
-        setColor(BRAND.black, 'text')
-        doc.setFont('helvetica', 'normal')
+
+        setColor(BRAND.grayLight, 'fill')
+        doc.roundedRect(margin + 2, y, contentWidth - 4, 22, 2, 2, 'F')
+        y += 5
+        addField('Test Section', ht.testSection || 'N/A', leftCol, 30)
+        addField('Test Pressure', ht.testPressure ? `${ht.testPressure} kPa` : 'N/A', rightCol, 35)
+        y += 6
+        addField('Hold Time', ht.holdTime ? `${ht.holdTime} hrs` : 'N/A', leftCol, 30)
+        addField('Water Source', ht.waterSource || 'N/A', rightCol, 35)
+        y += 6
+        const resultColor = ht.testResult === 'Pass' ? BRAND.green : ht.testResult === 'Fail' ? BRAND.red : BRAND.black
+        setColor(BRAND.gray, 'text')
+        doc.setFont('helvetica', 'bold')
         doc.setFontSize(7)
-        doc.text('Hydrotest data recorded - see detailed report', margin + 4, y + 3)
-        y += 8
+        doc.text('Result:', leftCol, y)
+        setColor(resultColor, 'text')
+        doc.setFont('helvetica', 'normal')
+        doc.text(ht.testResult || 'Pending', leftCol + 18, y)
+        if (ht.pressureDropPSI) {
+          setColor(BRAND.gray, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.text('Pressure Drop:', rightCol, y)
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.text(`${ht.pressureDropPSI} PSI`, rightCol + 35, y)
+        }
+        y += 10
       }
 
       // Quality Checks
@@ -5586,8 +5617,13 @@ CRITICAL - Individual Entries Required:
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
           doc.setFontSize(8)
-          doc.text(block.timeLostDetails.substring(0, 95), margin + 2, y)
-          y += 5
+          const detailLines = doc.splitTextToSize(block.timeLostDetails, contentWidth - 6)
+          detailLines.forEach(line => {
+            checkPageBreak(5)
+            doc.text(line, margin + 2, y)
+            y += 4
+          })
+          y += 1
         }
       }
       y += 5
@@ -5607,10 +5643,14 @@ CRITICAL - Individual Entries Required:
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(8)
         const lines = doc.splitTextToSize(safetyNotes, contentWidth - 6)
-        doc.text(lines.slice(0, 3), margin + 2, y)
-        y += Math.min(lines.length, 3) * 4 + 3
+        lines.forEach(line => {
+          checkPageBreak(5)
+          doc.text(line, margin + 2, y)
+          y += 4
+        })
+        y += 3
       }
-      
+
       if (landEnvironment) {
         checkPageBreak(20)
         addSubHeader('Land & Environment')
@@ -5618,10 +5658,14 @@ CRITICAL - Individual Entries Required:
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(8)
         const lines = doc.splitTextToSize(landEnvironment, contentWidth - 6)
-        doc.text(lines.slice(0, 3), margin + 2, y)
-        y += Math.min(lines.length, 3) * 4 + 3
+        lines.forEach(line => {
+          checkPageBreak(5)
+          doc.text(line, margin + 2, y)
+          y += 4
+        })
+        y += 3
       }
-      
+
       if (generalComments) {
         checkPageBreak(20)
         addSubHeader('General Comments')
@@ -5629,8 +5673,12 @@ CRITICAL - Individual Entries Required:
         doc.setFont('helvetica', 'normal')
         doc.setFontSize(8)
         const lines = doc.splitTextToSize(generalComments, contentWidth - 6)
-        doc.text(lines.slice(0, 3), margin + 2, y)
-        y += Math.min(lines.length, 3) * 4 + 3
+        lines.forEach(line => {
+          checkPageBreak(5)
+          doc.text(line, margin + 2, y)
+          y += 4
+        })
+        y += 3
       }
     }
 
@@ -5679,34 +5727,45 @@ CRITICAL - Individual Entries Required:
         // Situation description
         if (card.situationDescription) {
           const lines = doc.splitTextToSize(`Situation: ${card.situationDescription}`, contentWidth - 10)
-          doc.text(lines.slice(0, 3), margin + 5, y)
-          y += Math.min(lines.length, 3) * 4
+          lines.forEach(line => {
+            checkPageBreak(5)
+            doc.text(line, margin + 5, y)
+            y += 4
+          })
         }
-        
+
         // What could have happened (for hazard cards)
         if (card.cardType === 'safe' && card.whatCouldHaveHappened) {
           const lines = doc.splitTextToSize(`Potential Outcome: ${card.whatCouldHaveHappened}`, contentWidth - 10)
-          doc.text(lines.slice(0, 2), margin + 5, y)
-          y += Math.min(lines.length, 2) * 4
+          lines.forEach(line => {
+            checkPageBreak(5)
+            doc.text(line, margin + 5, y)
+            y += 4
+          })
         }
-        
+
         // Actions
         if (card.actions?.length > 0) {
+          checkPageBreak(5)
           doc.text(`Actions (${card.actions.length}):`, margin + 5, y)
           y += 4
           card.actions.forEach((action, aIdx) => {
             if (action.action) {
+              checkPageBreak(5)
               doc.text(`  • ${action.action} (By: ${action.byWhom || 'TBD'}, Due: ${action.dueDate || 'TBD'})`, margin + 8, y)
               y += 4
             }
           })
         }
-        
+
         // Comments
         if (card.comments) {
           const lines = doc.splitTextToSize(`Comments: ${card.comments}`, contentWidth - 10)
-          doc.text(lines.slice(0, 2), margin + 5, y)
-          y += Math.min(lines.length, 2) * 4
+          lines.forEach(line => {
+            checkPageBreak(5)
+            doc.text(line, margin + 5, y)
+            y += 4
+          })
         }
         
         y += 4
@@ -5752,23 +5811,30 @@ CRITICAL - Individual Entries Required:
         // Activity
         if (sighting.activity) {
           const lines = doc.splitTextToSize(`Activity: ${sighting.activity}`, contentWidth - 10)
-          doc.text(lines.slice(0, 2), margin + 5, y)
-          y += Math.min(lines.length, 2) * 4
+          lines.forEach(line => {
+            checkPageBreak(5)
+            doc.text(line, margin + 5, y)
+            y += 4
+          })
         }
-        
+
         // Mortality
         if (sighting.mortality === 'yes') {
+          checkPageBreak(5)
           doc.setTextColor(220, 53, 69) // Red
           doc.text(`[!] MORTALITY: ${sighting.mortalityCause || 'Cause unknown'}`, margin + 5, y)
           doc.setTextColor(0, 0, 0)
           y += 4
         }
-        
+
         // Comments
         if (sighting.comments) {
           const lines = doc.splitTextToSize(`Notes: ${sighting.comments}`, contentWidth - 10)
-          doc.text(lines.slice(0, 2), margin + 5, y)
-          y += Math.min(lines.length, 2) * 4
+          lines.forEach(line => {
+            checkPageBreak(5)
+            doc.text(line, margin + 5, y)
+            y += 4
+          })
         }
         
         // Photo count
@@ -5855,23 +5921,107 @@ CRITICAL - Individual Entries Required:
             description = `${item.action || ''} at KP ${item.kp_location || item.from_kp || ''}`
           }
           
-          // Truncate if too long
           const lines = doc.splitTextToSize(`${idx + 1}. ${description}`, contentWidth - 4)
-          doc.text(lines.slice(0, 2), margin + 2, y)
-          y += Math.min(lines.length, 2) * 3.5
-          
+          lines.forEach(line => {
+            checkPageBreak(4)
+            doc.text(line, margin + 2, y)
+            y += 3.5
+          })
+
           // Notes if present
           if (item.notes) {
             setColor(BRAND.gray, 'text')
             const noteLines = doc.splitTextToSize(`   Notes: ${item.notes}`, contentWidth - 8)
-            doc.text(noteLines.slice(0, 1), margin + 4, y)
-            y += 3.5
+            noteLines.forEach(line => {
+              checkPageBreak(4)
+              doc.text(line, margin + 4, y)
+              y += 3.5
+            })
             setColor(BRAND.black, 'text')
           }
         })
         y += 3
       })
       y += 2
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // UNIT PRICE ITEMS
+    // ═══════════════════════════════════════════════════════════
+    if (unitPriceItemsEnabled && unitPriceData?.items?.length > 0) {
+      checkPageBreak(30)
+      addSectionHeader('UNIT PRICE ITEMS', [111, 66, 193]) // Purple
+
+      // Table header
+      const upiColWidths = [8, 35, 45, 15, 15, 22, contentWidth - 140]
+      const upiHeaders = ['#', 'Category', 'Item', 'Qty', 'Unit', 'KP', 'Notes']
+
+      setColor([240, 235, 248], 'fill')
+      doc.rect(margin, y, contentWidth, 5, 'F')
+      setColor([111, 66, 193], 'text')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(6)
+      let upiX = margin + 2
+      upiHeaders.forEach((h, i) => {
+        doc.text(h, upiX, y + 3.5)
+        upiX += upiColWidths[i]
+      })
+      y += 7
+
+      setColor(BRAND.black, 'text')
+      doc.setFont('helvetica', 'normal')
+      doc.setFontSize(7)
+
+      unitPriceData.items.forEach((item, idx) => {
+        checkPageBreak(6)
+
+        if (idx % 2 === 0) {
+          setColor(BRAND.grayLight, 'fill')
+          doc.rect(margin, y - 2, contentWidth, 5, 'F')
+        }
+
+        setColor(BRAND.black, 'text')
+        upiX = margin + 2
+        const itemName = item.category === 'Custom' ? (item.customItem || 'Custom') : (item.itemName || 'N/A')
+        const rowData = [
+          String(idx + 1),
+          (item.category || 'N/A').substring(0, 20),
+          itemName.substring(0, 28),
+          String(item.quantity || ''),
+          item.unit || '',
+          item.locationKP || '',
+          (item.notes || '').substring(0, 35)
+        ]
+        rowData.forEach((val, i) => {
+          doc.text(val, upiX, y + 1)
+          upiX += upiColWidths[i]
+        })
+        y += 5
+      })
+
+      // Comments
+      if (unitPriceData.comments) {
+        y += 2
+        setColor(BRAND.gray, 'text')
+        doc.setFont('helvetica', 'italic')
+        doc.setFontSize(7)
+        const commentLines = doc.splitTextToSize(`Comments: ${unitPriceData.comments}`, contentWidth - 6)
+        commentLines.forEach(line => {
+          checkPageBreak(5)
+          doc.text(line, margin + 2, y)
+          y += 3.5
+        })
+        setColor(BRAND.black, 'text')
+      }
+
+      // Summary
+      y += 2
+      setColor([111, 66, 193], 'text')
+      doc.setFont('helvetica', 'bold')
+      doc.setFontSize(7)
+      doc.text(`Total: ${unitPriceData.items.length} unit price item(s) recorded`, margin + 2, y)
+      setColor(BRAND.black, 'text')
+      y += 8
     }
 
     // ═══════════════════════════════════════════════════════════
