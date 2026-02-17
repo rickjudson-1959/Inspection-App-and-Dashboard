@@ -237,7 +237,7 @@ export function getCurrentPosition() {
       (error) => {
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            reject(new Error('Location permission denied. Please enable GPS access.'))
+            reject(new Error('Location permission denied. To re-enable: tap the lock/settings icon in your browser address bar → set Location to Allow → then reload the page.'))
             break
           case error.POSITION_UNAVAILABLE:
             reject(new Error('Location information unavailable.'))

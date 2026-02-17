@@ -274,7 +274,7 @@ export default function PipelineMap({
         setLocatingUser(false)
         switch (error.code) {
           case error.PERMISSION_DENIED:
-            setLocationError('Location permission denied. Please enable GPS access.')
+            setLocationError('Location permission denied. To re-enable: tap the lock/settings icon in your browser address bar → set Location to Allow → then reload the page.')
             break
           case error.POSITION_UNAVAILABLE:
             setLocationError('Location information unavailable.')
