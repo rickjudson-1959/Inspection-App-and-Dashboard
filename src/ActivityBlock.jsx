@@ -372,6 +372,7 @@ function ActivityBlock({
   updateLabourContractorNote,
   removeLabourFromBlock,
   addEquipmentToBlock,
+  updateEquipmentField,
   updateEquipmentProductionStatus,
   updateEquipmentShadowHours,
   updateEquipmentDragReason,
@@ -2864,7 +2865,14 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                   return (
                     <React.Fragment key={entry.id}>
                       <tr style={{ backgroundColor: '#fff' }}>
-                        <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6' }}>{entry.type}</td>
+                        <td style={{ padding: '2px 4px', borderBottom: '1px solid #dee2e6' }}>
+                          <SearchableSelect
+                            value={entry.type}
+                            onChange={(val) => updateEquipmentField(block.id, entry.id, 'type', val)}
+                            options={equipmentTypes}
+                            placeholder="Select"
+                          />
+                        </td>
                         <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
                           <input
                             type="text"

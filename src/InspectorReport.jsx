@@ -2165,7 +2165,7 @@ CRITICAL - Individual Entries Required:
         return {
           ...block,
           labourEntries: [...block.labourEntries, {
-            id: Date.now(),
+            id: Date.now() + Math.random(),
             employeeName: employeeName || '',
             classification,
             hours: rtVal + otVal, // Keep total for backwards compatibility
@@ -2325,6 +2325,20 @@ CRITICAL - Individual Entries Required:
     }))
   }
 
+  function updateEquipmentField(blockId, equipmentId, field, value) {
+    setActivityBlocks(prev => prev.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          equipmentEntries: block.equipmentEntries.map(entry =>
+            entry.id === equipmentId ? { ...entry, [field]: value } : entry
+          )
+        }
+      }
+      return block
+    }))
+  }
+
   function updateEquipmentUnitNumber(blockId, equipmentId, unitNumber) {
     setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
@@ -2375,7 +2389,7 @@ CRITICAL - Individual Entries Required:
         return {
           ...block,
           equipmentEntries: [...block.equipmentEntries, {
-            id: Date.now(),
+            id: Date.now() + Math.random(),
             type,
             hours: parseFloat(hours),
             count: parseInt(count) || 1,
@@ -7200,6 +7214,7 @@ CRITICAL - Individual Entries Required:
           updateLabourContractorNote={updateLabourContractorNote}
           removeLabourFromBlock={removeLabourFromBlock}
           addEquipmentToBlock={addEquipmentToBlock}
+          updateEquipmentField={updateEquipmentField}
           updateEquipmentProductionStatus={updateEquipmentProductionStatus}
           updateEquipmentShadowHours={updateEquipmentShadowHours}
           updateEquipmentDragReason={updateEquipmentDragReason}
