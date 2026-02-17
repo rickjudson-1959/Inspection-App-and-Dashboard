@@ -7366,31 +7366,6 @@ CRITICAL - Individual Entries Required:
           reportDate={selectedDate}
         />
 
-        {/* UNIT PRICE ITEMS TOGGLE */}
-        <div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '5px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 'bold' }}>General Comments</label>
-            <VoiceButton fieldId="generalComments" />
-          </div>
-          <textarea
-            value={generalComments}
-            onChange={(e) => setGeneralComments(e.target.value)}
-            rows={3}
-            placeholder="Other observations... (use 🎤 for voice input)"
-            style={{ 
-              width: '100%', 
-              padding: '10px', 
-              border: isListening === 'generalComments' ? '2px solid #dc3545' : '1px solid #ced4da', 
-              borderRadius: '4px',
-              backgroundColor: isListening === 'generalComments' ? '#fff5f5' : 'white'
-            }}
-          />
-          {isListening === 'generalComments' && (
-            <div style={{ marginTop: '5px', padding: '5px 10px', backgroundColor: '#f8d7da', borderRadius: '4px', fontSize: '12px', color: '#721c24' }}>
-              🔴 Listening... Say "period", "comma" for punctuation. Click Stop when done.
-            </div>
-          )}
-        </div>
       </div>
 
       {/* INSPECTOR INFO */}
