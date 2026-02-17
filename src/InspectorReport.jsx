@@ -7739,6 +7739,7 @@ CRITICAL - Individual Entries Required:
                 <li>🛤️ Mats</li>
                 <li>🪨 Rock Trench</li>
                 <li>📐 Extra Depth Ditch</li>
+                <li>🛏️ Bedding & Padding</li>
                 <li>🚧 Temporary Fencing</li>
                 <li>🛤️ Ramps</li>
                 <li>⚡ Goal Posts (Power Lines)</li>
@@ -7747,6 +7748,7 @@ CRITICAL - Individual Entries Required:
                 <li>🌊 Erosion Control</li>
                 <li>🚧 Signage & Flagging</li>
                 <li>🧹 Equipment Cleaning</li>
+                <li>⚙️ Weld UPI Items</li>
               </ul>
             </div>
             <p style={{ margin: '0 0 20px 0', color: '#666', fontSize: '14px' }}>
