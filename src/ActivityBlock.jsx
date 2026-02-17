@@ -2051,7 +2051,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
           value={block.workDescription}
           onChange={(val) => updateBlock(block.id, 'workDescription', val)}
           placeholder="Describe the work performed... (use 🎤 for voice input)"
-          rows={3}
+          rows={6}
           style={{
             width: '100%',
             padding: '10px',
