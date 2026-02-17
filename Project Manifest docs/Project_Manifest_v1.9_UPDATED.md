@@ -368,6 +368,35 @@
 
 ## 6. RECENT UPDATES (January/February 2026)
 
+### Inspector Report UX Improvements — Continued Field Testing (February 17, 2026)
+
+**Post-OCR inline editing and usability fixes from continued field testing**
+
+1. **Labour name/classification editable after OCR** — Employee names and classifications in the labour table are now editable inline (text input with crew roster autocomplete for names, searchable dropdown for classifications). Previously these were read-only after OCR.
+
+2. **Equipment type editable after OCR** — Equipment type in the equipment table is now a searchable dropdown, matching the labour editability pattern.
+
+3. **Crew name autocomplete** — A running crew roster is collected from all labour entries across activity blocks and persisted to localStorage (`pipeup_crew_roster`). Name fields suggest known crew members as you type.
+
+4. **Fixed duplicate entry IDs** — OCR-added entries in rapid succession got identical IDs (`Date.now()` in a loop), causing edits to one unit number to affect all entries. Fixed with `Date.now() + Math.random()`.
+
+5. **Work Description textarea height** — Increased from 3 rows to 6 rows for better visibility. Still vertically resizable.
+
+6. **GPS permission denied message** — Now shows specific re-enable instructions ("tap the lock icon in your browser address bar → set Location to Allow → reload") instead of a vague "Please enable GPS access" message.
+
+**Field Guide updated to v2.2** — Re-uploaded and re-indexed.
+
+**Files Modified:**
+```
+src/ActivityBlock.jsx         # Inline editing, crew autocomplete, textarea height, useMemo import
+src/InspectorReport.jsx       # updateLabourField, updateEquipmentField, unique IDs
+src/PipelineMap.jsx           # GPS permission message
+src/kpUtils.js                # GPS permission message
+pipe-up-field-guide-agent-kb.md  # v2.1 → v2.2
+```
+
+---
+
 ### Inspector Report Fixes — Corrine Barta Field Testing (February 17, 2026)
 
 **Fixed 4 issues identified during field testing by Corrine Barta**
@@ -1260,4 +1289,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 17, 2026 (Inspector Report Fixes — Corrine Barta Field Testing)*
+*Last Updated: February 17, 2026 (Inspector Report UX Improvements — Continued Field Testing)*

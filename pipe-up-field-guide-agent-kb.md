@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 2.1 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
+## Version: 2.2 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -86,14 +86,14 @@ A report contains one or more **Activity Blocks**. Each block represents a singl
 | `foreman` | Text | Foreman name (can auto-fill from OCR) |
 | `startKP` | KP format | Start chainage — supports GPS Sync. Format: `X+XXX` (e.g., `6+500`) |
 | `endKP` | KP format | End chainage — supports GPS Sync |
-| `workDescription` | Textarea | Free-text description — supports Voice Input |
+| `workDescription` | Textarea (6 rows) | Free-text description — supports Voice Input. Resizable vertically. |
 | `metersToday` | Number | Auto-calculated from endKP minus startKP, or manual entry |
 | `metersPrevious` | Number | Auto-populated from previous reports for the same activity type |
 | `ticketNumber` | Text | Contractor ticket number (can auto-fill from OCR) |
 | `ticketPhoto` / `ticketPhotos` | File upload (single or multi) | Photo(s) of contractor daily ticket — triggers OCR scanning. Multi-page tickets show page count in indicator and all pages in modal viewer |
 | `workPhotos` | File uploads | Work progress photos with metadata (caption, location) |
-| `labourEntries` | Array | Personnel logged (name, classification, RT, OT, JH, count) |
-| `equipmentEntries` | Array | Equipment logged (type, hours, count, unit number) |
+| `labourEntries` | Array | Personnel logged (name, classification, RT, OT, JH, count). Name and classification are editable inline after OCR. Name field has crew roster autocomplete. |
+| `equipmentEntries` | Array | Equipment logged (type, hours, count, unit number). Type and unit number are editable inline after OCR. |
 | `qualityData` | Object | Activity-specific quality check fields |
 | `timeLostReason` | Dropdown | From `timeLostReasons` — None, Weather, Equipment, etc. |
 | `timeLostHours` | Number | Hours lost to the selected reason |
@@ -103,7 +103,7 @@ A report contains one or more **Activity Blocks**. Each block represents a singl
 
 - **Format**: `X+XXX` where X is kilometres and XXX is metres. Example: `6+500` = 6,500 metres from KP 0.
 - **Auto-conversion**: The app converts raw numbers to KP format. `6500` becomes `6+500`. `6.5` becomes `6+500`. `500` becomes `0+500`.
-- **GPS KP Sync**: Tap the GPS button next to Start KP or End KP. The app uses your device's GPS to calculate the nearest KP on the pipeline centerline and auto-fills the field.
+- **GPS KP Sync**: Tap the GPS button next to Start KP or End KP. The app uses your device's GPS to calculate the nearest KP on the pipeline centerline and auto-fills the field. If you initially deny GPS permission, the app shows instructions on how to re-enable it (tap the lock icon in the browser address bar → set Location to Allow → reload).
 - **Chainage Overlap Detection**: The app checks your KP range against other blocks in the same report (same activity type) and historical reports from previous days. If an overlap is detected, a warning appears. You can provide a reason (e.g., rework, correction).
 - **Chainage Gap Detection**: If there's uncovered chainage between the last reported KP and your current start KP, the app flags a gap.
 - **Suggested Start KP**: When you select an activity type, the app shows where the last work ended so you can continue from the right point.
@@ -192,7 +192,10 @@ The OCR attempts to match extracted job titles to the app's standard labour clas
 OCR-extracted equipment entries are accepted even when hours are 0 (e.g., idle equipment on standby). Only the equipment type is required — hours default to 0 and can be edited after scanning.
 
 ### After Scanning
-Always review the extracted data. The OCR is highly accurate but should be verified against the physical ticket. You can edit any auto-populated fields.
+Always review the extracted data. The OCR is highly accurate but should be verified against the physical ticket. All auto-populated fields are editable inline:
+- **Labour**: Employee name (with crew roster autocomplete) and classification (searchable dropdown) can be corrected directly in the table.
+- **Equipment**: Equipment type (searchable dropdown) and unit number can be corrected directly in the table.
+- The crew roster autocomplete builds over time — names from all activity blocks are saved to localStorage for future suggestions.
 
 ---
 
@@ -309,6 +312,8 @@ The Weld UPI Items category tracks welding-related unit price items such as cut 
 | Chainage Overlap Detection | Warns if KP range overlaps historical reports | Activity block — automatic |
 | Suggested Start KP | Shows where last work ended for this activity type | Activity block — on activity selection |
 | OCR Ticket Scanning | Claude Vision extracts data from contractor ticket photos | Activity block — upload ticket photo |
+| Crew Roster Autocomplete | Suggests known worker names when typing in labour name fields | Labour name inputs — builds over time via localStorage |
+| Inline Edit After OCR | Edit labour names, classifications, equipment types, unit numbers directly in table | Labour/equipment table rows |
 | Voice-to-Text | Speech recognition for text fields | Microphone button on supported fields |
 | Auto-Calculate Metres | Calculates metres from KP range | Activity block — automatic |
 | Auto-Populate Previous Metres | Fetches cumulative metres from historical reports | Activity block — automatic |
@@ -452,9 +457,12 @@ A: Yes. Click "Download PDF Copy" at the bottom of the report. The PDF includes 
 A: KP stands for Kilometre Post. Format is X+XXX (e.g., 6+500 means 6.5 km). If you type 6500, the app converts it to 6+500. If you type 6.5, it converts to 6+500. If you type 500, it converts to 0+500.
 
 **Q: How does GPS KP Sync work?**
-A: Tap the GPS icon next to the Start KP or End KP field. The app reads your device's GPS coordinates, calculates the nearest point on the pipeline centerline, and auto-fills the KP value. It also shows your distance from the ROW centerline.
+A: Tap the GPS icon next to the Start KP or End KP field. The app reads your device's GPS coordinates, calculates the nearest point on the pipeline centerline, and auto-fills the KP value. It also shows your distance from the ROW centerline. If you accidentally block GPS permission, follow the on-screen instructions to re-enable it in your browser settings.
+
+**Q: OCR got a worker's name or equipment type wrong — can I fix it?**
+A: Yes. All labour and equipment fields are editable directly in the table after OCR. Tap the name to type a correction (known crew names will appear as suggestions), or tap the classification/equipment type to pick from the searchable dropdown.
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v2.1*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v2.2*
 *Source: InspectorReport.jsx (7,634 lines) + ActivityBlock.jsx (3,143 lines)*
