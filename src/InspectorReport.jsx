@@ -2153,7 +2153,11 @@ CRITICAL - Individual Entries Required:
   // Labour management for activity blocks
   // RT = Regular Time, OT = Overtime, JH = Jump Hours (bonus)
   function addLabourToBlock(blockId, employeeName, classification, rt, ot, jh, count) {
-    if (!classification || (!rt && !ot && !jh)) {
+    // Check if at least one hour field has a value entered (including 0)
+    const hasRT = rt !== '' && rt !== null && rt !== undefined
+    const hasOT = ot !== '' && ot !== null && ot !== undefined
+    const hasJH = jh !== '' && jh !== null && jh !== undefined
+    if (!classification || (!hasRT && !hasOT && !hasJH)) {
       alert('Please enter classification and at least one hour type (RT, OT, or JH)')
       return
     }
