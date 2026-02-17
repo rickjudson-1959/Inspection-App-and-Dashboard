@@ -2156,7 +2156,12 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
           <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#d4edda', borderRadius: '6px', border: '1px solid #c3e6cb' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
               <span style={{ color: '#155724', fontSize: '13px', fontWeight: 'bold' }}>
-                ✓ Ticket photo{block.ticketPhotos?.length > 1 ? `s (${block.ticketPhotos.length} pages)` : ''} attached: {block.ticketPhoto?.name || block.savedTicketPhotoName || 'Photo'}
+                ✓ {block.ticketPhotos?.length > 1
+                  ? `${block.ticketPhotos.length} pages attached`
+                  : block.savedTicketPhotoUrls?.length > 1
+                    ? `${block.savedTicketPhotoUrls.length} pages attached`
+                    : `Ticket photo attached: ${block.ticketPhoto?.name || block.savedTicketPhotoName || 'Photo'}`
+                }
               </span>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button
@@ -2245,11 +2250,35 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                 </button>
               </div>
               <div style={{ overflow: 'auto', flex: 1 }}>
-                <img
-                  src={block.ticketPhoto ? URL.createObjectURL(block.ticketPhoto) : block.savedTicketPhotoUrl}
-                  alt="Contractor Ticket"
-                  style={{ maxWidth: '100%', maxHeight: 'calc(90vh - 100px)', objectFit: 'contain' }}
-                />
+                {block.ticketPhotos?.length > 1 ? (
+                  block.ticketPhotos.map((photo, idx) => (
+                    <div key={idx} style={{ marginBottom: idx < block.ticketPhotos.length - 1 ? '15px' : 0, borderBottom: idx < block.ticketPhotos.length - 1 ? '2px solid #dee2e6' : 'none', paddingBottom: idx < block.ticketPhotos.length - 1 ? '15px' : 0 }}>
+                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '5px' }}>Page {idx + 1} of {block.ticketPhotos.length}</div>
+                      <img
+                        src={URL.createObjectURL(photo)}
+                        alt={`Contractor Ticket Page ${idx + 1}`}
+                        style={{ maxWidth: '100%', objectFit: 'contain' }}
+                      />
+                    </div>
+                  ))
+                ) : block.savedTicketPhotoUrls?.length > 1 ? (
+                  block.savedTicketPhotoUrls.map((url, idx) => (
+                    <div key={idx} style={{ marginBottom: idx < block.savedTicketPhotoUrls.length - 1 ? '15px' : 0, borderBottom: idx < block.savedTicketPhotoUrls.length - 1 ? '2px solid #dee2e6' : 'none', paddingBottom: idx < block.savedTicketPhotoUrls.length - 1 ? '15px' : 0 }}>
+                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '5px' }}>Page {idx + 1} of {block.savedTicketPhotoUrls.length}</div>
+                      <img
+                        src={url}
+                        alt={`Contractor Ticket Page ${idx + 1}`}
+                        style={{ maxWidth: '100%', objectFit: 'contain' }}
+                      />
+                    </div>
+                  ))
+                ) : (
+                  <img
+                    src={block.ticketPhoto ? URL.createObjectURL(block.ticketPhoto) : block.savedTicketPhotoUrl}
+                    alt="Contractor Ticket"
+                    style={{ maxWidth: '100%', maxHeight: 'calc(90vh - 100px)', objectFit: 'contain' }}
+                  />
+                )}
               </div>
             </div>
           </div>
@@ -2637,7 +2666,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                                 ))}
                                 {prodStatus !== 'ACTIVE' && (
                                   <span style={{ fontSize: '11px', color: '#666', marginLeft: '8px' }}>
-                                    Productive hrs: <input
+                                    {prodStatus === 'SYNC_DELAY' ? 'Down hrs:' : 'Standby hrs:'} <input
                                       type="text"
                                       inputMode="decimal"
                                       value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? entry.shadowEffectiveHours : shadowHours.toFixed(1)}
@@ -2868,7 +2897,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                                 ))}
                                 {prodStatus !== 'ACTIVE' && (
                                   <span style={{ fontSize: '11px', color: '#666', marginLeft: '8px' }}>
-                                    Productive hrs: <input
+                                    {prodStatus === 'SYNC_DELAY' ? 'Down hrs:' : 'Standby hrs:'} <input
                                       type="text"
                                       inputMode="decimal"
                                       value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? entry.shadowEffectiveHours : shadowHours.toFixed(1)}

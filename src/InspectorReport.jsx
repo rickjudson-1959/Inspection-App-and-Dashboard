@@ -1556,8 +1556,9 @@ CRITICAL - Individual Entries Required:
           }
         }
 
-        // Generate URL for existing ticket photo
+        // Generate URL for existing ticket photo(s)
         let savedTicketPhotoUrl = null
+        let savedTicketPhotoUrls = null
         console.log('[Edit Mode] Block ticketPhoto field:', block.ticketPhoto, 'type:', typeof block.ticketPhoto)
         if (block.ticketPhoto && typeof block.ticketPhoto === 'string') {
           const { data } = supabase.storage
@@ -1565,6 +1566,16 @@ CRITICAL - Individual Entries Required:
             .getPublicUrl(block.ticketPhoto)
           savedTicketPhotoUrl = data?.publicUrl || null
           console.log('[Edit Mode] Loaded ticket photo URL:', savedTicketPhotoUrl)
+        }
+        // Generate URLs for all saved ticket photo pages
+        if (block.ticketPhotos && Array.isArray(block.ticketPhotos) && block.ticketPhotos.length > 0) {
+          savedTicketPhotoUrls = block.ticketPhotos.map(filename => {
+            const { data } = supabase.storage
+              .from('ticket-photos')
+              .getPublicUrl(filename)
+            return data?.publicUrl || null
+          }).filter(Boolean)
+          console.log('[Edit Mode] Loaded', savedTicketPhotoUrls.length, 'ticket photo URLs')
         }
 
         return {
@@ -1580,8 +1591,11 @@ CRITICAL - Individual Entries Required:
           qualityData: block.qualityData || {},
           workPhotos: block.workPhotos || [],  // Preserve existing work photos metadata
           ticketPhoto: null,  // For new uploads
+          ticketPhotos: null,  // For new multi-page uploads
           savedTicketPhotoUrl: savedTicketPhotoUrl,  // URL for existing photo
+          savedTicketPhotoUrls: savedTicketPhotoUrls,  // URLs for all existing pages
           savedTicketPhotoName: block.ticketPhoto || null,  // Filename for display
+          savedTicketPhotoNames: block.ticketPhotos || null,  // All filenames for multi-page
           timeLostReason: block.timeLostReason || 'None',
           timeLostHours: block.timeLostHours || '',
           timeLostDetails: block.timeLostDetails || '',
@@ -2338,8 +2352,8 @@ CRITICAL - Individual Entries Required:
 
   // Equipment management for activity blocks
   function addEquipmentToBlock(blockId, type, hours, count, unitNumber) {
-    if (!type || !hours) {
-      alert('Please enter equipment type and hours')
+    if (!type) {
+      alert('Please enter equipment type')
       return
     }
     setActivityBlocks(prev => prev.map(block => {
@@ -2616,6 +2630,7 @@ CRITICAL - Individual Entries Required:
       for (const block of activityBlocks) {
         // Preserve existing ticket photo filename, or null if none
         let ticketPhotoFileName = block.savedTicketPhotoName || null
+        let ticketPhotoFileNames = block.savedTicketPhotoNames || null
         const workPhotoData = []
 
         // Upload NEW ticket photo(s) (if user uploaded/took new ones)
@@ -2636,8 +2651,9 @@ CRITICAL - Individual Entries Required:
               console.log(`[Save] Uploaded ticket photo page ${i + 1}:`, fileName)
             }
           }
-          // Store first photo as ticketPhoto for backward compat, all as JSON array in ticketPhotos
+          // Store first photo as ticketPhoto for backward compat, all names in ticketPhotos array
           ticketPhotoFileName = uploadedNames[0] || ticketPhotoFileName
+          ticketPhotoFileNames = uploadedNames.length > 0 ? uploadedNames : ticketPhotoFileNames
         } else if (block.ticketPhoto) {
           const fileExt = block.ticketPhoto.name.split('.').pop()
           ticketPhotoFileName = `ticket_${Date.now()}_${block.id}.${fileExt}`
@@ -2719,6 +2735,7 @@ CRITICAL - Individual Entries Required:
           contractor: block.contractor,
           foreman: block.foreman,
           ticketPhoto: ticketPhotoFileName,
+          ticketPhotos: ticketPhotoFileNames,
           startKP: block.startKP,
           endKP: block.endKP,
           workDescription: block.workDescription,
@@ -7233,7 +7250,7 @@ CRITICAL - Individual Entries Required:
               </div>
               <div style={{ fontSize: '13px', color: '#856404' }}>
                 Before submitting, check each category below to ensure nothing is missed:
-                <strong> Mats, Rock Trench, Extra Depth, Fencing, Ramps, Goal Posts, Access Roads, Hydrovac, Erosion Control, Signage, Equipment Cleaning</strong>
+                <strong> Mats, Rock Trench, Extra Depth, Fencing, Ramps, Goal Posts, Access Roads, Hydrovac, Erosion Control, Signage, Equipment Cleaning, Weld UPI Items</strong>
               </div>
             </div>
             

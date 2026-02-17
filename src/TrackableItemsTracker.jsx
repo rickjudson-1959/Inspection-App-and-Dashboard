@@ -201,6 +201,21 @@ const ITEM_TYPES = [
       { name: 'photo_taken', label: 'Photo Taken', type: 'select', options: ['Yes - Before', 'Yes - After', 'Yes - Both', 'No'] },
       { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
     ]
+  },
+  {
+    id: 'weld_upi',
+    label: '⚙️ Weld UPI Items',
+    color: '#ff6b35',
+    fields: [
+      { name: 'upi_type', label: 'UPI Type', type: 'select', options: ['Cut Out', 'Repair', 'Rework', 'NDT Fail Repair', 'Other'] },
+      { name: 'weld_number', label: 'Weld Number(s)', type: 'text', placeholder: 'e.g., W-001' },
+      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
+      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'quantity', label: 'Quantity', type: 'number' },
+      { name: 'reason', label: 'Reason', type: 'select', options: ['N/A', 'NDT Failure', 'CAP Failure', 'Visual Defect', 'Inspector Request', 'Other'] },
+      { name: 'status', label: 'Status', type: 'select', options: ['Completed - Passed', 'In Progress', 'Pending Re-test'] },
+      { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Details...' }
+    ]
   }
 ]
 
