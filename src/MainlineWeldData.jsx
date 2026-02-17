@@ -59,7 +59,17 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
   const [weldsPrevious, setWeldsPrevious] = useState(existingData?.weldsPrevious || 0)
   
   // Weld parameters (array of weld entries)
-  const [weldEntries, setWeldEntries] = useState(existingData?.weldEntries || [])
+  const [weldEntries, setWeldEntries] = useState(() => {
+    const entries = existingData?.weldEntries || []
+    // Backfill heat input for any entries that have valid params but null heatInput
+    return entries.map(entry => {
+      if (entry.heatInput === null && entry.voltage && entry.amperage && entry.travelSpeed) {
+        const hi = ((entry.voltage * entry.amperage * 60) / (entry.travelSpeed * 1000)).toFixed(2)
+        return { ...entry, heatInput: hi }
+      }
+      return entry
+    })
+  })
   
   // Visuals
   const [visualsFrom, setVisualsFrom] = useState(existingData?.visualsFrom || '')
@@ -235,7 +245,7 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
       distance: '',
       time: '',
       travelSpeed: PARAM_RANGES.travelSpeed[weldMethod].default,
-      heatInput: null,
+      heatInput: calculateHeatInput(PARAM_RANGES.voltage.default, PARAM_RANGES.amperage[weldMethod].default, PARAM_RANGES.travelSpeed[weldMethod].default),
       wpsId: '',
       meetsWPS: null
     }

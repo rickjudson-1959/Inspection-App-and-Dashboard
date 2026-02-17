@@ -25,7 +25,20 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
   const [pipeSize, setPipeSize] = useState(existingData?.pipeSize || '')
   
   // Tie-In entries
-  const [tieIns, setTieIns] = useState(existingData?.tieIns || [])
+  const [tieIns, setTieIns] = useState(() => {
+    const entries = existingData?.tieIns || []
+    // Backfill heat input for any weld params that have valid values but null heatInput
+    return entries.map(ti => ({
+      ...ti,
+      weldParams: (ti.weldParams || []).map(param => {
+        if (param.heatInput === null && param.voltage && param.amperage && param.travelSpeed) {
+          const hi = ((param.voltage * param.amperage * 60) / (param.travelSpeed * 1000)).toFixed(2)
+          return { ...param, heatInput: hi }
+        }
+        return param
+      })
+    }))
+  })
   
   // Currently selected tie-in for detail editing
   const [selectedTieIn, setSelectedTieIn] = useState(null)
@@ -187,7 +200,7 @@ export default function TieInWeldData({ blockId, reportId, onDataChange, existin
         distance: '',
         time: '',
         travelSpeed: PARAM_RANGES.travelSpeed.default,
-        heatInput: null,
+        heatInput: calculateHeatInput(PARAM_RANGES.voltage.default, PARAM_RANGES.amperage.default, PARAM_RANGES.travelSpeed.default),
         wpsId: '',
         meetsWPS: null
       }
