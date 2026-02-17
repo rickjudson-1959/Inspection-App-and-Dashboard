@@ -150,8 +150,14 @@ function scoreFieldCompleteness(activityBlocks) {
     ).length
 
     if (requiredFields.length > 0 && blockFilled < requiredFields.length) {
-      const missing = requiredFields.length - blockFilled
-      issues.push(`${block.activityType} (KP ${block.startKP || '?'}): ${missing} quality field${missing !== 1 ? 's' : ''} incomplete`)
+      const missingFields = requiredFields.filter(
+        f => block.qualityData?.[f.name] === undefined ||
+             block.qualityData?.[f.name] === null ||
+             block.qualityData?.[f.name] === ''
+      )
+      const missingCount = missingFields.length
+      const fieldNames = missingFields.map(f => f.label || f.name).join(', ')
+      issues.push(`${block.activityType} (KP ${block.startKP || '?'}): ${missingCount} quality field${missingCount !== 1 ? 's' : ''} incomplete — ${fieldNames}`)
     }
   }
 
