@@ -382,7 +382,9 @@
 
 5. **Health score lists specific incomplete fields** — The Field Completeness section of the Report Health Score now lists the actual field labels that are missing (e.g., "Preheat Temp, Interpass Temp, Root Bead Visual") instead of just showing "12 quality fields incomplete". Inspectors now know exactly which fields to fill in.
 
-**Field Guide updated to v2.6** — Re-uploaded and re-indexed (version 7).
+6. **Pre-submit trackable items modal completed** — The "STOP! Check Trackable Items" confirmation modal now lists all 13 trackable item types. Previously missing Bedding & Padding and Weld UPI Items.
+
+**Field Guide updated to v2.7** — Re-uploaded and re-indexed (version 8).
 
 **Files Modified:**
 ```
@@ -390,11 +392,11 @@ src/MainlineWeldData.jsx      # Heat input at creation, backfill, section rename
 src/TieInWeldData.jsx         # Heat input at creation, backfill
 src/ActivityBlock.jsx         # Downtime display inverted for labour + equipment
 src/TrackableItemsTracker.jsx # Single KP field, save mapping cleanup
-src/InspectorReport.jsx       # PDF descriptions updated, save mapping cleanup
+src/InspectorReport.jsx       # PDF descriptions, save mapping, trackable items modal
 src/ReportViewer.jsx          # Single KP column in trackable items table
 src/CrossingSupport.jsx       # Removed redundant from_kp/to_kp
 src/agents/ReportHealthScorer.js  # List specific incomplete field names
-pipe-up-field-guide-agent-kb.md  # v2.4 → v2.6
+pipe-up-field-guide-agent-kb.md  # v2.4 → v2.7
 ```
 
 ---
@@ -1360,4 +1362,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 17, 2026 (Health Score Field Completeness Detail)*
+*Last Updated: February 17, 2026 (Pre-Submit Trackable Items Modal Fix)*

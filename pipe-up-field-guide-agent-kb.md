@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 2.6 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
+## Version: 2.7 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -265,7 +265,7 @@ Accurately categorize each labour and equipment entry's production status. The s
 
 ### Submit Flow
 1. Inspector fills out the report and clicks Submit Report.
-2. A Trackable Items modal appears asking: "Have you checked ALL trackable items?" — listing Mats, Rock Trench, Extra Depth Ditch, Temporary Fencing, Ramps, Goal Posts (Power Lines), Access Roads, Hydrovac Holes, Erosion Control, Signage & Flagging, Equipment Cleaning, Weld UPI Items.
+2. A Trackable Items modal appears asking: "Have you checked ALL trackable items?" — listing Mats, Rock Trench, Extra Depth Ditch, Bedding & Padding, Temporary Fencing, Ramps, Goal Posts (Power Lines), Access Roads, Hydrovac Holes, Erosion Control, Signage & Flagging, Equipment Cleaning, Weld UPI Items (all 13 types).
 3. If confirmed, the report saves to Supabase and goes to the Chief Inspector for review.
 4. Reports with welding activities (Welding - Mainline, Welding - Section Crew, Welding - Poor Boy, Welding - Tie-in, Welder Testing) also require Welding Chief review.
 
