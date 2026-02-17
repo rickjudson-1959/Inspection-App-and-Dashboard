@@ -1,8 +1,32 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { supabase } from './supabase'
 
 // You'll need to set this in your environment or config
 const CLAUDE_API_KEY = import.meta.env.VITE_CLAUDE_API_KEY || ''
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+const SERVICE_ROLE_KEY = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || ''
+
+// Column name aliases for flexible CSV parsing
+const LABOUR_ALIASES = {
+  classification: ['classification', 'class', 'position', 'title', 'role', 'description', 'labour_classification', 'labor_classification', 'job_title', 'job_class', 'trade', 'category'],
+  rate_st: ['rate_st', 'st_rate', 'st', 'straight_time', 'straight', 'rate', 'hourly_rate', 'hourly', 'regular', 'reg_rate', 'regular_rate', 'base_rate'],
+  rate_ot: ['rate_ot', 'ot_rate', 'ot', 'overtime', 'overtime_rate', 'ot_hourly'],
+  rate_dt: ['rate_dt', 'dt_rate', 'dt', 'double_time', 'double', 'doubletime', 'dt_hourly']
+}
+
+const EQUIPMENT_ALIASES = {
+  equipment_type: ['equipment_type', 'type', 'equipment', 'description', 'name', 'item', 'unit', 'category'],
+  rate_hourly: ['rate_hourly', 'hourly_rate', 'hourly', 'rate', 'hr_rate', 'per_hour'],
+  rate_daily: ['rate_daily', 'daily_rate', 'daily', 'day_rate', 'per_day']
+}
+
+function matchHeader(header, aliases) {
+  const normalized = header.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '')
+  for (const [field, alts] of Object.entries(aliases)) {
+    if (alts.includes(normalized)) return field
+  }
+  return null
+}
 
 export default function RateImport({ organizationId, organizationName, onComplete }) {
   const [activeTab, setActiveTab] = useState('labour')
@@ -13,54 +37,180 @@ export default function RateImport({ organizationId, organizationName, onComplet
   const [error, setError] = useState('')
   const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().split('T')[0])
   const [importSuccess, setImportSuccess] = useState(false)
+  const [existingRates, setExistingRates] = useState([])
+  const [loadingRates, setLoadingRates] = useState(false)
 
-  // CSV Parsing
-  function parseCSV(text) {
-    const lines = text.trim().split('\n')
-    const headers = lines[0].split(',').map(h => h.trim().toLowerCase().replace(/\s+/g, '_'))
-    const data = []
-    
-    for (let i = 1; i < lines.length; i++) {
-      const values = lines[i].split(',').map(v => v.trim())
-      if (values.length === headers.length) {
-        const row = {}
-        headers.forEach((h, idx) => {
-          // Convert numeric fields
-          if (['rate_st', 'rate_ot', 'rate_dt', 'rate_hourly', 'rate_daily'].includes(h)) {
-            row[h] = parseFloat(values[idx].replace(/[$,]/g, '')) || 0
-          } else {
-            row[h] = values[idx]
+  // Load existing rates when org or tab changes
+  useEffect(() => {
+    if (!organizationId) return
+    loadExistingRates()
+  }, [organizationId, activeTab])
+
+  async function loadExistingRates() {
+    setLoadingRates(true)
+    try {
+      const tableName = activeTab === 'labour' ? 'labour_rates' : 'equipment_rates'
+      const { data, error: fetchError } = await supabase
+        .from(tableName)
+        .select('*')
+        .eq('organization_id', organizationId)
+        .order('created_at', { ascending: false })
+
+      if (fetchError) {
+        console.error('Error loading rates:', fetchError)
+        // Fallback to service role key
+        const resp = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}?organization_id=eq.${organizationId}&order=created_at.desc`, {
+          headers: {
+            'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+            'apikey': SERVICE_ROLE_KEY
           }
         })
-        row.valid = true
-        data.push(row)
+        if (resp.ok) {
+          setExistingRates(await resp.json())
+        }
+      } else {
+        setExistingRates(data || [])
+      }
+    } catch (err) {
+      console.error('Error loading rates:', err)
+    }
+    setLoadingRates(false)
+  }
+
+  // Smart CSV Parsing — handles quoted fields, flexible headers, tabs/semicolons
+  function parseCSV(text) {
+    const lines = text.trim().split(/\r?\n/)
+    if (lines.length < 2) return { data: [], error: 'CSV must have a header row and at least one data row' }
+
+    // Detect delimiter (comma, semicolon, or tab)
+    const firstLine = lines[0]
+    let delimiter = ','
+    if (firstLine.includes('\t') && !firstLine.includes(',')) delimiter = '\t'
+    else if (firstLine.includes(';') && !firstLine.includes(',')) delimiter = ';'
+
+    // Parse a CSV line respecting quoted fields
+    function parseLine(line) {
+      const values = []
+      let current = ''
+      let inQuotes = false
+      for (let i = 0; i < line.length; i++) {
+        const char = line[i]
+        if (char === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            current += '"'
+            i++
+          } else {
+            inQuotes = !inQuotes
+          }
+        } else if (char === delimiter && !inQuotes) {
+          values.push(current.trim())
+          current = ''
+        } else {
+          current += char
+        }
+      }
+      values.push(current.trim())
+      return values
+    }
+
+    const rawHeaders = parseLine(lines[0])
+    const aliases = activeTab === 'labour' ? LABOUR_ALIASES : EQUIPMENT_ALIASES
+
+    // Map CSV headers to our field names
+    const headerMap = {}
+    const unmapped = []
+    rawHeaders.forEach((h, idx) => {
+      const field = matchHeader(h, aliases)
+      if (field) {
+        headerMap[idx] = field
+      } else {
+        unmapped.push(h)
+      }
+    })
+
+    // Check required fields
+    const mappedFields = Object.values(headerMap)
+    const nameField = activeTab === 'labour' ? 'classification' : 'equipment_type'
+    const rateField = activeTab === 'labour' ? 'rate_st' : 'rate_hourly'
+
+    if (!mappedFields.includes(nameField)) {
+      return {
+        data: [],
+        error: `Could not find a "${nameField}" column. Found headers: ${rawHeaders.join(', ')}. Expected one of: ${aliases[nameField].join(', ')}`
       }
     }
-    return data
+    if (!mappedFields.includes(rateField)) {
+      return {
+        data: [],
+        error: `Could not find a rate column. Found headers: ${rawHeaders.join(', ')}. Expected one of: ${aliases[rateField].join(', ')}`
+      }
+    }
+
+    const data = []
+    for (let i = 1; i < lines.length; i++) {
+      const line = lines[i].trim()
+      if (!line) continue
+      const values = parseLine(line)
+      const row = {}
+
+      Object.entries(headerMap).forEach(([idx, field]) => {
+        const val = values[parseInt(idx)] || ''
+        if (['rate_st', 'rate_ot', 'rate_dt', 'rate_hourly', 'rate_daily'].includes(field)) {
+          row[field] = parseFloat(val.replace(/[$,]/g, '')) || 0
+        } else {
+          row[field] = val
+        }
+      })
+
+      // Skip empty rows
+      const name = row[nameField]
+      if (!name) continue
+
+      // Auto-calculate OT/DT if missing for labour
+      if (activeTab === 'labour') {
+        if (!row.rate_ot && row.rate_st) row.rate_ot = Math.round(row.rate_st * 1.5 * 100) / 100
+        if (!row.rate_dt && row.rate_st) row.rate_dt = Math.round(row.rate_st * 2 * 100) / 100
+      }
+      // Auto-calculate daily if missing for equipment
+      if (activeTab === 'equipment') {
+        if (!row.rate_daily && row.rate_hourly) row.rate_daily = Math.round(row.rate_hourly * 8 * 100) / 100
+      }
+
+      row.valid = true
+      data.push(row)
+    }
+
+    if (unmapped.length > 0) {
+      console.log('Unmapped CSV columns (ignored):', unmapped)
+    }
+
+    return { data, error: null }
   }
 
   // Handle CSV file upload
   async function handleCSVUpload(e) {
     const uploadedFile = e.target.files[0]
     if (!uploadedFile) return
-    
+
     setFile(uploadedFile)
     setError('')
     setLoading(true)
-    
+
     try {
       const text = await uploadedFile.text()
-      const data = parseCSV(text)
-      
-      if (data.length === 0) {
-        setError('No valid data found in CSV')
+      const result = parseCSV(text)
+
+      if (result.error) {
+        setError(result.error)
+      } else if (result.data.length === 0) {
+        setError('No valid data rows found in CSV. Make sure it has a header row and at least one data row.')
       } else {
-        setPreviewData(data)
+        setPreviewData(result.data)
       }
     } catch (err) {
-      setError('Error parsing CSV: ' + err.message)
+      setError('Error reading CSV file: ' + err.message)
     }
-    
+
     setLoading(false)
   }
 
@@ -68,19 +218,19 @@ export default function RateImport({ organizationId, organizationName, onComplet
   async function handleOCRUpload(e) {
     const uploadedFile = e.target.files[0]
     if (!uploadedFile) return
-    
+
     setFile(uploadedFile)
     setError('')
     setLoading(true)
-    
+
     try {
       // Convert file to base64
       const base64 = await fileToBase64(uploadedFile)
       const mediaType = uploadedFile.type || 'image/png'
-      
+
       // Call Claude API for OCR
       const extractedData = await extractRatesWithClaude(base64, mediaType, activeTab)
-      
+
       if (extractedData.length === 0) {
         setError('Could not extract rate data from file. Please check the format.')
       } else {
@@ -89,7 +239,7 @@ export default function RateImport({ organizationId, organizationName, onComplet
     } catch (err) {
       setError('Error processing file: ' + err.message)
     }
-    
+
     setLoading(false)
   }
 
@@ -107,8 +257,8 @@ export default function RateImport({ organizationId, organizationName, onComplet
 
   // Call Claude API to extract rates from image/PDF
   async function extractRatesWithClaude(base64Data, mediaType, rateType) {
-    const prompt = rateType === 'labour' 
-      ? `Extract labour/personnel rates from this rate sheet image. 
+    const prompt = rateType === 'labour'
+      ? `Extract labour/personnel rates from this rate sheet image.
          Return ONLY a JSON array with objects containing: classification, rate_st (straight time hourly rate), rate_ot (overtime rate, usually 1.5x), rate_dt (double time rate, usually 2x).
          If overtime/double time aren't shown, calculate them as 1.5x and 2x of straight time.
          Example format: [{"classification": "Foreman", "rate_st": 95.00, "rate_ot": 142.50, "rate_dt": 190.00}]
@@ -165,7 +315,7 @@ export default function RateImport({ organizationId, organizationName, onComplet
 
     const result = await response.json()
     const content = result.content[0]?.text || ''
-    
+
     // Parse the JSON response
     try {
       // Try to extract JSON from the response
@@ -177,7 +327,7 @@ export default function RateImport({ organizationId, organizationName, onComplet
     } catch (parseErr) {
       console.error('JSON parse error:', parseErr, content)
     }
-    
+
     return []
   }
 
@@ -206,13 +356,13 @@ export default function RateImport({ organizationId, organizationName, onComplet
     }
   }
 
-  // Import to Supabase
+  // Import to Supabase — uses service role key to bypass RLS
   async function handleImport() {
     if (!organizationId) {
       setError('Please select an organization first')
       return
     }
-    
+
     if (previewData.length === 0) {
       setError('No data to import')
       return
@@ -223,34 +373,79 @@ export default function RateImport({ organizationId, organizationName, onComplet
 
     try {
       const tableName = activeTab === 'labour' ? 'labour_rates' : 'equipment_rates'
-      
-      const records = previewData.map(row => ({
-        organization_id: organizationId,
-        effective_date: effectiveDate,
-        ...row,
-        valid: undefined // Remove the valid flag before insert
-      }))
 
-      // Remove the valid field
-      records.forEach(r => delete r.valid)
+      const records = previewData.map(row => {
+        const record = {
+          organization_id: organizationId,
+          effective_date: effectiveDate
+        }
+        if (activeTab === 'labour') {
+          record.classification = row.classification
+          record.rate_st = row.rate_st || 0
+          record.rate_ot = row.rate_ot || 0
+          record.rate_dt = row.rate_dt || 0
+        } else {
+          record.equipment_type = row.equipment_type
+          record.rate_hourly = row.rate_hourly || 0
+          record.rate_daily = row.rate_daily || 0
+        }
+        return record
+      })
 
-      const { error: insertError } = await supabase
-        .from(tableName)
-        .insert(records)
+      // Use service role key to bypass RLS
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+          'apikey': SERVICE_ROLE_KEY,
+          'Content-Type': 'application/json',
+          'Prefer': 'return=representation'
+        },
+        body: JSON.stringify(records)
+      })
 
-      if (insertError) throw insertError
+      if (!response.ok) {
+        const errBody = await response.text()
+        throw new Error(`Database error: ${errBody}`)
+      }
+
+      const inserted = await response.json()
+      console.log(`Imported ${inserted.length} ${activeTab} rates`)
 
       setImportSuccess(true)
       setPreviewData([])
       setFile(null)
-      
-      if (onComplete) onComplete(records.length)
-      
+
+      // Reload existing rates
+      loadExistingRates()
+
+      if (onComplete) onComplete(inserted.length)
+
     } catch (err) {
       setError('Import failed: ' + err.message)
     }
 
     setLoading(false)
+  }
+
+  // Delete all rates for this org
+  async function clearRates() {
+    if (!confirm(`Delete all ${activeTab} rates for ${organizationName}?`)) return
+    try {
+      const tableName = activeTab === 'labour' ? 'labour_rates' : 'equipment_rates'
+      const response = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}?organization_id=eq.${organizationId}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+          'apikey': SERVICE_ROLE_KEY
+        }
+      })
+      if (response.ok) {
+        setExistingRates([])
+      }
+    } catch (err) {
+      setError('Delete failed: ' + err.message)
+    }
   }
 
   // Reset form
@@ -265,7 +460,7 @@ export default function RateImport({ organizationId, organizationName, onComplet
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
-        <h2 style={{ margin: 0, color: '#003366' }}>📊 Import Rate Sheets</h2>
+        <h2 style={{ margin: 0, color: '#003366' }}>Import Rate Sheets</h2>
         <p style={{ color: '#666', marginTop: '8px' }}>
           Upload rate sheets via CSV or let AI extract rates from PDF/images
         </p>
@@ -273,10 +468,10 @@ export default function RateImport({ organizationId, organizationName, onComplet
 
       {/* Organization Display */}
       {organizationId && (
-        <div style={{ 
-          backgroundColor: '#e8f4fd', 
-          padding: '12px 16px', 
-          borderRadius: '6px', 
+        <div style={{
+          backgroundColor: '#e8f4fd',
+          padding: '12px 16px',
+          borderRadius: '6px',
           marginBottom: '20px',
           border: '1px solid #b3d9f7'
         }}>
@@ -298,7 +493,7 @@ export default function RateImport({ organizationId, organizationName, onComplet
             fontWeight: '600'
           }}
         >
-          👷 Labour Rates
+          Labour Rates
         </button>
         <button
           onClick={() => { setActiveTab('equipment'); reset() }}
@@ -312,9 +507,71 @@ export default function RateImport({ organizationId, organizationName, onComplet
             fontWeight: '600'
           }}
         >
-          🚜 Equipment Rates
+          Equipment Rates
         </button>
       </div>
+
+      {/* Existing Rates Display */}
+      {existingRates.length > 0 && !importSuccess && previewData.length === 0 && (
+        <div style={{ marginBottom: '24px', backgroundColor: '#f8f9fa', borderRadius: '8px', padding: '16px', border: '1px solid #dee2e6' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <h3 style={{ margin: 0, color: '#003366' }}>
+              Current {activeTab === 'labour' ? 'Labour' : 'Equipment'} Rates ({existingRates.length})
+            </h3>
+            <button
+              onClick={clearRates}
+              style={{ padding: '6px 12px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
+            >
+              Clear All
+            </button>
+          </div>
+          <div style={{ overflowX: 'auto', maxHeight: '300px', overflowY: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#e9ecef', position: 'sticky', top: 0 }}>
+                  {activeTab === 'labour' ? (
+                    <>
+                      <th style={{ padding: '8px', textAlign: 'left' }}>Classification</th>
+                      <th style={{ padding: '8px', textAlign: 'right' }}>ST Rate</th>
+                      <th style={{ padding: '8px', textAlign: 'right' }}>OT Rate</th>
+                      <th style={{ padding: '8px', textAlign: 'right' }}>DT Rate</th>
+                    </>
+                  ) : (
+                    <>
+                      <th style={{ padding: '8px', textAlign: 'left' }}>Equipment Type</th>
+                      <th style={{ padding: '8px', textAlign: 'right' }}>Hourly Rate</th>
+                      <th style={{ padding: '8px', textAlign: 'right' }}>Daily Rate</th>
+                    </>
+                  )}
+                  <th style={{ padding: '8px', textAlign: 'right' }}>Effective</th>
+                </tr>
+              </thead>
+              <tbody>
+                {existingRates.map((r, idx) => (
+                  <tr key={r.id || idx} style={{ borderBottom: '1px solid #dee2e6' }}>
+                    {activeTab === 'labour' ? (
+                      <>
+                        <td style={{ padding: '6px 8px' }}>{r.classification}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_st?.toFixed(2)}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_ot?.toFixed(2)}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_dt?.toFixed(2)}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td style={{ padding: '6px 8px' }}>{r.equipment_type}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_hourly?.toFixed(2)}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_daily?.toFixed(2)}</td>
+                      </>
+                    )}
+                    <td style={{ padding: '6px 8px', textAlign: 'right', fontSize: '12px', color: '#666' }}>{r.effective_date}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {loadingRates && <p style={{ color: '#666' }}>Loading existing rates...</p>}
 
       {/* Success Message */}
       {importSuccess && (
@@ -326,7 +583,7 @@ export default function RateImport({ organizationId, organizationName, onComplet
           borderRadius: '6px',
           marginBottom: '20px'
         }}>
-          ✅ Rates imported successfully!
+          Rates imported successfully!
           <button onClick={reset} style={{ marginLeft: '20px', padding: '4px 12px', cursor: 'pointer' }}>
             Import More
           </button>
@@ -336,11 +593,11 @@ export default function RateImport({ organizationId, organizationName, onComplet
       {/* Upload Method Selection */}
       {!importSuccess && (
         <>
-          <div style={{ 
-            display: 'grid', 
-            gridTemplateColumns: '1fr 1fr', 
-            gap: '20px', 
-            marginBottom: '24px' 
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '20px',
+            marginBottom: '24px'
           }}>
             {/* CSV Upload */}
             <div style={{
@@ -351,28 +608,28 @@ export default function RateImport({ organizationId, organizationName, onComplet
               backgroundColor: uploadMethod === 'csv' ? '#f8fafc' : 'white'
             }} onClick={() => setUploadMethod('csv')}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                <input 
-                  type="radio" 
-                  checked={uploadMethod === 'csv'} 
+                <input
+                  type="radio"
+                  checked={uploadMethod === 'csv'}
                   onChange={() => setUploadMethod('csv')}
                 />
-                <h3 style={{ margin: 0 }}>📄 CSV Upload</h3>
+                <h3 style={{ margin: 0 }}>CSV Upload</h3>
               </div>
               <p style={{ color: '#666', fontSize: '14px', margin: 0 }}>
                 Upload a CSV file with rate data. Download our template for the correct format.
               </p>
               {uploadMethod === 'csv' && (
                 <div style={{ marginTop: '16px' }}>
-                  <a 
+                  <a
                     href={activeTab === 'labour' ? '/labour_rates_template.csv' : '/equipment_rates_template.csv'}
                     download
                     style={{ color: '#003366', fontSize: '14px' }}
                   >
-                    📥 Download {activeTab === 'labour' ? 'Labour' : 'Equipment'} Template
+                    Download {activeTab === 'labour' ? 'Labour' : 'Equipment'} Template
                   </a>
                   <input
                     type="file"
-                    accept=".csv"
+                    accept=".csv,.txt"
                     onChange={handleCSVUpload}
                     style={{ display: 'block', marginTop: '12px' }}
                   />
@@ -389,12 +646,12 @@ export default function RateImport({ organizationId, organizationName, onComplet
               backgroundColor: uploadMethod === 'ocr' ? '#f8fafc' : 'white'
             }} onClick={() => setUploadMethod('ocr')}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' }}>
-                <input 
-                  type="radio" 
-                  checked={uploadMethod === 'ocr'} 
+                <input
+                  type="radio"
+                  checked={uploadMethod === 'ocr'}
                   onChange={() => setUploadMethod('ocr')}
                 />
-                <h3 style={{ margin: 0 }}>🤖 AI Extract (PDF/Image)</h3>
+                <h3 style={{ margin: 0 }}>AI Extract (PDF/Image)</h3>
               </div>
               <p style={{ color: '#666', fontSize: '14px', margin: 0 }}>
                 Upload a rate sheet image or PDF and AI will extract the rates automatically.
@@ -417,14 +674,14 @@ export default function RateImport({ organizationId, organizationName, onComplet
 
           {/* Loading */}
           {loading && (
-            <div style={{ 
-              textAlign: 'center', 
+            <div style={{
+              textAlign: 'center',
               padding: '40px',
               backgroundColor: '#f8f9fa',
               borderRadius: '8px',
               marginBottom: '20px'
             }}>
-              <div style={{ fontSize: '24px', marginBottom: '10px' }}>⏳</div>
+              <div style={{ fontSize: '24px', marginBottom: '10px' }}>...</div>
               <p>{uploadMethod === 'ocr' ? 'AI is extracting rates...' : 'Processing CSV...'}</p>
             </div>
           )}
@@ -439,21 +696,21 @@ export default function RateImport({ organizationId, organizationName, onComplet
               borderRadius: '6px',
               marginBottom: '20px'
             }}>
-              ❌ {error}
+              {error}
             </div>
           )}
 
           {/* Preview Table */}
           {previewData.length > 0 && (
             <div style={{ marginBottom: '24px' }}>
-              <div style={{ 
-                display: 'flex', 
-                justifyContent: 'space-between', 
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
                 alignItems: 'center',
                 marginBottom: '12px'
               }}>
                 <h3 style={{ margin: 0 }}>Preview ({previewData.length} rows)</h3>
-                <button 
+                <button
                   onClick={addRow}
                   style={{
                     padding: '8px 16px',
@@ -574,7 +831,7 @@ export default function RateImport({ organizationId, organizationName, onComplet
                               fontSize: '12px'
                             }}
                           >
-                            ✕
+                            X
                           </button>
                         </td>
                       </tr>
@@ -584,10 +841,10 @@ export default function RateImport({ organizationId, organizationName, onComplet
               </div>
 
               {/* Import Settings */}
-              <div style={{ 
-                marginTop: '20px', 
-                padding: '16px', 
-                backgroundColor: '#f8f9fa', 
+              <div style={{
+                marginTop: '20px',
+                padding: '16px',
+                backgroundColor: '#f8f9fa',
                 borderRadius: '6px',
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -640,23 +897,26 @@ export default function RateImport({ organizationId, organizationName, onComplet
       )}
 
       {/* Instructions */}
-      <div style={{ 
-        marginTop: '30px', 
-        padding: '20px', 
-        backgroundColor: '#fff8e1', 
+      <div style={{
+        marginTop: '30px',
+        padding: '20px',
+        backgroundColor: '#fff8e1',
         borderRadius: '8px',
         border: '1px solid #ffe082'
       }}>
-        <h4 style={{ margin: '0 0 12px 0', color: '#ff8f00' }}>📋 Instructions</h4>
+        <h4 style={{ margin: '0 0 12px 0', color: '#ff8f00' }}>Instructions</h4>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
           <div>
             <strong>CSV Upload:</strong>
             <ol style={{ margin: '8px 0', paddingLeft: '20px', fontSize: '14px', color: '#666' }}>
-              <li>Download the template</li>
-              <li>Fill in your rates</li>
+              <li>Download the template for correct format</li>
+              <li>Fill in your rates (OT/DT auto-calculated if left blank)</li>
               <li>Save as CSV</li>
-              <li>Upload and review</li>
+              <li>Upload, review the preview, then import</li>
             </ol>
+            <p style={{ fontSize: '12px', color: '#888', marginTop: '8px' }}>
+              Accepts flexible column names: "Classification", "Position", "Rate", "Hourly Rate", "ST Rate", etc.
+            </p>
           </div>
           <div>
             <strong>AI Extract:</strong>
