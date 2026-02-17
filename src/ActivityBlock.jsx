@@ -320,6 +320,89 @@ function SearchableSelect({
   )
 }
 
+// SearchableNameInput - free-text input with autocomplete dropdown
+// Allows typing new names OR selecting from known crew names
+function SearchableNameInput({ value, onChange, suggestions, placeholder = 'Name', style = {} }) {
+  const [isFocused, setIsFocused] = useState(false)
+  const [filterText, setFilterText] = useState('')
+  const containerRef = React.useRef(null)
+
+  const filtered = suggestions.filter(name => {
+    const search = (filterText || value || '').toLowerCase()
+    if (!search) return true
+    return name.toLowerCase().includes(search)
+  })
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (containerRef.current && !containerRef.current.contains(e.target)) {
+        setIsFocused(false)
+        setFilterText('')
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const showDropdown = isFocused && filtered.length > 0 && (filterText || value || '').length > 0
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', ...style }}>
+      <input
+        type="text"
+        value={value || ''}
+        onChange={(e) => {
+          onChange(e.target.value)
+          setFilterText(e.target.value)
+          setIsFocused(true)
+        }}
+        onFocus={() => {
+          setIsFocused(true)
+          setFilterText(value || '')
+        }}
+        placeholder={placeholder}
+        style={{ width: '100%', padding: '4px', border: '1px solid #ced4da', borderRadius: '3px', fontSize: '12px', boxSizing: 'border-box' }}
+      />
+      {showDropdown && (
+        <div style={{
+          position: 'absolute',
+          top: '100%',
+          left: 0,
+          right: 0,
+          backgroundColor: '#fff',
+          border: '1px solid #ced4da',
+          borderRadius: '4px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          zIndex: 1000,
+          maxHeight: '180px',
+          overflowY: 'auto',
+          marginTop: '2px'
+        }}>
+          {filtered.slice(0, 10).map(name => (
+            <div
+              key={name}
+              onClick={() => {
+                onChange(name)
+                setIsFocused(false)
+                setFilterText('')
+              }}
+              style={{
+                padding: '8px 10px',
+                cursor: 'pointer',
+                backgroundColor: name === value ? '#e3f2fd' : '#fff',
+                borderBottom: '1px solid #f0f0f0',
+                fontSize: '12px'
+              }}
+            >
+              {name}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ActivityBlock({
   block,
   blockIndex,
@@ -2516,20 +2599,15 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
         <p style={{ margin: '0 0 15px 0', fontSize: '12px', color: '#155724' }}>
           RT = Regular Time | OT = Overtime | JH = Jump Hours (bonus)
         </p>
-        <datalist id={`crew-names-${block.id}`}>
-          {knownCrewNames.map(name => <option key={name} value={name} />)}
-        </datalist>
-        
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 70px 70px 70px 70px auto', gap: '10px', marginBottom: '15px', alignItems: 'end' }}>
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Employee Name</label>
-            <input
-              type="text"
-              list={`crew-names-${block.id}`}
-              placeholder="Name"
+            <SearchableNameInput
               value={currentLabour.employeeName}
-              onChange={(e) => setCurrentLabour({ ...currentLabour, employeeName: e.target.value })}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
+              onChange={(val) => setCurrentLabour({ ...currentLabour, employeeName: val })}
+              suggestions={knownCrewNames}
+              placeholder="Name"
+              style={{ width: '100%' }}
             />
           </div>
           <div>
@@ -2624,12 +2702,11 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                     <React.Fragment key={entry.id}>
                       <tr style={{ backgroundColor: '#fff' }}>
                         <td style={{ padding: '2px 4px', borderBottom: '1px solid #dee2e6' }}>
-                          <input
-                            type="text"
-                            list={`crew-names-${block.id}`}
+                          <SearchableNameInput
                             value={entry.employeeName || ''}
-                            onChange={(e) => updateLabourField(block.id, entry.id, 'employeeName', e.target.value)}
-                            style={{ width: '100%', padding: '4px', border: '1px solid #ced4da', borderRadius: '3px', fontSize: '12px', boxSizing: 'border-box' }}
+                            onChange={(val) => updateLabourField(block.id, entry.id, 'employeeName', val)}
+                            suggestions={knownCrewNames}
+                            placeholder="Name"
                           />
                         </td>
                         <td style={{ padding: '2px 4px', borderBottom: '1px solid #dee2e6', fontSize: '12px' }}>
