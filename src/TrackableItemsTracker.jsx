@@ -2,7 +2,7 @@
 // Unified tracking for mats, fencing, ramps, goal posts, access roads, hydrovac, erosion control, signage
 // Each category is collapsible with add/remove/save functionality
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
 import { useOrgQuery } from './utils/queryHelpers.js'
 
@@ -220,9 +220,13 @@ const ITEM_TYPES = [
 
 function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onDataChange }) {
   const [items, setItems] = useState([])
+  const itemsRef = useRef(items)
   const [expandedTypes, setExpandedTypes] = useState({})
   const [loading, setLoading] = useState(true)
   const [summary, setSummary] = useState({})
+
+  // Keep ref in sync so saveItem always has latest data
+  useEffect(() => { itemsRef.current = items }, [items])
 
   // Multi-tenant support
   const { addOrgFilter, getOrgId } = useOrgQuery()
@@ -323,7 +327,7 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
   }
 
   const saveItem = async (itemId) => {
-    const item = items.find(i => i.id === itemId)
+    const item = itemsRef.current.find(i => i.id === itemId)
     if (!item) return
 
     const record = {
@@ -498,20 +502,6 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
                         </span>
                         <div style={{ display: 'flex', gap: '8px' }}>
                           <button
-                            onClick={() => saveItem(item.id)}
-                            style={{
-                              padding: '4px 12px',
-                              backgroundColor: '#28a745',
-                              color: 'white',
-                              border: 'none',
-                              borderRadius: '4px',
-                              cursor: 'pointer',
-                              fontSize: '12px'
-                            }}
-                          >
-                            💾 Save
-                          </button>
-                          <button
                             onClick={() => removeItem(item.id)}
                             style={{
                               padding: '4px 12px',
@@ -541,6 +531,7 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
                               <select
                                 value={item[field.name] || ''}
                                 onChange={(e) => updateItem(item.id, field.name, e.target.value)}
+                                onBlur={() => saveItem(item.id)}
                                 style={inputStyle}
                               >
                                 <option value="">Select...</option>
@@ -553,6 +544,7 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
                                 type={field.type}
                                 value={item[field.name] || ''}
                                 onChange={(e) => updateItem(item.id, field.name, e.target.value)}
+                                onBlur={() => saveItem(item.id)}
                                 placeholder={field.placeholder || ''}
                                 style={inputStyle}
                               />
