@@ -2181,6 +2181,20 @@ CRITICAL - Individual Entries Required:
   }
 
   // Update JH (Jump Hours) for a specific labour entry
+  function updateLabourField(blockId, labourId, field, value) {
+    setActivityBlocks(prev => prev.map(block => {
+      if (block.id === blockId) {
+        return {
+          ...block,
+          labourEntries: block.labourEntries.map(entry =>
+            entry.id === labourId ? { ...entry, [field]: value } : entry
+          )
+        }
+      }
+      return block
+    }))
+  }
+
   function updateLabourJH(blockId, labourId, jhValue) {
     setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
@@ -7178,6 +7192,7 @@ CRITICAL - Individual Entries Required:
           updateFinalCleanupData={updateFinalCleanupData}
           updateConventionalBoreData={updateConventionalBoreData}
           addLabourToBlock={addLabourToBlock}
+          updateLabourField={updateLabourField}
           updateLabourJH={updateLabourJH}
           updateLabourProductionStatus={updateLabourProductionStatus}
           updateLabourShadowHours={updateLabourShadowHours}

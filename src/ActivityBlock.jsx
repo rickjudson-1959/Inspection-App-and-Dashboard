@@ -364,6 +364,7 @@ function ActivityBlock({
   updateFinalCleanupData,
   updateConventionalBoreData,
   addLabourToBlock,
+  updateLabourField,
   updateLabourJH,
   updateLabourProductionStatus,
   updateLabourShadowHours,
@@ -2587,8 +2588,22 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                   return (
                     <React.Fragment key={entry.id}>
                       <tr style={{ backgroundColor: '#fff' }}>
-                        <td style={{ padding: '6px 8px', borderBottom: '1px solid #dee2e6' }}>{entry.employeeName || '-'}</td>
-                        <td style={{ padding: '6px 8px', borderBottom: '1px solid #dee2e6', fontSize: '12px' }}>{entry.classification}</td>
+                        <td style={{ padding: '2px 4px', borderBottom: '1px solid #dee2e6' }}>
+                          <input
+                            type="text"
+                            value={entry.employeeName || ''}
+                            onChange={(e) => updateLabourField(block.id, entry.id, 'employeeName', e.target.value)}
+                            style={{ width: '100%', padding: '4px', border: '1px solid #ced4da', borderRadius: '3px', fontSize: '12px', boxSizing: 'border-box' }}
+                          />
+                        </td>
+                        <td style={{ padding: '2px 4px', borderBottom: '1px solid #dee2e6', fontSize: '12px' }}>
+                          <SearchableSelect
+                            value={entry.classification}
+                            onChange={(val) => updateLabourField(block.id, entry.id, 'classification', val)}
+                            options={labourClassifications}
+                            placeholder="Select"
+                          />
+                        </td>
                         <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#d4edda' }}>{rt}</td>
                         <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: ot > 0 ? '#fff3cd' : '#fff' }}>{ot > 0 ? ot : '-'}</td>
                         <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: jh > 0 ? '#cce5ff' : '#fff' }}>
