@@ -380,7 +380,9 @@
 
 4. **Trackable items KP simplified** — Replaced "From KP" / "To KP" field pair with a single "KP" field across all 8 trackable item types that used the pair (mats, rock trench, extra depth, bedding & padding, fencing, access roads, erosion control, weld UPI). Types that already used single KP (ramps, goalposts, hydrovac, signage, equipment cleaning) were unchanged.
 
-**Field Guide updated to v2.5** — Re-uploaded and re-indexed.
+5. **Health score lists specific incomplete fields** — The Field Completeness section of the Report Health Score now lists the actual field labels that are missing (e.g., "Preheat Temp, Interpass Temp, Root Bead Visual") instead of just showing "12 quality fields incomplete". Inspectors now know exactly which fields to fill in.
+
+**Field Guide updated to v2.6** — Re-uploaded and re-indexed (version 7).
 
 **Files Modified:**
 ```
@@ -391,7 +393,8 @@ src/TrackableItemsTracker.jsx # Single KP field, save mapping cleanup
 src/InspectorReport.jsx       # PDF descriptions updated, save mapping cleanup
 src/ReportViewer.jsx          # Single KP column in trackable items table
 src/CrossingSupport.jsx       # Removed redundant from_kp/to_kp
-pipe-up-field-guide-agent-kb.md  # v2.4 → v2.5
+src/agents/ReportHealthScorer.js  # List specific incomplete field names
+pipe-up-field-guide-agent-kb.md  # v2.4 → v2.6
 ```
 
 ---
@@ -1357,4 +1360,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 17, 2026 (Welding, Downtime & Trackable Items Fixes)*
+*Last Updated: February 17, 2026 (Health Score Field Completeness Detail)*

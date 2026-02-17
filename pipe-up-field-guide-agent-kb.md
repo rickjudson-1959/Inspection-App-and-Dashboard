@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 2.5 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
+## Version: 2.6 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -471,7 +471,7 @@ A: From the Previous Reports list, select the report to edit. If the Chief Inspe
 A: No. Every report is automatically assigned a unique Document ID and SHA-256 Hash. Your job is to log accurate, complete data — the system handles compliance.
 
 **Q: What is the Health Score?**
-A: The Health Score is calculated by the ReportHealthScorer based on completeness and quality of your report data. It's visible to you and reviewers as a quality indicator.
+A: The Health Score is calculated by the ReportHealthScorer based on completeness and quality of your report data. It's visible to you and reviewers as a quality indicator. If quality fields are incomplete, the Field Completeness section lists the specific field names that are missing (e.g., "Preheat Temp, Interpass Temp, Root Bead Visual") so you know exactly what to fill in.
 
 **Q: Can I download a PDF of my report?**
 A: Yes. Click "Download PDF Copy" at the bottom of the report. The PDF includes all activity blocks, specialized log data, labour/equipment tables, and quality checks.
