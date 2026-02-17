@@ -2720,8 +2720,19 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                                     {prodStatus === 'SYNC_DELAY' ? 'Down hrs:' : 'Standby hrs:'} <input
                                       type="text"
                                       inputMode="decimal"
-                                      value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? entry.shadowEffectiveHours : shadowHours.toFixed(1)}
-                                      onChange={(e) => updateLabourShadowHours(block.id, entry.id, e.target.value)}
+                                      value={(() => {
+                                        const effectiveHrs = entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? parseFloat(entry.shadowEffectiveHours) : shadowHours
+                                        return (billedHours - effectiveHrs).toFixed(1)
+                                      })()}
+                                      onChange={(e) => {
+                                        const downtimeVal = parseFloat(e.target.value)
+                                        if (e.target.value === '' || isNaN(downtimeVal)) {
+                                          updateLabourShadowHours(block.id, entry.id, '')
+                                        } else {
+                                          const productiveHrs = Math.max(0, billedHours - downtimeVal)
+                                          updateLabourShadowHours(block.id, entry.id, productiveHrs.toString())
+                                        }
+                                      }}
                                       style={{ width: '45px', padding: '3px', border: '1px solid #ced4da', borderRadius: '3px', textAlign: 'center', fontSize: '12px' }}
                                     />
                                   </span>
@@ -2958,8 +2969,19 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                                     {prodStatus === 'SYNC_DELAY' ? 'Down hrs:' : 'Standby hrs:'} <input
                                       type="text"
                                       inputMode="decimal"
-                                      value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? entry.shadowEffectiveHours : shadowHours.toFixed(1)}
-                                      onChange={(e) => updateEquipmentShadowHours(block.id, entry.id, e.target.value)}
+                                      value={(() => {
+                                        const effectiveHrs = entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? parseFloat(entry.shadowEffectiveHours) : shadowHours
+                                        return (billedHours - effectiveHrs).toFixed(1)
+                                      })()}
+                                      onChange={(e) => {
+                                        const downtimeVal = parseFloat(e.target.value)
+                                        if (e.target.value === '' || isNaN(downtimeVal)) {
+                                          updateEquipmentShadowHours(block.id, entry.id, '')
+                                        } else {
+                                          const productiveHrs = Math.max(0, billedHours - downtimeVal)
+                                          updateEquipmentShadowHours(block.id, entry.id, productiveHrs.toString())
+                                        }
+                                      }}
                                       style={{ width: '45px', padding: '3px', border: '1px solid #ced4da', borderRadius: '3px', textAlign: 'center', fontSize: '12px' }}
                                     />
                                   </span>
