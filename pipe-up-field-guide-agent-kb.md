@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 2.7 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
+## Version: 2.8 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -361,7 +361,7 @@ The Weld UPI Items category tracks welding-related unit price items such as cut 
 ## SECTION 11: LABOUR & EQUIPMENT ENTRIES
 
 ### Labour Entry Fields
-employeeName (full name), classification (from labourClassifications e.g. GENERAL LABOURER, PRINCIPAL OPER 1, UTILITY WELDER, WELDER HELPER, GENERAL FOREMAN), rt (regular time hours, first 8), ot (overtime hours, beyond 8), jh (jump hours/bonus, separate from RT/OT), count (number of workers, usually 1).
+employeeName (full name — with searchable crew roster autocomplete dropdown), classification (from labourClassifications e.g. GENERAL LABOURER, PRINCIPAL OPER 1, UTILITY WELDER, WELDER HELPER, GENERAL FOREMAN — searchable dropdown), rt (regular time hours, first 8), ot (overtime hours, beyond 8), jh (jump hours/bonus, separate from RT/OT), count (number of workers, usually 1). All fields (name, classification, RT, OT, JH) are editable inline after entry or OCR — not just JH.
 
 ### Equipment Entry Fields
 type (from equipmentTypes e.g. Backhoe - Cat 330, Sideboom - Cat 583, Dozer - D6T, Welding Rig, Pickup - 3/4 Ton, Water Truck), hours (hours of use — can be 0 for idle/standby equipment), count (number of units, usually 1), unitNumber (asset ID/fleet number e.g. "U-1234").
@@ -444,7 +444,7 @@ A: Yes. Upload multiple photos for a single ticket. The app processes all pages 
 A: Tap the microphone Voice button next to any text field (work description, safety notes, comments). Speak clearly — text is transcribed in real-time. Tap Stop when done. Works in Chrome, Edge, and Safari.
 
 **Q: What's the difference between Downtime and Standby?**
-A: Downtime (labeled "Down hrs:" in the app) means the crew is waiting but may do some limited work (70% productive) — things like coordination issues or waiting for materials to arrive. Standby (labeled "Standby hrs:" in the app) means a complete work stoppage due to decisions outside crew control (0% productive) — permits, regulatory holds, waiting for instructions. In both cases, enter the hours NOT worked — the system calculates productive hours automatically.
+A: Downtime (labeled "Down hrs:" in the app) means the crew is waiting but may do some limited work (70% productive) — things like coordination issues or waiting for materials to arrive. Standby (labeled "Standby hrs:" in the app) means a complete work stoppage due to decisions outside crew control (0% productive) — permits, regulatory holds, waiting for instructions. In both cases, enter the hours NOT worked — the system calculates productive hours automatically. When you change a worker's status to Downtime or Standby, the hours field starts blank so you can enter the actual downtime amount.
 
 **Q: The app is warning me about a chainage overlap. What do I do?**
 A: The app detected that your KP range overlaps with a previous report for the same activity. If this is intentional (rework, correction), provide a reason in the overlap explanation field. If it's a mistake, adjust your Start/End KP.
@@ -483,9 +483,15 @@ A: KP stands for Kilometre Post. Format is X+XXX (e.g., 6+500 means 6.5 km). If 
 A: Tap the GPS icon next to the Start KP or End KP field. The app reads your device's GPS coordinates, calculates the nearest point on the pipeline centerline, and auto-fills the KP value. It also shows your distance from the ROW centerline. If you accidentally block GPS permission, follow the on-screen instructions to re-enable it in your browser settings.
 
 **Q: OCR got a worker's name or equipment type wrong — can I fix it?**
-A: Yes. All labour and equipment fields are editable directly in the table after OCR. Tap the name to type a correction (known crew names will appear as suggestions), or tap the classification/equipment type to pick from the searchable dropdown.
+A: Yes. All labour and equipment fields are editable directly in the table after OCR. Tap the name to type a correction — a searchable dropdown will show matching crew names from the running roster as you type. Tap a suggestion to select it. Classification and equipment type also have searchable dropdowns.
+
+**Q: I got a popup saying "Please enter classification and at least one hour type" on a saved report — why?**
+A: This was a validation bug that occurred when OCR set hours to exactly 0 (zero). The app was treating 0 as "empty" because of how JavaScript evaluates numbers. This has been fixed — entries with 0 hours are now accepted. If you see this on an old draft, re-entering any value in RT, OT, or JH will clear the issue.
+
+**Q: How do I upload labour or equipment rates?**
+A: Go to the Admin Portal → Import Rate Sheets tab. Select the Labour Rates or Equipment Rates sub-tab. You can upload a CSV file with your rate data. The system accepts flexible column names (e.g., "Classification", "Position", "Title" all work for the classification column; "Rate", "Hourly", "ST" all work for straight time rate). If only straight time is provided, overtime (1.5x) and double time (2x) are auto-calculated. Download the template CSV for the expected format.
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v2.5*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v2.8*
 *Source: InspectorReport.jsx (7,634 lines) + ActivityBlock.jsx (3,143 lines)*

@@ -401,6 +401,34 @@ pipe-up-field-guide-agent-kb.md  # v2.4 → v2.7
 
 ---
 
+### Labour/Equipment UX & Rate Import Fixes (February 17, 2026)
+
+**Post-OCR editing, validation, and rate import fixes from continued field testing**
+
+1. **Labour validation false positive fixed** — The "Please enter classification and at least one hour type" alert fired incorrectly on saved reports where OCR set hours to exactly 0. Root cause: JavaScript `!0` evaluates to `true`, so the truthiness check rejected valid entries with zero hours. Fixed with explicit empty/null/undefined checks.
+
+2. **RT/OT hours now editable** — Regular Time and Overtime columns in the labour table were rendered as plain text after OCR. Now editable inline inputs matching the JH column style. The `updateLabourField` function keeps the `hours` total in sync when RT or OT changes.
+
+3. **Downtime hours start blank** — When changing a worker's status to Downtime or Standby, the hours field now starts blank (empty) so the inspector can enter the actual downtime amount. Previously it was pre-populated with a calculated value which was confusing.
+
+4. **SearchableNameInput component** — New autocomplete component for employee names. Replaces native `<datalist>` (which works poorly on mobile Safari). Shows a tappable dropdown of matching crew names from the running roster as you type. Applied to both new entry forms and existing labour entry rows.
+
+5. **Rate Import system fixed** — Complete rewrite of `src/RateImport.jsx`. Smart CSV parser with flexible column name aliases (e.g., "Classification", "Position", "Title" all work). Handles quoted fields, tab/semicolon delimiters. Auto-calculates OT (1.5x) and DT (2x) if only ST provided. Uses service role key via REST API to bypass RLS (was failing silently with anon key). Added existing rates display table with "Clear All" button.
+
+**Field Guide updated to v2.8** — Re-uploaded and re-indexed (version 9, 24 chunks, 0 errors).
+
+**Files Modified:**
+```
+src/InspectorReport.jsx       # Labour validation fix, updateLabourField hours sync
+src/ActivityBlock.jsx         # RT/OT editable inputs, blank downtime, SearchableNameInput
+src/RateImport.jsx            # Complete rewrite — smart CSV parser, service role key
+public/labour_rates_template.csv   # New template file
+public/equipment_rates_template.csv # New template file
+pipe-up-field-guide-agent-kb.md  # v2.7 → v2.8
+```
+
+---
+
 ### PDF Export — Complete Data Coverage Audit (February 17, 2026)
 
 **Comprehensive audit and fix of PDF export to include ALL report data**
@@ -1362,4 +1390,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 17, 2026 (Pre-Submit Trackable Items Modal Fix)*
+*Last Updated: February 17, 2026 (Labour/Equipment UX & Rate Import Fixes)*
