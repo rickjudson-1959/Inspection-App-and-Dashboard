@@ -370,7 +370,7 @@
 
 ### Inspector Report UX Improvements — Continued Field Testing (February 17, 2026)
 
-**Post-OCR inline editing and usability fixes from continued field testing**
+**Post-OCR inline editing, hydrovac consolidation, and usability fixes from continued field testing**
 
 1. **Labour name/classification editable after OCR** — Employee names and classifications in the labour table are now editable inline (text input with crew roster autocomplete for names, searchable dropdown for classifications). Previously these were read-only after OCR.
 
@@ -384,15 +384,25 @@
 
 6. **GPS permission denied message** — Now shows specific re-enable instructions ("tap the lock icon in your browser address bar → set Location to Allow → reload") instead of a vague "Please enable GPS access" message.
 
-**Field Guide updated to v2.2** — Re-uploaded and re-indexed.
+7. **Hydrovac Contractor/Foreman moved to header** — Hydrovac Contractor and Hydrovac Foreman fields now appear inline beside the "HYDROVAC INFORMATION" header in quality checks, entered once per report instead of per hole.
+
+8. **Hydrovac holes consolidated** — Removed duplicate HOLES SUMMARY table from HydrovacLog (individual holes tracked in Trackable Items instead). Removed per-hole contractor field from Trackable Items (now entered once in HydrovacLog header).
+
+9. **Trackable Items auto-save** — Removed manual "Save" button from trackable item entries. Items now auto-save to Supabase on blur (when the inspector leaves a field). Only the "Remove" button remains.
+
+10. **General Comments section removed** — Removed from the inspector report form to free up space. Inspectors use Work Description in activity blocks for observations. Existing report data preserved for PDF export and report viewer.
+
+**Field Guide updated to v2.3** — Re-uploaded and re-indexed.
 
 **Files Modified:**
 ```
 src/ActivityBlock.jsx         # Inline editing, crew autocomplete, textarea height, useMemo import
-src/InspectorReport.jsx       # updateLabourField, updateEquipmentField, unique IDs
+src/InspectorReport.jsx       # updateLabourField, updateEquipmentField, unique IDs, removed General Comments UI
+src/HydrovacLog.jsx           # Contractor/Foreman in header, removed HOLES SUMMARY table
+src/TrackableItemsTracker.jsx # weld_upi, removed hydrovac contractor field, auto-save on blur
 src/PipelineMap.jsx           # GPS permission message
 src/kpUtils.js                # GPS permission message
-pipe-up-field-guide-agent-kb.md  # v2.1 → v2.2
+pipe-up-field-guide-agent-kb.md  # v2.2 → v2.3
 ```
 
 ---

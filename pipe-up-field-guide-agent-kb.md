@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 2.2 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
+## Version: 2.3 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -58,7 +58,6 @@ Every inspection day begins by filling out the Report Header. This creates the a
 | `safetyRecognitionData` | Toggle-able Safety Recognition cards for recognizing safe behavior |
 | `wildlifeSightingData` | Toggle-able Wildlife Sighting log |
 | `landEnvironment` | Land and environmental observations |
-| `generalComments` | General end-of-day comments |
 | `visitors` | Log of site visitors (name, company, position) |
 | `inspectorMileage` | Inspector's mileage for the day |
 | `inspectorEquipment` | Inspector's equipment used |
@@ -133,7 +132,7 @@ Each activity type may trigger a specialized log component with activity-specifi
 | **HD Bores** | ConventionalBoreLog | Conventional bore data, casing details |
 | **Piling** | PilingLog | Pile type, depth, driving records |
 | **Equipment Cleaning** | EquipmentCleaningLog | Equipment ID, cleaning method, inspector verification |
-| **Hydrovac** | HydrovacLog | Hole locations, depths, utility markups |
+| **Hydrovac** | HydrovacLog | Hydrovac Contractor/Foreman (in header), facility details (station, owner, P/X, type, depth, boundary, GPS) |
 | **Welder Testing** | WelderTestingLog | Welder qualifications, test results, spread, weather conditions |
 | **Hydrostatic Testing** | HydrotestLog | Start/end pressure, test duration, pressure log attachment |
 | **Ditch** | DitchInspection | Trench width, depth, minimum cover check, soil conditions |
@@ -202,7 +201,7 @@ Always review the extracted data. The OCR is highly accurate but should be verif
 ## SECTION 5: VOICE INPUT
 
 ### Supported Fields
-Voice input (speech-to-text) is available for: workDescription (activity work description), timeLostDetails (time lost details), safetyNotes (safety notes), landEnvironment (land/environment observations), generalComments (general comments).
+Voice input (speech-to-text) is available for: workDescription (activity work description), timeLostDetails (time lost details), safetyNotes (safety notes), landEnvironment (land/environment observations).
 
 ### How to Use
 1. Tap the microphone Voice button next to any supported field.
@@ -288,6 +287,12 @@ Click "Download PDF Copy" to generate a PDF including all activity blocks, speci
 
 Trackable items are project-wide assets and quantities tracked across reports. Categories include: Mats, Rock Trench, Extra Depth Ditch, Temporary Fencing, Ramps, Goal Posts (Power Lines), Access Roads, Hydrovac Holes, Erosion Control, Signage & Flagging, Equipment Cleaning, Weld UPI Items.
 
+### Auto-Save
+Trackable item entries auto-save to Supabase when the inspector leaves a field (on blur). There is no manual Save button — only a Remove button to delete entries.
+
+### Hydrovac Holes
+Hydrovac holes are tracked as individual entries in Trackable Items (hole type, action, quantity, KP location, depth, foreign line owner, notes). The Hydrovac Contractor and Foreman are entered once in the HydrovacLog quality checks header — not per hole.
+
 ### Weld UPI Items
 The Weld UPI Items category tracks welding-related unit price items such as cut outs, repairs, reworks, and NDT fail repairs. Fields include:
 - **UPI Type**: Cut Out, Repair, Rework, NDT Fail Repair, Other
@@ -330,7 +335,7 @@ The Weld UPI Items category tracks welding-related unit price items such as cut 
 | PDF Export | Download PDF copy | Submit section — button |
 | Offline Mode | Save locally and sync when connected | Automatic when offline |
 | Guided Tour | Step-by-step walkthrough | Help button |
-| Trackable Items Tracker | Log project-wide tracked assets | Collapsible section |
+| Trackable Items Tracker | Log project-wide tracked assets (auto-saves on blur) | Collapsible section |
 | Report Workflow | Submit to Chief Inspector Review to Approve/Revise | Submit button + statuses |
 
 ---
@@ -464,5 +469,5 @@ A: Yes. All labour and equipment fields are editable directly in the table after
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v2.2*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v2.3*
 *Source: InspectorReport.jsx (7,634 lines) + ActivityBlock.jsx (3,143 lines)*
