@@ -289,8 +289,6 @@ function CrossingSupport({
         action: 'Install',
         quantity: quantity,
         kp_location: support.kpLocation,
-        from_kp: support.kpLocation,
-        to_kp: support.kpLocation,
         organization_id: getOrgId(),
         notes: JSON.stringify({
           supportType: support.type,

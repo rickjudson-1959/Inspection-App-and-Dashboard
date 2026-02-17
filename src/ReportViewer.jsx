@@ -1307,8 +1307,7 @@ function ReportViewer() {
                     <th style={{ padding: '10px 8px', textAlign: 'left', fontWeight: '600', width: '18%' }}>Item Type</th>
                     <th style={{ padding: '10px 8px', textAlign: 'center', fontWeight: '600', width: '12%' }}>Action</th>
                     <th style={{ padding: '10px 8px', textAlign: 'center', fontWeight: '600', width: '8%' }}>Qty</th>
-                    <th style={{ padding: '10px 8px', textAlign: 'center', fontWeight: '600', width: '12%' }}>From KP</th>
-                    <th style={{ padding: '10px 8px', textAlign: 'center', fontWeight: '600', width: '12%' }}>To KP</th>
+                    <th style={{ padding: '10px 8px', textAlign: 'center', fontWeight: '600', width: '12%' }}>KP</th>
                     <th style={{ padding: '10px 8px', textAlign: 'left', fontWeight: '600', width: '38%' }}>Notes</th>
                   </tr>
                 </thead>
@@ -1330,8 +1329,7 @@ function ReportViewer() {
                         </span>
                       </td>
                       <td style={{ padding: '10px 8px', textAlign: 'center', fontWeight: '600' }}>{item.quantity || '-'}</td>
-                      <td style={{ padding: '10px 8px', textAlign: 'center' }}>{item.from_kp || item.kp_location || '-'}</td>
-                      <td style={{ padding: '10px 8px', textAlign: 'center' }}>{item.to_kp || '-'}</td>
+                      <td style={{ padding: '10px 8px', textAlign: 'center' }}>{item.kp_location || '-'}</td>
                       <td style={{ padding: '10px 8px', fontSize: '12px', color: '#555', wordBreak: 'break-word' }}>{item.notes || '-'}</td>
                     </tr>
                   ))}

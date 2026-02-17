@@ -3032,8 +3032,6 @@ CRITICAL - Individual Entries Required:
                 item_type: item.item_type,
                 action: item.action,
                 quantity: item.quantity,
-                from_kp: item.from_kp,
-                to_kp: item.to_kp,
                 kp_location: item.kp_location,
                 mat_type: item.mat_type,
                 mat_size: item.mat_size,
@@ -6012,9 +6010,9 @@ CRITICAL - Individual Entries Required:
           let description = ''
           
           if (type === 'mats') {
-            description = `${item.action || ''} ${item.quantity || ''} x ${item.mat_type || ''} (${item.mat_size || ''}) at KP ${item.from_kp || ''}${item.to_kp ? ' - ' + item.to_kp : ''}`
+            description = `${item.action || ''} ${item.quantity || ''} x ${item.mat_type || ''} (${item.mat_size || ''}) at KP ${item.kp_location || ''}`
           } else if (type === 'fencing') {
-            description = `${item.action || ''} ${item.length || ''}m ${item.fence_type || ''} at KP ${item.from_kp || ''}${item.to_kp ? ' - ' + item.to_kp : ''}`
+            description = `${item.action || ''} ${item.length || ''}m ${item.fence_type || ''} at KP ${item.kp_location || ''}`
           } else if (type === 'ramps') {
             description = `${item.action || ''} ${item.quantity || ''} x ${item.ramp_type || ''} at KP ${item.kp_location || ''}`
           } else if (type === 'goalposts') {
@@ -6024,19 +6022,19 @@ CRITICAL - Individual Entries Required:
           } else if (type === 'hydrovac') {
             description = `${item.action || ''} ${item.quantity || ''} x ${item.hole_type || ''} at KP ${item.kp_location || ''}`
           } else if (type === 'erosion') {
-            description = `${item.action || ''} ${item.quantity || ''} ${item.unit || ''} ${item.control_type || ''} at KP ${item.from_kp || ''}`
+            description = `${item.action || ''} ${item.quantity || ''} ${item.unit || ''} ${item.control_type || ''} at KP ${item.kp_location || ''}`
           } else if (type === 'rock_trench') {
-            description = `${item.length || ''}m ${item.rock_type || ''} at KP ${item.from_kp || ''} - ${item.to_kp || ''}, Depth: ${item.depth_achieved || ''}m`
+            description = `${item.length || ''}m ${item.rock_type || ''} at KP ${item.kp_location || ''}, Depth: ${item.depth_achieved || ''}m`
           } else if (type === 'extra_depth') {
-            description = `${item.length || ''}m extra depth at KP ${item.from_kp || ''} - ${item.to_kp || ''}, Total: ${item.total_depth || ''}m`
+            description = `${item.length || ''}m extra depth at KP ${item.kp_location || ''}, Total: ${item.total_depth || ''}m`
           } else if (type === 'weld_upi') {
-            description = `${item.upi_type || ''} - Weld ${item.weld_number || 'N/A'}, Qty: ${item.quantity || ''} at KP ${item.from_kp || ''}${item.to_kp ? ' - ' + item.to_kp : ''} | Reason: ${item.reason || 'N/A'} | Status: ${item.status || 'N/A'}`
+            description = `${item.upi_type || ''} - Weld ${item.weld_number || 'N/A'}, Qty: ${item.quantity || ''} at KP ${item.kp_location || ''} | Reason: ${item.reason || 'N/A'} | Status: ${item.status || 'N/A'}`
           } else if (type === 'signage') {
-            description = `${item.action || ''} ${item.quantity || ''} x ${item.sign_type || 'Sign'} at KP ${item.kp_location || item.from_kp || ''}`
+            description = `${item.action || ''} ${item.quantity || ''} x ${item.sign_type || 'Sign'} at KP ${item.kp_location || ''}`
           } else if (type === 'access') {
-            description = `${item.action || ''} ${item.road_type || 'Access Road'} at KP ${item.from_kp || ''}${item.to_kp ? ' - ' + item.to_kp : ''}, ${item.surface || ''} ${item.width ? item.width + 'm wide' : ''}`
+            description = `${item.action || ''} ${item.road_type || 'Access Road'} at KP ${item.kp_location || ''}, ${item.surface || ''} ${item.width ? item.width + 'm wide' : ''}`
           } else {
-            description = `${item.action || ''} at KP ${item.kp_location || item.from_kp || ''}`
+            description = `${item.action || ''} at KP ${item.kp_location || ''}`
           }
           
           const lines = doc.splitTextToSize(`${idx + 1}. ${description}`, contentWidth - 4)

@@ -17,8 +17,7 @@ const ITEM_TYPES = [
       { name: 'mat_size', label: 'Size', type: 'select', options: ['8x14', '8x16', '4x8', '8x40', 'Other'] },
       { name: 'action', label: 'Action', type: 'select', options: ['Deploy', 'Retrieve', 'Relocate', 'Inspect'] },
       { name: 'quantity', label: 'Quantity', type: 'number' },
-      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
-      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'kp_location', label: 'KP', type: 'text', placeholder: '0+000' },
       { name: 'crossing_reason', label: 'Crossing/Reason', type: 'text', placeholder: 'e.g., FL-001, wet area' },
       { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
     ]
@@ -28,8 +27,7 @@ const ITEM_TYPES = [
     label: '🪨 Rock Trench', 
     color: '#6c757d',
     fields: [
-      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
-      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'kp_location', label: 'KP', type: 'text', placeholder: '0+000' },
       { name: 'length', label: 'Length (m)', type: 'number', placeholder: 'Auto or manual' },
       { name: 'rock_type', label: 'Rock Type', type: 'select', options: ['Solid Rock', 'Fractured Rock', 'Boulders', 'Bedrock', 'Shale', 'Other'] },
       { name: 'equipment', label: 'Equipment Used', type: 'select', options: ['Rock Trencher', 'Hydraulic Breaker', 'Blasting', 'Excavator w/ Ripper', 'Other'] },
@@ -43,8 +41,7 @@ const ITEM_TYPES = [
     label: '📐 Extra Depth Ditch',
     color: '#856404',
     fields: [
-      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
-      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'kp_location', label: 'KP', type: 'text', placeholder: '0+000' },
       { name: 'length', label: 'Length (m)', type: 'number', placeholder: 'Auto or manual' },
       { name: 'extra_depth_amount', label: 'Extra Depth (m)', type: 'number', placeholder: 'Additional depth beyond spec' },
       { name: 'total_depth', label: 'Total Depth (m)', type: 'number', placeholder: 'Total achieved depth' },
@@ -60,8 +57,7 @@ const ITEM_TYPES = [
     color: '#8B4513',
     fields: [
       { name: 'protection_type', label: 'Protection Type', type: 'select', options: ['Bedding', 'Padding', 'Bedding and Padding', 'Pipe Protection', 'Rockshield', 'Lagging', 'Rockshield and Lagging'] },
-      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
-      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'kp_location', label: 'KP', type: 'text', placeholder: '0+000' },
       { name: 'length', label: 'Length (m)', type: 'number', placeholder: 'Auto or manual' },
       { name: 'material', label: 'Material', type: 'select', options: ['Sand', 'Screened Material', 'Imported Fill', 'Native Screened', 'Foam', 'Geotextile', 'Other'] },
       { name: 'depth', label: 'Depth/Thickness (mm)', type: 'number', placeholder: 'e.g., 150' },
@@ -79,8 +75,7 @@ const ITEM_TYPES = [
       { name: 'action', label: 'Action', type: 'select', options: ['Install', 'Remove', 'Relocate', 'Repair'] },
       { name: 'length', label: 'Length (m)', type: 'number' },
       { name: 'gates_qty', label: 'Gates', type: 'number', placeholder: '0' },
-      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
-      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'kp_location', label: 'KP', type: 'text', placeholder: '0+000' },
       { name: 'landowner', label: 'Landowner', type: 'text', placeholder: 'If applicable' },
       { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
     ]
@@ -133,8 +128,7 @@ const ITEM_TYPES = [
       { name: 'action', label: 'Action', type: 'select', options: ['Build', 'Improve', 'Maintain', 'Reclaim'] },
       { name: 'length', label: 'Length (m)', type: 'number' },
       { name: 'width', label: 'Width (m)', type: 'number' },
-      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
-      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'kp_location', label: 'KP', type: 'text', placeholder: '0+000' },
       { name: 'surface', label: 'Surface', type: 'select', options: ['Gravel', 'Earth', 'Matted', 'Paved'] },
       { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
     ]
@@ -162,8 +156,7 @@ const ITEM_TYPES = [
       { name: 'action', label: 'Action', type: 'select', options: ['Install', 'Remove', 'Maintain', 'Inspect'] },
       { name: 'quantity', label: 'Quantity/Length', type: 'number' },
       { name: 'unit', label: 'Unit', type: 'select', options: ['metres', 'each', 'sq metres'] },
-      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
-      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'kp_location', label: 'KP', type: 'text', placeholder: '0+000' },
       { name: 'watercourse', label: 'Watercourse Name', type: 'text', placeholder: 'If applicable' },
       { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
     ]
@@ -208,8 +201,7 @@ const ITEM_TYPES = [
     fields: [
       { name: 'upi_type', label: 'UPI Type', type: 'select', options: ['Cut Out', 'Repair', 'Rework', 'NDT Fail Repair', 'Other'] },
       { name: 'weld_number', label: 'Weld Number(s)', type: 'text', placeholder: 'e.g., W-001' },
-      { name: 'from_kp', label: 'From KP', type: 'text', placeholder: '0+000' },
-      { name: 'to_kp', label: 'To KP', type: 'text', placeholder: '0+500' },
+      { name: 'kp_location', label: 'KP', type: 'text', placeholder: '0+000' },
       { name: 'quantity', label: 'Quantity', type: 'number' },
       { name: 'reason', label: 'Reason', type: 'select', options: ['N/A', 'NDT Failure', 'CAP Failure', 'Visual Defect', 'Inspector Request', 'Other'] },
       { name: 'status', label: 'Status', type: 'select', options: ['Completed - Passed', 'In Progress', 'Pending Re-test'] },
@@ -338,8 +330,6 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
       item_type: item.item_type,
       action: item.action,
       quantity: item.quantity,
-      from_kp: item.from_kp,
-      to_kp: item.to_kp,
       kp_location: item.kp_location,
       mat_type: item.mat_type,
       mat_size: item.mat_size,
