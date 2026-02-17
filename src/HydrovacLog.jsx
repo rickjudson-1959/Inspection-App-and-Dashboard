@@ -3,19 +3,17 @@ import { useActivityAudit } from './useActivityAudit'
 
 function HydrovacLog({ data, onChange, logId, reportId }) {
   // Audit trail hook
-  const { 
+  const {
     initializeOriginalValues,
     initializeEntryValues,
     logFieldChange,
-    logNestedFieldChange,
     logEntryFieldChange,
     logEntryAdd,
     logEntryDelete
   } = useActivityAudit(logId || reportId, 'HydrovacLog')
-  
+
   // Refs for tracking original values
   const originalValuesRef = useRef({})
-  const nestedValuesRef = useRef({})
   const entryValuesRef = useRef({})
 
   // Default structure
@@ -23,20 +21,7 @@ function HydrovacLog({ data, onChange, logId, reportId }) {
     reportDate: '',
     contractor: '',
     foreman: '',
-    
-    // Holes summary
-    holes: {
-      parallelToday: '',
-      parallelPrevious: '',
-      parallelToDate: '',
-      crossingToday: '',
-      crossingPrevious: '',
-      crossingToDate: '',
-      totalToday: '',
-      totalPrevious: '',
-      totalToDate: ''
-    },
-    
+
     // Facility entries (repeatable)
     facilities: []
   }
@@ -45,10 +30,6 @@ function HydrovacLog({ data, onChange, logId, reportId }) {
   const hydrovacData = {
     ...defaultData,
     ...data,
-    holes: {
-      ...defaultData.holes,
-      ...(data?.holes || {})
-    },
     facilities: data?.facilities || []
   }
 
@@ -65,62 +46,12 @@ function HydrovacLog({ data, onChange, logId, reportId }) {
     logFieldChange(originalValuesRef, fieldName, newValue, displayName)
   }
 
-  const handleNestedFieldFocus = (parentField, fieldName, currentValue) => {
-    const key = `${parentField}.${fieldName}`
-    if (!nestedValuesRef.current[key]) {
-      nestedValuesRef.current[key] = currentValue
-    }
-  }
-
-  const handleNestedFieldBlur = (parentField, fieldName, newValue, displayName) => {
-    logNestedFieldChange(nestedValuesRef, parentField, fieldName, newValue, displayName)
-  }
-
   const handleEntryFieldFocus = (entryId, fieldName, currentValue) => {
     initializeEntryValues(entryValuesRef, entryId, fieldName, currentValue)
   }
 
   const handleEntryFieldBlur = (entryId, fieldName, newValue, displayName, entryLabel) => {
     logEntryFieldChange(entryValuesRef, entryId, fieldName, newValue, displayName, entryLabel)
-  }
-
-  const updateHoles = (field, value) => {
-    const updated = {
-      ...hydrovacData,
-      holes: {
-        ...hydrovacData.holes,
-        [field]: value
-      }
-    }
-    
-    // Auto-calculate To Date values
-    const holes = updated.holes
-    
-    // Parallel To Date
-    if (field === 'parallelToday' || field === 'parallelPrevious') {
-      const today = parseFloat(field === 'parallelToday' ? value : holes.parallelToday) || 0
-      const previous = parseFloat(field === 'parallelPrevious' ? value : holes.parallelPrevious) || 0
-      updated.holes.parallelToDate = (today + previous).toString()
-    }
-    
-    // Crossing To Date
-    if (field === 'crossingToday' || field === 'crossingPrevious') {
-      const today = parseFloat(field === 'crossingToday' ? value : holes.crossingToday) || 0
-      const previous = parseFloat(field === 'crossingPrevious' ? value : holes.crossingPrevious) || 0
-      updated.holes.crossingToDate = (today + previous).toString()
-    }
-    
-    // Recalculate totals
-    const pToday = parseFloat(updated.holes.parallelToday) || 0
-    const pPrevious = parseFloat(updated.holes.parallelPrevious) || 0
-    const cToday = parseFloat(updated.holes.crossingToday) || 0
-    const cPrevious = parseFloat(updated.holes.crossingPrevious) || 0
-    
-    updated.holes.totalToday = (pToday + cToday).toString()
-    updated.holes.totalPrevious = (pPrevious + cPrevious).toString()
-    updated.holes.totalToDate = (pToday + pPrevious + cToday + cPrevious).toString()
-    
-    onChange(updated)
   }
 
   const addFacility = () => {
@@ -243,13 +174,6 @@ function HydrovacLog({ data, onChange, logId, reportId }) {
     boxSizing: 'border-box'
   }
 
-  const calculatedStyle = {
-    ...tableInputStyle,
-    backgroundColor: '#e9ecef',
-    color: '#495057',
-    fontWeight: 'bold'
-  }
-
   const selectStyle = {
     ...tableInputStyle,
     cursor: 'pointer'
@@ -299,120 +223,6 @@ function HydrovacLog({ data, onChange, logId, reportId }) {
             />
           </div>
         </div>
-      </div>
-
-      {/* HOLES SUMMARY TABLE */}
-      <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>📊 HOLES SUMMARY</div>
-        <table style={tableStyle}>
-          <thead>
-            <tr>
-              <th style={{ ...thStyle, width: '25%' }}>Holes</th>
-              <th style={thStyle}>Today</th>
-              <th style={thStyle}>Previous</th>
-              <th style={thStyle}>To Date</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <td style={tdLabelStyle}>Parallel</td>
-              <td style={tdStyle}>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={hydrovacData.holes.parallelToday}
-                  onFocus={() => handleNestedFieldFocus('holes', 'parallelToday', hydrovacData.holes.parallelToday)}
-                  onChange={(e) => updateHoles('parallelToday', e.target.value)}
-                  onBlur={(e) => handleNestedFieldBlur('holes', 'parallelToday', e.target.value, 'Parallel Today')}
-                  style={tableInputStyle}
-                  placeholder="0"
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={hydrovacData.holes.parallelPrevious}
-                  onFocus={() => handleNestedFieldFocus('holes', 'parallelPrevious', hydrovacData.holes.parallelPrevious)}
-                  onChange={(e) => updateHoles('parallelPrevious', e.target.value)}
-                  onBlur={(e) => handleNestedFieldBlur('holes', 'parallelPrevious', e.target.value, 'Parallel Previous')}
-                  style={tableInputStyle}
-                  placeholder="0"
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="text"
-                  value={hydrovacData.holes.parallelToDate}
-                  readOnly
-                  style={calculatedStyle}
-                />
-              </td>
-            </tr>
-            <tr>
-              <td style={tdLabelStyle}>Crossing</td>
-              <td style={tdStyle}>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={hydrovacData.holes.crossingToday}
-                  onFocus={() => handleNestedFieldFocus('holes', 'crossingToday', hydrovacData.holes.crossingToday)}
-                  onChange={(e) => updateHoles('crossingToday', e.target.value)}
-                  onBlur={(e) => handleNestedFieldBlur('holes', 'crossingToday', e.target.value, 'Crossing Today')}
-                  style={tableInputStyle}
-                  placeholder="0"
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  value={hydrovacData.holes.crossingPrevious}
-                  onFocus={() => handleNestedFieldFocus('holes', 'crossingPrevious', hydrovacData.holes.crossingPrevious)}
-                  onChange={(e) => updateHoles('crossingPrevious', e.target.value)}
-                  onBlur={(e) => handleNestedFieldBlur('holes', 'crossingPrevious', e.target.value, 'Crossing Previous')}
-                  style={tableInputStyle}
-                  placeholder="0"
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="text"
-                  value={hydrovacData.holes.crossingToDate}
-                  readOnly
-                  style={calculatedStyle}
-                />
-              </td>
-            </tr>
-            <tr style={{ backgroundColor: '#fff3cd' }}>
-              <td style={{ ...tdLabelStyle, fontWeight: 'bold', backgroundColor: '#fff3cd' }}>Total</td>
-              <td style={tdStyle}>
-                <input
-                  type="text"
-                  value={hydrovacData.holes.totalToday}
-                  readOnly
-                  style={{ ...calculatedStyle, backgroundColor: '#fff3cd' }}
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="text"
-                  value={hydrovacData.holes.totalPrevious}
-                  readOnly
-                  style={{ ...calculatedStyle, backgroundColor: '#fff3cd' }}
-                />
-              </td>
-              <td style={tdStyle}>
-                <input
-                  type="text"
-                  value={hydrovacData.holes.totalToDate}
-                  readOnly
-                  style={{ ...calculatedStyle, backgroundColor: '#fff3cd', fontWeight: 'bold' }}
-                />
-              </td>
-            </tr>
-          </tbody>
-        </table>
       </div>
 
       {/* REFERENCE LEGEND */}

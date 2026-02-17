@@ -150,7 +150,6 @@ const ITEM_TYPES = [
       { name: 'kp_location', label: 'KP Location', type: 'text', placeholder: '0+500' },
       { name: 'depth', label: 'Depth (m)', type: 'number', placeholder: 'e.g., 2.5' },
       { name: 'foreign_owner', label: 'Foreign Line Owner', type: 'text', placeholder: 'If exposing foreign line' },
-      { name: 'contractor', label: 'Hydrovac Contractor', type: 'text', placeholder: 'e.g., Badger' },
       { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
     ]
   },
