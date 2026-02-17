@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 2.3 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
+## Version: 2.4 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -279,7 +279,22 @@ Inspectors can edit their own reports. Admin, Chief Inspector, Assistant Chief, 
 If offline, the report saves locally via syncManager. A pending count badge shows reports waiting to sync. Reports sync automatically when connectivity returns.
 
 ### PDF Export
-Click "Download PDF Copy" to generate a PDF including all activity blocks, specialized log data, labour/equipment tables, and quality checks.
+Click "Download PDF Copy" to generate a comprehensive PDF of the entire report. The PDF includes:
+- **Report header**: Date, inspector, spread, pipeline, AFE, start/end time
+- **Weather**: Conditions, temps, wind, precipitation, ROW condition
+- **Per activity block**: Activity type, contractor, foreman, start/end KP, metres today/previous, ticket number, work description
+- **Manpower table**: Employee name, classification, RT, OT, JH, qty, production status, productive hours, drag reason
+- **Equipment table**: Equipment type, unit number, hours, qty, production status, productive hours, drag reason
+- **Quality checks**: All fields including collapsible sections (Topsoil horizon separation, Stringing pipe receiving, etc.)
+- **Specialized logs**: Full data from all 18 specialized log components (Welding, Bending, Stringing, Coating, Clearing, Ditch, Tie-In, HDD, Grading, Hydrovac, Piling, HD Bores, Equipment Cleaning, Machine Cleanup, Final Cleanup, Welder Testing, Hydrostatic Testing, Counterbore/Transition)
+- **Hydrovac**: Contractor/foreman, facility details table
+- **Safety**: Safety notes, safety recognition cards, wildlife sightings
+- **Land & environment**: Environmental observations
+- **Site visitors**: Name, company, position
+- **Trackable items**: All categories including Weld UPI Items
+- **Unit price items**: Category, item, qty, unit, KP, notes
+- **Inspector info**: Mileage, equipment used
+- **Document certification**: Document ID, SHA-256 hash, generation timestamp
 
 ---
 
@@ -332,7 +347,7 @@ The Weld UPI Items category tracks welding-related unit price items such as cut 
 | Production Status Flags | Working / Sync Delay / Management Drag | Labour/equipment rows |
 | Inertia Ratio | Shadow Hours / Billed Hours efficiency score | Executive Dashboard |
 | Document ID + SHA-256 | Automatic tamper-proof audit trail | Every saved report |
-| PDF Export | Download PDF copy | Submit section — button |
+| PDF Export | Comprehensive PDF with all report data | Submit section — button |
 | Offline Mode | Save locally and sync when connected | Automatic when offline |
 | Guided Tour | Step-by-step walkthrough | Help button |
 | Trackable Items Tracker | Log project-wide tracked assets (auto-saves on blur) | Collapsible section |
@@ -469,5 +484,5 @@ A: Yes. All labour and equipment fields are editable directly in the table after
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v2.3*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v2.4*
 *Source: InspectorReport.jsx (7,634 lines) + ActivityBlock.jsx (3,143 lines)*

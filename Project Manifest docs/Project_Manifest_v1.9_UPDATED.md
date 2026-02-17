@@ -368,6 +368,36 @@
 
 ## 6. RECENT UPDATES (January/February 2026)
 
+### PDF Export — Complete Data Coverage Audit (February 17, 2026)
+
+**Comprehensive audit and fix of PDF export to include ALL report data**
+
+After field tester Corrine Barta reported missing data in downloaded PDFs, a full audit of `exportToPDF()` against every form field identified and fixed 7 gaps:
+
+1. **Metres Today / Previous** — Added to each activity block's details box. Previously only showed contractor, foreman, start/end KP.
+
+2. **Ticket Number** — Added to activity block details. The contractor daily ticket number was entered but never appeared in the PDF.
+
+3. **Equipment Unit Number** — Added UNIT # column to equipment table. Unit numbers were tracked in the form but missing from PDF output.
+
+4. **Collapsible quality check sections** — Activities like Topsoil (~25 fields across 6 sections) and Stringing (~20 fields across 6 sections) use collapsible sections in `qualityFieldsByActivity`. The PDF renderer only handled flat fields, completely skipping all collapsible data. Fixed with recursive section rendering including sub-headers.
+
+5. **Hydrovac section** — Removed stale holes summary reference (data was removed from HydrovacLog). Added contractor/foreman row. Fixed facility table to use correct field names (station, owner, P/X, facilityType, depthM, boundary, gpsCoordinates, comments).
+
+6. **Weld UPI trackable items** — Added `weld_upi` to type labels and description builders (UPI type, weld number, quantity, KP range, reason, status).
+
+7. **Signage & Access Roads trackable items** — Added specific description builders instead of generic fallback.
+
+**Field Guide updated to v2.4** — Re-uploaded and re-indexed.
+
+**Files Modified:**
+```
+src/InspectorReport.jsx       # exportToPDF() — all 7 gaps fixed
+pipe-up-field-guide-agent-kb.md  # v2.3 → v2.4
+```
+
+---
+
 ### Inspector Report UX Improvements — Continued Field Testing (February 17, 2026)
 
 **Post-OCR inline editing, hydrovac consolidation, and usability fixes from continued field testing**
