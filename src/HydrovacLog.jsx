@@ -259,7 +259,33 @@ function HydrovacLog({ data, onChange, logId, reportId }) {
     <div style={{ marginTop: '15px' }}>
       {/* HEADER INFO */}
       <div style={sectionStyle}>
-        <div style={sectionHeaderStyle}>🚜 HYDROVAC INFORMATION</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '15px', flexWrap: 'wrap', marginBottom: '15px', paddingBottom: '8px', borderBottom: '2px solid #fd7e14' }}>
+          <div style={{ fontSize: '14px', fontWeight: 'bold', color: '#495057', whiteSpace: 'nowrap' }}>🚜 HYDROVAC INFORMATION</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: '180px' }}>
+            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#666', whiteSpace: 'nowrap' }}>Hydrovac Contractor:</label>
+            <input
+              type="text"
+              value={hydrovacData.contractor}
+              onFocus={() => handleFieldFocus('contractor', hydrovacData.contractor)}
+              onChange={(e) => updateField('contractor', e.target.value)}
+              onBlur={(e) => handleFieldBlur('contractor', e.target.value, 'Hydrovac Contractor')}
+              placeholder="Contractor name"
+              style={{ ...inputStyle, flex: 1, padding: '6px 8px', fontSize: '13px' }}
+            />
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flex: 1, minWidth: '180px' }}>
+            <label style={{ fontSize: '11px', fontWeight: 'bold', color: '#666', whiteSpace: 'nowrap' }}>Hydrovac Foreman:</label>
+            <input
+              type="text"
+              value={hydrovacData.foreman}
+              onFocus={() => handleFieldFocus('foreman', hydrovacData.foreman)}
+              onChange={(e) => updateField('foreman', e.target.value)}
+              onBlur={(e) => handleFieldBlur('foreman', e.target.value, 'Hydrovac Foreman')}
+              placeholder="Foreman name"
+              style={{ ...inputStyle, flex: 1, padding: '6px 8px', fontSize: '13px' }}
+            />
+          </div>
+        </div>
         <div style={gridStyle}>
           <div>
             <label style={labelStyle}>Date</label>
@@ -269,30 +295,6 @@ function HydrovacLog({ data, onChange, logId, reportId }) {
               onFocus={() => handleFieldFocus('reportDate', hydrovacData.reportDate)}
               onChange={(e) => updateField('reportDate', e.target.value)}
               onBlur={(e) => handleFieldBlur('reportDate', e.target.value, 'Report Date')}
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Contractor</label>
-            <input
-              type="text"
-              value={hydrovacData.contractor}
-              onFocus={() => handleFieldFocus('contractor', hydrovacData.contractor)}
-              onChange={(e) => updateField('contractor', e.target.value)}
-              onBlur={(e) => handleFieldBlur('contractor', e.target.value, 'Contractor')}
-              placeholder="Contractor name"
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Foreman</label>
-            <input
-              type="text"
-              value={hydrovacData.foreman}
-              onFocus={() => handleFieldFocus('foreman', hydrovacData.foreman)}
-              onChange={(e) => updateField('foreman', e.target.value)}
-              onBlur={(e) => handleFieldBlur('foreman', e.target.value, 'Foreman')}
-              placeholder="Foreman name"
               style={inputStyle}
             />
           </div>
