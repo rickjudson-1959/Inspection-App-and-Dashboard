@@ -2190,9 +2190,15 @@ CRITICAL - Individual Entries Required:
       if (block.id === blockId) {
         return {
           ...block,
-          labourEntries: block.labourEntries.map(entry =>
-            entry.id === labourId ? { ...entry, [field]: value } : entry
-          )
+          labourEntries: block.labourEntries.map(entry => {
+            if (entry.id !== labourId) return entry
+            const updated = { ...entry, [field]: value }
+            // Keep total hours in sync when RT or OT changes
+            if (field === 'rt' || field === 'ot') {
+              updated.hours = (parseFloat(updated.rt) || 0) + (parseFloat(updated.ot) || 0)
+            }
+            return updated
+          })
         }
       }
       return block

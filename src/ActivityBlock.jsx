@@ -2640,8 +2640,25 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                             placeholder="Select"
                           />
                         </td>
-                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#d4edda' }}>{rt}</td>
-                        <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: ot > 0 ? '#fff3cd' : '#fff' }}>{ot > 0 ? ot : '-'}</td>
+                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#d4edda' }}>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={rt || ''}
+                            onChange={(e) => updateLabourField(block.id, entry.id, 'rt', parseFloat(e.target.value) || 0)}
+                            style={{ width: '40px', padding: '4px', border: '1px solid #28a745', borderRadius: '3px', textAlign: 'center', fontSize: '12px', backgroundColor: '#d4edda' }}
+                          />
+                        </td>
+                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: ot > 0 ? '#fff3cd' : '#fff' }}>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={ot || ''}
+                            onChange={(e) => updateLabourField(block.id, entry.id, 'ot', parseFloat(e.target.value) || 0)}
+                            placeholder="0"
+                            style={{ width: '40px', padding: '4px', border: '1px solid #ffc107', borderRadius: '3px', textAlign: 'center', fontSize: '12px', backgroundColor: ot > 0 ? '#fff3cd' : '#fff' }}
+                          />
+                        </td>
                         <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: jh > 0 ? '#cce5ff' : '#fff' }}>
                           <input
                             type="text"
@@ -2720,10 +2737,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                                     {prodStatus === 'SYNC_DELAY' ? 'Down hrs:' : 'Standby hrs:'} <input
                                       type="text"
                                       inputMode="decimal"
-                                      value={(() => {
-                                        const effectiveHrs = entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? parseFloat(entry.shadowEffectiveHours) : shadowHours
-                                        return (billedHours - effectiveHrs).toFixed(1)
-                                      })()}
+                                      value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? (billedHours - parseFloat(entry.shadowEffectiveHours)).toFixed(1) : ''}
                                       onChange={(e) => {
                                         const downtimeVal = parseFloat(e.target.value)
                                         if (e.target.value === '' || isNaN(downtimeVal)) {
@@ -2733,6 +2747,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                                           updateLabourShadowHours(block.id, entry.id, productiveHrs.toString())
                                         }
                                       }}
+                                      placeholder="0.0"
                                       style={{ width: '45px', padding: '3px', border: '1px solid #ced4da', borderRadius: '3px', textAlign: 'center', fontSize: '12px' }}
                                     />
                                   </span>
@@ -2969,10 +2984,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                                     {prodStatus === 'SYNC_DELAY' ? 'Down hrs:' : 'Standby hrs:'} <input
                                       type="text"
                                       inputMode="decimal"
-                                      value={(() => {
-                                        const effectiveHrs = entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? parseFloat(entry.shadowEffectiveHours) : shadowHours
-                                        return (billedHours - effectiveHrs).toFixed(1)
-                                      })()}
+                                      value={entry.shadowEffectiveHours !== null && entry.shadowEffectiveHours !== undefined ? (billedHours - parseFloat(entry.shadowEffectiveHours)).toFixed(1) : ''}
                                       onChange={(e) => {
                                         const downtimeVal = parseFloat(e.target.value)
                                         if (e.target.value === '' || isNaN(downtimeVal)) {
@@ -2982,6 +2994,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                                           updateEquipmentShadowHours(block.id, entry.id, productiveHrs.toString())
                                         }
                                       }}
+                                      placeholder="0.0"
                                       style={{ width: '45px', padding: '3px', border: '1px solid #ced4da', borderRadius: '3px', textAlign: 'center', fontSize: '12px' }}
                                     />
                                   </span>
