@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 2.4 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
+## Version: 2.5 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -120,7 +120,7 @@ Each activity type may trigger a specialized log component with activity-specifi
 
 | Activity Type (exact name in app) | Component | Key Fields |
 |---|---|---|
-| **Welding - Mainline** | MainlineWeldData | Weld numbers, joint numbers, heat numbers, WPS reference, preheat temp, interpass temp, voltage, amperage, welder IDs, NDE results |
+| **Welding - Mainline** | MainlineWeldData | Weld numbers, joint numbers, heat numbers, WPS reference, preheat temp, interpass temp, voltage, amperage, travel speed, heat input (auto-calculated from defaults and on parameter change), welder IDs, NDE results. Section labeled "Total Weld Time Tracking" for time tracking. |
 | **Welding - Section Crew** | MainlineWeldData | Same as Mainline Welding |
 | **Welding - Poor Boy** | MainlineWeldData | Same as Mainline Welding |
 | **Welding - Tie-in** | CounterboreTransitionLog | Counterbore measurements, transition data, upstream/downstream joint numbers |
@@ -229,8 +229,8 @@ Each labour and equipment entry can be flagged with a production status:
 | Status | Label | Shadow Multiplier | Meaning |
 |---|---|---|---|
 | (default) | Working | 100% productive | Crew is actively advancing the project. No hours input shown. |
-| SYNC_DELAY | Downtime | 70% productive | Crew is waiting but may do limited work — coordination issues, waiting for materials, minor holdups. Label shows **"Down hrs:"** for the hours input. |
-| MANAGEMENT_DRAG | Standby | 0% productive | Complete work stoppage due to decisions outside crew control — permits, regulatory holds, waiting for instructions. Label shows **"Standby hrs:"** for the hours input. |
+| SYNC_DELAY | Downtime | 70% productive | Crew is waiting but may do limited work — coordination issues, waiting for materials, minor holdups. Label shows **"Down hrs:"** — enter the hours NOT worked (downtime). The system calculates productive hours automatically. |
+| MANAGEMENT_DRAG | Standby | 0% productive | Complete work stoppage due to decisions outside crew control — permits, regulatory holds, waiting for instructions. Label shows **"Standby hrs:"** — enter the hours NOT worked (standby time). The system calculates productive hours automatically. |
 
 ### Drag Reasons (from dragReasonCategories)
 
@@ -308,11 +308,14 @@ Trackable item entries auto-save to Supabase when the inspector leaves a field (
 ### Hydrovac Holes
 Hydrovac holes are tracked as individual entries in Trackable Items (hole type, action, quantity, KP location, depth, foreign line owner, notes). The Hydrovac Contractor and Foreman are entered once in the HydrovacLog quality checks header — not per hole.
 
+### Single KP Location
+All trackable item types use a single **KP** field for location (not From KP / To KP). Enter the chainage where the item is located (e.g., `5+200`).
+
 ### Weld UPI Items
 The Weld UPI Items category tracks welding-related unit price items such as cut outs, repairs, reworks, and NDT fail repairs. Fields include:
 - **UPI Type**: Cut Out, Repair, Rework, NDT Fail Repair, Other
 - **Weld Number(s)**: The weld identifier(s) affected (e.g., W-001)
-- **From KP / To KP**: Chainage range for the work
+- **KP**: Location chainage
 - **Quantity**: Number of items
 - **Reason**: N/A, NDT Failure, CAP Failure, Visual Defect, Inspector Request, Other
 - **Status**: Completed - Passed, In Progress, Pending Re-test
@@ -441,7 +444,7 @@ A: Yes. Upload multiple photos for a single ticket. The app processes all pages 
 A: Tap the microphone Voice button next to any text field (work description, safety notes, comments). Speak clearly — text is transcribed in real-time. Tap Stop when done. Works in Chrome, Edge, and Safari.
 
 **Q: What's the difference between Downtime and Standby?**
-A: Downtime (labeled "Down hrs:" in the app) means the crew is waiting but may do some limited work (70% productive) — things like coordination issues or waiting for materials to arrive. Standby (labeled "Standby hrs:" in the app) means a complete work stoppage due to decisions outside crew control (0% productive) — permits, regulatory holds, waiting for instructions.
+A: Downtime (labeled "Down hrs:" in the app) means the crew is waiting but may do some limited work (70% productive) — things like coordination issues or waiting for materials to arrive. Standby (labeled "Standby hrs:" in the app) means a complete work stoppage due to decisions outside crew control (0% productive) — permits, regulatory holds, waiting for instructions. In both cases, enter the hours NOT worked — the system calculates productive hours automatically.
 
 **Q: The app is warning me about a chainage overlap. What do I do?**
 A: The app detected that your KP range overlaps with a previous report for the same activity. If this is intentional (rework, correction), provide a reason in the overlap explanation field. If it's a mistake, adjust your Start/End KP.
@@ -484,5 +487,5 @@ A: Yes. All labour and equipment fields are editable directly in the table after
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v2.4*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v2.5*
 *Source: InspectorReport.jsx (7,634 lines) + ActivityBlock.jsx (3,143 lines)*

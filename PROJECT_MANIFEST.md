@@ -228,7 +228,7 @@
 
 **bedding_padding** (NEW - January 2026)
 - Protection types: Bedding, Padding, Bedding and Padding, Pipe Protection, Rockshield, Lagging, Rockshield and Lagging
-- From KP / To KP
+- KP Location (single field)
 - Length, Material, Depth/Thickness
 - Action, Equipment, Notes
 
@@ -367,6 +367,34 @@
 ---
 
 ## 6. RECENT UPDATES (January/February 2026)
+
+### Welding, Downtime & Trackable Items Fixes (February 17, 2026)
+
+**Heat input, downtime display, and KP simplification from continued field testing**
+
+1. **Weld heat input auto-calculation at creation** — New weld entries now calculate heat input immediately from default voltage/amperage/travelSpeed values instead of starting as null. Previously, heat input only calculated when an inspector manually edited one of the three trigger fields — if they accepted defaults, it stayed null (showed as "-"). Also backfills existing saved entries that have valid parameters but null heat input. Fixed in both MainlineWeldData.jsx and TieInWeldData.jsx.
+
+2. **Time Tracking section renamed** — "Time Tracking" section in Mainline Weld Data renamed to "Total Weld Time Tracking" for clarity.
+
+3. **Downtime display inverted** — "Down hrs:" and "Standby hrs:" inputs in labour and equipment flag rows now show time NOT worked (actual downtime) instead of productive hours. Previously the label said "Down hrs" but displayed productive hours, which was confusing. The underlying shadow data model (shadowEffectiveHours = productive hours) is unchanged, so all dashboard calculations remain correct.
+
+4. **Trackable items KP simplified** — Replaced "From KP" / "To KP" field pair with a single "KP" field across all 8 trackable item types that used the pair (mats, rock trench, extra depth, bedding & padding, fencing, access roads, erosion control, weld UPI). Types that already used single KP (ramps, goalposts, hydrovac, signage, equipment cleaning) were unchanged.
+
+**Field Guide updated to v2.5** — Re-uploaded and re-indexed.
+
+**Files Modified:**
+```
+src/MainlineWeldData.jsx      # Heat input at creation, backfill, section rename
+src/TieInWeldData.jsx         # Heat input at creation, backfill
+src/ActivityBlock.jsx         # Downtime display inverted for labour + equipment
+src/TrackableItemsTracker.jsx # Single KP field, save mapping cleanup
+src/InspectorReport.jsx       # PDF descriptions updated, save mapping cleanup
+src/ReportViewer.jsx          # Single KP column in trackable items table
+src/CrossingSupport.jsx       # Removed redundant from_kp/to_kp
+pipe-up-field-guide-agent-kb.md  # v2.4 → v2.5
+```
+
+---
 
 ### PDF Export — Complete Data Coverage Audit (February 17, 2026)
 
@@ -1329,4 +1357,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 17, 2026 (Inspector Report UX Improvements — Continued Field Testing)*
+*Last Updated: February 17, 2026 (Welding, Downtime & Trackable Items Fixes)*
