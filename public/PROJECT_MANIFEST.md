@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - February 1, 2026
+## Project Manifest - February 4, 2026
 
 ---
 
@@ -14,7 +14,8 @@
 | Component | Technology |
 |-----------|------------|
 | Frontend | React 18.2.0 with Vite + PWA |
-| Backend | Supabase (PostgreSQL + Auth) |
+| Backend | Supabase (PostgreSQL + Auth + Edge Functions) |
+| AI Analysis | Anthropic Claude API (AI Agent) |
 | Email API | Resend |
 | Deployment | Vercel |
 | PDF Generation | jsPDF + jsPDF-autotable |
@@ -26,6 +27,12 @@
 
 ---
 
+## STANDING INSTRUCTIONS
+
+> **FIELD GUIDE SYNC REQUIREMENT:** Any changes to the inspector's report (`InspectorReport.jsx`), activity blocks (`ActivityBlock.jsx`), or related form components must be reflected in the Pipe-Up Field Guide (`pipe-up-field-guide-agent-kb.md`). After making such changes, regenerate the field guide, re-upload it to the `field_guide` slot in the Technical Resource Library, and re-index it via the `process-document` edge function. The field guide is the AI agent's knowledge base — if it falls out of sync, inspectors will get incorrect guidance. **Check this at the start of every session and after every conversation compression.**
+
+---
+
 ## 2. USER ROLES & ACCESS
 
 | Role | Access Level |
@@ -34,6 +41,7 @@
 | `admin` | Project administration |
 | `chief_inspector` | Field inspection chief, report approval |
 | `assistant_chief_inspector` | Assistant to chief |
+| `welding_chief` | Welding operations monitoring & reporting |
 | `inspector` | Field data entry |
 | `pm` | Project manager dashboards |
 | `cm` | Construction manager dashboards |
@@ -104,6 +112,7 @@
 - **EVM Dashboard** - Earned Value Management metrics
 - **Chief Dashboard** - Daily summaries, report approval, NDT tracking
 - **Assistant Chief Dashboard** - Support functions
+- **Welding Chief Dashboard** - Welding operations, welder performance, WPS compliance, daily reports with digital signature
 - **Admin Portal** - User/org/project management
 - **Inspector Invoicing** - Timesheet management
 - **NDT Auditor Dashboard** - NDT monitoring
@@ -271,6 +280,7 @@
 │   ├── EVMDashboard.jsx        # Earned Value Management
 │   ├── ChiefDashboard.jsx      # Chief Inspector
 │   ├── AssistantChiefDashboard.jsx
+│   ├── WeldingChiefDashboard.jsx  # Welding Chief (NEW - Feb 2026)
 │   ├── AdminPortal.jsx         # Administration
 │   ├── InspectorInvoicingDashboard.jsx
 │   └── NDTAuditorDashboard.jsx
@@ -309,7 +319,9 @@
 │   ├── weatherService.js       # Weather API integration
 │   ├── exifUtils.js            # Photo GPS extraction
 │   ├── kpUtils.js              # KP formatting
-│   └── chiefReportHelpers.js   # Report aggregation
+│   ├── chiefReportHelpers.js   # Report aggregation
+│   ├── weldingChiefHelpers.js  # Welding Chief data aggregation (NEW - Feb 2026)
+│   └── weldingChiefPDF.js      # Welding Chief PDF generation (NEW - Feb 2026)
 │
 ├── offline/                     # PWA Offline Support (NEW - Jan 2026)
 │   ├── db.js                   # IndexedDB schema
@@ -319,9 +331,15 @@
 │   └── index.js                # Barrel export
 │
 └── Components/
+    ├── common/
+    │   ├── ShieldedInput.jsx    # Ref-Shield input (focus-locked local state) (NEW - Feb 2026)
+    │   └── ShieldedSearch.jsx   # Ref-Shield search with 300ms debounce (NEW - Feb 2026)
+    ├── BufferedInput.jsx        # Re-export → ShieldedInput (backward compat)
+    ├── BufferedSearch.jsx       # Re-export → ShieldedSearch (backward compat)
     ├── TrackableItemsTracker.jsx
     ├── SignaturePad.jsx         # Digital signature capture (ITP sign-offs)
     ├── TenantSwitcher.jsx       # Organization switcher dropdown
+    ├── AIAgentStatusIcon.jsx    # AI Watcher status indicator (NEW - Feb 2026)
     ├── MapDashboard.jsx
     ├── OfflineStatusBar.jsx     # PWA status indicator (NEW - Jan 2026)
     └── [supporting components]
@@ -341,12 +359,387 @@
 ├── 20260201_document_sync_status.sql         # Sync tracking
 ├── 20260201_create_signatures_bucket.sql     # Signature storage
 ├── 20260201_create_handovers_bucket.sql      # Handover ZIP storage
+├── 20260201_create_ai_agent_tables.sql       # AI agent logs
+├── 20260202_create_wps_material_specs.sql    # WPS material validation
 └── [other migrations]
 ```
 
 ---
 
 ## 6. RECENT UPDATES (January/February 2026)
+
+### Inspector Report Fixes — Corrine Barta Field Testing (February 17, 2026)
+
+**Fixed 4 issues identified during field testing by Corrine Barta**
+
+1. **Multi-page ticket photo display & save** — When a multi-page ticket is scanned, the indicator now shows "X pages attached" (instead of just the first filename), the photo modal displays all pages in a scrollable view with "Page X of Y" labels, and all filenames are saved to the database as a `ticketPhotos` array (not just the first page). Edit mode loads URLs for all saved pages.
+
+2. **OCR equipment validation** — `addEquipmentToBlock()` was silently rejecting equipment with 0 hours because `!0 === true`. Changed validation from `if (!type || !hours)` to `if (!type)`. Equipment can legitimately have 0 hours (idle/standby).
+
+3. **Context-aware production status labels** — Labour and equipment entries set to Downtime now show "Down hrs:" and entries set to Standby show "Standby hrs:" instead of the misleading "Productive hrs:" label.
+
+4. **Weld UPI trackable items** — Added new `weld_upi` category to TrackableItemsTracker with fields: UPI Type (Cut Out, Repair, Rework, NDT Fail Repair, Other), Weld Number(s), From/To KP, Quantity, Reason, Status, Notes. Updated the reminder banner to include "Weld UPI Items".
+
+**Field Guide updated to v2.1** — Re-uploaded and re-indexed (20 chunks, 0 embedding errors).
+
+**Files Modified:**
+```
+src/ActivityBlock.jsx         # Multi-page photo modal, context-aware labels
+src/InspectorReport.jsx       # Equipment validation fix, multi-page save, reminder banner
+src/TrackableItemsTracker.jsx # weld_upi item type
+pipe-up-field-guide-agent-kb.md  # v2.0 → v2.1
+```
+
+---
+
+### Technical Resource Library - Field Guide & Supporting Docs (February 14, 2026)
+
+**Added standalone Field Guide resource and supporting document capability**
+
+- Added `field_guide` as 6th standalone category in the Technical Resource Library
+- Pipe-Up Field Guide (agent knowledge base) indexed for AI search (19 sections, 31K chars)
+- **Add Supporting Doc** button added to every library item (super_admin only)
+- Supporting docs use existing addendum pattern (`is_addendum`, `parent_document_id`)
+- Supporting docs displayed in both Admin Portal and Inspector Reference Library views
+- New `uploadLibrarySupportingDoc()` function with auto-indexing for AI search
+- Added `field_guide` to DB `valid_category` constraint
+- Storage RLS policy updated to allow authenticated uploads to `documents` bucket
+
+**Files Modified:**
+```
+src/AdminPortal.jsx          # New category, upload function, supporting doc UI
+src/ReferenceLibrary.jsx     # New category, supporting docs display
+supabase/migrations/20260214_add_field_guide_category.sql
+```
+
+### PDF Export - Complete Data Coverage (February 12, 2026)
+
+**Ensured every field from the inspector's report appears in the PDF export**
+
+After auditing every form field against the PDF generation code, found and fixed multiple gaps:
+
+**Missing fields added:**
+- **AFE / Contract #** — Added to Report Info header alongside Date, Inspector, Spread, Pipeline
+- **ROW Condition** — Added to Weather Conditions section
+- **Unit Price Items** — Entire new section with table (category, item, qty, unit, KP location, notes) + comments + summary count
+- **Hydrostatic Testing** — Replaced placeholder text with actual data fields: test section, test pressure (kPa), hold time (hrs), water source, result (color-coded pass/fail), pressure drop (PSI)
+
+**Text truncation removed (full content now renders):**
+- Work Description — was limited to 4 lines
+- Safety Notes, Land & Environment, General Comments — were limited to 3 lines each
+- Time Lost Details — was truncated to 95 characters
+- Safety Recognition cards — situation (3 lines), potential outcome (2 lines), comments (2 lines)
+- Wildlife Sightings — activity and notes were limited to 2 lines each
+- Trackable Items — descriptions (2 lines) and notes (1 line)
+
+All long text sections now use per-line `checkPageBreak()` so content flows across pages properly.
+
+**Files Modified:**
+- `src/InspectorReport.jsx` — `exportToPDF()` function: added AFE, ROW Condition, Unit Price Items section, hydrotest data, removed all `.slice()` truncation
+
+---
+
+### God Mode Access for Company Admins (February 12, 2026)
+
+**Extended MasterSwitcher God Mode to company admin users**
+
+Previously God Mode (the dashboard quick-jump dropdown) was restricted to `super_admin` only. Now company `admin` users also have access for their respective organization.
+
+- MasterSwitcher component role check updated to allow both `admin` and `super_admin`
+- Removed MasterSwitcher from ChiefDashboard — only AdminPortal renders it
+- NDT Auditor back-button navigation updated to recognize `admin` role for God Mode routing
+- TenantSwitcher (org switching) remains `super_admin` only — admins stay within their own org
+
+**Files Modified:**
+- `src/MasterSwitcher.jsx` — Role check includes `admin`
+- `src/ChiefDashboard.jsx` — Removed MasterSwitcher import and render
+- `src/NDTAuditorDashboard.jsx` — Back button includes `admin` role
+
+---
+
+### Simplified Shadow Audit - Exception-Based Flagging (February 12, 2026)
+
+**Replaced per-row status columns with on-demand flag button**
+
+The shadow audit / efficiency tracking system was too complex for field inspectors — every labour and equipment row showed a 3-button status toggle and a "Productive" hours column, making it look like every row required interaction.
+
+**Before:** 2 extra columns per row (Field Status + Productive) always visible on every entry.
+
+**After:** Clean tables with a small pencil button per row. Tapping it expands a detail panel with:
+- **Working** / **Downtime** / **Standby** status buttons (friendly labels replacing ACTIVE/SYNC_DELAY/MANAGEMENT_DRAG)
+- Reason dropdown and custom text input (only when Downtime or Standby selected)
+- Productive hours field (auto-calculated, editable)
+- Mandatory contractor issue detail when applicable
+
+Flagged rows show an amber (Downtime) or red (Standby) indicator. Unflagged rows stay clean — no extra fields visible.
+
+**What stayed the same:**
+- Crew-wide "Report Site Condition" toggle (unchanged)
+- Verification Summary (billed vs productive hours comparison)
+- All underlying data structures (`productionStatus`, `shadowEffectiveHours`, `dragReason`)
+- Dashboard calculations and shadow audit utilities
+- Previous UI archived as git tag `v2.3.6-shadow-audit-full` for rollback
+
+**Files Modified:**
+- `src/ActivityBlock.jsx` — Replaced inline status/productive columns with flag button + expandable detail panel for both labour and equipment tables
+
+---
+
+### OCR Improvements - Individual Entries & Multi-Page Tickets (February 12, 2026)
+
+**Improved AI extraction from contractor daily ticket photos**
+
+Two enhancements to the OCR ticket scanning feature:
+
+1. **Individual labour and equipment entries** — Updated AI prompts in both `ActivityBlock.jsx` and `InspectorReport.jsx` to require each person listed as a separate entry with their full name, instead of grouping workers together (e.g., "3 General Labourers"). Same for equipment — each piece listed individually. Employee names are now passed through to the labour form fields.
+
+2. **Multi-page ticket support** — Contractor tickets that span multiple pages can now be processed in a single OCR scan:
+   - "Upload Photo(s)" button accepts multiple file selection
+   - All page images sent to Claude in a single API call
+   - AI combines labour and equipment data from all pages into one unified list without duplicating entries
+   - `max_tokens` increased from 2000 to 4000 for larger multi-page responses
+   - All pages uploaded to Supabase storage on save (named `ticket_..._p1.jpg`, `ticket_..._p2.jpg`, etc.)
+   - First photo preserved as `ticketPhoto` for backward compatibility
+
+**Files Modified:**
+- `src/ActivityBlock.jsx` — Updated OCR prompt, `processTicketOCR()` accepts multiple files, multi-select upload UI
+- `src/InspectorReport.jsx` — Updated OCR prompt, multi-page photo upload on save
+
+---
+
+### Build Optimization - Vendor Chunk Splitting (February 12, 2026)
+
+**Fixed Vite build warnings and optimized bundle size**
+
+Two build warnings resolved:
+
+1. **jspdf import inconsistency** — `AdminPortal.jsx` used a dynamic `await import('jspdf')` while 7 other files imported it statically. Replaced with static import to eliminate the warning (no code-splitting benefit since jspdf was already in the main bundle).
+
+2. **Main bundle too large (4,656 KB)** — Added `manualChunks` configuration to `vite.config.js` to split vendor libraries into separate cached chunks:
+
+| Chunk | Contents | Size |
+|-------|----------|------|
+| `vendor-react` | react, react-dom, react-router-dom | 178 KB |
+| `vendor-charts` | recharts | 395 KB |
+| `vendor-maps` | leaflet, react-leaflet | 155 KB |
+| `vendor-pdf` | jspdf, jspdf-autotable | 419 KB |
+| `vendor-spreadsheet` | xlsx | 283 KB |
+| `vendor-supabase` | @supabase/supabase-js | 172 KB |
+
+**Result:** Main bundle reduced from 4,656 KB to 3,034 KB (35% reduction). Vendor chunks are independently cacheable by the browser and PWA service worker.
+
+**Files Modified:**
+- `vite.config.js` — Added `build.rollupOptions.output.manualChunks` configuration
+- `src/AdminPortal.jsx` — Replaced dynamic jspdf import with static import
+
+---
+
+### Shielded Input Architecture (February 4, 2026)
+
+**Project-wide fix for the "single-digit input" bug**
+Inspectors could only type 1 character in form fields before the value was lost/reset. Root causes identified and fixed:
+
+1. **CollapsibleSection unmount/remount** - `CollapsibleSection` was defined as an arrow function inside the render function of GradingLog and HDDSteeringLog. React treated each render's new function reference as a different component type, causing full unmount/remount of the subtree on every keystroke — destroying all child state. **Fix:** Extracted CollapsibleSection to module level.
+
+2. **Parent re-render overwriting typed text** - React state updates from `onDataChange` callbacks triggered parent re-renders that pushed new prop values into inputs mid-keystroke, resetting the displayed value. **Fix:** Created ShieldedInput with the Ref-Shield pattern.
+
+3. **Search field clearing during filter operations** - Equipment/Manpower SearchableSelect inputs cleared while typing because filtering triggered re-renders. **Fix:** Created ShieldedSearch with 300ms debounce.
+
+**ShieldedInput / ShieldedSearch — Ref-Shield Pattern:**
+- `localValue` state is the **sole display source** while the input is focused
+- Prop updates are **blocked** while the user is typing (focus shield)
+- Syncs from props only on `onBlur` or when not focused
+- Wrapped in `React.memo` to skip re-renders when props haven't changed
+- Password manager defense attributes: `data-bwignore`, `data-1p-ignore`, `data-lpignore`, `autoComplete="off"`, `spellCheck: false`
+- Verification logging: `console.log('[ShieldedSystem] Prop Sync Blocked - User is Typing')`
+- `onChange` passes **string value** directly (NOT an event object)
+
+**131 raw DOM elements replaced across 12 files:**
+
+| File | Inputs | Textareas | Total |
+|------|--------|-----------|-------|
+| CoatingLog.jsx | 44 | 1 | 45 |
+| HDDLog.jsx | 23 | 1 | 24 |
+| ConventionalBoreLog.jsx | 22 | 1 | 23 |
+| ClearingLog.jsx | 11 | 1 | 12 |
+| FinalCleanupLog.jsx | 0 | 7 | 7 |
+| MachineCleanupLog.jsx | 0 | 6 | 6 |
+| ActivityBlock.jsx | 0 | 5 | 5 |
+| DitchInspection.jsx | 0 | 4 | 4 |
+| EquipmentCleaningLog.jsx | 3 | 0 | 3 |
+| TieInCompletionLog.jsx | 0 | 1 | 1 |
+| PilingLog.jsx | 0 | 1 | 1 |
+| CounterboreTransitionLog.jsx | 0 | 1 | 1 |
+
+**Backward Compatibility:**
+- `BufferedInput.jsx` re-exports from `ShieldedInput.jsx`
+- `BufferedSearch.jsx` re-exports from `ShieldedSearch.jsx`
+- Existing imports in GradingLog, HDDSteeringLog, MainlineWeldData, TieInWeldData continue working unchanged
+
+**New Files Created:**
+```
+src/components/common/ShieldedInput.jsx   # Ref-Shield input component
+src/components/common/ShieldedSearch.jsx  # Ref-Shield search with debounce
+```
+
+---
+
+### Equipment Unit Number Column (February 3, 2026)
+
+**Unit # tracking for Equipment section**
+- New column added to Equipment table in ActivityBlock.jsx
+- Editable inline cell for manual entry
+- OCR extraction support: AI prompt updated to extract unitNumber from contractor tickets
+- Grid layout updated from 4 to 5 columns to accommodate Unit #
+
+**Files Modified:**
+- `src/ActivityBlock.jsx` - Unit # form field, table column, OCR prompt
+- `src/InspectorReport.jsx` - `addEquipmentToBlock` accepts unitNumber parameter, new `updateEquipmentUnitNumber` function
+
+---
+
+### Grading Equipment Dropdown Removal (February 3, 2026)
+
+**Removed duplicate Grading Equipment from ROW Conditions quality checks**
+- Grading equipment is already tracked in the Manpower & Equipment section
+- Removed `gradingEquipment` dropdown and `equipmentOther` text field from GradingLog quality checks
+- Removed corresponding fields from default data object
+
+**Files Modified:**
+- `src/GradingLog.jsx` - Removed quality check fields and default data
+
+---
+
+### AI Agent "Watcher" System (February 2, 2026)
+
+**Pipe-Up AI Agent - Intelligent Ticket Analysis**
+- Real-time analysis of daily construction tickets
+- Flags anomalies and compliance issues automatically
+- Green pulse animation when all clear, red pulse for critical flags
+
+**AI Agent Status Icon (AdminPortal Header)**
+- Visual status indicator with 5 states:
+  - 🤖 Gray (Idle) - No recent analysis
+  - ⚡ Blue pulse (Analyzing) - Processing tickets
+  - ✅ Green pulse (Clear) - No issues detected
+  - ⚠️ Yellow (Warning) - Review recommended
+  - 🚨 Red pulse (Flagged) - Critical issues requiring attention
+- Click to view detailed analysis results
+- Clickable flags navigate to affected tickets
+- Real-time Supabase subscription for live updates
+
+**Analysis Rules (7 Checks)**
+| Flag Type | Severity | Rule |
+|-----------|----------|------|
+| HOURS_EXCEEDED | Warning/Critical | Avg hours > 120%/150% of standard workday |
+| KP_OUT_OF_BOUNDS | Critical | Activity KP outside project boundaries |
+| LOW_EFFICIENCY | Warning/Critical | Shadow hours / billed hours < 70%/50% |
+| MANAGEMENT_DRAG_SPIKE | Critical | >30% labour marked as MANAGEMENT_DRAG |
+| LABOUR_ANOMALY | Info | >50 workers in single activity block |
+| WPS_MATERIAL_MISMATCH | Critical | Pipe material not approved for WPS |
+| EQUIPMENT_MISMATCH | Warning | WPS not found in approved specifications |
+
+**WPS Material Validation**
+- `wps_material_specs` table stores approved materials per WPS
+- Validates pipe grade against WPS allowed materials list
+- Flags critical violations (e.g., X65 Steel used with WPS-02 which only allows X70/X80)
+- Supports both block-level and weldData.weldEntries validation
+
+**AI-Generated Summaries**
+- Anthropic Claude API generates executive summaries of flagged issues
+- Prioritizes WPS/Material violations as potential stop-work items
+- Identifies contractors requiring investigation
+- Provides actionable recommendations
+
+**New Database Tables:**
+```
+ai_agent_logs           # Analysis results and metrics
+wps_material_specs      # WPS allowed materials configuration
+```
+
+**New Edge Function:**
+```
+supabase/functions/process-ticket-ai/index.ts
+```
+
+**New Component:**
+```
+src/components/AIAgentStatusIcon.jsx
+```
+
+**Files Modified:**
+- `src/AdminPortal.jsx` - AI Agent icon in header, flagged ticket modal
+- `src/utils/queryHelpers.js` - Fixed isReady() for org filtering
+
+---
+
+### Welding Chief Dashboard (February 2, 2026)
+
+**New Dashboard for Welding Operations Management**
+- Dedicated dashboard for Welding Chief Inspector role
+- 6-tab interface: Overview, Welder Performance, WPS Compliance, Daily Reports, Certifications, Generate Report
+
+**Overview Tab**
+- KPI cards: Daily Weld Count, Cumulative Repair Rate, Active AI Alerts
+- Today's Weld Summary Table by crew type
+- AI Alert Banner for critical WPS/filler/preheat violations
+
+**Welder Performance Tab**
+- Welder Stats Table: ID, Total Welds, Repairs, Repair Rate (%)
+- Status Badges: Green (<5%), Yellow (5-8%), Red (>8%)
+- Flagged Welders Alert Box
+
+**WPS Compliance Tab**
+- Active AI Flags Panel for WPS_MATERIAL_MISMATCH, FILLER_MATERIAL_MISMATCH, PREHEAT_VIOLATION
+- Integration with AgentAuditFindingsPanel
+
+**Daily Reports Tab**
+- Date Selector with Load Reports button
+- Detailed Activities Table with weld counts, repairs, locations
+- Individual Welds Log with weld numbers and visual results
+- Repairs Table with defect codes
+- Tie-In Data with station and NDE results
+- Inspector Comments Feed
+
+**Certifications Tab**
+- Active Welders Table with qualification status
+- Expiry date highlighting
+
+**Generate Report Tab**
+- AI-generated daily welding report (with fallback when API unavailable)
+- Sections: Executive Summary, Production Summary, Quality & Repairs, Tie-In Operations, Inspector Observations, Action Items
+- PDF Download with Digital Signature
+- Sign & Download button opens SignaturePad
+- Signature embedded in PDF with verification
+- Document ID for turnover tracking
+
+**New Files Created:**
+```
+src/WeldingChiefDashboard.jsx   # Main dashboard component
+src/weldingChiefHelpers.js      # Data aggregation functions
+src/weldingChiefPDF.js          # PDF generation with signature support
+```
+
+**Routing & Permissions:**
+- Route: `/:orgSlug/welding-chief`
+- Allowed roles: welding_chief, chief, chief_inspector, admin, super_admin
+- Added to MasterSwitcher God Mode menu
+
+---
+
+### Organization Filtering Fix (February 2, 2026)
+
+**Super Admin Data Filtering**
+- Fixed issue where super admins saw all organizations' data regardless of selection
+- All `addOrgFilter()` calls now use `forceFilter=true` for selected organization
+- Data state resets when switching organizations (prevents stale data)
+- `isReady()` now requires `organizationId` before queries execute
+
+**Files Modified:**
+- `src/AdminPortal.jsx` - Force org filtering, state reset on org change
+- `src/utils/queryHelpers.js` - Updated isReady() logic
+
+---
 
 ### Document Control & Project Handover System (February 1, 2026)
 
@@ -393,15 +786,19 @@
 - Handover history with download links
 
 **Technical Resource Library (Admin Portal → Setup)**
-- 5 global reference document categories:
+- 6 global reference document categories:
   - API 1169 - Pipeline Construction Inspection
   - CSA Z662 - Oil & Gas Pipeline Systems
   - Practical Guide for Pipeline Construction Inspectors
   - Pipeline Inspector's Playbook
   - Pipeline Rules of Thumb
+  - Pipe-Up Field Guide (Agent knowledge base)
 - Read-only access for all users
 - Super Admin: Upload, Replace, Delete capabilities
+- **Add Supporting Doc** button on each library item (super_admin)
+- Supporting documents displayed under parent in both Admin and Inspector views
 - Documents marked as `is_global: true` for cross-org access
+- AI indexing via `process-document` edge function for RAG search
 
 **New Database Tables:**
 ```
@@ -717,7 +1114,7 @@ src/components/TenantSwitcher.jsx # Org switcher (for admin use)
   6. Comments
 - Minimum bend radius auto-calculation by pipe diameter
 - Weld ID linking to pipe string
-- Known issue: Section collapses on field changes (to be fixed)
+- Fixed: CollapsibleSection extracted to module level (was causing unmount/remount)
 
 ### Database Migrations (January 21, 2026)
 - `20260121_create_drilling_waste_logs.sql`
@@ -863,4 +1260,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 1, 2026 (Document Control & Handover System)*
+*Last Updated: February 17, 2026 (Inspector Report Fixes — Corrine Barta Field Testing)*

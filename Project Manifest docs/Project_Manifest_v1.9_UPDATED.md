@@ -1,24 +1,21 @@
-# 2026-02-04 PROJECT MANIFEST
-**PIPE-UP PIPELINE INSPECTOR PLATFORM**
-
-**Project Manifest - February 4, 2026**
+# PIPE-UP PIPELINE INSPECTOR PLATFORM
+## Project Manifest - February 4, 2026
 
 ---
 
 ## 1. PROJECT OVERVIEW
 
-**Project Name**: Pipe-Up Pipeline Inspector Platform
-**Client**: FortisBC EGP - Eagle Mountain Woodfibre Gas Pipeline
-**Production URL**: https://app.pipe-up.ca
-**Repository**: https://github.com/rickjudson-1959/Inspection-App-and-Dashboard
+**Project Name:** Pipe-Up Pipeline Inspector Platform
+**Client:** FortisBC EGP - Eagle Mountain Woodfibre Gas Pipeline
+**Production URL:** https://app.pipe-up.ca
+**Repository:** https://github.com/rickjudson-1959/Inspection-App-and-Dashboard
 
 ### Technology Stack
-
 | Component | Technology |
-|-----------|-----------|
+|-----------|------------|
 | Frontend | React 18.2.0 with Vite + PWA |
 | Backend | Supabase (PostgreSQL + Auth + Edge Functions) |
-| AI Analysis | Anthropic Claude API (AI Agent + Mentor System) |
+| AI Analysis | Anthropic Claude API (AI Agent) |
 | Email API | Resend |
 | Deployment | Vercel |
 | PDF Generation | jsPDF + jsPDF-autotable |
@@ -40,16 +37,16 @@
 
 | Role | Access Level |
 |------|--------------|
-| super_admin | Full system access |
-| admin | Project administration |
-| chief_inspector | Field inspection chief, report approval |
-| assistant_chief_inspector | Assistant to chief |
-| welding_chief | Welding operations monitoring & reporting |
-| inspector | Field data entry |
-| pm | Project manager dashboards |
-| cm | Construction manager dashboards |
-| executive | Executive dashboards & summaries |
-| ndt_auditor | NDT monitoring & auditing |
+| `super_admin` | Full system access |
+| `admin` | Project administration |
+| `chief_inspector` | Field inspection chief, report approval |
+| `assistant_chief_inspector` | Assistant to chief |
+| `welding_chief` | Welding operations monitoring & reporting |
+| `inspector` | Field data entry |
+| `pm` | Project manager dashboards |
+| `cm` | Construction manager dashboards |
+| `executive` | Executive dashboards & summaries |
+| `ndt_auditor` | NDT monitoring & auditing |
 
 ---
 
@@ -74,7 +71,31 @@
 - Digital signature capture
 
 ### Activity Types (25 Supported)
-Clearing, Access, Topsoil (with horizon separation tracking), Grading, Stringing (pipe receiving inspection), Bending, Welding - Mainline, Welding - Section Crew, Welding - Poor Boy, Welding - Tie-in, Coating, Ditch (with BOT checklist, pay items), Lower-in, Backfill, Tie-in Completion, Cleanup - Machine, Cleanup - Final, Hydrostatic Testing, HDD (Horizontal Directional Drilling), HD Bores, Piling, Equipment Cleaning, Hydrovac, Welder Testing, Counterbore/Transition
+1. Clearing
+2. Access
+3. Topsoil (with horizon separation tracking)
+4. Grading
+5. Stringing (pipe receiving inspection)
+6. Bending
+7. Welding - Mainline
+8. Welding - Section Crew
+9. Welding - Poor Boy
+10. Welding - Tie-in
+11. Coating
+12. Ditch (with BOT checklist, pay items)
+13. Lower-in
+14. Backfill
+15. Tie-in Completion
+16. Cleanup - Machine
+17. Cleanup - Final
+18. Hydrostatic Testing
+19. HDD (Horizontal Directional Drilling)
+20. HD Bores
+21. Piling
+22. Equipment Cleaning
+23. Hydrovac
+24. Welder Testing
+25. Counterbore/Transition
 
 ### Inspector Invoicing System
 - Inspector profile management (company/banking info)
@@ -109,7 +130,7 @@ Clearing, Access, Topsoil (with horizon separation tracking), Grading, Stringing
 - Traffic light status (green=uploaded, red=missing)
 - ITP Sign-off Matrix (3 roles required for ACTIVE status)
 - Digital signature capture with timestamps
-- Document version control (Rev 0, Rev 1, Rev 2…)
+- Document version control (Rev 0, Rev 1, Rev 2...)
 - Owner DC compatibility with custom metadata fields
 - Sync status workflow (internal → transmitted → acknowledged → rejected)
 - Transmittal Generator with PDF output
@@ -122,37 +143,118 @@ Clearing, Access, Topsoil (with horizon separation tracking), Grading, Stringing
 ## 4. DATABASE SCHEMA (SUPABASE)
 
 ### Inspector Invoicing Tables
-- **inspector_profiles** - Company and banking information, profile completion status, cleared to work flag
-- **inspector_documents** - Certifications, licenses, insurance; expiry date tracking; verification workflow
-- **inspector_rate_cards** - Daily field rate, per diem, allowances; truck rate, km rate, thresholds; effective date ranges
-- **inspector_timesheets** - Period dates, project info; summary totals; workflow status tracking; approval chain timestamps
-- **inspector_timesheet_lines** - Daily line items, work type flags, auto-populated from daily tickets
+
+**inspector_profiles**
+- Company and banking information
+- Profile completion status
+- Cleared to work flag
+
+**inspector_documents**
+- Certifications, licenses, insurance
+- Expiry date tracking
+- Verification workflow
+
+**inspector_rate_cards**
+- Daily field rate, per diem, allowances
+- Truck rate, km rate, thresholds
+- Effective date ranges
+
+**inspector_timesheets**
+- Period dates, project info
+- Summary totals (days, kms, amounts)
+- Workflow status tracking
+- Approval chain timestamps
+
+**inspector_timesheet_lines**
+- Daily line items
+- Work type flags
+- Auto-populated from daily tickets
 
 ### Ditch/Trench Inspection Tables
-- **trench_logs** - Report linkage, KP range; trench measurements; pay items; BOT checklist; water management; soil conditions
-- **trench_log_photos** - Geotagged photo evidence with GPS coordinates
+
+**trench_logs**
+- Report linkage, KP range
+- Trench measurements (width, depth, cover)
+- Pay items (padding/bedding with From KP/To KP)
+- BOT checklist (rocks, debris, silt fences, wildlife)
+- Water management (pumping, filter bags)
+- Soil conditions, depth compliance
+
+**trench_log_photos**
+- Geotagged photo evidence
+- GPS coordinates (6-decimal precision)
+- Photo type categorization
 
 ### HDD Drilling Waste Management Tables (NEW - January 2026)
-- **drilling_waste_logs** - Report linkage, bore/crossing ID; mud mixing data; disposal tracking; testing compliance; certification
-- **drilling_waste_additives** - Product name, type, manufacturer; quantity used; SDS availability
-- **drilling_waste_photos** - Geotagged evidence photos with GPS coordinates
+
+**drilling_waste_logs**
+- Report linkage, bore/crossing ID
+- Mud mixing data (total volume, storage, hauled)
+- Disposal tracking (method, location, manifest)
+- Testing compliance (salinity, toxicity, metals)
+- Certification (inspector sign-off)
+
+**drilling_waste_additives**
+- Product name, type, manufacturer
+- Quantity used, units
+- SDS availability tracking
+
+**drilling_waste_photos**
+- Geotagged evidence photos
+- Photo types: mud_system, disposal, testing, manifest, spill, general
+- GPS coordinates (6-decimal precision)
 
 ### HDD Steering/Bore Path Tables (NEW - January 2026)
-- **bore_path_logs** - Report linkage; guidance system setup; design vs actual angles; pipe specifications; status tracking
-- **bore_path_stations** - Per-joint steering data; position data; offset from design; bending radius alerts
-- **bore_path_documents** - Uploaded bore logs, steering reports with GPS metadata
+
+**bore_path_logs**
+- Report linkage, bore/crossing/weld ID
+- Guidance system setup (type, frequency, calibration)
+- Design vs actual entry/exit angles
+- Pipe specifications for bending radius calculation
+- Status tracking (within tolerance, complete, adjusted)
+
+**bore_path_stations**
+- Per-joint steering data entries
+- Position data (depth, pitch, azimuth, KP)
+- Offset from design (horizontal/vertical)
+- Bending radius alerts
+
+**bore_path_documents**
+- Uploaded bore logs, steering reports
+- GPS metadata from photos
+- Document type categorization
 
 ### Trackable Items
-- **bedding_padding** (NEW - January 2026) - Protection types (Bedding, Padding, Pipe Protection, Rockshield, Lagging); From KP / To KP; Length, Material, Depth/Thickness; Action, Equipment, Notes
+
+**bedding_padding** (NEW - January 2026)
+- Protection types: Bedding, Padding, Bedding and Padding, Pipe Protection, Rockshield, Lagging, Rockshield and Lagging
+- From KP / To KP
+- Length, Material, Depth/Thickness
+- Action, Equipment, Notes
 
 ### Document Control Tables (NEW - February 2026)
-- **project_documents** - Organization-scoped document vault; category tracking; version control; ITP sign-offs; Owner DC sync status; custom metadata; addenda support; global flag for Technical Resource Library
-- **transmittals** - Transmittal tracking and generation; document linkage; from/to parties; subject and notes
-- **contract_config** - Per-organization project configuration; contract number, workday hours, AP email; project boundaries (start/end KP); custom document fields
 
-### Mentor Agent Tables (NEW - February 2026)
-- **mentor_threshold_config** - Configurable quality thresholds per organization; activity type and field key mapping; min/max values with units and severity; alert messages with interpolation support; recommended actions and reference documents; knowledge bucket source tracking
-- **mentor_alert_events** - Real-time alert event logging; threshold breach tracking; inspector acknowledgment/override workflow; override reason capture; status tracking (active/acknowledged/overridden/resolved)
+**project_documents**
+- Organization-scoped document vault
+- Category tracking (prime_contract, scope_of_work, ifc_drawings, etc.)
+- Version control (version_number, is_current)
+- ITP sign-offs (JSONB with role-based signatures)
+- Owner DC sync status (internal, transmitted, acknowledged, rejected)
+- Custom metadata (JSONB)
+- Addenda support (is_addendum, parent_document_id)
+- Global flag for Technical Resource Library
+
+**transmittals**
+- Transmittal tracking and generation
+- Document linkage
+- From/To parties
+- Subject and notes
+
+**contract_config**
+- Per-organization project configuration
+- Contract number, workday hours, AP email
+- Project boundaries (start/end KP)
+- Custom document fields (JSONB array)
 
 ---
 
@@ -173,18 +275,6 @@ Clearing, Access, Topsoil (with horizon separation tracking), Grading, Stringing
 ├── utils/
 │   └── queryHelpers.js         # Org-scoped query helpers (useOrgQuery)
 │
-├── agents/                      # NEW - AI Mentor System (Feb 2026)
-│   ├── InspectorMentorAgent.js     # Core threshold evaluation engine
-│   ├── MentorThresholdSeeder.js    # Threshold generation from knowledge buckets
-│   ├── MentorTipService.js         # Proactive mentor tips (Phase 2)
-│   ├── NLQueryService.js           # Natural language query client (Phase 4)
-│   ├── ReportHealthScorer.js       # Report completeness scoring (Phase 3)
-│   ├── OverrideLogger.js           # Override event logging (Phase 5)
-│   └── technicalTerms.js           # 200+ pipeline construction terms
-│
-├── hooks/                       # NEW - Mentor React Hooks (Feb 2026)
-│   └── useMentorAuditor.js         # Field-level validation hook
-│
 ├── Dashboards/
 │   ├── Dashboard.jsx           # CMT Dashboard
 │   ├── EVMDashboard.jsx        # Earned Value Management
@@ -203,11 +293,11 @@ Clearing, Access, Topsoil (with horizon separation tracking), Grading, Stringing
 │
 ├── Activity Logs/
 │   ├── BendingLog.jsx
-│   ├── ClearingLog.jsx         # With ROW width comparative validation
+│   ├── ClearingLog.jsx
 │   ├── CoatingLog.jsx
 │   ├── DitchInspection.jsx     # Ditch with DB integration
 │   ├── GradingLog.jsx
-│   ├── HDDLog.jsx              # Collapsible sections, waste mgmt, steering log, bore length validation
+│   ├── HDDLog.jsx              # Collapsible sections, waste mgmt, steering log
 │   ├── HDDSteeringLog.jsx      # NEW - Bore path tracking (Jan 2026)
 │   ├── DrillingWasteManagement.jsx  # NEW - Directive 050 (Jan 2026)
 │   ├── HydrotestLog.jsx
@@ -246,11 +336,6 @@ Clearing, Access, Topsoil (with horizon separation tracking), Grading, Stringing
     │   └── ShieldedSearch.jsx   # Ref-Shield search with 300ms debounce (NEW - Feb 2026)
     ├── BufferedInput.jsx        # Re-export → ShieldedInput (backward compat)
     ├── BufferedSearch.jsx       # Re-export → ShieldedSearch (backward compat)
-    ├── MentorSidebar.jsx        # NEW - Mentor alert sidebar (Feb 2026)
-    ├── MentorAlertBadge.jsx     # NEW - Floating alert badge (Feb 2026)
-    ├── MentorTipOverlay.jsx     # NEW - Activity tips overlay (Feb 2026)
-    ├── AskTheAgentPanel.jsx     # NEW - NLQ chat interface (Feb 2026)
-    ├── HealthScoreIndicator.jsx # NEW - Report health score (Feb 2026)
     ├── TrackableItemsTracker.jsx
     ├── SignaturePad.jsx         # Digital signature capture (ITP sign-offs)
     ├── TenantSwitcher.jsx       # Organization switcher dropdown
@@ -258,20 +343,7 @@ Clearing, Access, Topsoil (with horizon separation tracking), Grading, Stringing
     ├── MapDashboard.jsx
     ├── OfflineStatusBar.jsx     # PWA status indicator (NEW - Jan 2026)
     └── [supporting components]
-```
 
-### Supabase Edge Functions
-```
-/supabase/functions/
-├── process-ticket-ai/          # AI Watcher anomaly detection
-│   └── index.ts
-├── mentor-nlq/                 # NEW - Natural language query (Feb 2026)
-│   └── index.ts                # Dual-source RAG search for technical questions
-└── [other edge functions]
-```
-
-### Database Migrations
-```
 /supabase/migrations/
 ├── create_inspector_invoicing_tables.sql
 ├── create_trench_logs.sql
@@ -289,14 +361,36 @@ Clearing, Access, Topsoil (with horizon separation tracking), Grading, Stringing
 ├── 20260201_create_handovers_bucket.sql      # Handover ZIP storage
 ├── 20260201_create_ai_agent_tables.sql       # AI agent logs
 ├── 20260202_create_wps_material_specs.sql    # WPS material validation
-├── 20260205_create_mentor_agent_tables.sql   # NEW - Mentor thresholds (Feb 2026)
-├── 20260131000001_seed_default_thresholds.sql # NEW - 12 default thresholds (Feb 2026)
 └── [other migrations]
 ```
 
 ---
 
 ## 6. RECENT UPDATES (January/February 2026)
+
+### Inspector Report Fixes — Corrine Barta Field Testing (February 17, 2026)
+
+**Fixed 4 issues identified during field testing by Corrine Barta**
+
+1. **Multi-page ticket photo display & save** — When a multi-page ticket is scanned, the indicator now shows "X pages attached" (instead of just the first filename), the photo modal displays all pages in a scrollable view with "Page X of Y" labels, and all filenames are saved to the database as a `ticketPhotos` array (not just the first page). Edit mode loads URLs for all saved pages.
+
+2. **OCR equipment validation** — `addEquipmentToBlock()` was silently rejecting equipment with 0 hours because `!0 === true`. Changed validation from `if (!type || !hours)` to `if (!type)`. Equipment can legitimately have 0 hours (idle/standby).
+
+3. **Context-aware production status labels** — Labour and equipment entries set to Downtime now show "Down hrs:" and entries set to Standby show "Standby hrs:" instead of the misleading "Productive hrs:" label.
+
+4. **Weld UPI trackable items** — Added new `weld_upi` category to TrackableItemsTracker with fields: UPI Type (Cut Out, Repair, Rework, NDT Fail Repair, Other), Weld Number(s), From/To KP, Quantity, Reason, Status, Notes. Updated the reminder banner to include "Weld UPI Items".
+
+**Field Guide updated to v2.1** — Re-uploaded and re-indexed (20 chunks, 0 embedding errors).
+
+**Files Modified:**
+```
+src/ActivityBlock.jsx         # Multi-page photo modal, context-aware labels
+src/InspectorReport.jsx       # Equipment validation fix, multi-page save, reminder banner
+src/TrackableItemsTracker.jsx # weld_upi item type
+pipe-up-field-guide-agent-kb.md  # v2.0 → v2.1
+```
+
+---
 
 ### Technical Resource Library - Field Guide & Supporting Docs (February 14, 2026)
 
@@ -312,9 +406,11 @@ Clearing, Access, Topsoil (with horizon separation tracking), Grading, Stringing
 - Storage RLS policy updated to allow authenticated uploads to `documents` bucket
 
 **Files Modified:**
-- `src/AdminPortal.jsx` - New category, upload function, supporting doc UI
-- `src/ReferenceLibrary.jsx` - New category, supporting docs display
-- `supabase/migrations/20260214_add_field_guide_category.sql`
+```
+src/AdminPortal.jsx          # New category, upload function, supporting doc UI
+src/ReferenceLibrary.jsx     # New category, supporting docs display
+supabase/migrations/20260214_add_field_guide_category.sql
+```
 
 ### PDF Export - Complete Data Coverage (February 12, 2026)
 
@@ -438,243 +534,27 @@ Two build warnings resolved:
 
 ---
 
-### InspectorMentorAgent - Phase 1 Complete (February 4, 2026)
-
-**Real-Time Threshold-Based Field Validation System**
-
-The InspectorMentorAgent provides intelligent, real-time quality assurance guidance to field inspectors during data entry. When field values breach configurable thresholds, inspectors receive immediate contextual alerts with recommended actions and reference documents.
-
-#### Core Capabilities
-
-**Threshold Alerts (12 Configured Thresholds Across 8 Activities)**
-
-| Activity Type | Field Key | Threshold | Severity | Status |
-|--------------|-----------|-----------|----------|--------|
-| **Access** | accessWidth | < 5.0m | info | ✅ Working |
-| **Topsoil** | admixture_percent | > 15% | critical | ✅ Working |
-| **Topsoil** | stockpileSeparationDistance | < 1.0m | warning | ✅ Working |
-| **HD Bores** | boreLength | < 1m or > 500m | warning | ✅ Working |
-| **Bending** | bendAngle | > 90° | critical | ✅ Working |
-| **Bending** | ovalityPercent | > 3% | critical | ✅ Working |
-| **Backfill** | coverDepth | < 0.6m | critical | ✅ Working |
-| **Backfill** | compactionPercent | < 90% | warning | ✅ Working |
-| **Welding - Mainline** | rootOpening | < 1.0mm or > 3.2mm | warning | ✅ Working |
-| **Welding - Mainline** | hiLo | > 1.6mm | warning | ✅ Working |
-| **Lower-in** | clearance | < 0.3m | critical | ✅ Working |
-| **Clearing** | rowWidthActual | > rowWidthDesign | warning | ✅ Working |
-
-**Alert Severity Levels:**
-- **Critical (Red)**: Safety-critical violations that auto-open sidebar (e.g., topsoil admixture > 15%, backfill cover < 0.6m)
-- **Warning (Amber)**: Specification deviations requiring review (e.g., access width < 5m, bore length unusual)
-- **Info (Blue)**: Guidance and recommendations for best practices
-
-#### User Experience
-
-**MentorAlertBadge** - Floating indicator in bottom-right corner:
-- Amber pulse animation for warning alerts
-- Red pulse animation for critical alerts
-- Click to open MentorSidebar
-- Shows total alert count with tooltip breakdown
-
-**MentorSidebar** - Slide-in panel from right side:
-- Severity-sorted alert cards with colored left border
-- Each alert displays:
-  - Title (e.g., "ROW Width Exceeds Design")
-  - Detailed message with interpolated values
-  - Recommended action steps
-  - Reference document citation
-  - Source knowledge bucket
-- Actions:
-  - **Acknowledge**: Inspector agrees with alert, marks as resolved
-  - **Override**: Inspector disagrees, must provide reason for audit trail
-
-#### Implementation Pattern
-
-**Standard QualityData Activities** (7 activities):
-Activities using standard `qualityData` structure work automatically via `useMentorAuditor` hook:
-- Access, Topsoil, Bending, Backfill, Welding - Mainline, Lower-in
-
-**Mechanism:**
-1. User enters value in ShieldedInput field
-2. `onBlur` handler calls `mentor.auditField(fieldKey, value)`
-3. `evaluateField()` queries `mentor_threshold_config` table
-4. Matching thresholds evaluated against field value
-5. Alerts created and propagated to InspectorReport
-6. MentorAlertBadge appears if any active alerts exist
-
-**Specialized Log Components** (2 activities with custom validation):
-
-**Clearing (ClearingLog.jsx)**:
-- Uses `clearingData.rowBoundaries` structure (not standard qualityData)
-- Comparative validation: Actual ROW Width > Design ROW Width
-- Custom useEffect with manual `addAlert()` call
-- Alert auto-clears when values become compliant
-
-**HD Bores (HDDLog.jsx)**:
-- Uses nested `hddData` structure
-- Validates `boreLength` field (1-500m typical range)
-- Custom useEffect with manual `addAlert()` call
-- Warning severity (unusual values, not violations)
-
-#### Architecture & Future-Proofing
-
-**Knowledge Bucket Registry Pattern:**
-```javascript
-// InspectorMentorAgent.js - Single source of truth for knowledge sources
-const KNOWLEDGE_BUCKET_REGISTRY = [
-  { table: 'project_documents', filter: ..., label: 'Project Documents' },
-  { table: 'wps_material_specs', filter: ..., label: 'WPS & Material Specs' },
-  { table: 'contract_config', filter: ..., label: 'Contract Configuration' },
-  { table: 'document_embeddings', filter: ..., label: 'Document Embeddings (RAG)' }
-]
-```
-
-**Adding a new knowledge source:**
-1. Add entry to `KNOWLEDGE_BUCKET_REGISTRY`
-2. Optionally add threshold seeder to `MentorThresholdSeeder.js`
-3. All other components automatically include new data
-
-**Configurable Thresholds (Not Hardcoded):**
-- All thresholds stored in `mentor_threshold_config` table
-- Editable via Admin Portal (future enhancement)
-- Support for value interpolation in alert messages: `{value}`, `{min}`, `{max}`, `{unit}`
-- Can reference source documents from knowledge buckets
-
-#### Phase Roadmap
-
-**✅ Phase 1: Core Agent + Real-Time Data Auditing** (COMPLETE - Feb 4, 2026)
-- Threshold-based validation with 12 configured thresholds
-- Real-time alerts on field blur
-- Sidebar UI with acknowledge/override workflow
-- Database persistence of alert events
-- Override logging with reason capture
-
-**Phase 2: Proactive Mentor Tips** (Partially Implemented)
-- Display key quality checks when activity type selected
-- RAG-powered tips from document embeddings
-- **Status**: Edge function exists (`mentor-nlq`), but browser-side calls disabled due to OpenAI API 401 errors
-- **TODO**: Implement server-side edge function for tip generation
-
-**✅ Phase 3: Report Health Score** (Implemented - Jan 2026)
-- Weighted completeness score (100-point scale)
-- Categories: Photo completeness (25%), Directive 050 compliance (20%), field completeness (20%), chainage integrity (15%), labour/equipment docs (10%), mentor alert resolution (10%)
-- Health score indicator in InspectorReport
-- Warns if < 90% on submit (does not block)
-
-**✅ Phase 4: Natural Language Query ("Ask the Agent")** (Implemented - Feb 2026)
-- Edge function: `supabase/functions/mentor-nlq/index.ts`
-- Dual-source RAG search (org-specific + global Technical Resource Library)
-- Uses OpenAI embeddings + Claude responses
-- Predictive typeahead with 200+ pipeline construction terms
-- **Status**: Working correctly with Technical Resource Library integration
-
-**Phase 5: Override Logging** (Planned)
-- Dual-write to `report_audit_log` and `mentor_alert_events`
-- Action type: `inspector_override`
-- Regulatory category mapping from `auditLoggerV3.js`
-- Critical flag for high-severity overrides
-
-#### Files Created/Modified
-
-**New Files:**
-```
-src/agents/InspectorMentorAgent.js        # Core evaluation engine
-src/agents/MentorThresholdSeeder.js       # Threshold generation
-src/agents/MentorTipService.js            # Proactive tips (Phase 2)
-src/agents/NLQueryService.js              # NLQ client (Phase 4)
-src/agents/ReportHealthScorer.js          # Health scoring (Phase 3)
-src/agents/OverrideLogger.js              # Override logging (Phase 5)
-src/agents/technicalTerms.js              # Pipeline term dictionary
-
-src/hooks/useMentorAuditor.js             # Validation hook
-
-src/components/MentorSidebar.jsx          # Alert sidebar UI
-src/components/MentorAlertBadge.jsx       # Floating badge indicator
-src/components/MentorTipOverlay.jsx       # Activity tips (Phase 2)
-src/components/AskTheAgentPanel.jsx       # NLQ interface (Phase 4)
-src/components/HealthScoreIndicator.jsx   # Health score UI (Phase 3)
-
-supabase/functions/mentor-nlq/index.ts    # NLQ edge function (Phase 4)
-```
-
-**Modified Files:**
-```
-src/ActivityBlock.jsx       # Mentor hook integration, pass props to specialized logs
-src/InspectorReport.jsx     # Mentor alert state management, sidebar rendering
-src/ClearingLog.jsx         # ROW width comparative validation
-src/HDDLog.jsx              # Bore length validation with custom useEffect
-```
-
-**Database Migrations:**
-```
-supabase/migrations/20260205_create_mentor_agent_tables.sql
-  - mentor_threshold_config table
-  - mentor_alert_events table
-  - RLS policies
-
-supabase/migrations/20260131000001_seed_default_thresholds.sql
-  - 12 default threshold configurations
-  - Covers 8 activity types
-```
-
-#### Testing & Verification
-
-**Local Testing (Localhost:5176) - All Passed:**
-1. ✅ Access activity - accessWidth = 3m → Info badge appeared
-2. ✅ Topsoil activity - admixture_percent = 20% → Critical alert, sidebar auto-opened
-3. ✅ HD Bores activity - boreLength = 600m → Warning badge appeared
-4. ✅ Clearing activity - Design ROW 40m, Actual ROW 45m → Warning alert triggered
-
-**Production Deployment:**
-- Commit: `639ec97 - Complete mentor threshold integration for all activities`
-- Deployed: February 4, 2026
-- URL: https://app.pipe-up.ca
-
-#### Impact & Benefits
-
-**For Inspectors:**
-- Real-time guidance on quality thresholds during data entry
-- Reduced errors by catching out-of-spec values immediately
-- Contextual help with recommended actions and reference documents
-- Audit trail of all override decisions with reasons
-
-**For Chiefs & Compliance:**
-- Health score indicator showing report completeness
-- Override logging tracks when inspectors disagree with mentor alerts
-- Regulatory compliance with Directive 050 and contract specifications
-- Quality assurance via threshold-based validation
-
-**For Organization:**
-- Configurable thresholds via database, no code changes required
-- Knowledge bucket registry for easy addition of new data sources
-- Scalable architecture supports future AI features (NLQ, tips, scoring)
-- Phase-based implementation allows incremental rollout and testing
-
----
-
 ### Shielded Input Architecture (February 4, 2026)
 
 **Project-wide fix for the "single-digit input" bug**
-
 Inspectors could only type 1 character in form fields before the value was lost/reset. Root causes identified and fixed:
 
-1. **CollapsibleSection unmount/remount** - CollapsibleSection was defined as an arrow function inside the render function of GradingLog and HDDSteeringLog. React treated each render's new function reference as a different component type, causing full unmount/remount of the subtree on every keystroke — destroying all child state. **Fix**: Extracted CollapsibleSection to module level.
+1. **CollapsibleSection unmount/remount** - `CollapsibleSection` was defined as an arrow function inside the render function of GradingLog and HDDSteeringLog. React treated each render's new function reference as a different component type, causing full unmount/remount of the subtree on every keystroke — destroying all child state. **Fix:** Extracted CollapsibleSection to module level.
 
-2. **Parent re-render overwriting typed text** - React state updates from onDataChange callbacks triggered parent re-renders that pushed new prop values into inputs mid-keystroke, resetting the displayed value. **Fix**: Created ShieldedInput with the Ref-Shield pattern.
+2. **Parent re-render overwriting typed text** - React state updates from `onDataChange` callbacks triggered parent re-renders that pushed new prop values into inputs mid-keystroke, resetting the displayed value. **Fix:** Created ShieldedInput with the Ref-Shield pattern.
 
-3. **Search field clearing during filter operations** - Equipment/Manpower SearchableSelect inputs cleared while typing because filtering triggered re-renders. **Fix**: Created ShieldedSearch with 300ms debounce.
+3. **Search field clearing during filter operations** - Equipment/Manpower SearchableSelect inputs cleared while typing because filtering triggered re-renders. **Fix:** Created ShieldedSearch with 300ms debounce.
 
-#### ShieldedInput / ShieldedSearch — Ref-Shield Pattern
-
-- `localValue` state is the sole display source while the input is focused
-- Prop updates are blocked while the user is typing (focus shield)
+**ShieldedInput / ShieldedSearch — Ref-Shield Pattern:**
+- `localValue` state is the **sole display source** while the input is focused
+- Prop updates are **blocked** while the user is typing (focus shield)
 - Syncs from props only on `onBlur` or when not focused
 - Wrapped in `React.memo` to skip re-renders when props haven't changed
 - Password manager defense attributes: `data-bwignore`, `data-1p-ignore`, `data-lpignore`, `autoComplete="off"`, `spellCheck: false`
 - Verification logging: `console.log('[ShieldedSystem] Prop Sync Blocked - User is Typing')`
-- `onChange` passes string value directly (NOT an event object)
+- `onChange` passes **string value** directly (NOT an event object)
 
-#### 131 Raw DOM Elements Replaced Across 12 Files
+**131 raw DOM elements replaced across 12 files:**
 
 | File | Inputs | Textareas | Total |
 |------|--------|-----------|-------|
@@ -691,14 +571,12 @@ Inspectors could only type 1 character in form fields before the value was lost/
 | PilingLog.jsx | 0 | 1 | 1 |
 | CounterboreTransitionLog.jsx | 0 | 1 | 1 |
 
-#### Backward Compatibility
-
+**Backward Compatibility:**
 - `BufferedInput.jsx` re-exports from `ShieldedInput.jsx`
 - `BufferedSearch.jsx` re-exports from `ShieldedSearch.jsx`
 - Existing imports in GradingLog, HDDSteeringLog, MainlineWeldData, TieInWeldData continue working unchanged
 
-#### New Files Created
-
+**New Files Created:**
 ```
 src/components/common/ShieldedInput.jsx   # Ref-Shield input component
 src/components/common/ShieldedSearch.jsx  # Ref-Shield search with debounce
@@ -709,22 +587,20 @@ src/components/common/ShieldedSearch.jsx  # Ref-Shield search with debounce
 ### Equipment Unit Number Column (February 3, 2026)
 
 **Unit # tracking for Equipment section**
-
 - New column added to Equipment table in ActivityBlock.jsx
 - Editable inline cell for manual entry
-- OCR extraction support: AI prompt updated to extract `unitNumber` from contractor tickets
+- OCR extraction support: AI prompt updated to extract unitNumber from contractor tickets
 - Grid layout updated from 4 to 5 columns to accommodate Unit #
 
 **Files Modified:**
 - `src/ActivityBlock.jsx` - Unit # form field, table column, OCR prompt
-- `src/InspectorReport.jsx` - `addEquipmentToBlock` accepts `unitNumber` parameter, new `updateEquipmentUnitNumber` function
+- `src/InspectorReport.jsx` - `addEquipmentToBlock` accepts unitNumber parameter, new `updateEquipmentUnitNumber` function
 
 ---
 
 ### Grading Equipment Dropdown Removal (February 3, 2026)
 
 **Removed duplicate Grading Equipment from ROW Conditions quality checks**
-
 - Grading equipment is already tracked in the Manpower & Equipment section
 - Removed `gradingEquipment` dropdown and `equipmentOther` text field from GradingLog quality checks
 - Removed corresponding fields from default data object
@@ -737,27 +613,22 @@ src/components/common/ShieldedSearch.jsx  # Ref-Shield search with debounce
 ### AI Agent "Watcher" System (February 2, 2026)
 
 **Pipe-Up AI Agent - Intelligent Ticket Analysis**
-
 - Real-time analysis of daily construction tickets
 - Flags anomalies and compliance issues automatically
 - Green pulse animation when all clear, red pulse for critical flags
 
-#### AI Agent Status Icon (AdminPortal Header)
-
-Visual status indicator with 5 states:
-- 🤖 Gray (Idle) - No recent analysis
-- ⚡ Blue pulse (Analyzing) - Processing tickets
-- ✅ Green pulse (Clear) - No issues detected
-- ⚠️ Yellow (Warning) - Review recommended
-- 🚨 Red pulse (Flagged) - Critical issues requiring attention
-
-Features:
+**AI Agent Status Icon (AdminPortal Header)**
+- Visual status indicator with 5 states:
+  - 🤖 Gray (Idle) - No recent analysis
+  - ⚡ Blue pulse (Analyzing) - Processing tickets
+  - ✅ Green pulse (Clear) - No issues detected
+  - ⚠️ Yellow (Warning) - Review recommended
+  - 🚨 Red pulse (Flagged) - Critical issues requiring attention
 - Click to view detailed analysis results
 - Clickable flags navigate to affected tickets
 - Real-time Supabase subscription for live updates
 
-#### Analysis Rules (7 Checks)
-
+**Analysis Rules (7 Checks)**
 | Flag Type | Severity | Rule |
 |-----------|----------|------|
 | HOURS_EXCEEDED | Warning/Critical | Avg hours > 120%/150% of standard workday |
@@ -768,57 +639,61 @@ Features:
 | WPS_MATERIAL_MISMATCH | Critical | Pipe material not approved for WPS |
 | EQUIPMENT_MISMATCH | Warning | WPS not found in approved specifications |
 
-#### WPS Material Validation
-
+**WPS Material Validation**
 - `wps_material_specs` table stores approved materials per WPS
 - Validates pipe grade against WPS allowed materials list
 - Flags critical violations (e.g., X65 Steel used with WPS-02 which only allows X70/X80)
-- Supports both block-level and `weldData.weldEntries` validation
+- Supports both block-level and weldData.weldEntries validation
 
-#### AI-Generated Summaries
-
+**AI-Generated Summaries**
 - Anthropic Claude API generates executive summaries of flagged issues
 - Prioritizes WPS/Material violations as potential stop-work items
 - Identifies contractors requiring investigation
 - Provides actionable recommendations
 
 **New Database Tables:**
-- `ai_agent_logs` - Analysis results and metrics
-- `wps_material_specs` - WPS allowed materials configuration
+```
+ai_agent_logs           # Analysis results and metrics
+wps_material_specs      # WPS allowed materials configuration
+```
 
 **New Edge Function:**
-- `supabase/functions/process-ticket-ai/index.ts`
+```
+supabase/functions/process-ticket-ai/index.ts
+```
 
 **New Component:**
-- `src/components/AIAgentStatusIcon.jsx`
+```
+src/components/AIAgentStatusIcon.jsx
+```
 
 **Files Modified:**
 - `src/AdminPortal.jsx` - AI Agent icon in header, flagged ticket modal
-- `src/utils/queryHelpers.js` - Fixed `isReady()` for org filtering
+- `src/utils/queryHelpers.js` - Fixed isReady() for org filtering
 
 ---
 
 ### Welding Chief Dashboard (February 2, 2026)
 
 **New Dashboard for Welding Operations Management**
+- Dedicated dashboard for Welding Chief Inspector role
+- 6-tab interface: Overview, Welder Performance, WPS Compliance, Daily Reports, Certifications, Generate Report
 
-Dedicated dashboard for Welding Chief Inspector role with 6-tab interface: Overview, Welder Performance, WPS Compliance, Daily Reports, Certifications, Generate Report
-
-#### Overview Tab
+**Overview Tab**
 - KPI cards: Daily Weld Count, Cumulative Repair Rate, Active AI Alerts
 - Today's Weld Summary Table by crew type
 - AI Alert Banner for critical WPS/filler/preheat violations
 
-#### Welder Performance Tab
+**Welder Performance Tab**
 - Welder Stats Table: ID, Total Welds, Repairs, Repair Rate (%)
 - Status Badges: Green (<5%), Yellow (5-8%), Red (>8%)
 - Flagged Welders Alert Box
 
-#### WPS Compliance Tab
-- Active AI Flags Panel for `WPS_MATERIAL_MISMATCH`, `FILLER_MATERIAL_MISMATCH`, `PREHEAT_VIOLATION`
-- Integration with `AgentAuditFindingsPanel`
+**WPS Compliance Tab**
+- Active AI Flags Panel for WPS_MATERIAL_MISMATCH, FILLER_MATERIAL_MISMATCH, PREHEAT_VIOLATION
+- Integration with AgentAuditFindingsPanel
 
-#### Daily Reports Tab
+**Daily Reports Tab**
 - Date Selector with Load Reports button
 - Detailed Activities Table with weld counts, repairs, locations
 - Individual Welds Log with weld numbers and visual results
@@ -826,17 +701,17 @@ Dedicated dashboard for Welding Chief Inspector role with 6-tab interface: Overv
 - Tie-In Data with station and NDE results
 - Inspector Comments Feed
 
-#### Certifications Tab
+**Certifications Tab**
 - Active Welders Table with qualification status
 - Expiry date highlighting
 
-#### Generate Report Tab
+**Generate Report Tab**
 - AI-generated daily welding report (with fallback when API unavailable)
 - Sections: Executive Summary, Production Summary, Quality & Repairs, Tie-In Operations, Inspector Observations, Action Items
-- **PDF Download with Digital Signature**
-  - Sign & Download button opens SignaturePad
-  - Signature embedded in PDF with verification
-  - Document ID for turnover tracking
+- PDF Download with Digital Signature
+- Sign & Download button opens SignaturePad
+- Signature embedded in PDF with verification
+- Document ID for turnover tracking
 
 **New Files Created:**
 ```
@@ -847,7 +722,7 @@ src/weldingChiefPDF.js          # PDF generation with signature support
 
 **Routing & Permissions:**
 - Route: `/:orgSlug/welding-chief`
-- Allowed roles: `welding_chief`, `chief`, `chief_inspector`, `admin`, `super_admin`
+- Allowed roles: welding_chief, chief, chief_inspector, admin, super_admin
 - Added to MasterSwitcher God Mode menu
 
 ---
@@ -855,7 +730,6 @@ src/weldingChiefPDF.js          # PDF generation with signature support
 ### Organization Filtering Fix (February 2, 2026)
 
 **Super Admin Data Filtering**
-
 - Fixed issue where super admins saw all organizations' data regardless of selection
 - All `addOrgFilter()` calls now use `forceFilter=true` for selected organization
 - Data state resets when switching organizations (prevents stale data)
@@ -863,48 +737,43 @@ src/weldingChiefPDF.js          # PDF generation with signature support
 
 **Files Modified:**
 - `src/AdminPortal.jsx` - Force org filtering, state reset on org change
-- `src/utils/queryHelpers.js` - Updated `isReady()` logic
+- `src/utils/queryHelpers.js` - Updated isReady() logic
 
 ---
 
 ### Document Control & Project Handover System (February 1, 2026)
 
-#### Project Document Vault (Admin Portal → Setup)
-
-9 document categories with traffic light status indicators:
-- Prime Contract, Scope of Work, IFC Drawings, Typical Drawings
-- Project Specifications, Weld Procedures (WPS), ERP, EMP, ITP
+**Project Document Vault (Admin Portal → Setup)**
+- 9 document categories with traffic light status indicators:
+  - Prime Contract, Scope of Work, IFC Drawings, Typical Drawings
+  - Project Specifications, Weld Procedures (WPS), ERP, EMP, ITP
 - Green dot = uploaded, Red dot = missing
-- Version control with automatic revision tracking (Rev 0, Rev 1, Rev 2…)
+- Version control with automatic revision tracking (Rev 0, Rev 1, Rev 2...)
 - Document history modal showing all versions with timestamps
 - Addenda support for Project Specs, Weld Procedures, and ITP
 
-#### ITP Sign-off Matrix & Digital Signatures
-
+**ITP Sign-off Matrix & Digital Signatures**
 - Three required sign-offs: Chief Welding Inspector, Chief Inspector, Construction Manager
-- **STATIONARY** status: Document uploaded but not fully approved
-- **ACTIVE** status: All three signatures captured
+- STATIONARY status: Document uploaded but not fully approved
+- ACTIVE status: All three signatures captured
 - Digital signature pad with timestamp and signer name
 - Signature reset prompt when uploading new ITP revision
 - Signatures stored in Supabase Storage (`signatures` bucket)
 
-#### Owner Document Control (DC) Compatibility
-
+**Owner Document Control (DC) Compatibility**
 - Custom metadata fields configurable per organization
 - Transmittal Generator with PDF output
 - Sync status tracking: internal → transmitted → acknowledged → rejected
 - Owner transmittal ID and comments capture
 - DC Status Report CSV export
 
-#### Document Sync Health Widget (Admin Portal → Overview)
-
+**Document Sync Health Widget (Admin Portal → Overview)**
 - Visual status bar showing sync distribution
 - Critical alerts for rejected documents requiring revision
 - Warning for documents pending transmittal
 - Color-coded legend (Yellow=Internal, Blue=Transmitted, Green=Acknowledged, Red=Rejected)
 
-#### Project Handover Package (Admin Portal → Handover)
-
+**Project Handover Package (Admin Portal → Handover)**
 - Pre-flight audit checking critical documents
 - Validates ITP signature completion
 - ZIP generation with nested folder structure:
@@ -916,17 +785,14 @@ src/weldingChiefPDF.js          # PDF generation with signature support
 - Custom metadata columns from Owner DC fields
 - Handover history with download links
 
-#### Technical Resource Library (Admin Portal → Setup)
-
-6 global reference document categories:
-- API 1169 - Pipeline Construction Inspection
-- CSA Z662 - Oil & Gas Pipeline Systems
-- Practical Guide for Pipeline Construction Inspectors
-- Pipeline Inspector's Playbook
-- Pipeline Rules of Thumb
-- Pipe-Up Field Guide (Agent knowledge base)
-
-Features:
+**Technical Resource Library (Admin Portal → Setup)**
+- 6 global reference document categories:
+  - API 1169 - Pipeline Construction Inspection
+  - CSA Z662 - Oil & Gas Pipeline Systems
+  - Practical Guide for Pipeline Construction Inspectors
+  - Pipeline Inspector's Playbook
+  - Pipeline Rules of Thumb
+  - Pipe-Up Field Guide (Agent knowledge base)
 - Read-only access for all users
 - Super Admin: Upload, Replace, Delete capabilities
 - **Add Supporting Doc** button on each library item (super_admin)
@@ -935,36 +801,61 @@ Features:
 - AI indexing via `process-document` edge function for RAG search
 
 **New Database Tables:**
-- `project_documents` - Document vault with version control
-- `transmittals` - Transmittal tracking
+```
+project_documents     # Document vault with version control
+transmittals          # Transmittal tracking
+```
 
 **New Database Columns (project_documents):**
-- `sync_status`, `owner_transmittal_id`, `owner_comments`, `transmitted_at`, `acknowledged_at`
-- `sign_offs` (JSONB for ITP signatures)
-- `version_number`, `is_current`, `is_addendum`, `parent_document_id`
-- `is_global` (Technical library flag)
-- `metadata` (Custom DC metadata - JSONB)
+```
+sync_status           # internal, transmitted, acknowledged, rejected
+owner_transmittal_id  # Owner's transmittal reference
+owner_comments        # Owner feedback
+transmitted_at        # Timestamp
+acknowledged_at       # Timestamp
+sign_offs             # JSONB for ITP signatures
+version_number        # Revision tracking
+is_current            # Active version flag
+is_addendum           # Supporting document flag
+parent_document_id    # Links addenda to parent
+is_global             # Technical library flag
+metadata              # Custom DC metadata (JSONB)
+```
 
 **New Database Columns (contract_config):**
-- `custom_document_fields` - JSONB array of custom metadata field definitions
+```
+custom_document_fields  # JSONB array of custom metadata field definitions
+```
 
 **New Storage Buckets:**
-- `signatures` - ITP digital signature images
-- `handovers` - Generated ZIP packages
+```
+signatures            # ITP digital signature images
+handovers             # Generated ZIP packages
+```
+
+**Files Created:**
+```
+supabase/migrations/20260201_create_project_documents.sql
+supabase/migrations/20260201_add_signoffs_column.sql
+supabase/migrations/20260201_add_technical_library.sql
+supabase/migrations/20260201_create_signatures_bucket.sql
+supabase/migrations/20260201_document_versioning.sql
+supabase/migrations/20260201_create_handovers_bucket.sql
+supabase/migrations/20260201_document_metadata.sql
+supabase/migrations/20260201_document_sync_status.sql
+```
 
 ---
 
 ### Project Governance & Auto-Populate Features (February 1, 2026)
 
-#### New Database Table: contract_config
-
-Per-organization project configuration settings:
-- Fields: `contract_number`, `standard_workday`, `ap_email`, `start_kp`, `end_kp`, `default_diameter`, `per_diem_rate`
+**New Database Table: `contract_config`**
+- Per-organization project configuration settings
+- Fields: contract_number, standard_workday, ap_email, start_kp, end_kp, default_diameter, per_diem_rate
 - One config per organization (unique constraint)
 - RLS policies for authenticated users
 
-#### Project Governance Section (Admin Portal → Setup)
-
+**Project Governance Section (Admin Portal → Setup)**
 - Contract Number / AFE configuration
 - Standard Workday Hours setting
 - AP Email for invoice routing
@@ -973,22 +864,22 @@ Per-organization project configuration settings:
 - Per Diem Rate configuration
 - Config Status indicator (Complete/Incomplete based on required fields)
 
-#### Inspector Report Auto-Populate Features
-
-- **AFE/Contract #** field added to report header (after Pipeline)
-  - Auto-fills from organization's `contract_config.contract_number`
-  - Light green background when auto-filled
-- **Inspector Name** auto-fills from user profile (`full_name`)
+**Inspector Report Auto-Populate Features**
+- AFE/Contract # field added to report header (after Pipeline)
+- Auto-fills from organization's contract_config.contract_number
+- Light green background when auto-filled
+- Inspector Name auto-fills from user profile (full_name)
 - Both skip auto-populate when editing existing reports or restoring drafts
 
-#### Super Admin Features (Admin Portal)
-
-- **Fleet Onboarding** tab: Provision new organizations with admin users
-- **Usage Statistics** tab: Cross-organization activity summary (reports, tickets, last activity)
-- Both tabs only visible to `super_admin` role
+**Super Admin Features (Admin Portal)**
+- Fleet Onboarding tab: Provision new organizations with admin users
+- Usage Statistics tab: Cross-organization activity summary (reports, tickets, last activity)
+- Both tabs only visible to super_admin role
 
 **Files Created:**
-- `supabase/migrations/20260131_create_contract_config.sql`
+```
+supabase/migrations/20260131_create_contract_config.sql
+```
 
 **Files Modified:**
 - `src/AdminPortal.jsx` - Project Governance section, Fleet Onboarding, Usage Statistics
@@ -998,47 +889,38 @@ Per-organization project configuration settings:
 
 ### Multi-Tenant Architecture (January 31, 2026)
 
-#### URL Structure Change
-
+**URL Structure Change**
 - All authenticated routes now use org-scoped URLs: `/:orgSlug/dashboard`, `/:orgSlug/field-entry`, etc.
 - Legacy routes (`/dashboard`, `/chief-dashboard`) redirect to org-scoped versions
 - Root path (`/`) redirects users to their default organization's landing page based on role
 
-#### New Database Table: memberships
-
+**New Database Table: `memberships`**
 - Many-to-many relationship between users and organizations
-- Fields: `user_id`, `organization_id`, `role`, `is_default`
+- Fields: user_id, organization_id, role, is_default
 - Supports users belonging to multiple organizations
 - Default organization preference per user
 
-#### New Context: OrgContext
-
-(`src/contexts/OrgContext.jsx`)
+**New Context: OrgContext (`src/contexts/OrgContext.jsx`)**
 - Provides organization data throughout the app
-- Tracks current organization, user memberships, and `super_admin` status
+- Tracks current organization, user memberships, and super_admin status
 - Handles organization switching and validation
 - Exports `useOrg()` hook for components
 
-#### New Query Helpers
-
-(`src/utils/queryHelpers.js`)
+**New Query Helpers (`src/utils/queryHelpers.js`)**
 - `useOrgQuery()` hook: Provides `addOrgFilter()`, `getOrgId()`, `organizationId`, `isSuperAdmin`
 - Automatically filters database queries by current organization
 - Super admins can bypass org filtering when needed
 
-#### New Navigation Helper: useOrgPath()
-
+**New Navigation Helper: `useOrgPath()`**
 - Returns `orgPath()` function to prefix paths with org slug
 - Example: `orgPath('/dashboard')` returns `/default/dashboard`
 
-#### Routing Changes (App.jsx)
-
+**Routing Changes (App.jsx)**
 - `RootRedirect` component determines user's default org and landing page
 - `OrgRoutes` component wraps all org-scoped routes with `OrgProvider`
 - All 20+ routes moved to org-scoped structure
 
-#### CMT Dashboard Cleanup
-
+**CMT Dashboard Cleanup**
 - Removed God Mode (MasterSwitcher) component
 - Removed organization dropdown (TenantSwitcher) component
 - Cleaner interface for regular users
@@ -1061,23 +943,20 @@ src/components/TenantSwitcher.jsx # Org switcher (for admin use)
 
 ### Chief Dashboard - Daily Summary Enhancements (January 29, 2026)
 
-#### AI-Generated Narrative
-
+**AI-Generated Narrative**
 - Anthropic Claude API integration for auto-generating Key Focus bullets
 - Analyzes inspector reports and aggregates construction activity data
 - Generates 6-10 bullet points summarizing daily progress
 - Safety status generation with weather and SWA event context
 
-#### Daily Summary Tab Features
-
+**Daily Summary Tab Features**
 - Date picker to select report date
 - Load Data button to fetch approved inspector reports
 - Generate AI button to create narrative from report data
 - Save Draft to persist summaries to database
 - Publish functionality for finalizing reports
 
-#### Enhanced PDF Export
-
+**Enhanced PDF Export**
 - Section 1: Key Focus bullets (AI-generated)
 - Section 2: Welding Progress table (weld types, LM, counts, repairs)
 - Section 3: Section Progress table (by category and activity)
@@ -1085,23 +964,24 @@ src/components/TenantSwitcher.jsx # Org switcher (for admin use)
 - Section 5: Crew Activity Progress (contractor, activity, KP range, metres, work description)
 - Automatic page breaks and footers
 
-**New Database Table:**
-- `daily_construction_summary` - Stores draft and published daily summaries
+**New Database Table: `daily_construction_summary`**
+- Stores draft and published daily summaries
+- Fields: report_date, key_focus_bullets, safety_status, personnel_data, weather_data, progress_data, welding_data
+- RLS policies for chief, admin, and manager roles
 
-**New Environment Variable:**
+**New Environment Variable**
 - `VITE_ANTHROPIC_API_KEY` - Required for AI narrative generation
 
 **Files Modified:**
 - `src/ChiefDashboard.jsx` - Daily Summary tab with PDF export
 - `src/chiefReportHelpers.js` - AI generation functions
-- `src/ProtectedRoute.jsx` - Improved `allowedRoles` handling
+- `src/ProtectedRoute.jsx` - Improved allowedRoles handling
 
 ---
 
 ### Searchable Dropdowns & Efficiency Audit (January 27, 2026)
 
-#### SearchableSelect Component (ActivityBlock.jsx)
-
+**SearchableSelect Component (ActivityBlock.jsx)**
 - Type-to-filter dropdown for Labour Classification (72 options)
 - Type-to-filter dropdown for Equipment Type (323 options)
 - Matches all words in any order (e.g., "1 ton truck" finds "1 Ton Truck")
@@ -1109,22 +989,18 @@ src/components/TenantSwitcher.jsx # Org switcher (for admin use)
 - Keyboard navigation: Arrow keys + Enter to select
 - Click outside to close
 
-#### Efficiency Audit System
-
-Production status tracking per labour/equipment entry:
-- **ACTIVE (100%)**: Working efficiently
-- **SYNC_DELAY (70%)**: Idle due to coordination/materials
-- **MANAGEMENT_DRAG (0%)**: Stopped for permits/instructions
-
-Features:
+**Efficiency Audit System**
+- Production status tracking per labour/equipment entry:
+  - ACTIVE (100%): Working efficiently
+  - SYNC_DELAY (70%): Idle due to coordination/materials
+  - MANAGEMENT_DRAG (0%): Stopped for permits/instructions
 - Shadow hours auto-calculation with manual override
 - Delay reason input with preset dropdown + custom text
 - Custom reasons saved to localStorage library
 - Crew-wide delay reporting option
 - Efficiency dashboard added to Chief and Assistant Chief dashboards
 
-#### PWA Update Prompt (UpdatePrompt.jsx)
-
+**PWA Update Prompt (UpdatePrompt.jsx)**
 - Automatic detection of new app versions
 - "Update Now" / "Later" buttons
 - Checks for updates every 5 minutes
@@ -1146,8 +1022,7 @@ Features:
 
 ### PWA Offline Mode & Email System (January 26, 2026)
 
-#### PWA (Progressive Web App) Implementation
-
+**PWA (Progressive Web App) Implementation**
 - Full offline capability for field inspectors
 - IndexedDB storage for pending reports and photos
 - Automatic sync when back online
@@ -1184,9 +1059,8 @@ Features:
 - Workbox runtime caching for Supabase API
 - PWA manifest with app icons
 
-#### Email Invitation System Fix
-
-- Resend domain verification completed for `pipe-up.ca`
+**Email Invitation System Fix:**
+- Resend domain verification completed for pipe-up.ca
 - DNS records configured in Vercel (not Bluehost - nameservers point to Vercel)
 - Records added:
   - DKIM: `resend._domainkey` (TXT)
@@ -1204,147 +1078,118 @@ Features:
 
 ### HDD Module Redesign (January 21, 2026)
 
-#### HDDLog.jsx - Complete Redesign
-
-8 collapsible sections with color coding:
-1. **Bore Information** (gray)
-2. **Pilot Hole - Drilling Fluid Parameters** (yellow)
-3. **Reaming Passes** - repeatable entries (blue)
-4. **Pipe Installation** (green)
-5. **Post-Installation** (gray)
-6. **Drilling Waste Management - Directive 050** (blue)
-7. **Steering Log - Bore Path Data** (purple)
-8. **Comments** (gray)
-
-Features:
-- Integrated audit trail logging via `useActivityAudit` hook
+**HDDLog.jsx - Complete Redesign**
+- 8 collapsible sections with color coding:
+  1. Bore Information (gray)
+  2. Pilot Hole - Drilling Fluid Parameters (yellow)
+  3. Reaming Passes - repeatable entries (blue)
+  4. Pipe Installation (green)
+  5. Post-Installation (gray)
+  6. Drilling Waste Management - Directive 050 (blue)
+  7. Steering Log - Bore Path Data (purple)
+  8. Comments (gray)
+- Integrated audit trail logging via useActivityAudit hook
 - Inherited info bar showing contractor, foreman, date, KP range
 
-#### DrillingWasteManagement.jsx - NEW Component
-
-**AER Directive 050 compliance tracking**
-
-6 collapsible sections:
-1. Mud Mixing & Volume Tracking
-2. Additives Log (searchable, 20+ pre-configured products)
-3. Disposal & Manifesting (mandatory manifest photo)
-4. Testing & Compliance (salinity, toxicity, metals)
-5. Evidence - Photo Documentation (GPS-tagged)
-6. Certification & Comments
-
-Features:
+**DrillingWasteManagement.jsx - NEW Component**
+- AER Directive 050 compliance tracking
+- 6 collapsible sections:
+  1. Mud Mixing & Volume Tracking
+  2. Additives Log (searchable, 20+ pre-configured products)
+  3. Disposal & Manifesting (mandatory manifest photo)
+  4. Testing & Compliance (salinity, toxicity, metals)
+  5. Evidence - Photo Documentation (GPS-tagged)
+  6. Certification & Comments
 - Volume balance calculation (mixed - hauled = in storage)
 - Disposal method tracking (landspray, landfill, approved facility)
 
-#### HDDSteeringLog.jsx - NEW Component
-
-**Real-time pilot hole guidance tracking**
-
-6 collapsible sections:
-1. Guidance System Setup (walk-over, wireline, gyro)
-2. Design vs Actual Entry/Exit Angles (auto variance)
-3. Steering Data - Per Joint/Station (repeatable table)
-4. Bending Radius Alerts (pipe diameter lookup)
-5. Evidence - Document Upload
-6. Comments
-
-Features:
+**HDDSteeringLog.jsx - NEW Component**
+- Real-time pilot hole guidance tracking
+- 6 collapsible sections:
+  1. Guidance System Setup (walk-over, wireline, gyro)
+  2. Design vs Actual Entry/Exit Angles (auto variance)
+  3. Steering Data - Per Joint/Station (repeatable table)
+  4. Bending Radius Alerts (pipe diameter lookup)
+  5. Evidence - Document Upload
+  6. Comments
 - Minimum bend radius auto-calculation by pipe diameter
 - Weld ID linking to pipe string
 - Fixed: CollapsibleSection extracted to module level (was causing unmount/remount)
 
-#### Database Migrations (January 21, 2026)
+### Database Migrations (January 21, 2026)
+- `20260121_create_drilling_waste_logs.sql`
+  - drilling_waste_logs table
+  - drilling_waste_additives table
+  - drilling_waste_photos table
+  - RLS policies for authenticated users
 
-**`20260121_create_drilling_waste_logs.sql`:**
-- `drilling_waste_logs` table
-- `drilling_waste_additives` table
-- `drilling_waste_photos` table
-- RLS policies for authenticated users
+- `20260121_create_bore_path_data.sql`
+  - bore_path_logs table
+  - bore_path_stations table
+  - bore_path_documents table
+  - RLS policies for authenticated users
 
-**`20260121_create_bore_path_data.sql`:**
-- `bore_path_logs` table
-- `bore_path_stations` table
-- `bore_path_documents` table
-- RLS policies for authenticated users
-
-#### Audit Logger Updates (January 21, 2026)
-
-Added precision mappings for drilling waste fields:
-```javascript
-total_volume_mixed_m3: 2,
-volume_in_storage_m3: 2,
-volume_hauled_m3: 2,
-vac_truck_hours: 2,
-mud_weight: 1,
-viscosity: 0,
-grout_volume: 2,
-grout_pressure: 1
-```
-Added environmental regulatory patterns for drilling waste
+### Audit Logger Updates (January 21, 2026)
+- Added precision mappings for drilling waste fields:
+  - total_volume_mixed_m3: 2
+  - volume_in_storage_m3: 2
+  - volume_hauled_m3: 2
+  - vac_truck_hours: 2
+  - mud_weight: 1
+  - viscosity: 0
+  - grout_volume: 2
+  - grout_pressure: 1
+- Added environmental regulatory patterns for drilling waste
 
 ---
 
 ### DitchInspection Refactoring
-
 - Removed Rock Ditch section (now in Trackable Items)
 - Removed Extra Depth section (now in Trackable Items)
 - Added From KP / To KP to Padding/Bedding section
 - Auto-formatting for KP values (6500 → 6+500)
 
----
-
 ### Lower-in Activity Updates
-
 - Changed Padding Depth to Bedding/Padding (Yes/No)
 - Removed Depth of Cover (tracked in Trackable Items)
 - Kept: Foreign Line Clearance, Lift Plan Verified, Equipment Inspected
 - Added reminder popup when Bedding/Padding = Yes
 - Uniform box styling for all fields
 
----
-
 ### New Trackable Item: Bedding & Padding
+- Protection Type options:
+  - Bedding
+  - Padding
+  - Bedding and Padding
+  - Pipe Protection
+  - Rockshield
+  - Lagging
+  - Rockshield and Lagging
+- From KP / To KP fields
+- Length, Material, Depth/Thickness, Action, Equipment, Notes
 
-**Protection Type options:**
-- Bedding
-- Padding
-- Bedding and Padding
-- Pipe Protection
-- Rockshield
-- Lagging
-- Rockshield and Lagging
-
-**Fields:**
-- From KP / To KP
-- Length, Material, Depth/Thickness
-- Action, Equipment, Notes
-
-#### Database Migration
-
-**`20260120_add_padding_bedding_kp_columns.sql`:**
-- Added `padding_bedding_from_kp` column
-- Added `padding_bedding_to_kp` column
+### Database Migrations
+- `20260120_add_padding_bedding_kp_columns.sql`
+  - Added padding_bedding_from_kp column
+  - Added padding_bedding_to_kp column
 
 ---
 
 ## 7. DEPLOYMENT & ENVIRONMENT
 
 ### Vercel Configuration
-
 - Auto-deployment from GitHub main branch
 - Production URL: https://app.pipe-up.ca
 - Edge functions for email notifications
 
 ### Environment Variables
-
 ```
 VITE_SUPABASE_URL=https://aatvckalnvojlykfgnmz.supabase.co
 VITE_SUPABASE_ANON_KEY=[anon-key]
-VITE_ANTHROPIC_API_KEY=[anthropic-api-key]  # For AI narrative generation + Mentor NLQ
+VITE_ANTHROPIC_API_KEY=[anthropic-api-key]  # For AI narrative generation
 ```
 
 ### Build Commands
-
 ```bash
 npm run dev      # Development server
 npm run build    # Production build
@@ -1358,7 +1203,7 @@ npm run preview  # Preview production build
 | Integration | Purpose |
 |-------------|---------|
 | Supabase | Database, Auth, Storage, Edge Functions |
-| Anthropic Claude API | AI-generated report narratives + Mentor NLQ |
+| Anthropic Claude API | AI-generated report narratives |
 | Resend | Email notifications (approvals, summaries) |
 | Weather API | Field condition logging |
 | Leaflet | Pipeline route mapping |
@@ -1370,14 +1215,12 @@ npm run preview  # Preview production build
 ## 9. AUDIT & COMPLIANCE
 
 ### Audit Logging (auditLoggerV3.js)
-
 - Tracks all field changes with original/new values
 - Precision mapping for numeric fields (2 decimal places)
 - User identification and timestamps
 - Report state transitions
 
-#### Precision Map
-
+### Precision Map
 ```javascript
 // Trench/Ditch
 trench_width: 2,
@@ -1405,24 +1248,16 @@ grout_pressure: 1
 
 ## 10. SUPPORT & MAINTENANCE
 
-**Developer**: Claude Code (Anthropic)
-**Primary Contact**: Richard Judson
-**Issue Tracking**: GitHub Issues
+**Developer:** Claude Code (Anthropic)
+**Primary Contact:** Richard Judson
+**Issue Tracking:** GitHub Issues
 
 ### Common Operations
-
-```bash
-# Run Supabase migrations
-npx supabase db push
-
-# Deploy to Vercel
-git push origin main
-
-# Check deployment status
-npx vercel ls
-```
+- Run Supabase migrations: `npx supabase db push`
+- Deploy to Vercel: `git push origin main`
+- Check deployment status: `npx vercel ls`
 
 ---
 
-**Manifest Generated**: January 20, 2026
-**Last Updated**: February 14, 2026 (Technical Resource Library - Field Guide & Supporting Docs)
+*Manifest Generated: January 20, 2026*
+*Last Updated: February 17, 2026 (Inspector Report Fixes — Corrine Barta Field Testing)*

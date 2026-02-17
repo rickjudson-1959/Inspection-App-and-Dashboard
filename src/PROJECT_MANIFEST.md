@@ -368,6 +368,30 @@
 
 ## 6. RECENT UPDATES (January/February 2026)
 
+### Inspector Report Fixes — Corrine Barta Field Testing (February 17, 2026)
+
+**Fixed 4 issues identified during field testing by Corrine Barta**
+
+1. **Multi-page ticket photo display & save** — When a multi-page ticket is scanned, the indicator now shows "X pages attached" (instead of just the first filename), the photo modal displays all pages in a scrollable view with "Page X of Y" labels, and all filenames are saved to the database as a `ticketPhotos` array (not just the first page). Edit mode loads URLs for all saved pages.
+
+2. **OCR equipment validation** — `addEquipmentToBlock()` was silently rejecting equipment with 0 hours because `!0 === true`. Changed validation from `if (!type || !hours)` to `if (!type)`. Equipment can legitimately have 0 hours (idle/standby).
+
+3. **Context-aware production status labels** — Labour and equipment entries set to Downtime now show "Down hrs:" and entries set to Standby show "Standby hrs:" instead of the misleading "Productive hrs:" label.
+
+4. **Weld UPI trackable items** — Added new `weld_upi` category to TrackableItemsTracker with fields: UPI Type (Cut Out, Repair, Rework, NDT Fail Repair, Other), Weld Number(s), From/To KP, Quantity, Reason, Status, Notes. Updated the reminder banner to include "Weld UPI Items".
+
+**Field Guide updated to v2.1** — Re-uploaded and re-indexed (20 chunks, 0 embedding errors).
+
+**Files Modified:**
+```
+src/ActivityBlock.jsx         # Multi-page photo modal, context-aware labels
+src/InspectorReport.jsx       # Equipment validation fix, multi-page save, reminder banner
+src/TrackableItemsTracker.jsx # weld_upi item type
+pipe-up-field-guide-agent-kb.md  # v2.0 → v2.1
+```
+
+---
+
 ### Technical Resource Library - Field Guide & Supporting Docs (February 14, 2026)
 
 **Added standalone Field Guide resource and supporting document capability**
@@ -1236,4 +1260,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 14, 2026 (Technical Resource Library - Field Guide & Supporting Docs)*
+*Last Updated: February 17, 2026 (Inspector Report Fixes — Corrine Barta Field Testing)*
