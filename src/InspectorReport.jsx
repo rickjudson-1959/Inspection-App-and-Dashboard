@@ -3588,13 +3588,20 @@ CRITICAL - Individual Entries Required:
 
       // Activity details box
       setColor(BRAND.greenLight, 'fill')
-      doc.roundedRect(margin, y, contentWidth, 14, 2, 2, 'F')
+      doc.roundedRect(margin, y, contentWidth, 26, 2, 2, 'F')
       y += 5
       addField('Contractor', block.contractor, leftCol, 28)
       addField('Foreman', block.foreman, rightCol, 28)
       y += 6
       addField('Start KP', block.startKP, leftCol, 28)
       addField('End KP', block.endKP, rightCol, 28)
+      y += 6
+      addField('Metres Today', block.metersToday || '0', leftCol, 35)
+      addField('Previous', block.metersPrevious || '0', rightCol, 28)
+      y += 6
+      if (block.ticketNumber) {
+        addField('Ticket #', block.ticketNumber, leftCol, 28)
+      }
       y += 6
 
       // Chainage warnings
@@ -3643,17 +3650,52 @@ CRITICAL - Individual Entries Required:
         checkPageBreak(20)
         addSubHeader('Quality Checks', BRAND.orangeLight)
         const fields = qualityFieldsByActivity[block.activityType]
-        let fieldCount = 0
-        fields.forEach(field => {
-          const value = block.qualityData[field.name]
-          if (value) {
-            if (fieldCount > 0 && fieldCount % 2 === 0) y += 5
-            const col = fieldCount % 2 === 0 ? leftCol : rightCol
-            addField(field.label.substring(0, 18), value, col, 45)
-            fieldCount++
+
+        // Helper to render a list of flat fields in 2-column layout
+        const renderQualityFields = (fieldList) => {
+          let fieldCount = 0
+          fieldList.forEach(field => {
+            if (field.type === 'info') return
+            const value = block.qualityData[field.name]
+            if (value !== undefined && value !== null && value !== '') {
+              if (fieldCount > 0 && fieldCount % 2 === 0) y += 5
+              checkPageBreak(8)
+              const col = fieldCount % 2 === 0 ? leftCol : rightCol
+              addField(field.label.replace(/^[^\w]*/, '').substring(0, 22), String(value), col, 50)
+              fieldCount++
+            }
+          })
+          if (fieldCount > 0) y += 6
+        }
+
+        // Separate flat fields from collapsible sections
+        const flatFields = fields.filter(f => f.type !== 'collapsible' && f.type !== 'info')
+        const collapsibleSections = fields.filter(f => f.type === 'collapsible')
+
+        // Render flat fields first
+        renderQualityFields(flatFields)
+
+        // Render each collapsible section that has data
+        collapsibleSections.forEach(section => {
+          if (!section.fields) return
+          const hasData = section.fields.some(f => {
+            const v = block.qualityData[f.name]
+            return v !== undefined && v !== null && v !== ''
+          })
+          if (hasData) {
+            checkPageBreak(15)
+            // Section sub-header (strip emoji)
+            const sectionLabel = section.label.replace(/^[^\w]*/, '').substring(0, 40)
+            setColor(BRAND.orangeLight, 'fill')
+            doc.rect(margin + 2, y, contentWidth - 4, 4.5, 'F')
+            setColor(BRAND.navy, 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text(sectionLabel, margin + 4, y + 3.2)
+            y += 6
+            renderQualityFields(section.fields)
           }
         })
-        y += 6
       }
 
       // Systemic Delay (Entire Crew Impact) - if active
@@ -3758,11 +3800,12 @@ CRITICAL - Individual Entries Required:
         doc.setFont('helvetica', 'bold')
         doc.setFontSize(6)
         doc.text('EQUIPMENT TYPE', margin + 2, y + 3.5)
-        doc.text('HRS', margin + 70, y + 3.5)
-        doc.text('QTY', margin + 85, y + 3.5)
-        doc.text('STATUS', margin + 100, y + 3.5)
+        doc.text('UNIT #', margin + 55, y + 3.5)
+        doc.text('HRS', margin + 78, y + 3.5)
+        doc.text('QTY', margin + 90, y + 3.5)
+        doc.text('STATUS', margin + 103, y + 3.5)
         doc.text('PROD', margin + 130, y + 3.5)
-        doc.text('REASON', margin + 145, y + 3.5)
+        doc.text('REASON', margin + 148, y + 3.5)
         y += 6
 
         // Table rows
@@ -3785,17 +3828,18 @@ CRITICAL - Individual Entries Required:
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
           doc.setFontSize(6)
-          doc.text((entry.type || '').substring(0, 32), margin + 2, y + 3)
-          doc.text(String(hours), margin + 70, y + 3)
-          doc.text(String(count), margin + 85, y + 3)
+          doc.text((entry.type || '').substring(0, 26), margin + 2, y + 3)
+          doc.text((entry.unitNumber || '-').substring(0, 10), margin + 55, y + 3)
+          doc.text(String(hours), margin + 78, y + 3)
+          doc.text(String(count), margin + 90, y + 3)
           // Color-code status
           if (status === 'ACTIVE') setColor(BRAND.green, 'text')
           else if (status === 'SYNC_DELAY') setColor([245, 158, 11], 'text')
           else setColor(BRAND.red, 'text')
-          doc.text(statusLabel, margin + 100, y + 3)
+          doc.text(statusLabel, margin + 103, y + 3)
           setColor(BRAND.black, 'text')
           doc.text(String(prodHours.toFixed(1)), margin + 130, y + 3)
-          doc.text((entry.dragReason || '-').substring(0, 18), margin + 145, y + 3)
+          doc.text((entry.dragReason || '-').substring(0, 15), margin + 148, y + 3)
           y += 5
         })
         y += 3
@@ -5495,20 +5539,17 @@ CRITICAL - Individual Entries Required:
         checkPageBreak(50)
         addSubHeader('Hydrovac Data', '#e1f5fe')
 
-        // Holes summary
-        if (block.hydrovacData.holes) {
-          const h = block.hydrovacData.holes
+        // Contractor / Foreman
+        if (block.hydrovacData.contractor || block.hydrovacData.foreman) {
           setColor('#03a9f4', 'fill')
           doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
           setColor(BRAND.white, 'text')
           doc.setFont('helvetica', 'bold')
           doc.setFontSize(7)
-          const holesInfo = []
-          if (h.parallelToday) holesInfo.push(`Parallel Today: ${h.parallelToday}`)
-          if (h.crossingToday) holesInfo.push(`Crossing Today: ${h.crossingToday}`)
-          if (h.totalToday) holesInfo.push(`Total Today: ${h.totalToday}`)
-          if (h.totalToDate) holesInfo.push(`To Date: ${h.totalToDate}`)
-          doc.text(holesInfo.join('  |  '), margin + 4, y + 5)
+          const hvInfo = []
+          if (block.hydrovacData.contractor) hvInfo.push(`Contractor: ${block.hydrovacData.contractor}`)
+          if (block.hydrovacData.foreman) hvInfo.push(`Foreman: ${block.hydrovacData.foreman}`)
+          doc.text(hvInfo.join('  |  '), margin + 4, y + 5)
           y += 11
         }
 
@@ -5519,11 +5560,14 @@ CRITICAL - Individual Entries Required:
           setColor(BRAND.white, 'text')
           doc.setFont('helvetica', 'bold')
           doc.setFontSize(6)
-          doc.text('FACILITY', margin + 2, y + 3.5)
-          doc.text('KP', margin + 50, y + 3.5)
-          doc.text('TYPE', margin + 80, y + 3.5)
-          doc.text('DEPTH', margin + 110, y + 3.5)
-          doc.text('STATUS', margin + 140, y + 3.5)
+          doc.text('STATION', margin + 2, y + 3.5)
+          doc.text('OWNER', margin + 28, y + 3.5)
+          doc.text('P/X', margin + 55, y + 3.5)
+          doc.text('TYPE', margin + 68, y + 3.5)
+          doc.text('DEPTH', margin + 92, y + 3.5)
+          doc.text('BNDRY', margin + 112, y + 3.5)
+          doc.text('GPS', margin + 130, y + 3.5)
+          doc.text('COMMENTS', margin + 158, y + 3.5)
           y += 6
 
           block.hydrovacData.facilities.forEach((fac, i) => {
@@ -5535,11 +5579,14 @@ CRITICAL - Individual Entries Required:
             setColor(BRAND.black, 'text')
             doc.setFont('helvetica', 'normal')
             doc.setFontSize(6)
-            doc.text(String(fac.facilityOwner || fac.name || '-').substring(0, 20), margin + 2, y + 2.5)
-            doc.text(String(fac.kp || '-').substring(0, 10), margin + 50, y + 2.5)
-            doc.text(String(fac.facilityType || '-').substring(0, 12), margin + 80, y + 2.5)
-            doc.text(String(fac.depth || '-').substring(0, 10), margin + 110, y + 2.5)
-            doc.text(String(fac.status || '-').substring(0, 15), margin + 140, y + 2.5)
+            doc.text(String(fac.station || '-').substring(0, 12), margin + 2, y + 2.5)
+            doc.text(String(fac.owner || '-').substring(0, 12), margin + 28, y + 2.5)
+            doc.text(String(fac.px || '-').substring(0, 3), margin + 55, y + 2.5)
+            doc.text(String(fac.facilityType || '-').substring(0, 10), margin + 68, y + 2.5)
+            doc.text(String(fac.depthM || '-').substring(0, 6), margin + 92, y + 2.5)
+            doc.text(String(fac.boundary || '-').substring(0, 3), margin + 112, y + 2.5)
+            doc.text(String(fac.gpsCoordinates || '-').substring(0, 14), margin + 130, y + 2.5)
+            doc.text(String(fac.comments || '-').substring(0, 12), margin + 158, y + 2.5)
             y += 4.5
           })
         }
@@ -5939,7 +5986,8 @@ CRITICAL - Individual Entries Required:
         signage: 'Signage',
         equipment_cleaning: 'Equipment Cleaning',
         rock_trench: 'Rock Trench',
-        extra_depth: 'Extra Depth Ditch'
+        extra_depth: 'Extra Depth Ditch',
+        weld_upi: 'Weld UPI Items'
       }
       
       Object.entries(groupedItems).forEach(([type, items]) => {
@@ -5981,6 +6029,12 @@ CRITICAL - Individual Entries Required:
             description = `${item.length || ''}m ${item.rock_type || ''} at KP ${item.from_kp || ''} - ${item.to_kp || ''}, Depth: ${item.depth_achieved || ''}m`
           } else if (type === 'extra_depth') {
             description = `${item.length || ''}m extra depth at KP ${item.from_kp || ''} - ${item.to_kp || ''}, Total: ${item.total_depth || ''}m`
+          } else if (type === 'weld_upi') {
+            description = `${item.upi_type || ''} - Weld ${item.weld_number || 'N/A'}, Qty: ${item.quantity || ''} at KP ${item.from_kp || ''}${item.to_kp ? ' - ' + item.to_kp : ''} | Reason: ${item.reason || 'N/A'} | Status: ${item.status || 'N/A'}`
+          } else if (type === 'signage') {
+            description = `${item.action || ''} ${item.quantity || ''} x ${item.sign_type || 'Sign'} at KP ${item.kp_location || item.from_kp || ''}`
+          } else if (type === 'access') {
+            description = `${item.action || ''} ${item.road_type || 'Access Road'} at KP ${item.from_kp || ''}${item.to_kp ? ' - ' + item.to_kp : ''}, ${item.surface || ''} ${item.width ? item.width + 'm wide' : ''}`
           } else {
             description = `${item.action || ''} at KP ${item.kp_location || item.from_kp || ''}`
           }
