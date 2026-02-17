@@ -1,6 +1,6 @@
 // ActivityBlock.jsx - Extracted from InspectorReport.jsx
 // A single activity block component with all rendering logic
-import React, { useState, useEffect, memo } from 'react'
+import React, { useState, useEffect, useMemo, memo } from 'react'
 import { activityTypes, qualityFieldsByActivity, labourClassifications, equipmentTypes, timeLostReasons, productionStatuses, dragReasonCategories, impactScopes, responsiblePartyConfig } from './constants.js'
 import { syncKPFromGPS } from './kpUtils.js'
 import { supabase } from './supabase'
@@ -415,6 +415,36 @@ function ActivityBlock({
   const [ocrError, setOcrError] = useState(null)
   const [showTicketPhoto, setShowTicketPhoto] = useState(false)
   
+  // Build known crew names from all blocks + localStorage for autocomplete
+  const knownCrewNames = useMemo(() => {
+    const names = new Set()
+    // Collect from all activity blocks in this report
+    if (activityBlocks) {
+      activityBlocks.forEach(b => {
+        b.labourEntries?.forEach(e => {
+          if (e.employeeName?.trim()) names.add(e.employeeName.trim())
+        })
+      })
+    }
+    // Merge with saved crew roster from localStorage
+    try {
+      const saved = JSON.parse(localStorage.getItem('pipeup_crew_roster') || '[]')
+      saved.forEach(n => names.add(n))
+    } catch {}
+    return [...names].sort()
+  }, [activityBlocks])
+
+  // Persist new names to localStorage crew roster
+  useEffect(() => {
+    if (knownCrewNames.length > 0) {
+      try {
+        const saved = JSON.parse(localStorage.getItem('pipeup_crew_roster') || '[]')
+        const merged = [...new Set([...saved, ...knownCrewNames])].sort()
+        localStorage.setItem('pipeup_crew_roster', JSON.stringify(merged))
+      } catch {}
+    }
+  }, [knownCrewNames])
+
   // Track which labour/equipment rows have their flag panel open
   const [openFlagRows, setOpenFlagRows] = useState({})
   const toggleFlagRow = (entryId) => {
@@ -2485,12 +2515,16 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
         <p style={{ margin: '0 0 15px 0', fontSize: '12px', color: '#155724' }}>
           RT = Regular Time | OT = Overtime | JH = Jump Hours (bonus)
         </p>
+        <datalist id={`crew-names-${block.id}`}>
+          {knownCrewNames.map(name => <option key={name} value={name} />)}
+        </datalist>
         
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 70px 70px 70px 70px auto', gap: '10px', marginBottom: '15px', alignItems: 'end' }}>
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Employee Name</label>
             <input
               type="text"
+              list={`crew-names-${block.id}`}
               placeholder="Name"
               value={currentLabour.employeeName}
               onChange={(e) => setCurrentLabour({ ...currentLabour, employeeName: e.target.value })}
@@ -2591,6 +2625,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                         <td style={{ padding: '2px 4px', borderBottom: '1px solid #dee2e6' }}>
                           <input
                             type="text"
+                            list={`crew-names-${block.id}`}
                             value={entry.employeeName || ''}
                             onChange={(e) => updateLabourField(block.id, entry.id, 'employeeName', e.target.value)}
                             style={{ width: '100%', padding: '4px', border: '1px solid #ced4da', borderRadius: '3px', fontSize: '12px', boxSizing: 'border-box' }}
