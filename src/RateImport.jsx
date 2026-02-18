@@ -83,6 +83,44 @@ export default function RateImport({ organizationId, organizationName, onComplet
     return null // Not a text-readable format — use Vision
   }
 
+  // Parse JSON array from Claude response, recovering truncated output
+  function parseRateJSON(content) {
+    // Try direct match first
+    const jsonMatch = content.match(/\[[\s\S]*\]/)
+    if (jsonMatch) {
+      try {
+        const data = JSON.parse(jsonMatch[0])
+        return { data: data.map(row => ({ ...row, valid: true })), error: null }
+      } catch (e) {
+        // Fall through to recovery
+      }
+    }
+
+    // Response was likely truncated (no closing ]). Recover what we can.
+    const bracketStart = content.indexOf('[')
+    if (bracketStart === -1) {
+      return { data: [], error: `AI response did not contain rate data. Response: "${content.substring(0, 300)}"` }
+    }
+
+    let jsonStr = content.substring(bracketStart)
+
+    // Remove any trailing incomplete object (e.g., {"classification": "Foo", "rate_st": )
+    // Find the last complete object by looking for the last '}' followed by optional whitespace/comma
+    const lastCloseBrace = jsonStr.lastIndexOf('}')
+    if (lastCloseBrace === -1) {
+      return { data: [], error: `AI response was truncated before any complete entries. Try a smaller file or enter rates manually.` }
+    }
+
+    jsonStr = jsonStr.substring(0, lastCloseBrace + 1) + ']'
+
+    try {
+      const data = JSON.parse(jsonStr)
+      return { data: data.map(row => ({ ...row, valid: true })), error: null }
+    } catch (parseErr) {
+      return { data: [], error: `Failed to parse AI response: ${parseErr.message}. Response start: "${content.substring(0, 300)}"` }
+    }
+  }
+
   // Send text data (CSV/XLSX content) to Claude for extraction
   // Returns { data: [], error: string|null } for better diagnostics
   async function extractRatesFromText(textContent, rateType) {
@@ -131,7 +169,7 @@ ${textContent}`
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 4096,
+          max_tokens: 16384,
           messages: [{
             role: 'user',
             content: prompt
@@ -154,17 +192,7 @@ ${textContent}`
       return { data: [], error: `AI returned empty response. Full response: ${JSON.stringify(result).substring(0, 300)}` }
     }
 
-    try {
-      const jsonMatch = content.match(/\[[\s\S]*\]/)
-      if (jsonMatch) {
-        const data = JSON.parse(jsonMatch[0])
-        return { data: data.map(row => ({ ...row, valid: true })), error: null }
-      } else {
-        return { data: [], error: `AI response did not contain a JSON array. Response: "${content.substring(0, 300)}"` }
-      }
-    } catch (parseErr) {
-      return { data: [], error: `Failed to parse AI response as JSON: ${parseErr.message}. Response: "${content.substring(0, 300)}"` }
-    }
+    return parseRateJSON(content)
   }
 
   // Send image/PDF to Claude Vision for extraction
@@ -202,7 +230,7 @@ Return ONLY the JSON array.`
         },
         body: JSON.stringify({
           model: 'claude-sonnet-4-20250514',
-          max_tokens: 4096,
+          max_tokens: 16384,
           messages: [{
             role: 'user',
             content: [
@@ -235,17 +263,7 @@ Return ONLY the JSON array.`
       return { data: [], error: `AI returned empty response. Full response: ${JSON.stringify(result).substring(0, 300)}` }
     }
 
-    try {
-      const jsonMatch = content.match(/\[[\s\S]*\]/)
-      if (jsonMatch) {
-        const data = JSON.parse(jsonMatch[0])
-        return { data: data.map(row => ({ ...row, valid: true })), error: null }
-      } else {
-        return { data: [], error: `AI response did not contain a JSON array. Response: "${content.substring(0, 300)}"` }
-      }
-    } catch (parseErr) {
-      return { data: [], error: `Failed to parse AI response: ${parseErr.message}. Response: "${content.substring(0, 300)}"` }
-    }
+    return parseRateJSON(content)
   }
 
   // Universal file upload handler — routes to the right extraction method
