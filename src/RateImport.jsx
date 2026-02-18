@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
 import { supabase } from './supabase'
 
-const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || ''
+const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || import.meta.env.VITE_CLAUDE_API_KEY || ''
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
 const SERVICE_ROLE_KEY = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || ''
 
@@ -85,6 +85,8 @@ export default function RateImport({ organizationId, organizationName, onComplet
 
   // Send text data (CSV/XLSX content) to Claude for extraction
   async function extractRatesFromText(textContent, rateType) {
+    console.log('[RateImport] Extracting rates from text, type:', rateType, 'text length:', textContent.length)
+    console.log('[RateImport] API key present:', !!ANTHROPIC_API_KEY, 'key prefix:', ANTHROPIC_API_KEY.substring(0, 10))
     const prompt = rateType === 'labour'
       ? `You are extracting labour/personnel rate data from a contractor's rate sheet. The data below is from their file — column names and format will vary by contractor.
 
@@ -123,7 +125,7 @@ ${textContent}`
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5-20250929',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 4096,
         messages: [{
           role: 'user',
@@ -132,22 +134,29 @@ ${textContent}`
       })
     })
 
+    console.log('[RateImport] API response status:', response.status)
+
     if (!response.ok) {
       const errText = await response.text()
+      console.error('[RateImport] API error:', response.status, errText)
       throw new Error(`AI extraction error: ${response.status} - ${errText}`)
     }
 
     const result = await response.json()
     const content = result.content[0]?.text || ''
+    console.log('[RateImport] Claude response:', content.substring(0, 500))
 
     try {
       const jsonMatch = content.match(/\[[\s\S]*\]/)
       if (jsonMatch) {
         const data = JSON.parse(jsonMatch[0])
+        console.log('[RateImport] Extracted', data.length, 'rows')
         return data.map(row => ({ ...row, valid: true }))
+      } else {
+        console.error('[RateImport] No JSON array found in response')
       }
     } catch (parseErr) {
-      console.error('JSON parse error:', parseErr, content)
+      console.error('[RateImport] JSON parse error:', parseErr, content)
     }
 
     return []
@@ -181,7 +190,7 @@ Return ONLY the JSON array.`
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-5-20250929',
+        model: 'claude-sonnet-4-20250514',
         max_tokens: 4096,
         messages: [{
           role: 'user',
@@ -246,10 +255,11 @@ Return ONLY the JSON array.`
         }
 
         setLoadingMessage('AI is extracting rates...')
+        console.log('[RateImport] File text preview:', textContent.substring(0, 300))
         const extractedData = await extractRatesFromText(textContent, activeTab)
 
         if (extractedData.length === 0) {
-          setError('AI could not extract rate data from this file. The file may not contain rate information, or the format may be unrecognizable. Try uploading a different file or adding rows manually below.')
+          setError('AI could not extract rate data from this file. The file may not contain rate information, or the format may be unrecognizable. Check the browser console (F12) for details. Try uploading a different file or adding rows manually below.')
           // Still allow manual entry
           setPreviewData([])
         } else {
