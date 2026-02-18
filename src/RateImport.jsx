@@ -28,25 +28,18 @@ export default function RateImport({ organizationId, organizationName, onComplet
     setLoadingRates(true)
     try {
       const tableName = activeTab === 'labour' ? 'labour_rates' : 'equipment_rates'
-      const { data, error: fetchError } = await supabase
-        .from(tableName)
-        .select('*')
-        .eq('organization_id', organizationId)
-        .order('created_at', { ascending: false })
-
-      if (fetchError) {
-        console.error('Error loading rates:', fetchError)
-        const resp = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}?organization_id=eq.${organizationId}&order=created_at.desc`, {
-          headers: {
-            'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
-            'apikey': SERVICE_ROLE_KEY
-          }
-        })
-        if (resp.ok) {
-          setExistingRates(await resp.json())
+      // Use service role key directly — RLS returns empty arrays (not errors) for rate tables
+      const resp = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}?organization_id=eq.${organizationId}&order=created_at.desc`, {
+        headers: {
+          'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+          'apikey': SERVICE_ROLE_KEY
         }
+      })
+      if (resp.ok) {
+        setExistingRates(await resp.json())
       } else {
-        setExistingRates(data || [])
+        console.error('Error loading rates:', resp.status, await resp.text())
+        setExistingRates([])
       }
     } catch (err) {
       console.error('Error loading rates:', err)
