@@ -352,6 +352,14 @@ Return ONLY the JSON array.`
 
   // Import to Supabase
   async function handleImport() {
+    console.log('[RateImport] handleImport called', {
+      organizationId,
+      activeTab,
+      previewDataLength: previewData.length,
+      hasServiceRoleKey: !!SERVICE_ROLE_KEY,
+      serviceRoleKeyLength: SERVICE_ROLE_KEY.length
+    })
+
     if (!organizationId) {
       setError('Please select an organization first')
       return
@@ -359,6 +367,11 @@ Return ONLY the JSON array.`
 
     if (previewData.length === 0) {
       setError('No data to import')
+      return
+    }
+
+    if (!SERVICE_ROLE_KEY) {
+      setError('Database key is missing. VITE_SUPABASE_SERVICE_ROLE_KEY is not configured in the deployment environment.')
       return
     }
 
@@ -387,24 +400,37 @@ Return ONLY the JSON array.`
         return record
       })
 
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}`, {
+      console.log('[RateImport] POSTing', records.length, 'records to', tableName)
+      console.log('[RateImport] First record:', JSON.stringify(records[0]))
+
+      const fetchUrl = `${SUPABASE_URL}/rest/v1/${tableName}`
+      const fetchHeaders = {
+        'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
+        'apikey': SERVICE_ROLE_KEY,
+        'Content-Type': 'application/json',
+        'Prefer': 'return=representation'
+      }
+
+      console.log('[RateImport] Fetch URL:', fetchUrl)
+      console.log('[RateImport] Auth header prefix:', fetchHeaders.Authorization.substring(0, 20) + '...')
+
+      const response = await fetch(fetchUrl, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
-          'apikey': SERVICE_ROLE_KEY,
-          'Content-Type': 'application/json',
-          'Prefer': 'return=representation'
-        },
+        headers: fetchHeaders,
         body: JSON.stringify(records)
       })
 
+      console.log('[RateImport] Response status:', response.status, response.statusText)
+
       if (!response.ok) {
         const errBody = await response.text()
-        throw new Error(`Database error: ${errBody}`)
+        console.error('[RateImport] Error body:', errBody)
+        throw new Error(`Database error (${response.status}): ${errBody}`)
       }
 
       const inserted = await response.json()
-      console.log(`Imported ${inserted.length} ${activeTab} rates`)
+      console.log(`[RateImport] SUCCESS: Imported ${inserted.length} ${activeTab} rates`)
+      console.log('[RateImport] First inserted:', JSON.stringify(inserted[0]))
 
       setImportSuccess(true)
       setPreviewData([])
@@ -414,6 +440,7 @@ Return ONLY the JSON array.`
       if (onComplete) onComplete(inserted.length)
 
     } catch (err) {
+      console.error('[RateImport] Import error:', err)
       setError('Import failed: ' + err.message)
     }
 
@@ -450,8 +477,33 @@ Return ONLY the JSON array.`
     setLoadingMessage('')
   }
 
+  // Diagnostic: log config on mount
+  useEffect(() => {
+    console.log('[RateImport] Config check:', {
+      hasAnthropicKey: !!ANTHROPIC_API_KEY,
+      hasServiceRoleKey: !!SERVICE_ROLE_KEY,
+      serviceRoleKeyLength: SERVICE_ROLE_KEY.length,
+      serviceRoleKeyPrefix: SERVICE_ROLE_KEY.substring(0, 10) + '...',
+      supabaseUrl: SUPABASE_URL,
+      organizationId,
+    })
+  }, [organizationId])
+
   return (
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
+      {/* Diagnostic Banner — remove after confirming imports work */}
+      <div style={{
+        padding: '8px 12px',
+        marginBottom: '12px',
+        backgroundColor: (!SERVICE_ROLE_KEY || !ANTHROPIC_API_KEY) ? '#f8d7da' : '#d4edda',
+        border: `1px solid ${(!SERVICE_ROLE_KEY || !ANTHROPIC_API_KEY) ? '#f5c6cb' : '#c3e6cb'}`,
+        borderRadius: '4px',
+        fontSize: '12px',
+        color: '#333'
+      }}>
+        Config: AI Key {ANTHROPIC_API_KEY ? '✓' : '✗ MISSING'} | DB Key {SERVICE_ROLE_KEY ? `✓ (${SERVICE_ROLE_KEY.length} chars)` : '✗ MISSING'} | Org: {organizationId || 'NONE'}
+      </div>
+
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
         <h2 style={{ margin: 0, color: '#003366' }}>Import Rate Sheets</h2>
