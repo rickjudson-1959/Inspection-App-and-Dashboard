@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 2.8 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
+## Version: 2.9 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -489,9 +489,9 @@ A: Yes. All labour and equipment fields are editable directly in the table after
 A: This was a validation bug that occurred when OCR set hours to exactly 0 (zero). The app was treating 0 as "empty" because of how JavaScript evaluates numbers. This has been fixed — entries with 0 hours are now accepted. If you see this on an old draft, re-entering any value in RT, OT, or JH will clear the issue.
 
 **Q: How do I upload labour or equipment rates?**
-A: Go to the Admin Portal → Import Rate Sheets tab. Select the Labour Rates or Equipment Rates sub-tab. You can upload a CSV file with your rate data. The system accepts flexible column names (e.g., "Classification", "Position", "Title" all work for the classification column; "Rate", "Hourly", "ST" all work for straight time rate). If only straight time is provided, overtime (1.5x) and double time (2x) are auto-calculated. Download the template CSV for the expected format.
+A: Go to the Admin Portal → Import Rate Sheets tab. Select the Labour Rates or Equipment Rates sub-tab. Upload the contractor's rate sheet — any format works: CSV, Excel (.xlsx/.xls), PDF, or even a photo of the document. AI reads the file automatically and extracts every classification or equipment type with its rates. You'll see a preview table where you can edit, add, or delete rows before importing. OT (1.5x) and DT (2x) are auto-calculated if only straight time is provided. You can also click "enter rates manually" to type them in by hand.
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v2.8*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v2.9*
 *Source: InspectorReport.jsx (7,634 lines) + ActivityBlock.jsx (3,143 lines)*

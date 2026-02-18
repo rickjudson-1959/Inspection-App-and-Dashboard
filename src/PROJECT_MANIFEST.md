@@ -401,6 +401,34 @@ pipe-up-field-guide-agent-kb.md  # v2.4 → v2.7
 
 ---
 
+### AI-First Rate Import (February 17, 2026)
+
+**Redesigned rate import to use AI extraction for any file format**
+
+The rate import system was redesigned from a rigid CSV-parser-first approach to an AI-first approach. Every contractor's rate sheet will be different — different column names, formats, file types. Instead of trying to anticipate every variation with alias tables, all files now go through Claude for extraction.
+
+1. **Single upload path** — Removed the CSV vs OCR method toggle. One "Choose File" button accepts any format: CSV, Excel (.xlsx/.xls), PDF, or images (PNG, JPG, etc.).
+
+2. **AI reads everything** — CSV and Excel files are read as text (XLSX library converts Excel to CSV), then sent to Claude's text API. PDFs and images go through Claude Vision. The AI prompt tells Claude to expect any column naming convention and extract classifications/equipment with rates.
+
+3. **Excel (.xlsx/.xls) support** — Added XLSX library import to RateImport.jsx. Excel files are converted to CSV text via `XLSX.utils.sheet_to_csv()` before AI extraction.
+
+4. **Fixed API key** — Was referencing non-existent `VITE_CLAUDE_API_KEY`, now uses correct `VITE_ANTHROPIC_API_KEY`.
+
+5. **Updated model** — Uses `claude-sonnet-4-5-20250929` with `anthropic-dangerous-direct-browser-access` header for browser API calls.
+
+6. **Manual entry fallback** — "Enter rates manually" link allows typing rates by hand without uploading a file.
+
+**Field Guide updated to v2.9** — Re-uploaded and re-indexed (version 10, 24 chunks, 0 errors).
+
+**Files Modified:**
+```
+src/RateImport.jsx            # AI-first redesign, XLSX support, fixed API key
+pipe-up-field-guide-agent-kb.md  # v2.8 → v2.9
+```
+
+---
+
 ### Labour/Equipment UX & Rate Import Fixes (February 17, 2026)
 
 **Post-OCR editing, validation, and rate import fixes from continued field testing**
@@ -1390,4 +1418,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 17, 2026 (Labour/Equipment UX & Rate Import Fixes)*
+*Last Updated: February 17, 2026 (AI-First Rate Import)*
