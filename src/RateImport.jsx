@@ -84,9 +84,12 @@ export default function RateImport({ organizationId, organizationName, onComplet
   }
 
   // Send text data (CSV/XLSX content) to Claude for extraction
+  // Returns { data: [], error: string|null } for better diagnostics
   async function extractRatesFromText(textContent, rateType) {
-    console.log('[RateImport] Extracting rates from text, type:', rateType, 'text length:', textContent.length)
-    console.log('[RateImport] API key present:', !!ANTHROPIC_API_KEY, 'key prefix:', ANTHROPIC_API_KEY.substring(0, 10))
+    if (!ANTHROPIC_API_KEY) {
+      return { data: [], error: 'API key not configured. VITE_ANTHROPIC_API_KEY is missing from environment.' }
+    }
+
     const prompt = rateType === 'labour'
       ? `You are extracting labour/personnel rate data from a contractor's rate sheet. The data below is from their file — column names and format will vary by contractor.
 
@@ -116,54 +119,60 @@ Return ONLY the JSON array, no explanation.
 DATA:
 ${textContent}`
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
-        messages: [{
-          role: 'user',
-          content: prompt
-        }]
+    let response
+    try {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 4096,
+          messages: [{
+            role: 'user',
+            content: prompt
+          }]
+        })
       })
-    })
-
-    console.log('[RateImport] API response status:', response.status)
+    } catch (fetchErr) {
+      return { data: [], error: `Network error calling AI: ${fetchErr.message}. This may be a CORS or connectivity issue.` }
+    }
 
     if (!response.ok) {
       const errText = await response.text()
-      console.error('[RateImport] API error:', response.status, errText)
-      throw new Error(`AI extraction error: ${response.status} - ${errText}`)
+      return { data: [], error: `AI API returned ${response.status}: ${errText.substring(0, 200)}` }
     }
 
     const result = await response.json()
-    const content = result.content[0]?.text || ''
-    console.log('[RateImport] Claude response:', content.substring(0, 500))
+    const content = result.content?.[0]?.text || ''
+
+    if (!content) {
+      return { data: [], error: `AI returned empty response. Full response: ${JSON.stringify(result).substring(0, 300)}` }
+    }
 
     try {
       const jsonMatch = content.match(/\[[\s\S]*\]/)
       if (jsonMatch) {
         const data = JSON.parse(jsonMatch[0])
-        console.log('[RateImport] Extracted', data.length, 'rows')
-        return data.map(row => ({ ...row, valid: true }))
+        return { data: data.map(row => ({ ...row, valid: true })), error: null }
       } else {
-        console.error('[RateImport] No JSON array found in response')
+        return { data: [], error: `AI response did not contain a JSON array. Response: "${content.substring(0, 300)}"` }
       }
     } catch (parseErr) {
-      console.error('[RateImport] JSON parse error:', parseErr, content)
+      return { data: [], error: `Failed to parse AI response as JSON: ${parseErr.message}. Response: "${content.substring(0, 300)}"` }
     }
-
-    return []
   }
 
   // Send image/PDF to Claude Vision for extraction
   async function extractRatesFromVision(base64Data, mediaType, rateType) {
+    if (!ANTHROPIC_API_KEY) {
+      return { data: [], error: 'API key not configured. VITE_ANTHROPIC_API_KEY is missing from environment.' }
+    }
+
     const prompt = rateType === 'labour'
       ? `Extract ALL labour/personnel rates from this rate sheet. Column names and format will vary by contractor.
 Return ONLY a JSON array. Each object: classification (string), rate_st (number — straight time hourly), rate_ot (number — overtime, 1.5x if not shown), rate_dt (number — double time, 2x if not shown).
@@ -181,53 +190,62 @@ Return ONLY the JSON array.`
       claudeMediaType = 'image/png'
     }
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
-        'anthropic-dangerous-direct-browser-access': 'true'
-      },
-      body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
-        max_tokens: 4096,
-        messages: [{
-          role: 'user',
-          content: [
-            {
-              type: mediaType === 'application/pdf' ? 'document' : 'image',
-              source: {
-                type: 'base64',
-                media_type: claudeMediaType,
-                data: base64Data
-              }
-            },
-            { type: 'text', text: prompt }
-          ]
-        }]
+    let response
+    try {
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 4096,
+          messages: [{
+            role: 'user',
+            content: [
+              {
+                type: mediaType === 'application/pdf' ? 'document' : 'image',
+                source: {
+                  type: 'base64',
+                  media_type: claudeMediaType,
+                  data: base64Data
+                }
+              },
+              { type: 'text', text: prompt }
+            ]
+          }]
+        })
       })
-    })
+    } catch (fetchErr) {
+      return { data: [], error: `Network error calling AI: ${fetchErr.message}` }
+    }
 
     if (!response.ok) {
       const errText = await response.text()
-      throw new Error(`AI extraction error: ${response.status} - ${errText}`)
+      return { data: [], error: `AI API returned ${response.status}: ${errText.substring(0, 200)}` }
     }
 
     const result = await response.json()
-    const content = result.content[0]?.text || ''
+    const content = result.content?.[0]?.text || ''
+
+    if (!content) {
+      return { data: [], error: `AI returned empty response. Full response: ${JSON.stringify(result).substring(0, 300)}` }
+    }
 
     try {
       const jsonMatch = content.match(/\[[\s\S]*\]/)
       if (jsonMatch) {
         const data = JSON.parse(jsonMatch[0])
-        return data.map(row => ({ ...row, valid: true }))
+        return { data: data.map(row => ({ ...row, valid: true })), error: null }
+      } else {
+        return { data: [], error: `AI response did not contain a JSON array. Response: "${content.substring(0, 300)}"` }
       }
     } catch (parseErr) {
-      console.error('JSON parse error:', parseErr, content)
+      return { data: [], error: `Failed to parse AI response: ${parseErr.message}. Response: "${content.substring(0, 300)}"` }
     }
-
-    return []
   }
 
   // Universal file upload handler — routes to the right extraction method
@@ -255,15 +273,16 @@ Return ONLY the JSON array.`
         }
 
         setLoadingMessage('AI is extracting rates...')
-        console.log('[RateImport] File text preview:', textContent.substring(0, 300))
-        const extractedData = await extractRatesFromText(textContent, activeTab)
+        const result = await extractRatesFromText(textContent, activeTab)
 
-        if (extractedData.length === 0) {
-          setError('AI could not extract rate data from this file. The file may not contain rate information, or the format may be unrecognizable. Check the browser console (F12) for details. Try uploading a different file or adding rows manually below.')
-          // Still allow manual entry
+        if (result.error) {
+          setError(`Rate extraction failed: ${result.error}`)
+          setPreviewData([])
+        } else if (result.data.length === 0) {
+          setError('AI returned an empty result. The file may not contain rate data. Try adding rows manually.')
           setPreviewData([])
         } else {
-          setPreviewData(extractedData)
+          setPreviewData(result.data)
         }
       }
       // For PDF/images — send to Claude Vision
@@ -273,13 +292,16 @@ Return ONLY the JSON array.`
         const mediaType = uploadedFile.type || 'image/png'
 
         setLoadingMessage('AI is reading the rate sheet...')
-        const extractedData = await extractRatesFromVision(base64, mediaType, activeTab)
+        const result = await extractRatesFromVision(base64, mediaType, activeTab)
 
-        if (extractedData.length === 0) {
-          setError('AI could not extract rate data from this file. Try a clearer image or a different format.')
+        if (result.error) {
+          setError(`Rate extraction failed: ${result.error}`)
+          setPreviewData([])
+        } else if (result.data.length === 0) {
+          setError('AI returned an empty result. Try a clearer image or a different format.')
           setPreviewData([])
         } else {
-          setPreviewData(extractedData)
+          setPreviewData(result.data)
         }
       } else {
         setError(`Unsupported file type: .${ext}. Upload a CSV, Excel (.xlsx/.xls), PDF, or image file.`)
