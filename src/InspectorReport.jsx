@@ -180,6 +180,18 @@ function InspectorReport({
   const [showMap, setShowMap] = useState(true)
   const [showExpandedMap, setShowExpandedMap] = useState(false)
 
+  // Close expanded map on browser back button instead of navigating away
+  useEffect(() => {
+    if (showExpandedMap) {
+      window.history.pushState({ expandedMap: true }, '')
+      const handlePopState = (e) => {
+        setShowExpandedMap(false)
+      }
+      window.addEventListener('popstate', handlePopState)
+      return () => window.removeEventListener('popstate', handlePopState)
+    }
+  }, [showExpandedMap])
+
   // Collapsible sections
   const [trackableItemsExpanded, setTrackableItemsExpanded] = useState(false)
 
@@ -6975,7 +6987,7 @@ CRITICAL - Individual Entries Required:
           }}>
             <h2 style={{ margin: 0, fontSize: '18px' }}>🗺️ Pipeline Map - Full View</h2>
             <button
-              onClick={() => setShowExpandedMap(false)}
+              onClick={() => window.history.back()}
               style={{
                 padding: '10px 20px',
                 backgroundColor: '#dc3545',
