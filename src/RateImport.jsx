@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
-import { supabase } from './supabase'
 
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || import.meta.env.VITE_CLAUDE_API_KEY || ''
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
-const SERVICE_ROLE_KEY = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY || ''
 
 export default function RateImport({ organizationId, organizationName, onComplete }) {
   const [activeTab, setActiveTab] = useState('labour')
@@ -28,17 +25,12 @@ export default function RateImport({ organizationId, organizationName, onComplet
     setLoadingRates(true)
     try {
       const tableName = activeTab === 'labour' ? 'labour_rates' : 'equipment_rates'
-      // Use service role key directly — RLS returns empty arrays (not errors) for rate tables
-      const resp = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}?organization_id=eq.${organizationId}&order=created_at.desc`, {
-        headers: {
-          'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
-          'apikey': SERVICE_ROLE_KEY
-        }
-      })
+      const resp = await fetch(`/api/rates?table=${tableName}&organization_id=${organizationId}`)
       if (resp.ok) {
         setExistingRates(await resp.json())
       } else {
-        console.error('Error loading rates:', resp.status, await resp.text())
+        const errData = await resp.json().catch(() => ({}))
+        console.error('Error loading rates:', resp.status, errData)
         setExistingRates([])
       }
     } catch (err) {
@@ -350,16 +342,8 @@ Return ONLY the JSON array.`
     }
   }
 
-  // Import to Supabase
+  // Import to Supabase via server-side API route
   async function handleImport() {
-    console.log('[RateImport] handleImport called', {
-      organizationId,
-      activeTab,
-      previewDataLength: previewData.length,
-      hasServiceRoleKey: !!SERVICE_ROLE_KEY,
-      serviceRoleKeyLength: SERVICE_ROLE_KEY.length
-    })
-
     if (!organizationId) {
       setError('Please select an organization first')
       return
@@ -367,11 +351,6 @@ Return ONLY the JSON array.`
 
     if (previewData.length === 0) {
       setError('No data to import')
-      return
-    }
-
-    if (!SERVICE_ROLE_KEY) {
-      setError('Database key is missing. VITE_SUPABASE_SERVICE_ROLE_KEY is not configured in the deployment environment.')
       return
     }
 
@@ -400,37 +379,21 @@ Return ONLY the JSON array.`
         return record
       })
 
-      console.log('[RateImport] POSTing', records.length, 'records to', tableName)
-      console.log('[RateImport] First record:', JSON.stringify(records[0]))
+      console.log('[RateImport] POSTing', records.length, 'records via /api/rates')
 
-      const fetchUrl = `${SUPABASE_URL}/rest/v1/${tableName}`
-      const fetchHeaders = {
-        'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
-        'apikey': SERVICE_ROLE_KEY,
-        'Content-Type': 'application/json',
-        'Prefer': 'return=representation'
-      }
-
-      console.log('[RateImport] Fetch URL:', fetchUrl)
-      console.log('[RateImport] Auth header prefix:', fetchHeaders.Authorization.substring(0, 20) + '...')
-
-      const response = await fetch(fetchUrl, {
+      const response = await fetch(`/api/rates?table=${tableName}&organization_id=${organizationId}`, {
         method: 'POST',
-        headers: fetchHeaders,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(records)
       })
 
-      console.log('[RateImport] Response status:', response.status, response.statusText)
-
       if (!response.ok) {
-        const errBody = await response.text()
-        console.error('[RateImport] Error body:', errBody)
-        throw new Error(`Database error (${response.status}): ${errBody}`)
+        const errData = await response.json().catch(() => ({ error: response.statusText }))
+        throw new Error(`Database error (${response.status}): ${errData.error || JSON.stringify(errData)}`)
       }
 
       const inserted = await response.json()
       console.log(`[RateImport] SUCCESS: Imported ${inserted.length} ${activeTab} rates`)
-      console.log('[RateImport] First inserted:', JSON.stringify(inserted[0]))
 
       setImportSuccess(true)
       setPreviewData([])
@@ -453,15 +416,14 @@ Return ONLY the JSON array.`
     if (!confirm(`Delete all ${activeTab} rates for ${organizationName}?`)) return
     try {
       const tableName = activeTab === 'labour' ? 'labour_rates' : 'equipment_rates'
-      const response = await fetch(`${SUPABASE_URL}/rest/v1/${tableName}?organization_id=eq.${organizationId}`, {
-        method: 'DELETE',
-        headers: {
-          'Authorization': `Bearer ${SERVICE_ROLE_KEY}`,
-          'apikey': SERVICE_ROLE_KEY
-        }
+      const response = await fetch(`/api/rates?table=${tableName}&organization_id=${organizationId}`, {
+        method: 'DELETE'
       })
       if (response.ok) {
         setExistingRates([])
+      } else {
+        const errData = await response.json().catch(() => ({}))
+        setError('Delete failed: ' + (errData.error || response.statusText))
       }
     } catch (err) {
       setError('Delete failed: ' + err.message)
@@ -477,32 +439,8 @@ Return ONLY the JSON array.`
     setLoadingMessage('')
   }
 
-  // Diagnostic: log config on mount
-  useEffect(() => {
-    console.log('[RateImport] Config check:', {
-      hasAnthropicKey: !!ANTHROPIC_API_KEY,
-      hasServiceRoleKey: !!SERVICE_ROLE_KEY,
-      serviceRoleKeyLength: SERVICE_ROLE_KEY.length,
-      serviceRoleKeyPrefix: SERVICE_ROLE_KEY.substring(0, 10) + '...',
-      supabaseUrl: SUPABASE_URL,
-      organizationId,
-    })
-  }, [organizationId])
-
   return (
     <div style={{ padding: '20px', maxWidth: '1200px', margin: '0 auto' }}>
-      {/* Diagnostic Banner — remove after confirming imports work */}
-      <div style={{
-        padding: '8px 12px',
-        marginBottom: '12px',
-        backgroundColor: (!SERVICE_ROLE_KEY || !ANTHROPIC_API_KEY) ? '#f8d7da' : '#d4edda',
-        border: `1px solid ${(!SERVICE_ROLE_KEY || !ANTHROPIC_API_KEY) ? '#f5c6cb' : '#c3e6cb'}`,
-        borderRadius: '4px',
-        fontSize: '12px',
-        color: '#333'
-      }}>
-        Config: AI Key {ANTHROPIC_API_KEY ? '✓' : '✗ MISSING'} | DB Key {SERVICE_ROLE_KEY ? `✓ (${SERVICE_ROLE_KEY.length} chars)` : '✗ MISSING'} | Org: {organizationId || 'NONE'}
-      </div>
 
       {/* Header */}
       <div style={{ marginBottom: '24px' }}>
