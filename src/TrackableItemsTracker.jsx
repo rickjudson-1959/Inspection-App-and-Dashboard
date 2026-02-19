@@ -6,6 +6,51 @@ import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
 import { useOrgQuery } from './utils/queryHelpers.js'
 
+// All columns in the trackable_items DB table (excluding auto-managed: id, created_at, updated_at)
+// When new columns are added via migration, add them here so saveItem persists them
+const TRACKABLE_DB_COLUMNS = new Set([
+  // Common fields
+  'action', 'quantity', 'unit', 'from_kp', 'to_kp', 'kp_location',
+  'length', 'reason', 'equipment', 'notes',
+  // Mats
+  'mat_type', 'mat_size', 'crossing_reason',
+  // Fencing
+  'fence_type', 'fence_purpose', 'side', 'gates_qty', 'landowner',
+  // Ramps
+  'ramp_type', 'ramp_material', 'mats_used', 'mat_count',
+  'crossing_id', 'foreign_owner',
+  // Goalposts (power line safety)
+  'utility_owner', 'post_material', 'material_compliant',
+  'authorized_clearance', 'posted_height', 'danger_sign',
+  'reflective_signage', 'grounding_required', 'grounding_installed',
+  'offset_distance', 'offset_compliant',
+  // Access
+  'access_type', 'surface', 'width',
+  // Hydrovac
+  'hole_type', 'depth',
+  // Erosion
+  'control_type', 'watercourse',
+  // Signage
+  'sign_type',
+  // Equipment cleaning
+  'equipment_type', 'equipment_id', 'cleaning_type', 'cleaning_location',
+  'cleaning_station_kp', 'inspection_status', 'inspector_name',
+  'biosecurity_concerns', 'weed_wash_cert', 'photo_taken', 'contractor',
+  // Rock trench
+  'rock_type', 'depth_achieved', 'spec_depth',
+  // Extra depth
+  'extra_depth_amount', 'total_depth', 'in_drawings', 'approved_by',
+  // Bedding & padding
+  'protection_type', 'material',
+  // Weld UPI
+  'upi_type', 'weld_number', 'status'
+])
+
+// Map form field names to DB column names where they differ
+const FIELD_TO_DB = {
+  'inspection_pass': 'inspection_status'
+}
+
 // Define all trackable item types with their fields
 const ITEM_TYPES = [
   { 
@@ -328,17 +373,21 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
       report_date: reportDate,
       inspector: inspector,
       item_type: item.item_type,
-      action: item.action,
-      quantity: item.quantity,
-      kp_location: item.kp_location,
-      mat_type: item.mat_type,
-      mat_size: item.mat_size,
-      fence_type: item.fence_type,
-      ramp_type: item.ramp_type,
-      gates_qty: item.gates_qty,
-      landowner: item.landowner,
-      notes: item.notes,
       organization_id: getOrgId()
+    }
+
+    // Dynamically include all type-specific fields that have DB columns
+    const typeConfig = ITEM_TYPES.find(t => t.id === item.item_type)
+    if (typeConfig) {
+      typeConfig.fields.forEach(field => {
+        const dbColumn = FIELD_TO_DB[field.name] || field.name
+        if (TRACKABLE_DB_COLUMNS.has(dbColumn)) {
+          const value = item[field.name]
+          if (value !== undefined && value !== null && value !== '') {
+            record[dbColumn] = value
+          }
+        }
+      })
     }
 
     try {

@@ -3414,6 +3414,7 @@ CRITICAL - Individual Entries Required:
 
     // Fetch trackable items from DB if not already loaded (component may not be mounted)
     let pdfTrackableItems = trackableItemsData
+    console.log('[PDF] Trackable items - in-memory count:', pdfTrackableItems?.length || 0, 'reportId:', currentReportId)
     if ((!pdfTrackableItems || pdfTrackableItems.length === 0) && currentReportId) {
       try {
         let query = supabase
@@ -3422,7 +3423,12 @@ CRITICAL - Individual Entries Required:
           .eq('report_id', currentReportId)
           .order('created_at', { ascending: true })
         query = addOrgFilter(query)
-        const { data } = await query
+        const { data, error } = await query
+        if (error) {
+          console.warn('[PDF] Trackable items DB query error:', error)
+        } else {
+          console.log('[PDF] Trackable items DB fallback returned:', data?.length || 0, 'items')
+        }
         if (data && data.length > 0) {
           pdfTrackableItems = data
         }
@@ -6046,6 +6052,7 @@ CRITICAL - Individual Entries Required:
         equipment_cleaning: 'Equipment Cleaning',
         rock_trench: 'Rock Trench',
         extra_depth: 'Extra Depth Ditch',
+        bedding_padding: 'Bedding & Padding',
         weld_upi: 'Weld UPI Items'
       }
       
@@ -6075,25 +6082,27 @@ CRITICAL - Individual Entries Required:
           } else if (type === 'fencing') {
             description = `${item.action || ''} ${item.length || ''}m ${item.fence_type || ''} at KP ${item.kp_location || ''}`
           } else if (type === 'ramps') {
-            description = `${item.action || ''} ${item.quantity || ''} x ${item.ramp_type || ''} at KP ${item.kp_location || ''}`
+            description = `${item.action || ''} ${item.quantity || ''} x ${item.ramp_type || ''} (${item.ramp_material || ''}) at KP ${item.kp_location || ''}${item.foreign_owner ? ' - ' + item.foreign_owner : ''}${item.crossing_id ? ' [' + item.crossing_id + ']' : ''}`
           } else if (type === 'goalposts') {
-            description = `${item.action || ''} ${item.quantity || ''} set(s) at KP ${item.kp_location || ''} - ${item.utility_owner || ''}`
+            description = `${item.action || ''} ${item.quantity || ''} set(s) at KP ${item.kp_location || ''} - ${item.utility_owner || ''}${item.post_material ? ', ' + item.post_material : ''}${item.posted_height ? ', Height: ' + item.posted_height + 'm' : ''}${item.material_compliant ? ' [' + item.material_compliant + ']' : ''}${item.offset_compliant ? ' [Offset: ' + item.offset_compliant + ']' : ''}`
           } else if (type === 'equipment_cleaning') {
-            description = `${item.action || ''}: ${item.equipment_type || ''} (${item.equipment_id || ''}) - ${item.inspection_pass || ''}`
+            description = `${item.action || ''}: ${item.equipment_type || ''} (${item.equipment_id || ''}) - ${item.inspection_pass || item.inspection_status || ''}`
           } else if (type === 'hydrovac') {
             description = `${item.action || ''} ${item.quantity || ''} x ${item.hole_type || ''} at KP ${item.kp_location || ''}`
           } else if (type === 'erosion') {
             description = `${item.action || ''} ${item.quantity || ''} ${item.unit || ''} ${item.control_type || ''} at KP ${item.kp_location || ''}`
           } else if (type === 'rock_trench') {
-            description = `${item.length || ''}m ${item.rock_type || ''} at KP ${item.kp_location || ''}, Depth: ${item.depth_achieved || ''}m`
+            description = `${item.length || ''}m ${item.rock_type || ''} at KP ${item.kp_location || ''}, Depth: ${item.depth_achieved || ''}m${item.spec_depth ? ' (Spec: ' + item.spec_depth + 'm)' : ''}${item.equipment ? ', ' + item.equipment : ''}`
           } else if (type === 'extra_depth') {
-            description = `${item.length || ''}m extra depth at KP ${item.kp_location || ''}, Total: ${item.total_depth || ''}m`
+            description = `${item.length || ''}m extra depth at KP ${item.kp_location || ''}, Total: ${item.total_depth || ''}m${item.reason ? ', Reason: ' + item.reason : ''}${item.approved_by ? ', Approved: ' + item.approved_by : ''}`
+          } else if (type === 'bedding_padding') {
+            description = `${item.action || ''} ${item.protection_type || 'Bedding/Padding'}: ${item.material || ''} (${item.depth || ''}mm) at KP ${item.kp_location || ''}, ${item.length || ''}m`
           } else if (type === 'weld_upi') {
             description = `${item.upi_type || ''} - Weld ${item.weld_number || 'N/A'}, Qty: ${item.quantity || ''} at KP ${item.kp_location || ''} | Reason: ${item.reason || 'N/A'} | Status: ${item.status || 'N/A'}`
           } else if (type === 'signage') {
             description = `${item.action || ''} ${item.quantity || ''} x ${item.sign_type || 'Sign'} at KP ${item.kp_location || ''}`
           } else if (type === 'access') {
-            description = `${item.action || ''} ${item.road_type || 'Access Road'} at KP ${item.kp_location || ''}, ${item.surface || ''} ${item.width ? item.width + 'm wide' : ''}`
+            description = `${item.action || ''} ${item.access_type || 'Access Road'} at KP ${item.kp_location || ''}, ${item.surface || ''} ${item.width ? item.width + 'm wide' : ''}${item.length ? ', ' + item.length + 'm long' : ''}`
           } else {
             description = `${item.action || ''} at KP ${item.kp_location || ''}`
           }
@@ -6120,6 +6129,9 @@ CRITICAL - Individual Entries Required:
         y += 3
       })
       y += 2
+      console.log('[PDF] Rendered', pdfTrackableItems.length, 'trackable items in PDF')
+    } else {
+      console.log('[PDF] No trackable items to render (in-memory:', trackableItemsData?.length || 0, ', reportId:', currentReportId, ')')
     }
 
     // ═══════════════════════════════════════════════════════════
