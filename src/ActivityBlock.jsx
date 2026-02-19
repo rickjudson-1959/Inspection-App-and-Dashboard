@@ -147,6 +147,7 @@ function SearchableSelect({
   const [isOpen, setIsOpen] = useState(false)
   const [filterText, setFilterText] = useState('')
   const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 })
   const containerRef = React.useRef(null)
 
   // Filter options based on debounced filter text - matches all words in any order
@@ -157,7 +158,7 @@ function SearchableSelect({
     return searchWords.every(word => optLower.includes(word))
   })
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside or scrolling
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
@@ -165,9 +166,19 @@ function SearchableSelect({
         setFilterText('')
       }
     }
+    const handleScroll = () => {
+      if (isOpen) {
+        setIsOpen(false)
+        setFilterText('')
+      }
+    }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    window.addEventListener('scroll', handleScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('scroll', handleScroll, true)
+    }
+  }, [isOpen])
 
   // Reset highlight when filter changes
   useEffect(() => {
@@ -218,10 +229,18 @@ function SearchableSelect({
       <div
         tabIndex={0}
         onClick={() => {
+          if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect()
+            setDropdownPos({ top: rect.bottom + 2, left: rect.left, width: Math.max(rect.width, 280) })
+          }
           setIsOpen(true)
         }}
         onFocus={() => {
           if (!isOpen) {
+            if (containerRef.current) {
+              const rect = containerRef.current.getBoundingClientRect()
+              setDropdownPos({ top: rect.bottom + 2, left: rect.left, width: Math.max(rect.width, 280) })
+            }
             setIsOpen(true)
           }
         }}
@@ -278,18 +297,17 @@ function SearchableSelect({
 
       {isOpen && (
         <div style={{
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          right: 0,
+          position: 'fixed',
+          top: dropdownPos.top,
+          left: dropdownPos.left,
+          width: dropdownPos.width,
           backgroundColor: '#fff',
           border: '1px solid #ced4da',
           borderRadius: '4px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          zIndex: 1000,
+          zIndex: 9999,
           maxHeight: '250px',
-          overflowY: 'auto',
-          marginTop: '2px'
+          overflowY: 'auto'
         }}>
           {filteredOptions.length === 0 ? (
             <div style={{ padding: '10px', color: '#999', textAlign: 'center', fontSize: '13px' }}>
@@ -2746,7 +2764,22 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                             style={{ width: '40px', padding: '4px', border: '1px solid #ced4da', borderRadius: '3px', textAlign: 'center', fontSize: '12px' }}
                           />
                         </td>
-                        <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.count}</td>
+                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
+                          <input
+                            type="number"
+                            value={entry.count || ''}
+                            onChange={(e) => updateLabourField(block.id, entry.id, 'count', parseInt(e.target.value) || 0)}
+                            placeholder="0"
+                            style={{
+                              width: '50px',
+                              padding: '4px',
+                              border: '1px solid #ced4da',
+                              borderRadius: '3px',
+                              textAlign: 'center',
+                              fontSize: '12px'
+                            }}
+                          />
+                        </td>
                         <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
                           <button
                             type="button"
@@ -2992,8 +3025,38 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                             }}
                           />
                         </td>
-                        <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.hours}</td>
-                        <td style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>{entry.count}</td>
+                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
+                          <input
+                            type="number"
+                            value={entry.hours || ''}
+                            onChange={(e) => updateEquipmentField(block.id, entry.id, 'hours', e.target.value)}
+                            placeholder="0"
+                            style={{
+                              width: '60px',
+                              padding: '4px',
+                              border: '1px solid #ced4da',
+                              borderRadius: '3px',
+                              textAlign: 'center',
+                              fontSize: '12px'
+                            }}
+                          />
+                        </td>
+                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
+                          <input
+                            type="number"
+                            value={entry.count || ''}
+                            onChange={(e) => updateEquipmentField(block.id, entry.id, 'count', e.target.value)}
+                            placeholder="0"
+                            style={{
+                              width: '60px',
+                              padding: '4px',
+                              border: '1px solid #ced4da',
+                              borderRadius: '3px',
+                              textAlign: 'center',
+                              fontSize: '12px'
+                            }}
+                          />
+                        </td>
                         <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
                           <button
                             type="button"
