@@ -2862,7 +2862,6 @@ CRITICAL - Individual Entries Required:
         unit_price_items_enabled: unitPriceItemsEnabled,
         unit_price_data: unitPriceData,
         created_by: userProfile?.id || null,
-        inspector_email: userProfile?.email || null,
         organization_id: getOrgId()
       }
 
