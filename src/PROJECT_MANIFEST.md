@@ -401,6 +401,39 @@ pipe-up-field-guide-agent-kb.md  # v2.4 → v2.7
 
 ---
 
+### Self-Healing Recovery & Work Photo Edit Fix (February 17, 2026)
+
+**Made the app bulletproof — automatic recovery from stale caches, fixed crash when editing reports with photos**
+
+1. **Self-healing recovery system** — Added an inline script to `index.html` that runs BEFORE React and catches any module load failures (MIME type errors, missing chunks, failed dynamic imports). On failure it shows an "Updating App" spinner, clears all caches, unregisters the service worker, and reloads with a cache-busting URL. Max 2 automatic retries with a manual "Try Again" button as fallback. Users never see a blank page.
+
+2. **Service worker CacheFirst removed** — The `CacheFirst` strategy for scripts/styles/images was caching old JS chunk files indefinitely. After deployments, the old SW served stale chunk URLs that no longer existed on the server, causing Vercel to return HTML 404 pages → "MIME type text/html" errors. Removed the runtime asset cache entirely — precaching handles versioned assets with proper cache invalidation.
+
+3. **Catch-all fetch handler removed** — The SW had a broad `caches.match(event.request, { ignoreSearch: true })` handler that intercepted ALL same-origin requests and could serve wrong cached content. Now only navigation requests are intercepted (for offline SPA support).
+
+4. **SW registration race condition fixed** — `sw-register.js` was aggressively reloading the page on every `updatefound` and `controllerchange` event, racing with `UpdatePrompt.jsx`'s cache-clearing flow. Removed the auto-reload — `UpdatePrompt` now handles the full update lifecycle.
+
+5. **Work photo edit crash fixed** — Editing a saved report with work photos crashed with `TypeError: Failed to execute 'createObjectURL'`. Saved photos are database metadata (filenames, URLs) not File objects. Fixed by pre-computing Supabase storage URLs during edit mode loading and updating the renderer to handle both new File uploads and saved URL strings. Re-saving preserves existing photos without re-uploading.
+
+6. **Stale `inspector_email` field removed** — The online save path still had `inspector_email: userProfile?.email` which wrote to a non-existent column in `daily_reports`. Removed.
+
+7. **Version bumped to 2.3.7** — Triggers `UpdatePrompt`'s auto-cache-clear for all existing users on next visit.
+
+**Field Guide updated to v3.3** — Re-uploaded and re-indexed.
+
+**Files Modified:**
+```
+index.html                 # Self-healing recovery script (runs before React)
+public/sw-register.js      # Removed aggressive auto-reload, log-only on SW events
+src/sw-custom.js           # Removed CacheFirst, removed catch-all fetch handler, clear stale caches on activate
+src/InspectorReport.jsx    # Pre-compute work photo URLs for edit mode, preserve saved photos on re-save, remove inspector_email
+src/ActivityBlock.jsx       # Handle saved photo URLs in renderer, instanceof File guards
+src/version.js             # 2.3.6 → 2.3.7
+pipe-up-field-guide-agent-kb.md  # v3.2 → v3.3
+```
+
+---
+
 ### Editable Fields, Visitor Save, Timesheet Fixes (February 19, 2026)
 
 **Fixed 6 issues from Access Report field testing — dropdown clipping, editable fields, visitor save, timesheet routing, truck & KM auto-populate**
@@ -1501,4 +1534,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 19, 2026 (Editable Fields, Visitor Save, Timesheet Fixes)*
+*Last Updated: February 17, 2026 (Self-Healing Recovery & Work Photo Edit Fix, v2.3.7)*

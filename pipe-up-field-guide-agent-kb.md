@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 3.2 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
+## Version: 3.3 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -503,7 +503,16 @@ A: Previously, if you typed into the visitor Name/Company/Position fields but di
 **Q: I can't access my timesheet review after submitting — it sends me back to the report page?**
 A: This was a routing permission issue that has been fixed. The timesheet review page now allows inspector access so you can view your submitted timesheets. Click "Review" from the My Timesheets & Invoices page to see your timesheet details.
 
+**Q: I edited a submitted report with photos and the page crashed — is this fixed?**
+A: Yes. Previously, editing a saved report that had work photos would crash with a "createObjectURL" error because the renderer tried to treat saved photo metadata (URLs from the database) as File objects. This has been fixed — saved photos now display correctly from their storage URLs, and new photos can still be uploaded alongside them. Re-saving a report preserves existing photos without re-uploading.
+
+**Q: The app showed a blank page or MIME type error — what happened?**
+A: This was caused by the service worker caching old JavaScript files and serving stale content after a deployment. It has been permanently fixed with three layers of protection: (1) the service worker no longer aggressively caches JS files, (2) the UpdatePrompt component detects version changes and auto-clears caches, and (3) a self-healing script in the page itself catches any module load failures and automatically clears all caches, unregisters the service worker, and reloads. Users should never need to manually clear their cache.
+
+**Q: Do I need to clear my cache or do a hard refresh after updates?**
+A: No. The app now handles this automatically. When a new version is deployed, the app detects it and refreshes itself. If anything goes wrong during the update, the self-healing system kicks in and recovers automatically. You'll briefly see an "Updating App" spinner, then the latest version loads.
+
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.2*
-*Source: InspectorReport.jsx (7,650+ lines) + ActivityBlock.jsx (3,170+ lines)*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.3*
+*Source: InspectorReport.jsx (7,650+ lines) + ActivityBlock.jsx (3,400+ lines)*
