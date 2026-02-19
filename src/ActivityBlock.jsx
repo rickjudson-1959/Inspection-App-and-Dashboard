@@ -2388,7 +2388,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                     <div key={idx} style={{ marginBottom: idx < block.ticketPhotos.length - 1 ? '15px' : 0, borderBottom: idx < block.ticketPhotos.length - 1 ? '2px solid #dee2e6' : 'none', paddingBottom: idx < block.ticketPhotos.length - 1 ? '15px' : 0 }}>
                       <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '5px' }}>Page {idx + 1} of {block.ticketPhotos.length}</div>
                       <img
-                        src={URL.createObjectURL(photo)}
+                        src={photo instanceof File ? URL.createObjectURL(photo) : photo}
                         alt={`Contractor Ticket Page ${idx + 1}`}
                         style={{ maxWidth: '100%', objectFit: 'contain' }}
                       />
@@ -2407,7 +2407,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                   ))
                 ) : (
                   <img
-                    src={block.ticketPhoto ? URL.createObjectURL(block.ticketPhoto) : block.savedTicketPhotoUrl}
+                    src={block.ticketPhoto instanceof File ? URL.createObjectURL(block.ticketPhoto) : (block.savedTicketPhotoUrl || '')}
                     alt="Contractor Ticket"
                     style={{ maxWidth: '100%', maxHeight: 'calc(90vh - 100px)', objectFit: 'contain' }}
                   />
@@ -3353,17 +3353,25 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
               </tr>
             </thead>
             <tbody>
-              {block.workPhotos.map((photo, photoIdx) => (
+              {block.workPhotos.map((photo, photoIdx) => {
+                // Handle both new File objects and saved photos from database
+                const photoSrc = photo.file instanceof File ? URL.createObjectURL(photo.file) : photo.savedUrl || null
+                const photoName = photo.file instanceof File ? photo.file.name : (photo.originalName || photo.filename || 'Saved photo')
+                return (
                 <tr key={photoIdx} style={{ backgroundColor: '#fff' }}>
                   <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6', textAlign: 'center' }}>
-                    <img 
-                      src={URL.createObjectURL(photo.file)} 
+                    {photoSrc ? (
+                    <img
+                      src={photoSrc}
                       alt={`Photo ${photoIdx + 1}`}
                       style={{ width: '60px', height: '45px', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer' }}
-                      onClick={() => window.open(URL.createObjectURL(photo.file), '_blank')}
+                      onClick={() => window.open(photoSrc, '_blank')}
                     />
+                    ) : (
+                    <span style={{ fontSize: '11px', color: '#999' }}>No preview</span>
+                    )}
                   </td>
-                  <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6', fontSize: '12px' }}>{photo.file.name}</td>
+                  <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6', fontSize: '12px' }}>{photoName}</td>
                   <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6' }}>
                     <input
                       type="text"
@@ -3391,7 +3399,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                     </button>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
         )}

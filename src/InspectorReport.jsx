@@ -1601,7 +1601,14 @@ CRITICAL - Individual Entries Required:
           labourEntries: block.labourEntries || [],
           equipmentEntries: block.equipmentEntries || [],
           qualityData: block.qualityData || {},
-          workPhotos: block.workPhotos || [],  // Preserve existing work photos metadata
+          workPhotos: (block.workPhotos || []).map(photo => {
+            // Generate preview URL for saved photos (they have filename but no File object)
+            if (photo.filename && !photo.file) {
+              const { data } = supabase.storage.from('work-photos').getPublicUrl(photo.filename)
+              return { ...photo, savedUrl: data?.publicUrl || null }
+            }
+            return photo
+          }),
           ticketPhoto: null,  // For new uploads
           ticketPhotos: null,  // For new multi-page uploads
           savedTicketPhotoUrl: savedTicketPhotoUrl,  // URL for existing photo
@@ -2733,15 +2740,32 @@ CRITICAL - Individual Entries Required:
           console.log('[Save] Preserving existing ticket photo:', ticketPhotoFileName)
         }
 
-        // Upload work photos
+        // Upload work photos (new ones) and preserve existing ones
         for (let i = 0; i < block.workPhotos.length; i++) {
           const photo = block.workPhotos[i]
+
+          // Already-saved photo from database — preserve metadata without re-uploading
+          if (photo.filename && !(photo.file instanceof File)) {
+            workPhotoData.push({
+              filename: photo.filename,
+              originalName: photo.originalName || photo.filename,
+              location: photo.location,
+              description: photo.description,
+              inspector: photo.inspector || inspectorName,
+              date: photo.date || selectedDate,
+              spread: photo.spread || spread,
+              afe: photo.afe || afe
+            })
+            continue
+          }
+
+          // New photo — upload to storage
           const fileExt = photo.file.name.split('.').pop()
           const fileName = `work_${Date.now()}_${block.id}_${i}.${fileExt}`
           const { error: uploadError } = await supabase.storage
             .from('work-photos')
             .upload(fileName, photo.file)
-          
+
           if (uploadError) {
             console.error('Work photo upload error:', uploadError)
             alert(`Failed to upload photo "${photo.file.name}": ${uploadError.message}`)
