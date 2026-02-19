@@ -65,8 +65,8 @@
 - Activity logging with KP (kilometer post) ranges
 - Quality/compliance checklists per activity type
 - Photo capture with GPS/EXIF geolocation extraction
-- Labour classification tracking (72 classifications)
-- Equipment hour recording (323 equipment types)
+- Labour classification tracking (127 classifications — merged from rate sheet + CX2-FC contract)
+- Equipment hour recording (334 equipment types — merged from rate sheet + CX2-FC contract)
 - Weather condition logging with offline cache
 - Digital signature capture
 
@@ -397,6 +397,27 @@ src/ReportViewer.jsx          # Single KP column in trackable items table
 src/CrossingSupport.jsx       # Removed redundant from_kp/to_kp
 src/agents/ReportHealthScorer.js  # List specific incomplete field names
 pipe-up-field-guide-agent-kb.md  # v2.4 → v2.7
+```
+
+---
+
+### Classification Sync & Dashboard Rate Integration (February 19, 2026)
+
+**Merged rate sheet classifications into inspector dropdowns and fixed dashboard rate reads**
+
+1. **Labour classifications expanded (72 → 127)** — All classifications from the imported contractor rate sheet merged into `constants.js`. Inspectors can now select every billable classification from the dropdown (e.g., Aboriginal Coordinator, EMT, Paramedic, Backend Welder, Bending Engineer, Mandrel Operator, etc.). Names use the rate sheet format (Title Case) for exact matching with imported rates.
+
+2. **Equipment types expanded (317 → 334)** — 17 new equipment types from the rate sheet added (e.g., Aqua Dams, D5 LPG C/W Roto Slasher, Snow Blower attachment, SUV - Expedition/Lexus/Denali). All existing entries preserved.
+
+3. **Reconciliation Dashboard rate reads fixed** — Changed from `supabase.from('labour_rates')` (blocked by RLS, returned empty arrays) to `/api/rates` server-side endpoint. Cost calculations now correctly look up imported rates by classification name.
+
+**Field Guide updated to v3.1** — Re-uploaded and re-indexed.
+
+**Files Modified:**
+```
+src/constants.js              # Labour 72→127, Equipment 317→334
+src/ReconciliationDashboard.jsx  # Rate reads via /api/rates
+pipe-up-field-guide-agent-kb.md  # v3.0 → v3.1
 ```
 
 ---
@@ -1451,4 +1472,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 19, 2026 (Rate Import Server-Side API Route)*
+*Last Updated: February 19, 2026 (Classification Sync & Dashboard Rate Integration)*

@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 3.0 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
+## Version: 3.1 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -185,7 +185,7 @@ You can upload multiple photos for a single ticket (e.g., front and back, or mul
 - All page filenames are saved to the database (not just the first page).
 
 ### Classification Matching
-The OCR attempts to match extracted job titles to the app's standard labour classifications (e.g., GENERAL LABOURER, PRINCIPAL OPER 1, UTILITY WELDER, WELDER HELPER, GENERAL FOREMAN, BUS/CREWCAB DRIVER, MECHANIC/SERVICEMAN/LUBEMAN, APPRENTICE OPER/OILER, STRAW - FITTER ON AUTO WELD SPREAD) and equipment types (e.g., Backhoe - Cat 330, Sideboom - Cat 583, Dozer - D6T, Grader - Cat G14, Loader - Cat 966, Picker Truck - 15 Ton, Welding Rig, Lincoln Welder, Pickup - 3/4 Ton, Water Truck, Fuel Truck - Tandem, Lowboy Trailer, Generator - 60 kW, Air Compressor - 900 CFM, ATV/Gator).
+The OCR attempts to match extracted job titles to the app's 127 labour classifications (e.g., General Labourer, Principal Oper 1, Utility Welder, Welder Helper, General Foreman, Bus/Crewcab Driver, Mechanic/Serviceman/Lubeman, Apprentice Oper/Oiler, Backend Welder on Auto Weld Spread, EMT, Paramedic, Aboriginal Coordinator, Bending Engineer) and 334 equipment types (e.g., Backhoe - Cat 330, Sideboom - Cat 583, Dozer - D6T, Grader - Cat G14, Loader - Cat 966, Picker Truck - 15 Ton, Welding Rig, Lincoln Welder, Pickup - 3/4 Ton, Water Truck, Fuel Truck - Tandem, Lowboy Trailer, Generator - 60 kW, Air Compressor - 900 CFM, ATV/Gator, SUV - Expedition/Lexus/Denali). These classifications are merged from the contractor's rate sheet and the CX2-FC contract to ensure every billable classification is available. Matching is case-insensitive.
 
 ### Equipment from OCR
 OCR-extracted equipment entries are accepted even when hours are 0 (e.g., idle equipment on standby). Only the equipment type is required — hours default to 0 and can be edited after scanning.
@@ -361,10 +361,10 @@ The Weld UPI Items category tracks welding-related unit price items such as cut 
 ## SECTION 11: LABOUR & EQUIPMENT ENTRIES
 
 ### Labour Entry Fields
-employeeName (full name — with searchable crew roster autocomplete dropdown), classification (from labourClassifications e.g. GENERAL LABOURER, PRINCIPAL OPER 1, UTILITY WELDER, WELDER HELPER, GENERAL FOREMAN — searchable dropdown), rt (regular time hours, first 8), ot (overtime hours, beyond 8), jh (jump hours/bonus, separate from RT/OT), count (number of workers, usually 1). All fields (name, classification, RT, OT, JH) are editable inline after entry or OCR — not just JH.
+employeeName (full name — with searchable crew roster autocomplete dropdown), classification (from 127 labourClassifications e.g. General Labourer, Principal Oper 1, Utility Welder, Welder Helper, General Foreman, EMT, Paramedic, Aboriginal Coordinator — searchable dropdown), rt (regular time hours, first 8), ot (overtime hours, beyond 8), jh (jump hours/bonus, separate from RT/OT), count (number of workers, usually 1). All fields (name, classification, RT, OT, JH) are editable inline after entry or OCR — not just JH. Classifications are merged from the contractor's rate sheet and CX2-FC contract — the Reconciliation Dashboard matches these names against imported rates for cost calculations.
 
 ### Equipment Entry Fields
-type (from equipmentTypes e.g. Backhoe - Cat 330, Sideboom - Cat 583, Dozer - D6T, Welding Rig, Pickup - 3/4 Ton, Water Truck), hours (hours of use — can be 0 for idle/standby equipment), count (number of units, usually 1), unitNumber (asset ID/fleet number e.g. "U-1234").
+type (from 334 equipmentTypes e.g. Backhoe - Cat 330, Sideboom - Cat 583, Dozer - D6T, Welding Rig, Pickup - 3/4 Ton, Water Truck, SUV - Expedition/Lexus/Denali — searchable dropdown), hours (hours of use — can be 0 for idle/standby equipment), count (number of units, usually 1), unitNumber (asset ID/fleet number e.g. "U-1234").
 
 ### RT/OT Auto-Split from OCR
 When OCR extracts total hours from a ticket, the app auto-splits: RT = min(totalHours, 8), OT = max(0, totalHours - 8).
@@ -496,5 +496,5 @@ A: This was a bug that has been fixed. Previously, switching between Labour and 
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.0*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.1*
 *Source: InspectorReport.jsx (7,634 lines) + ActivityBlock.jsx (3,143 lines)*
