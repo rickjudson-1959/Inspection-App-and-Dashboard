@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 3.3 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
+## Version: 3.4 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -291,7 +291,7 @@ Click "Download PDF Copy" to generate a comprehensive PDF of the entire report. 
 - **Safety**: Safety notes, safety recognition cards, wildlife sightings
 - **Land & environment**: Environmental observations
 - **Site visitors**: Name, company, position
-- **Trackable items**: All categories including Weld UPI Items
+- **Trackable items**: All 13 categories with type-specific descriptions (goalposts include safety compliance fields, ramps include material/crossing ID, rock trench includes spec depth/equipment, extra depth includes reason/approver, bedding/padding includes material/depth)
 - **Unit price items**: Category, item, qty, unit, KP, notes
 - **Inspector info**: Mileage, equipment used
 - **Document certification**: Document ID, SHA-256 hash, generation timestamp
@@ -300,16 +300,32 @@ Click "Download PDF Copy" to generate a comprehensive PDF of the entire report. 
 
 ## SECTION 9: TRACKABLE ITEMS
 
-Trackable items are project-wide assets and quantities tracked across reports. Categories include: Mats, Rock Trench, Extra Depth Ditch, Temporary Fencing, Ramps, Goal Posts (Power Lines), Access Roads, Hydrovac Holes, Erosion Control, Signage & Flagging, Equipment Cleaning, Weld UPI Items.
+Trackable items are project-wide assets and quantities tracked across reports. Categories include: Mats, Rock Trench, Extra Depth Ditch, Bedding & Padding, Temporary Fencing, Ramps, Goal Posts (Power Lines), Access Roads, Hydrovac Holes, Erosion Control, Signage & Flagging, Equipment Cleaning, Weld UPI Items.
 
-### Auto-Save
-Trackable item entries auto-save to Supabase when the inspector leaves a field (on blur). There is no manual Save button — only a Remove button to delete entries.
+### Auto-Save & Data Persistence
+Trackable item entries auto-save to Supabase when the inspector leaves a field (on blur). There is no manual Save button — only a Remove button to delete entries. **All type-specific fields are persisted to the database** — the `saveItem` function dynamically saves every field that has a corresponding DB column. Fields without DB columns (e.g., newly added form fields awaiting a migration) are noted in the code.
 
 ### Hydrovac Holes
 Hydrovac holes are tracked as individual entries in Trackable Items (hole type, action, quantity, KP location, depth, foreign line owner, notes). The Hydrovac Contractor and Foreman are entered once in the HydrovacLog quality checks header — not per hole.
 
 ### Single KP Location
 All trackable item types use a single **KP** field for location (not From KP / To KP). Enter the chainage where the item is located (e.g., `5+200`).
+
+### Goal Posts (Power Lines) — Safety Fields
+Goal Posts track electrical safety compliance for overhead power line crossings. All safety-critical fields persist to the database:
+- **Action**: Install, Remove, Inspect, Relocate
+- **Quantity**: Number of sets
+- **KP Location**: Chainage
+- **Utility Owner**: e.g., BC Hydro, FortisBC
+- **Post Material**: GRP/Fiberglass (Non-Conductive), Wood, Steel/Metal (CONDUCTIVE - FLAG)
+- **Non-Conductive?**: Pass / Fail - CONDUCTIVE
+- **Utility Auth. Clearance (m)**: Required clearance in metres
+- **Posted Height (m)**: Actual posted height
+- **Danger Sign Posted?**: Yes / No
+- **Reflective Signage?**: Yes / No
+- **Grounding Required/Installed?**: Yes / No / N/A
+- **Offset from CL (m)**: Distance from centerline (≥6m required)
+- **≥6m Offset?**: Pass / Fail - TOO CLOSE
 
 ### Weld UPI Items
 The Weld UPI Items category tracks welding-related unit price items such as cut outs, repairs, reworks, and NDT fail repairs. Fields include:
@@ -319,6 +335,17 @@ The Weld UPI Items category tracks welding-related unit price items such as cut 
 - **Quantity**: Number of items
 - **Reason**: N/A, NDT Failure, CAP Failure, Visual Defect, Inspector Request, Other
 - **Status**: Completed - Passed, In Progress, Pending Re-test
+- **Notes**: Additional details
+
+### Bedding & Padding
+Tracks pipe protection materials. Fields include:
+- **Protection Type**: Bedding, Padding, Bedding and Padding, Pipe Protection, Rockshield, Lagging, Rockshield and Lagging
+- **KP**: Location chainage
+- **Length (m)**: Section length
+- **Material**: Sand, Screened Material, Imported Fill, etc.
+- **Depth/Thickness (mm)**: Material depth
+- **Action**: Install, Inspect, Repair
+- **Equipment**: Equipment used
 - **Notes**: Additional details
 
 ---
@@ -512,7 +539,13 @@ A: This was caused by the service worker caching old JavaScript files and servin
 **Q: Do I need to clear my cache or do a hard refresh after updates?**
 A: No. The app now handles this automatically. When a new version is deployed, the app detects it and refreshes itself. If anything goes wrong during the update, the self-healing system kicks in and recovers automatically. You'll briefly see an "Updating App" spinner, then the latest version loads.
 
+**Q: I entered data in trackable items (like goal post safety fields) but it disappeared after refreshing — is this fixed?**
+A: Yes. Previously, many type-specific fields (goalposts safety compliance, rock trench details, weld UPI data, extra depth reason/approver, ramp materials, etc.) were not being saved to the database — 29 fields were silently lost. This has been fixed with a database migration adding all missing columns and an updated save function that dynamically persists every field. All trackable item data now survives page refreshes and appears in PDF exports.
+
+**Q: Why don't I see trackable items in my PDF download?**
+A: The PDF only includes trackable items that are saved in the database for the specific report you're viewing. If you haven't added any trackable items for that report, the section won't appear. The PDF fetches items from the database even if you haven't expanded the Trackable Items section during editing. Check that you've actually created items for the report in question — the summary totals at the top of each category show project-wide counts, not per-report counts.
+
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.3*
-*Source: InspectorReport.jsx (7,650+ lines) + ActivityBlock.jsx (3,400+ lines)*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.4*
+*Source: InspectorReport.jsx (7,700+ lines) + ActivityBlock.jsx (3,400+ lines)*

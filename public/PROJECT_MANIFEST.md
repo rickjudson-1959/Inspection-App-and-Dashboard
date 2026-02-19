@@ -368,6 +368,38 @@
 
 ## 6. RECENT UPDATES (January/February 2026)
 
+### Trackable Items DB Schema Gap Fix & PDF Improvements (February 19, 2026)
+
+**Fixed silent data loss: 29 missing DB columns added, dynamic save, enriched PDF descriptions**
+
+1. **29 missing DB columns added** — The `trackable_items` table was missing columns for many type-specific form fields. Data entered by inspectors was silently discarded on save. Added columns via migration: `length`, `rock_type`, `equipment`, `depth_achieved`, `spec_depth`, `extra_depth_amount`, `total_depth`, `reason`, `in_drawings`, `approved_by`, `protection_type`, `material`, `ramp_material`, `mats_used`, `mat_count`, `utility_owner`, `post_material`, `material_compliant`, `authorized_clearance`, `posted_height`, `danger_sign`, `reflective_signage`, `grounding_required`, `grounding_installed`, `offset_distance`, `offset_compliant`, `upi_type`, `weld_number`, `status`.
+
+2. **Dynamic saveItem function** — Replaced hardcoded 12-field save with dynamic approach that iterates over each item type's field definitions and persists all fields with matching DB columns. Added `TRACKABLE_DB_COLUMNS` set and `FIELD_TO_DB` mapping for field name mismatches (e.g., `inspection_pass` → `inspection_status`).
+
+3. **Bedding & Padding added to PDF** — Added `bedding_padding` to PDF typeLabels and description builder with protection type, material, depth, and length.
+
+4. **Enriched PDF descriptions for all types** — Goalposts now include safety compliance fields (material, height, offset compliance). Ramps include material, foreign owner, crossing ID. Rock trench includes spec depth and equipment. Extra depth includes reason and approver. Access fixed from `road_type` (non-existent) to `access_type`.
+
+5. **Equipment cleaning field mapping fixed** — PDF description now handles both `inspection_pass` (form field name) and `inspection_status` (DB column name).
+
+6. **Console logging for PDF trackable items** — Added `[PDF]` prefixed logs showing in-memory count, DB fallback query results, and render count for debugging.
+
+**Field Guide updated to v3.4** — Re-uploaded and re-indexed.
+
+**Migration:**
+```
+supabase/migrations/20260219_add_trackable_items_columns.sql  # 29 ALTER TABLE ADD COLUMN
+```
+
+**Files Modified:**
+```
+src/TrackableItemsTracker.jsx  # TRACKABLE_DB_COLUMNS, FIELD_TO_DB, dynamic saveItem
+src/InspectorReport.jsx        # PDF bedding_padding, enriched descriptions, logging
+src/version.js                 # 2.3.7 → 2.3.8
+```
+
+---
+
 ### Welding, Downtime & Trackable Items Fixes (February 17, 2026)
 
 **Heat input, downtime display, and KP simplification from continued field testing**
@@ -1534,4 +1566,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 17, 2026 (Self-Healing Recovery & Work Photo Edit Fix, v2.3.7)*
+*Last Updated: February 19, 2026 (Trackable Items DB Schema Gap Fix, v2.3.8)*
