@@ -61,7 +61,7 @@ export const ROLE_CONFIG = {
   inspector: {
     landingPage: '/inspector',
     displayName: 'Field Inspector',
-    canAccess: ['inspector', 'field-entry', 'inspector-invoicing', 'timesheet', 'my-reports', 'reference-library']
+    canAccess: ['inspector', 'field-entry', 'inspector-invoicing', 'timesheet', 'my-reports']
   },
   super_admin: {
     landingPage: '/admin',

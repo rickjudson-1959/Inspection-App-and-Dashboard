@@ -294,7 +294,7 @@ function OrgRoutes() {
 
       {/* Reference Library */}
       <Route path="reference-library" element={
-        <ProtectedRoute allowedRoles={['inspector', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <ReferenceLibrary />
         </ProtectedRoute>
       } />

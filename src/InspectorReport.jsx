@@ -6831,21 +6831,6 @@ CRITICAL - Individual Entries Required:
           </button>
 
           <button
-            onClick={() => navigate(orgPath('/reference-library'))}
-            style={{
-              padding: '8px 12px',
-              backgroundColor: '#6366f1',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '12px'
-            }}
-          >
-            📚 Reference
-          </button>
-
-          <button
             data-tour="doc-search"
             onClick={() => setShowDocSearch(!showDocSearch)}
             style={{
