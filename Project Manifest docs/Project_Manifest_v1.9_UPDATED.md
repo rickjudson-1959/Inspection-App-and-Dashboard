@@ -368,6 +368,34 @@
 
 ## 6. RECENT UPDATES (January/February 2026)
 
+### Report-Aware AI Agent, Health Check UX & Multi-Page Ticket Fix (February 19, 2026)
+
+**AI agent can now answer questions about the inspector's current report, health check messages tell you exactly where to fix issues, multi-page ticket photos accumulate instead of replacing**
+
+1. **Report-aware AI agent (v2.4.0)** — The "Ask the Agent" panel now passes a complete report context summary to the mentor-nlq edge function. Includes: report header (date, inspector, spread, weather), all activity blocks (contractor, KP range, metres, labour entries with names/hours, equipment with unit numbers, quality field values, work descriptions, time lost), safety notes, and health score. Inspectors can ask "how many workers on my trenching block?" or "what's my total metres today?" and get accurate answers. Updated system prompt prioritizes report data for report-specific questions while still using RAG knowledge base for specs/standards.
+
+2. **Health check messages specific and actionable** — Every health check issue now includes the block number, activity type, and exact section to navigate to. Examples: `Block #2 "Backfill" (KP 12) — add concealed-work photos in the "Work Photos" section`, `Block #1 "Welding" (KP 78) — 5 quality fields to complete. Open "Quality Checks" and fill in → Preheat: Field1 | Visual Inspection: Field2`. Quality field issues grouped by collapsible section name.
+
+3. **Multi-page ticket photo accumulation** — Fixed bug where adding a second ticket photo page replaced the first. `processTicketOCR` now appends new photos to existing ones. OCR only processes new photos to avoid duplicating labour/equipment entries. Save logic merges new uploads with existing saved filenames for edit mode. Remove button clears all photo state including plural saved URLs.
+
+4. **Illness/personal reason added as downtime option** — New drag reason under Contractor Responsibility for when a worker is absent due to illness or personal reasons. No note required (privacy).
+
+**Field Guide updated to v3.5** — Re-uploaded and re-indexed.
+
+**Files Modified:**
+```
+src/InspectorReport.jsx        # Report context memo, useMemo import, pass reportContext to panel
+src/components/AskTheAgentPanel.jsx  # Accept/pass reportContext prop, updated placeholder text
+src/agents/NLQueryService.js    # Pass report_context to edge function
+supabase/functions/mentor-nlq/index.ts  # Accept report_context, include in system prompt, max_tokens 800
+src/agents/ReportHealthScorer.js  # Block numbers, activity types, section navigation in all issues
+src/ActivityBlock.jsx           # Ticket photo accumulation, Remove clears all state
+src/constants.js                # illness_personal drag reason
+src/version.js                  # 2.3.8 → 2.4.0
+```
+
+---
+
 ### Trackable Items DB Schema Gap Fix & PDF Improvements (February 19, 2026)
 
 **Fixed silent data loss: 29 missing DB columns added, dynamic save, enriched PDF descriptions**
@@ -1566,4 +1594,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 19, 2026 (Trackable Items DB Schema Gap Fix, v2.3.8)*
+*Last Updated: February 19, 2026 (Report-Aware AI Agent, Health Check UX, v2.4.0)*

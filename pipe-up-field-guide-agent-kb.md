@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 3.4 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
+## Version: 3.5 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -14,8 +14,8 @@
 - **Tone**: Approachable, collaborative, professional. Speak to inspectors as experienced peers.
 - **Audit Trail**: Every report is auto-assigned a unique Document ID and SHA-256 Hash. Inspectors do not need to do anything — the system handles compliance automatically.
 - **Governing Standard**: API 1169 (Pipeline Construction Inspection)
-- **Mentor Agent**: A real-time AI auditor runs in the background, checking field values against thresholds and flagging anomalies. Alerts appear in a sidebar with severity levels.
-- **Health Score**: Each report is scored by the ReportHealthScorer — visible to inspectors and reviewers.
+- **Mentor Agent**: A real-time AI auditor runs in the background, checking field values against thresholds and flagging anomalies. Alerts appear in a sidebar with severity levels. The "Ask the Agent" panel can answer questions about the current report (e.g., "how many workers on my trenching block?") as well as specs, standards, and procedures from the project knowledge base.
+- **Health Score**: Each report is scored by the ReportHealthScorer — visible to inspectors and reviewers. Health check issues include the specific block number, activity type, and exact section to navigate to for fixing.
 
 ---
 
@@ -179,10 +179,12 @@ This is one of the most comprehensive logs, with these sub-sections:
 4. The extracted data auto-populates the Labour and Equipment sections of that activity block.
 
 ### Multi-Page Support
-You can upload multiple photos for a single ticket (e.g., front and back, or multi-page tickets). Claude processes all pages and combines the data without duplicating entries. When multiple pages are uploaded:
+You can upload multiple photos for a single ticket (e.g., front and back, or multi-page tickets). Pages can be added **one at a time** or **all at once** — new pages accumulate with existing ones instead of replacing them. Claude processes only the new pages to avoid duplicating labour/equipment entries. When multiple pages are attached:
 - The indicator shows "X pages attached" instead of a single filename.
 - The photo modal displays all pages in a scrollable view with "Page X of Y" labels.
 - All page filenames are saved to the database (not just the first page).
+- When editing a saved report, adding new pages merges them with the existing saved pages.
+- The "Remove" button clears all accumulated pages at once.
 
 ### Classification Matching
 The OCR attempts to match extracted job titles to the app's 127 labour classifications (e.g., General Labourer, Principal Oper 1, Utility Welder, Welder Helper, General Foreman, Bus/Crewcab Driver, Mechanic/Serviceman/Lubeman, Apprentice Oper/Oiler, Backend Welder on Auto Weld Spread, EMT, Paramedic, Aboriginal Coordinator, Bending Engineer) and 334 equipment types (e.g., Backhoe - Cat 330, Sideboom - Cat 583, Dozer - D6T, Grader - Cat G14, Loader - Cat 966, Picker Truck - 15 Ton, Welding Rig, Lincoln Welder, Pickup - 3/4 Ton, Water Truck, Fuel Truck - Tandem, Lowboy Trailer, Generator - 60 kW, Air Compressor - 900 CFM, ATV/Gator, SUV - Expedition/Lexus/Denali). These classifications are merged from the contractor's rate sheet and the CX2-FC contract to ensure every billable classification is available. Matching is case-insensitive.
@@ -234,7 +236,7 @@ Each labour and equipment entry can be flagged with a production status:
 
 ### Drag Reasons (from dragReasonCategories)
 
-When a non-Working status is selected, a Drag Reason is required. Common reasons include: Weather, Ground Conditions, Equipment Breakdown, Waiting for Third Party, Material Shortage, Access Issues, Regulatory Hold, Safety Stand-down, First Nations Monitor, Bird Nesting Window, Environmental Window, Landowner Access Issue.
+When a non-Working status is selected, a Drag Reason is required. Common reasons include: Weather, Ground Conditions, Equipment Breakdown, Waiting for Third Party, Material Shortage, Access Issues, Regulatory Hold, Safety Stand-down, First Nations Monitor, Bird Nesting Window, Environmental Window, Landowner Access Issue, Illness / Personal Reason.
 
 Each drag reason has a Responsible Party (Owner, Contractor, Regulatory, Shared) auto-assigned based on the reason, an Impact Scope indicator (single crew member or entire crew), and some reasons lock to Systemic (entire crew) automatically or require a note.
 
@@ -372,8 +374,8 @@ Tracks pipe protection materials. Fields include:
 | Seed Tag Photo Requirement | Requires seed tag photo for Final Cleanup | Cleanup - Final activity |
 | Auto-Save Draft | Saves to localStorage every 1.5s + 30s intervals | Automatic |
 | Draft Restore | Prompts to restore or discard saved draft | On new report load |
-| Mentor Agent | Real-time field auditing with alerts | Sidebar — alert badges |
-| Health Score | Report quality score | Report header indicator |
+| Mentor Agent | Real-time field auditing with alerts + report-aware Q&A | Sidebar alerts + "Ask the Agent" panel |
+| Health Score | Report quality score with specific fix locations | Report header indicator |
 | Production Status Flags | Working / Sync Delay / Management Drag | Labour/equipment rows |
 | Inertia Ratio | Shadow Hours / Billed Hours efficiency score | Executive Dashboard |
 | Document ID + SHA-256 | Automatic tamper-proof audit trail | Every saved report |
@@ -465,7 +467,7 @@ A: Make sure you've selected a Pipeline first — weather is fetched based on th
 A: In an activity block, upload a photo of the contractor's daily ticket. The app will automatically run OCR using Claude Vision to extract labour and equipment data. Review the extracted data and make any corrections.
 
 **Q: Can I scan a multi-page ticket?**
-A: Yes. Upload multiple photos for a single ticket. The app processes all pages together and combines the data without duplicates. The indicator will show "X pages attached" and the photo viewer displays all pages in a scrollable view with page numbers.
+A: Yes. You can add pages one at a time or select all at once — each new upload accumulates with existing pages instead of replacing them. Only the new pages are processed by OCR to avoid duplicating labour/equipment entries. The indicator will show "X pages attached" and the photo viewer displays all pages in a scrollable view with page numbers.
 
 **Q: How does voice input work?**
 A: Tap the microphone Voice button next to any text field (work description, safety notes, comments). Speak clearly — text is transcribed in real-time. Tap Stop when done. Works in Chrome, Edge, and Safari.
@@ -491,6 +493,9 @@ A: The app has offline mode. Your report auto-saves to your device. When connect
 **Q: What is the Mentor Agent and why am I seeing alerts?**
 A: The Mentor Agent is an AI auditor that checks your field entries in real-time against expected ranges and thresholds. If a value seems unusual (e.g., abnormal preheat temperature), it flags an alert. You can acknowledge, override with a reason, or dismiss alerts.
 
+**Q: Can I ask the AI agent questions about my current report?**
+A: Yes! The "Ask the Agent" panel (the robot icon) has full knowledge of your current report — including all activity blocks, labour/equipment entries, quality fields, metres, KP ranges, weather, and health score. You can ask questions like "How many total hours did my crew work today?", "What's my total metres across all blocks?", "Did I fill in all the coating quality fields?", or "Who's working on the trenching activity?". It also searches the project knowledge base (field guide, specs, standards) for technical questions.
+
 **Q: How do I edit a submitted report?**
 A: From the Previous Reports list, select the report to edit. If the Chief Inspector has requested a revision, you'll see their notes. Make corrections and re-submit. All edits are tracked in the audit trail.
 
@@ -498,7 +503,7 @@ A: From the Previous Reports list, select the report to edit. If the Chief Inspe
 A: No. Every report is automatically assigned a unique Document ID and SHA-256 Hash. Your job is to log accurate, complete data — the system handles compliance.
 
 **Q: What is the Health Score?**
-A: The Health Score is calculated by the ReportHealthScorer based on completeness and quality of your report data. It's visible to you and reviewers as a quality indicator. If quality fields are incomplete, the Field Completeness section lists the specific field names that are missing (e.g., "Preheat Temp, Interpass Temp, Root Bead Visual") so you know exactly what to fill in.
+A: The Health Score is calculated by the ReportHealthScorer based on completeness and quality of your report data. It's visible to you and reviewers as a quality indicator. Tap the score to expand the issue list — each issue tells you the exact **block number**, **activity type**, and **which section to navigate to** (e.g., `Block #2 "Backfill" (KP 12) — add concealed-work photos in the "Work Photos" section`). Quality field issues are grouped by collapsible section name so you can find them quickly.
 
 **Q: Can I download a PDF of my report?**
 A: Yes. Click "Download PDF Copy" at the bottom of the report. The PDF includes all activity blocks, specialized log data, labour/equipment tables, and quality checks.
@@ -547,5 +552,5 @@ A: The PDF only includes trackable items that are saved in the database for the 
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.4*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.5*
 *Source: InspectorReport.jsx (7,700+ lines) + ActivityBlock.jsx (3,400+ lines)*
