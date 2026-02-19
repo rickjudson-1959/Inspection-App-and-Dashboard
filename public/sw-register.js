@@ -1,15 +1,16 @@
-// sw-register.js - SW registration with auto-update
-if ('serviceWorker' in navigator) {
-  // Prevent reload loops
-  let refreshing = false
+// sw-register.js - Service worker registration (non-module, runs before React)
+// Handles SW registration and periodic update checks.
+// UpdatePrompt.jsx handles the update UI and cache clearing via useRegisterSW.
+// index.html self-healing script handles fatal load failures.
 
+if ('serviceWorker' in navigator) {
   window.addEventListener('load', async () => {
     try {
       console.log('[SW] Registering service worker...')
 
       const registration = await navigator.serviceWorker.register('/sw-custom.js', {
         scope: '/',
-        updateViaCache: 'none'
+        updateViaCache: 'none'  // Always fetch SW from network
       })
 
       console.log('[SW] Registration successful')
@@ -22,41 +23,27 @@ if ('serviceWorker' in navigator) {
         registration.update()
       }, 60 * 1000)
 
-      // Handle updates - when a new SW is waiting
+      // Log update lifecycle events (no forced reloads — UpdatePrompt handles that)
       registration.addEventListener('updatefound', () => {
         const newWorker = registration.installing
         console.log('[SW] New service worker installing...')
 
         newWorker.addEventListener('statechange', () => {
+          console.log('[SW] Service worker state:', newWorker.state)
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            // New SW is ready, reload to get the new version
-            console.log('[SW] New version available, reloading...')
-            if (!refreshing) {
-              refreshing = true
-              window.location.reload()
-            }
+            console.log('[SW] New version installed and waiting to activate')
+            // UpdatePrompt.jsx will detect this via useRegisterSW and handle the update
           }
         })
       })
 
-      // If the controller changes (new SW took over), reload
-      navigator.serviceWorker.addEventListener('controllerchange', () => {
-        console.log('[SW] Controller changed, reloading...')
-        if (!refreshing) {
-          refreshing = true
-          window.location.reload()
-        }
-      })
-
-      // If we already have a controller, we're good
       if (navigator.serviceWorker.controller) {
         console.log('[SW] Page is controlled by service worker')
-        return
+      } else {
+        console.log('[SW] Waiting for service worker to take control...')
+        await navigator.serviceWorker.ready
+        console.log('[SW] Service worker is ready')
       }
-
-      console.log('[SW] Waiting for service worker to take control...')
-      await navigator.serviceWorker.ready
-      console.log('[SW] Service worker is ready')
 
     } catch (error) {
       console.error('[SW] Registration failed:', error)

@@ -14,6 +14,123 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="EGP Inspector" />
 
+    <!-- Self-Healing Recovery: catches module load failures BEFORE React -->
+    <script>
+      (function() {
+        var RECOVERY_KEY = '__pipeup_recovery_attempt'
+        var MAX_RETRIES = 2
+
+        function getRetryCount() {
+          try { return parseInt(sessionStorage.getItem(RECOVERY_KEY) || '0', 10) }
+          catch(e) { return 0 }
+        }
+
+        function showRecoveryUI() {
+          var root = document.getElementById('root')
+          if (root) {
+            root.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f5f5f5">'
+              + '<div style="background:white;padding:40px;border-radius:12px;box-shadow:0 2px 20px rgba(0,0,0,0.1);text-align:center;max-width:320px">'
+              + '<div style="width:40px;height:40px;border:4px solid #e0e0e0;border-top:4px solid #1976d2;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 20px"></div>'
+              + '<div style="font-size:18px;font-weight:600;color:#333;margin-bottom:8px">Updating App</div>'
+              + '<div style="font-size:14px;color:#666">Loading the latest version...</div>'
+              + '</div></div>'
+              + '<style>@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}</style>'
+          }
+        }
+
+        function selfHeal() {
+          var retries = getRetryCount()
+          if (retries >= MAX_RETRIES) {
+            console.error('[Recovery] Max retries reached. Showing manual recovery option.')
+            var root = document.getElementById('root')
+            if (root) {
+              root.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:-apple-system,BlinkMacSystemFont,sans-serif;background:#f5f5f5">'
+                + '<div style="background:white;padding:40px;border-radius:12px;box-shadow:0 2px 20px rgba(0,0,0,0.1);text-align:center;max-width:360px">'
+                + '<div style="font-size:36px;margin-bottom:16px">&#9888;&#65039;</div>'
+                + '<div style="font-size:18px;font-weight:600;color:#333;margin-bottom:8px">Update Required</div>'
+                + '<div style="font-size:14px;color:#666;margin-bottom:20px">Please clear your browser data for this site and reload.</div>'
+                + '<button onclick="sessionStorage.clear();location.reload()" style="padding:12px 24px;background:#1976d2;color:white;border:none;border-radius:6px;font-size:14px;cursor:pointer;font-weight:500">Try Again</button>'
+                + '</div></div>'
+            }
+            return
+          }
+
+          console.log('[Recovery] Self-healing attempt', retries + 1, 'of', MAX_RETRIES)
+          try { sessionStorage.setItem(RECOVERY_KEY, String(retries + 1)) }
+          catch(e) { /* ignore */ }
+
+          showRecoveryUI()
+
+          var ops = []
+
+          // Clear all caches
+          if ('caches' in window) {
+            ops.push(
+              caches.keys().then(function(names) {
+                return Promise.all(names.map(function(n) { return caches.delete(n) }))
+              })
+            )
+          }
+
+          // Unregister all service workers
+          if ('serviceWorker' in navigator) {
+            ops.push(
+              navigator.serviceWorker.getRegistrations().then(function(regs) {
+                return Promise.all(regs.map(function(r) { return r.unregister() }))
+              })
+            )
+          }
+
+          Promise.all(ops).then(function() {
+            console.log('[Recovery] Caches cleared, SW unregistered. Reloading...')
+            // Use cache-busting query param to bypass any edge caches
+            var url = window.location.pathname + '?_v=' + Date.now()
+            window.location.replace(url)
+          }).catch(function() {
+            window.location.reload()
+          })
+        }
+
+        // Clear recovery counter on successful load
+        window.addEventListener('load', function() {
+          // Give React a moment to mount — if #root has children, the app loaded fine
+          setTimeout(function() {
+            var root = document.getElementById('root')
+            if (root && root.children.length > 0) {
+              try { sessionStorage.removeItem(RECOVERY_KEY) }
+              catch(e) { /* ignore */ }
+            }
+          }, 5000)
+        })
+
+        // Catch script/module load errors (fires on the <script> element)
+        window.addEventListener('error', function(event) {
+          if (event.target && event.target.tagName === 'SCRIPT' && event.target !== window) {
+            console.error('[Recovery] Script load failed:', event.target.src || 'inline')
+            selfHeal()
+          }
+        }, true) // capture phase to catch before bubbling
+
+        // Catch failed dynamic imports (lazy-loaded chunks)
+        window.addEventListener('unhandledrejection', function(event) {
+          var msg = event.reason && (event.reason.message || String(event.reason))
+          if (msg && (
+            msg.indexOf('Failed to fetch dynamically imported module') !== -1 ||
+            msg.indexOf('MIME type') !== -1 ||
+            msg.indexOf('Loading chunk') !== -1 ||
+            msg.indexOf('Loading CSS chunk') !== -1
+          )) {
+            console.error('[Recovery] Dynamic import failed:', msg)
+            event.preventDefault()
+            selfHeal()
+          }
+        })
+
+        // Expose for manual use if needed
+        window.__pipeupSelfHeal = selfHeal
+      })()
+    </script>
+
     <!-- Service Worker Registration -->
     <script src="/sw-register.js"></script>
   </head>
