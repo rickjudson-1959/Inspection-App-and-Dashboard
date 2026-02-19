@@ -52,7 +52,7 @@ function MyReports({ user, onEditReport, onBack }) {
           revision_notes,
           activity_blocks
         `)
-        .eq('inspector_email', user.email)
+        .eq('created_by', user.id)
         .order('report_date', { ascending: false })
       query = addOrgFilter(query)
 
