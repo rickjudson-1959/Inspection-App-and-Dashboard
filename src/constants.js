@@ -304,6 +304,7 @@ export const dragReasonCategories = [
   { value: 'missing_materials', label: 'Missing material / logistics', defaultSystemic: false, lockSystemic: false, responsibleParty: 'contractor', requiresNote: true },
   { value: 'incorrect_grade', label: 'Incorrect grade', defaultSystemic: false, lockSystemic: false, responsibleParty: 'contractor', requiresNote: true },
   { value: 'crew_shortage', label: 'Crew shortage', defaultSystemic: false, lockSystemic: false, responsibleParty: 'contractor', requiresNote: true },
+  { value: 'illness_personal', label: 'Illness / personal reason', defaultSystemic: false, lockSystemic: false, responsibleParty: 'contractor', requiresNote: false },
   { value: 'coordination_delay', label: 'Coordination delay', defaultSystemic: false, lockSystemic: false, responsibleParty: 'contractor', requiresNote: true },
 
   // ═══════════════════════════════════════════════════════════════════════════
