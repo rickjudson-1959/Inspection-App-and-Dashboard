@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 2.9 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-17
+## Version: 3.0 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -489,9 +489,12 @@ A: Yes. All labour and equipment fields are editable directly in the table after
 A: This was a validation bug that occurred when OCR set hours to exactly 0 (zero). The app was treating 0 as "empty" because of how JavaScript evaluates numbers. This has been fixed — entries with 0 hours are now accepted. If you see this on an old draft, re-entering any value in RT, OT, or JH will clear the issue.
 
 **Q: How do I upload labour or equipment rates?**
-A: Go to the Admin Portal → Import Rate Sheets tab. Select the Labour Rates or Equipment Rates sub-tab. Upload the contractor's rate sheet — any format works: CSV, Excel (.xlsx/.xls), PDF, or even a photo of the document. AI reads the file automatically and extracts every classification or equipment type with its rates. You'll see a preview table where you can edit, add, or delete rows before importing. OT (1.5x) and DT (2x) are auto-calculated if only straight time is provided. You can also click "enter rates manually" to type them in by hand.
+A: Go to the Admin Portal → Import Rate Sheets tab. Select the Labour Rates or Equipment Rates sub-tab. Upload the contractor's rate sheet — any format works: CSV, Excel (.xlsx/.xls), PDF, or even a photo of the document. AI reads the file automatically and extracts every classification or equipment type with its rates. You'll see a preview table where you can edit, add, or delete rows before importing. Click the blue "Import X Rates" button at the bottom to save them to the database. OT (1.5x) and DT (2x) are auto-calculated if only straight time is provided. You can also click "enter rates manually" to type them in by hand. Rate data is saved via a secure server-side API route — the database key never touches the browser.
+
+**Q: I uploaded rates but they disappeared when I switched tabs?**
+A: This was a bug that has been fixed. Previously, switching between Labour and Equipment tabs could show empty tables due to a database permission issue. The fix routes all rate reads and writes through a server-side API (`/api/rates`) that uses the database service key securely. If you uploaded rates before this fix, they may not have saved — re-upload the CSV files and click Import.
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v2.9*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.0*
 *Source: InspectorReport.jsx (7,634 lines) + ActivityBlock.jsx (3,143 lines)*

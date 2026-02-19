@@ -401,6 +401,39 @@ pipe-up-field-guide-agent-kb.md  # v2.4 → v2.7
 
 ---
 
+### Rate Import — Server-Side API Route & Bug Fixes (February 19, 2026)
+
+**Moved rate database operations to a Vercel serverless function after discovering Supabase blocks `sb_secret_` keys from browser use**
+
+After the AI-first rate import redesign, field testing revealed multiple issues in the import pipeline:
+
+1. **Supabase blocks secret keys in browser** — The `sb_secret_` format service role key is explicitly rejected by Supabase when used from a browser (`401 Forbidden: Secret API keys can only be used in a protected environment`). All rate read/write/delete operations moved to a new Vercel serverless function (`/api/rates.js`) that uses the service role key server-side.
+
+2. **Server-side API route** — Created `/api/rates.js` handling GET (read rates), POST (import rates), and DELETE (clear rates). The browser calls `/api/rates?table=labour_rates&organization_id=xxx` — no database keys touch the client.
+
+3. **AI extraction truncation** — Large rate sheets exceeded the 4096 `max_tokens` default, producing truncated JSON without a closing `]`. Increased to 16384 tokens. Added `parseRateJSON()` recovery function that finds the last complete `}` in truncated output, trims the incomplete entry, and appends `]`.
+
+4. **Diagnostic error messages** — Replaced generic "AI could not extract" with specific failure reasons surfaced in the UI: missing API key, network error, HTTP status code, empty response, or the actual Claude response text.
+
+5. **RLS empty-array behavior** — Supabase RLS returns empty arrays (not errors) for unauthorized reads. The original fallback logic never triggered because "empty" looked like "success". Now moot since all reads go through the server-side API route with the service role key.
+
+6. **Model ID mismatch** — Rate import was using `claude-sonnet-4-5-20250929` while the working OCR used `claude-sonnet-4-20250514`. Aligned to the working model.
+
+**Field Guide updated to v3.0** — Re-uploaded and re-indexed.
+
+**Files Created:**
+```
+api/rates.js                  # Vercel serverless function for rate DB operations
+```
+
+**Files Modified:**
+```
+src/RateImport.jsx            # Calls /api/rates instead of Supabase direct, truncation recovery, diagnostics
+pipe-up-field-guide-agent-kb.md  # v2.9 → v3.0
+```
+
+---
+
 ### AI-First Rate Import (February 17, 2026)
 
 **Redesigned rate import to use AI extraction for any file format**
@@ -1418,4 +1451,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 17, 2026 (AI-First Rate Import)*
+*Last Updated: February 19, 2026 (Rate Import Server-Side API Route)*
