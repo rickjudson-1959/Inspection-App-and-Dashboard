@@ -3644,9 +3644,10 @@ CRITICAL - Individual Entries Required:
       doc.text(block.activityType || 'Activity Not Selected', margin + 14, y + 5.5)
       y += 11
 
-      // Activity details box
+      // Activity details box (height depends on whether ticket # is present)
+      const detailsBoxHeight = block.ticketNumber ? 32 : 26
       setColor(BRAND.greenLight, 'fill')
-      doc.roundedRect(margin, y, contentWidth, 26, 2, 2, 'F')
+      doc.roundedRect(margin, y, contentWidth, detailsBoxHeight, 2, 2, 'F')
       y += 5
       addField('Contractor', block.contractor, leftCol, 28)
       addField('Foreman', block.foreman, rightCol, 28)
