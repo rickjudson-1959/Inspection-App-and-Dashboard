@@ -2705,11 +2705,12 @@ CRITICAL - Individual Entries Required:
         const workPhotoData = []
 
         // Upload NEW ticket photo(s) (if user uploaded/took new ones)
-        if (block.ticketPhotos && block.ticketPhotos.length > 1) {
-          // Multi-page ticket: upload all pages
+        if (block.ticketPhotos && block.ticketPhotos.length > 0) {
+          // Upload all new File objects
           const uploadedNames = []
           for (let i = 0; i < block.ticketPhotos.length; i++) {
             const file = block.ticketPhotos[i]
+            if (!(file instanceof File)) continue
             const fileExt = file.name.split('.').pop()
             const fileName = `ticket_${Date.now()}_${block.id}_p${i + 1}.${fileExt}`
             const { error: uploadError } = await supabase.storage
@@ -2722,19 +2723,13 @@ CRITICAL - Individual Entries Required:
               console.log(`[Save] Uploaded ticket photo page ${i + 1}:`, fileName)
             }
           }
-          // Store first photo as ticketPhoto for backward compat, all names in ticketPhotos array
-          ticketPhotoFileName = uploadedNames[0] || ticketPhotoFileName
-          ticketPhotoFileNames = uploadedNames.length > 0 ? uploadedNames : ticketPhotoFileNames
-        } else if (block.ticketPhoto) {
-          const fileExt = block.ticketPhoto.name.split('.').pop()
-          ticketPhotoFileName = `ticket_${Date.now()}_${block.id}.${fileExt}`
-          const { error: uploadError } = await supabase.storage
-            .from('ticket-photos')
-            .upload(ticketPhotoFileName, block.ticketPhoto)
-          if (uploadError) {
-            console.error('Ticket photo upload error:', uploadError)
-          } else {
-            console.log('[Save] Uploaded new ticket photo:', ticketPhotoFileName)
+          if (uploadedNames.length > 0) {
+            // Merge with any existing saved filenames (for adding pages to existing ticket)
+            const existingNames = block.savedTicketPhotoNames || (ticketPhotoFileName ? [ticketPhotoFileName] : [])
+            const allNames = [...existingNames, ...uploadedNames]
+            ticketPhotoFileName = allNames[0]
+            ticketPhotoFileNames = allNames
+            console.log(`[Save] Ticket photos: ${existingNames.length} existing + ${uploadedNames.length} new = ${allNames.length} total`)
           }
         } else if (ticketPhotoFileName) {
           console.log('[Save] Preserving existing ticket photo:', ticketPhotoFileName)

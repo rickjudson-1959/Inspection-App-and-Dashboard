@@ -826,15 +826,24 @@ function ActivityBlock({
 
   // OCR Processing for contractor tickets (supports multiple pages)
   const processTicketOCR = async (blockId, imageFiles) => {
-    const files = Array.isArray(imageFiles) ? imageFiles : [imageFiles]
+    const newFiles = Array.isArray(imageFiles) ? imageFiles : [imageFiles]
     setOcrProcessing(true)
     setOcrError(null)
 
-    // Save the photos to the block (first file as ticketPhoto for backward compat, all as ticketPhotos array)
-    updateBlock(blockId, 'ticketPhoto', files[0])
-    if (files.length > 1) {
-      updateBlock(blockId, 'ticketPhotos', files)
+    // Append new photos to any existing ones (supports adding pages one at a time)
+    const existingPhotos = block.ticketPhotos || (block.ticketPhoto ? [block.ticketPhoto] : [])
+    // Only keep existing File objects (not saved URLs from DB)
+    const existingFiles = existingPhotos.filter(p => p instanceof File)
+    const allFiles = [...existingFiles, ...newFiles]
+
+    // Save accumulated photos (first file as ticketPhoto for backward compat)
+    if (!block.ticketPhoto || !(block.ticketPhoto instanceof File)) {
+      updateBlock(blockId, 'ticketPhoto', allFiles[0])
     }
+    updateBlock(blockId, 'ticketPhotos', allFiles)
+
+    // OCR only processes the NEW photos to avoid duplicating entries from previous pages
+    const files = newFiles
 
     try {
       // Convert all images to base64
@@ -2278,14 +2287,14 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
           </label>
         </div>
         <p style={{ fontSize: '12px', color: '#666', margin: '5px 0 0 0' }}>
-          Take a photo or upload images of the contractor's ticket. For multi-page tickets, select all pages at once — AI will combine data from all pages.
+          Take a photo or upload images of the contractor's ticket. For multi-page tickets, you can add pages one at a time or select all at once — AI will combine data from all pages.
         </p>
         {ocrError && (
           <p style={{ color: '#dc3545', fontSize: '13px', margin: '10px 0' }}>{ocrError}</p>
         )}
 
         {/* Show ticket photo if one exists (either new upload or saved from database) */}
-        {(block.ticketPhoto || block.savedTicketPhotoUrl) && (
+        {(block.ticketPhoto || block.savedTicketPhotoUrl || block.savedTicketPhotoUrls?.length > 0) && (
           <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#d4edda', borderRadius: '6px', border: '1px solid #c3e6cb' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
               <span style={{ color: '#155724', fontSize: '13px', fontWeight: 'bold' }}>
@@ -2319,6 +2328,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                     updateBlock(block.id, 'ticketPhotos', null)
                     updateBlock(block.id, 'savedTicketPhotoUrl', null)
                     updateBlock(block.id, 'savedTicketPhotoName', null)
+                    updateBlock(block.id, 'savedTicketPhotoUrls', null)
+                    updateBlock(block.id, 'savedTicketPhotoNames', null)
                   }}
                   style={{
                     padding: '6px 12px',
@@ -2338,7 +2349,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
         )}
 
         {/* Ticket Photo Modal */}
-        {showTicketPhoto && (block.ticketPhoto || block.savedTicketPhotoUrl) && (
+        {showTicketPhoto && (block.ticketPhoto || block.savedTicketPhotoUrl || block.savedTicketPhotoUrls?.length > 0) && (
           <div
             style={{
               position: 'fixed',
