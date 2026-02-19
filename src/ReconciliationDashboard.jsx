@@ -123,16 +123,19 @@ export default function ReconciliationDashboard() {
     batchQuery = addOrgFilter(batchQuery)
     const { data: batchData } = await batchQuery
 
-    // Load rate tables for cost calculations
-    let labourRateQuery = supabase.from('labour_rates').select('*')
-      .order('effective_date', { ascending: false })
-    labourRateQuery = addOrgFilter(labourRateQuery)
-    const { data: labourRateData } = await labourRateQuery
-
-    let equipRateQuery = supabase.from('equipment_rates').select('*')
-      .order('effective_date', { ascending: false })
-    equipRateQuery = addOrgFilter(equipRateQuery)
-    const { data: equipRateData } = await equipRateQuery
+    // Load rate tables for cost calculations via server-side API route
+    // (RLS blocks direct supabase client reads on rate tables)
+    const orgId = getOrgId()
+    let labourRateData = []
+    let equipRateData = []
+    try {
+      const labourResp = await fetch(`/api/rates?table=labour_rates&organization_id=${orgId}`)
+      if (labourResp.ok) labourRateData = await labourResp.json()
+      const equipResp = await fetch(`/api/rates?table=equipment_rates&organization_id=${orgId}`)
+      if (equipResp.ok) equipRateData = await equipResp.json()
+    } catch (err) {
+      console.error('Error loading rate tables:', err)
+    }
 
     // Load trench logs for ditching pay items
     let trenchQuery = supabase.from('trench_logs').select('*')
