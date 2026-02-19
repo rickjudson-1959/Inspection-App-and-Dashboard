@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 3.1 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
+## Version: 3.2 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -58,8 +58,8 @@ Every inspection day begins by filling out the Report Header. This creates the a
 | `safetyRecognitionData` | Toggle-able Safety Recognition cards for recognizing safe behavior |
 | `wildlifeSightingData` | Toggle-able Wildlife Sighting log |
 | `landEnvironment` | Land and environmental observations |
-| `visitors` | Log of site visitors (name, company, position) |
-| `inspectorMileage` | Inspector's mileage for the day |
+| `visitors` | Log of site visitors (name, company, position). Auto-saved on report submit — if visitor fields are filled but not yet "Added," the save function captures them automatically. |
+| `inspectorMileage` | Inspector's mileage/KMs for the day. Used by timesheet auto-populate for KM tracking. |
 | `inspectorEquipment` | Inspector's equipment used |
 | `unitPriceItemsEnabled` | Toggle for Unit Price Items tracking |
 | `unitPriceData` | Unit price items and comments |
@@ -91,8 +91,8 @@ A report contains one or more **Activity Blocks**. Each block represents a singl
 | `ticketNumber` | Text | Contractor ticket number (can auto-fill from OCR) |
 | `ticketPhoto` / `ticketPhotos` | File upload (single or multi) | Photo(s) of contractor daily ticket — triggers OCR scanning. Multi-page tickets show page count in indicator and all pages in modal viewer |
 | `workPhotos` | File uploads | Work progress photos with metadata (caption, location) |
-| `labourEntries` | Array | Personnel logged (name, classification, RT, OT, JH, count). Name and classification are editable inline after OCR. Name field has crew roster autocomplete. |
-| `equipmentEntries` | Array | Equipment logged (type, hours, count, unit number). Type and unit number are editable inline after OCR. |
+| `labourEntries` | Array | Personnel logged (name, classification, RT, OT, JH, count). All fields are editable inline after OCR — name (with crew roster autocomplete), classification (searchable dropdown), RT, OT, JH, and count. |
+| `equipmentEntries` | Array | Equipment logged (type, unit number, hours, count). All fields are editable inline after OCR — type (searchable dropdown), unit number, hours, and count. |
 | `qualityData` | Object | Activity-specific quality check fields |
 | `timeLostReason` | Dropdown | From `timeLostReasons` — None, Weather, Equipment, etc. |
 | `timeLostHours` | Number | Hours lost to the selected reason |
@@ -336,7 +336,7 @@ The Weld UPI Items category tracks welding-related unit price items such as cut 
 | Suggested Start KP | Shows where last work ended for this activity type | Activity block — on activity selection |
 | OCR Ticket Scanning | Claude Vision extracts data from contractor ticket photos | Activity block — upload ticket photo |
 | Crew Roster Autocomplete | Suggests known worker names when typing in labour name fields | Labour name inputs — builds over time via localStorage |
-| Inline Edit After OCR | Edit labour names, classifications, equipment types, unit numbers directly in table | Labour/equipment table rows |
+| Inline Edit After OCR | Edit ALL labour fields (name, classification, RT, OT, JH, count) and ALL equipment fields (type, unit number, hours, count) directly in table | Labour/equipment table rows |
 | Voice-to-Text | Speech recognition for text fields | Microphone button on supported fields |
 | Auto-Calculate Metres | Calculates metres from KP range | Activity block — automatic |
 | Auto-Populate Previous Metres | Fetches cumulative metres from historical reports | Activity block — automatic |
@@ -361,10 +361,10 @@ The Weld UPI Items category tracks welding-related unit price items such as cut 
 ## SECTION 11: LABOUR & EQUIPMENT ENTRIES
 
 ### Labour Entry Fields
-employeeName (full name — with searchable crew roster autocomplete dropdown), classification (from 127 labourClassifications e.g. General Labourer, Principal Oper 1, Utility Welder, Welder Helper, General Foreman, EMT, Paramedic, Aboriginal Coordinator — searchable dropdown), rt (regular time hours, first 8), ot (overtime hours, beyond 8), jh (jump hours/bonus, separate from RT/OT), count (number of workers, usually 1). All fields (name, classification, RT, OT, JH) are editable inline after entry or OCR — not just JH. Classifications are merged from the contractor's rate sheet and CX2-FC contract — the Reconciliation Dashboard matches these names against imported rates for cost calculations.
+employeeName (full name — with searchable crew roster autocomplete dropdown), classification (from 127 labourClassifications e.g. General Labourer, Principal Oper 1, Utility Welder, Welder Helper, General Foreman, EMT, Paramedic, Aboriginal Coordinator — searchable dropdown), rt (regular time hours, first 8), ot (overtime hours, beyond 8), jh (jump hours/bonus, separate from RT/OT), count (number of workers, editable input, usually 1). All fields (name, classification, RT, OT, JH, count) are editable inline after entry or OCR. Classifications are merged from the contractor's rate sheet and CX2-FC contract — the Reconciliation Dashboard matches these names against imported rates for cost calculations.
 
 ### Equipment Entry Fields
-type (from 334 equipmentTypes e.g. Backhoe - Cat 330, Sideboom - Cat 583, Dozer - D6T, Welding Rig, Pickup - 3/4 Ton, Water Truck, SUV - Expedition/Lexus/Denali — searchable dropdown), hours (hours of use — can be 0 for idle/standby equipment), count (number of units, usually 1), unitNumber (asset ID/fleet number e.g. "U-1234").
+type (from 334 equipmentTypes e.g. Backhoe - Cat 330, Sideboom - Cat 583, Dozer - D6T, Welding Rig, Pickup - 3/4 Ton, Water Truck, SUV - Expedition/Lexus/Denali — searchable dropdown), unitNumber (asset ID/fleet number e.g. "U-1234"), hours (hours of use — editable input, can be 0 for idle/standby equipment), count (number of units — editable input, usually 1). All fields (type, unit number, hours, count) are editable inline after entry or OCR.
 
 ### RT/OT Auto-Split from OCR
 When OCR extracts total hours from a ticket, the app auto-splits: RT = min(totalHours, 8), OT = max(0, totalHours - 8).
@@ -494,7 +494,16 @@ A: Go to the Admin Portal → Import Rate Sheets tab. Select the Labour Rates or
 **Q: I uploaded rates but they disappeared when I switched tabs?**
 A: This was a bug that has been fixed. Previously, switching between Labour and Equipment tabs could show empty tables due to a database permission issue. The fix routes all rate reads and writes through a server-side API (`/api/rates`) that uses the database service key securely. If you uploaded rates before this fix, they may not have saved — re-upload the CSV files and click Import.
 
+**Q: How do I create a timesheet from my daily reports?**
+A: Click the "My Invoices" button at the top of any report or from the Inspector App. This takes you to the My Timesheets & Invoices page. Click "Create New Timesheet," select the date range, and click "Auto-Populate from Daily Tickets." The system pulls data from your submitted daily reports: activities become work descriptions, your inspector mileage becomes KMs, truck is automatically checked for every field day, and equipment flags (ATV, radio, FOB) are detected from your inspector equipment selections. You can review and adjust any line before submitting.
+
+**Q: I added a visitor but it didn't show up in the PDF — what happened?**
+A: Previously, if you typed into the visitor Name/Company/Position fields but didn't click "Add Visitor," the data was lost on save. This has been fixed — the save function now automatically captures any filled visitor input fields and adds them to the visitor list before saving, so your data is preserved even if you forget to click the Add button.
+
+**Q: I can't access my timesheet review after submitting — it sends me back to the report page?**
+A: This was a routing permission issue that has been fixed. The timesheet review page now allows inspector access so you can view your submitted timesheets. Click "Review" from the My Timesheets & Invoices page to see your timesheet details.
+
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.1*
-*Source: InspectorReport.jsx (7,634 lines) + ActivityBlock.jsx (3,143 lines)*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.2*
+*Source: InspectorReport.jsx (7,650+ lines) + ActivityBlock.jsx (3,170+ lines)*

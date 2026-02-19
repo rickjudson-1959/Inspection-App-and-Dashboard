@@ -401,6 +401,35 @@ pipe-up-field-guide-agent-kb.md  # v2.4 → v2.7
 
 ---
 
+### Editable Fields, Visitor Save, Timesheet Fixes (February 19, 2026)
+
+**Fixed 6 issues from Access Report field testing — dropdown clipping, editable fields, visitor save, timesheet routing, truck & KM auto-populate**
+
+1. **SearchableSelect dropdown clipping fixed** — Dropdowns in labour/equipment tables were clipped by the table's `overflowX: auto` wrapper. Changed from `position: absolute` to `position: fixed` with viewport coordinates calculated via `getBoundingClientRect()`. Dropdown auto-closes on scroll to prevent stale positioning. z-index bumped to 9999.
+
+2. **All table fields now editable** — Labour count, equipment hours, and equipment count were plain text after OCR entry. Changed to editable input fields so inspectors can correct any value after OCR import or manual entry. All fields in both tables (name, classification, RT, OT, JH, count for labour; type, unit number, hours, count for equipment) are now fully editable.
+
+3. **Visitor data auto-saved on report submit** — If the inspector typed into the visitor Name/Company/Position fields but didn't click "Add Visitor," the data was silently lost. Now the save function auto-captures any filled visitor input fields before saving, ensuring data is never lost.
+
+4. **Timesheet Review route allows inspectors** — The `timesheet-review` route was restricted to chief/admin roles only. Inspectors clicking "Review" on their submitted timesheets were bounced back. Added `inspector` to the allowed roles.
+
+5. **Truck defaults to true for every field day** — Timesheet auto-populate only checked truck when `km_driven > 0`. Since every inspector has a truck, truck is now assumed for all field days.
+
+6. **KMs auto-populate from correct field** — The report saves mileage as `inspector_mileage` but the timesheet was reading `km_driven` (non-existent column). Fixed to read `inspector_mileage` with `km_driven` as fallback.
+
+**Field Guide updated to v3.2** — Re-uploaded and re-indexed.
+
+**Files Modified:**
+```
+src/ActivityBlock.jsx       # position:fixed dropdown, editable hours/count fields, scroll close
+src/InspectorReport.jsx     # Auto-capture unsaved visitor data on save
+src/App.jsx                 # Add inspector role to timesheet-review route
+src/TimesheetEditor.jsx     # Truck=true default, read inspector_mileage for KMs
+pipe-up-field-guide-agent-kb.md  # v3.1 → v3.2
+```
+
+---
+
 ### Classification Sync & Dashboard Rate Integration (February 19, 2026)
 
 **Merged rate sheet classifications into inspector dropdowns and fixed dashboard rate reads**
@@ -1472,4 +1501,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 19, 2026 (Classification Sync & Dashboard Rate Integration)*
+*Last Updated: February 19, 2026 (Editable Fields, Visitor Save, Timesheet Fixes)*
