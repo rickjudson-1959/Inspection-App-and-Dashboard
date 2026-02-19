@@ -21,9 +21,12 @@ const CONCEALED_WORK_ACTIVITIES = [
  * Concealed-work activities with photos / total concealed-work blocks
  */
 function scorePhotoCompleteness(activityBlocks) {
-  const concealedBlocks = activityBlocks.filter(
-    b => CONCEALED_WORK_ACTIVITIES.includes(b.activityType)
-  )
+  const concealedBlocks = []
+  activityBlocks.forEach((b, idx) => {
+    if (CONCEALED_WORK_ACTIVITIES.includes(b.activityType)) {
+      concealedBlocks.push({ ...b, _blockNum: idx + 1 })
+    }
+  })
 
   if (concealedBlocks.length === 0) {
     return { score: 100, weight: 25, issues: [] }
@@ -38,7 +41,7 @@ function scorePhotoCompleteness(activityBlocks) {
 
   const missing = concealedBlocks.filter(b => !b.workPhotos || b.workPhotos.length === 0)
   for (const block of missing) {
-    issues.push(`Activity ${block.activityType} (KP ${block.startKP || '?'}) missing concealed-work photos`)
+    issues.push(`Activity Block #${block._blockNum} "${block.activityType}" (KP ${block.startKP || '?'}) — add concealed-work photos in the "Work Photos" section`)
   }
 
   return { score, weight: 25, issues }
@@ -50,9 +53,12 @@ function scorePhotoCompleteness(activityBlocks) {
  */
 function scoreDirective050(activityBlocks) {
   // Check if any HDD or HD Bores blocks have wasteData
-  const drillingBlocks = activityBlocks.filter(
-    b => (b.activityType === 'HDD' || b.activityType === 'HD Bores') && b.wasteData
-  )
+  const drillingBlocks = []
+  activityBlocks.forEach((b, idx) => {
+    if ((b.activityType === 'HDD' || b.activityType === 'HD Bores') && b.wasteData) {
+      drillingBlocks.push({ ...b, _blockNum: idx + 1 })
+    }
+  })
 
   if (drillingBlocks.length === 0) {
     // No drilling activities = N/A, give full score
@@ -65,6 +71,7 @@ function scoreDirective050(activityBlocks) {
 
   for (const block of drillingBlocks) {
     const wd = block.wasteData || {}
+    const loc = `Block #${block._blockNum} "${block.activityType}" (KP ${block.startKP || '?'})`
 
     // Volume balance check: hauled + storage == total mixed
     totalChecks++
@@ -74,9 +81,9 @@ function scoreDirective050(activityBlocks) {
     if (totalMixed > 0 && Math.abs((hauled + inStorage) - totalMixed) < 0.5) {
       passedChecks++
     } else if (totalMixed > 0) {
-      issues.push(`Volume balance mismatch: hauled(${hauled}) + storage(${inStorage}) != total(${totalMixed})`)
+      issues.push(`${loc} — volume balance mismatch: hauled(${hauled}) + storage(${inStorage}) ≠ total(${totalMixed}). Fix in "Drilling Waste Management" section`)
     } else {
-      issues.push('Total volume mixed not recorded')
+      issues.push(`${loc} — enter "Total Volume Mixed" in the "Drilling Waste Management" section`)
     }
 
     // Disposal facility when hauled > 0
@@ -85,7 +92,7 @@ function scoreDirective050(activityBlocks) {
       if (wd.disposalFacilityName) {
         passedChecks++
       } else {
-        issues.push('Volume hauled > 0 but no disposal facility recorded')
+        issues.push(`${loc} — volume hauled > 0 but no disposal facility. Enter "Disposal Facility Name" in "Drilling Waste Management" section`)
       }
     } else {
       passedChecks++ // N/A
@@ -96,7 +103,7 @@ function scoreDirective050(activityBlocks) {
     if (wd.additives && wd.additives.length > 0) {
       passedChecks++
     } else {
-      issues.push('No drilling fluid additives recorded')
+      issues.push(`${loc} — add drilling fluid additives in the "Drilling Waste Management" section`)
     }
   }
 
@@ -113,17 +120,21 @@ function scoreFieldCompleteness(activityBlocks) {
   let filledFields = 0
   const issues = []
 
-  for (const block of activityBlocks) {
-    if (!block.activityType) continue
+  activityBlocks.forEach((block, idx) => {
+    if (!block.activityType) return
 
     const fieldDefs = qualityFieldsByActivity[block.activityType]
-    if (!fieldDefs || fieldDefs.length === 0) continue
+    if (!fieldDefs || fieldDefs.length === 0) return
 
-    // Flatten fields (handle collapsible sections)
+    const blockNum = idx + 1
+
+    // Flatten fields (handle collapsible sections), tracking which section they belong to
     const allFields = []
     for (const f of fieldDefs) {
       if (f.type === 'collapsible' && f.fields) {
-        allFields.push(...f.fields)
+        for (const sub of f.fields) {
+          allFields.push({ ...sub, _section: f.label || f.name })
+        }
       } else if (f.type !== 'info' && f.type !== 'header') {
         allFields.push(f)
       }
@@ -143,23 +154,28 @@ function scoreFieldCompleteness(activityBlocks) {
       }
     }
 
-    const blockFilled = requiredFields.filter(
-      f => block.qualityData?.[f.name] !== undefined &&
-           block.qualityData?.[f.name] !== null &&
-           block.qualityData?.[f.name] !== ''
-    ).length
+    const missingFields = requiredFields.filter(
+      f => block.qualityData?.[f.name] === undefined ||
+           block.qualityData?.[f.name] === null ||
+           block.qualityData?.[f.name] === ''
+    )
 
-    if (requiredFields.length > 0 && blockFilled < requiredFields.length) {
-      const missingFields = requiredFields.filter(
-        f => block.qualityData?.[f.name] === undefined ||
-             block.qualityData?.[f.name] === null ||
-             block.qualityData?.[f.name] === ''
-      )
-      const missingCount = missingFields.length
-      const fieldNames = missingFields.map(f => f.label || f.name).join(', ')
-      issues.push(`${block.activityType} (KP ${block.startKP || '?'}): ${missingCount} quality field${missingCount !== 1 ? 's' : ''} incomplete — ${fieldNames}`)
+    if (missingFields.length > 0) {
+      // Group missing fields by section for clarity
+      const bySection = {}
+      for (const f of missingFields) {
+        const section = f._section || 'Quality Checks'
+        if (!bySection[section]) bySection[section] = []
+        bySection[section].push(f.label || f.name)
+      }
+
+      const loc = `Block #${blockNum} "${block.activityType}" (KP ${block.startKP || '?'})`
+      const sectionDetails = Object.entries(bySection)
+        .map(([section, fields]) => `${section}: ${fields.join(', ')}`)
+        .join(' | ')
+      issues.push(`${loc} — ${missingFields.length} quality field${missingFields.length !== 1 ? 's' : ''} to complete. Open "Quality Checks" and fill in → ${sectionDetails}`)
     }
-  }
+  })
 
   const score = totalFields > 0 ? Math.round((filledFields / totalFields) * 100) : 100
   return { score, weight: 20, issues }
@@ -170,13 +186,13 @@ function scoreFieldCompleteness(activityBlocks) {
  * All gaps/overlaps have documented reasons
  */
 function scoreChainageIntegrity(activityBlocks) {
-  // Group blocks by activity type
+  // Group blocks by activity type, tracking block numbers
   const byType = {}
-  for (const block of activityBlocks) {
-    if (!block.activityType || !block.startKP || !block.endKP) continue
+  activityBlocks.forEach((block, idx) => {
+    if (!block.activityType || !block.startKP || !block.endKP) return
     if (!byType[block.activityType]) byType[block.activityType] = []
-    byType[block.activityType].push(block)
-  }
+    byType[block.activityType].push({ ...block, _blockNum: idx + 1 })
+  })
 
   let totalIssues = 0
   let documentedIssues = 0
@@ -203,7 +219,8 @@ function scoreChainageIntegrity(activityBlocks) {
         if (hasReason) {
           documentedIssues++
         } else {
-          issues.push(`${type}: chainage ${diff > 0 ? 'gap' : 'overlap'} at KP ${prevEnd} without documented reason`)
+          const issueType = diff > 0 ? 'gap' : 'overlap'
+          issues.push(`Block #${sorted[i]._blockNum} "${type}" — chainage ${issueType} between KP ${prevEnd} and KP ${currStart}. Check "Start KP" / "End KP" values at the top of the activity block`)
         }
       }
     }
@@ -218,7 +235,10 @@ function scoreChainageIntegrity(activityBlocks) {
  * Blocks with at least 1 labour + 1 equipment entry / total blocks
  */
 function scoreLabourEquipment(activityBlocks) {
-  const activeBlocks = activityBlocks.filter(b => b.activityType)
+  const activeBlocks = []
+  activityBlocks.forEach((b, idx) => {
+    if (b.activityType) activeBlocks.push({ ...b, _blockNum: idx + 1 })
+  })
 
   if (activeBlocks.length === 0) {
     return { score: 100, weight: 10, issues: [] }
@@ -232,12 +252,13 @@ function scoreLabourEquipment(activityBlocks) {
   const issues = []
 
   for (const block of activeBlocks) {
+    const loc = `Block #${block._blockNum} "${block.activityType}" (KP ${block.startKP || '?'})`
     if (!block.labourEntries?.length && !block.equipmentEntries?.length) {
-      issues.push(`${block.activityType} (KP ${block.startKP || '?'}): missing both labour and equipment entries`)
+      issues.push(`${loc} — add labour and equipment. Upload a contractor ticket or manually add rows in the "Labour" and "Equipment" tables`)
     } else if (!block.labourEntries?.length) {
-      issues.push(`${block.activityType} (KP ${block.startKP || '?'}): missing labour entries`)
+      issues.push(`${loc} — no labour entries. Upload a contractor ticket or add rows in the "Labour" table`)
     } else if (!block.equipmentEntries?.length) {
-      issues.push(`${block.activityType} (KP ${block.startKP || '?'}): missing equipment entries`)
+      issues.push(`${loc} — no equipment entries. Upload a contractor ticket or add rows in the "Equipment" table`)
     }
   }
 
@@ -264,7 +285,7 @@ function scoreMentorAlertResolution(mentorAlerts) {
 
   const unresolved = allAlerts.filter(a => a.status === 'active')
   if (unresolved.length > 0) {
-    issues.push(`${unresolved.length} mentor alert${unresolved.length !== 1 ? 's' : ''} unresolved`)
+    issues.push(`${unresolved.length} mentor alert${unresolved.length !== 1 ? 's' : ''} unresolved — look for the yellow alert banners within your activity blocks and tap "Acknowledge" or "Override" on each one`)
   }
 
   return { score, weight: 10, issues }
