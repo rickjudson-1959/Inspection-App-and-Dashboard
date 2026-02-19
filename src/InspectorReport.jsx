@@ -2483,6 +2483,20 @@ CRITICAL - Individual Entries Required:
       return
     }
 
+    // Auto-add any unsaved visitor data from input fields
+    let finalVisitors = [...visitors]
+    if (visitorName.trim()) {
+      finalVisitors.push({
+        name: visitorName.trim(),
+        company: visitorCompany.trim(),
+        position: visitorPosition.trim()
+      })
+      setVisitors(finalVisitors)
+      setVisitorName('')
+      setVisitorCompany('')
+      setVisitorPosition('')
+    }
+
     // Check for Blasting activities with incomplete safety requirements
     const blastingErrors = []
     for (const block of activityBlocks) {
@@ -2584,7 +2598,7 @@ CRITICAL - Individual Entries Required:
           land_environment: landEnvironment,
           wildlife_sighting: wildlifeSightingData,
           general_comments: generalComments,
-          visitors: visitors,
+          visitors: finalVisitors,
           inspector_mileage: parseFloat(inspectorMileage) || null,
           inspector_equipment: inspectorEquipment,
           unit_price_items_enabled: unitPriceItemsEnabled,
@@ -2830,7 +2844,7 @@ CRITICAL - Individual Entries Required:
         land_environment: landEnvironment,
         wildlife_sighting: wildlifeSightingData,
         general_comments: generalComments,
-        visitors: visitors,
+        visitors: finalVisitors,
         inspector_mileage: parseFloat(inspectorMileage) || null,
         inspector_equipment: inspectorEquipment,
         unit_price_items_enabled: unitPriceItemsEnabled,

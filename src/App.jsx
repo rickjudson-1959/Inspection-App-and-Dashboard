@@ -287,7 +287,7 @@ function OrgRoutes() {
 
       {/* Timesheet Review */}
       <Route path="timesheet-review" element={
-        <ProtectedRoute allowedRoles={['chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
+        <ProtectedRoute allowedRoles={['inspector', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <TimesheetReview />
         </ProtectedRoute>
       } />

@@ -345,8 +345,8 @@ export default function TimesheetEditor() {
         let hasATV = false
         let hasRadio = false
         let hasFOB = false
-        let hasTruck = false
-        
+        let hasTruck = true // Assume everyone has a truck for field days
+
         dayTickets.forEach(ticket => {
           // Get activities
           const activities = ticket.activity_blocks || []
@@ -355,10 +355,10 @@ export default function TimesheetEditor() {
               allActivities.push(a.activityType)
             }
           })
-          
-          // Get kilometers
-          totalKmsForDay += ticket.km_driven || 0
-          
+
+          // Get kilometers (use inspector_mileage field from report)
+          totalKmsForDay += ticket.inspector_mileage || ticket.km_driven || 0
+
           // Get equipment from inspector_equipment array
           const equipment = ticket.inspector_equipment || []
           if (equipment.includes('ATV') || equipment.includes('UTV')) {
@@ -369,11 +369,6 @@ export default function TimesheetEditor() {
           }
           if (equipment.includes('Gas Fob') || equipment.includes('Fob') || equipment.includes('FOB')) {
             hasFOB = true
-          }
-          
-          // If KMs > 0, assume truck was used
-          if ((ticket.km_driven || 0) > 0) {
-            hasTruck = true
           }
         })
         
