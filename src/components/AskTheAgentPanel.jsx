@@ -5,7 +5,7 @@ import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { askAgent, saveToHistory, getHistory } from '../agents/NLQueryService.js'
 import technicalTerms from '../agents/technicalTerms.js'
 
-function AskTheAgentPanel({ activityType, organizationId, blockId }) {
+function AskTheAgentPanel({ activityType, organizationId, blockId, reportContext }) {
   const [isOpen, setIsOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(false)
@@ -88,7 +88,7 @@ function AskTheAgentPanel({ activityType, organizationId, blockId }) {
 
     const response = await askAgent(
       query.trim(),
-      { activityType, blockId },
+      { activityType, blockId, reportContext },
       organizationId
     )
 
@@ -202,7 +202,7 @@ function AskTheAgentPanel({ activityType, organizationId, blockId }) {
               value={query}
               onChange={(e) => handleInputChange(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Ask about specs, standards, or procedures..."
+              placeholder="Ask about your report, specs, or procedures..."
               disabled={loading}
               autoFocus
               autoComplete="off"
@@ -318,7 +318,7 @@ function AskTheAgentPanel({ activityType, organizationId, blockId }) {
         }}>
           <div style={{ marginBottom: '4px' }}>&#x1F50D; Searching knowledge base...</div>
           <div style={{ fontSize: '11px', color: '#9ca3af' }}>
-            Checking project documents, specifications, and standards
+            Checking your report data and project knowledge base
           </div>
         </div>
       )}

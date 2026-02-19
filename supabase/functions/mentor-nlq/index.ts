@@ -16,7 +16,7 @@ serve(async (req) => {
   }
 
   try {
-    const { question, activity_type, organization_id } = await req.json()
+    const { question, activity_type, report_context, organization_id } = await req.json()
 
     if (!question || !organization_id) {
       return new Response(
@@ -89,15 +89,17 @@ serve(async (req) => {
         ).join('\n\n---\n\n')
       : 'No relevant documents found in the knowledge base.'
 
-    const systemPrompt = `You are an experienced pipeline construction inspector mentor. You answer questions about pipeline inspection, construction quality, and regulatory requirements using the provided reference documents.
+    const systemPrompt = `You are an experienced pipeline construction inspector mentor. You answer questions about pipeline inspection, construction quality, and regulatory requirements using the provided reference documents AND the inspector's current report data.
 
 Rules:
-- Answer concisely and practically, as if speaking to a field inspector
-- Always cite the source document when referencing specific requirements
-- If the answer isn't in the provided documents, say so clearly and provide general industry knowledge
+- Answer concisely and practically, as if speaking to a field inspector on their phone
+- When the question is about their current report data (labour counts, equipment, metres, KP ranges, quality fields, etc.), use the CURRENT REPORT DATA below to give a specific, accurate answer
+- When the question is about specs, standards, or procedures, cite the source document
+- If the answer isn't in the provided documents or report data, say so clearly and provide general industry knowledge
 - Use specific values, measurements, and standards where available
 - Keep answers under 300 words
-${activity_type ? `- The inspector is currently working on: ${activity_type}` : ''}`
+${activity_type ? `- The inspector is currently working on: ${activity_type}` : ''}
+${report_context ? `\n--- CURRENT REPORT DATA ---\n${report_context}\n--- END REPORT DATA ---` : ''}`
 
     const userPrompt = `Question: ${question}
 
@@ -114,7 +116,7 @@ ${contextText}`
       },
       body: JSON.stringify({
         model: 'claude-sonnet-4-20250514',
-        max_tokens: 500,
+        max_tokens: 800,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }]
       })

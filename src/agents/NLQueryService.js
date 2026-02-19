@@ -7,7 +7,7 @@ import { supabase } from '../supabase'
  * Ask the agent a natural language question about pipeline construction.
  *
  * @param {string} question - The inspector's question
- * @param {Object} context - { activityType, blockId }
+ * @param {Object} context - { activityType, blockId, reportContext }
  * @param {string} organizationId - Organization UUID
  * @returns {Promise<Object>} { answer, sources, suggestedActions, error }
  */
@@ -21,6 +21,7 @@ async function askAgent(question, context, organizationId) {
       body: {
         question: question.trim(),
         activity_type: context?.activityType || null,
+        report_context: context?.reportContext || null,
         organization_id: organizationId
       }
     })

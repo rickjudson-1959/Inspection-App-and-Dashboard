@@ -1,7 +1,7 @@
 import './App.css'
 import { saveTieInTicket } from './saveLogic.js'
 import { useAuth } from './AuthContext.jsx'
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react'
 import GuidedTour, { useGuidedTour, TourHelpButton, TOUR_STEPS } from './components/GuidedTour.jsx'
 import { useSearchParams, useNavigate } from 'react-router-dom'
 import * as XLSX from 'xlsx'
@@ -1932,6 +1932,98 @@ CRITICAL - Individual Entries Required:
     }, 1000)
     return () => clearTimeout(timer)
   }, [activityBlocks, mentorAlerts])
+
+  // Build compact report context for "Ask the Agent" so the AI can answer
+  // questions about the inspector's current report data
+  const reportContext = useMemo(() => {
+    const lines = []
+
+    // Report header
+    lines.push(`Report Date: ${selectedDate}`)
+    if (inspectorName) lines.push(`Inspector: ${inspectorName}`)
+    if (spread) lines.push(`Spread: ${spread}`)
+    if (afe) lines.push(`AFE: ${afe}`)
+    if (pipeline) lines.push(`Pipeline: ${pipeline}`)
+    if (weather) lines.push(`Weather: ${weather}`)
+    if (tempHigh || tempLow) lines.push(`Temperature: High ${tempHigh || '?'}°C, Low ${tempLow || '?'}°C`)
+    if (precipitation) lines.push(`Precipitation: ${precipitation}`)
+    if (windSpeed) lines.push(`Wind: ${windSpeed} km/h`)
+    if (rowCondition) lines.push(`ROW Condition: ${rowCondition}`)
+    if (startTime || stopTime) lines.push(`Work Hours: ${startTime || '?'} to ${stopTime || '?'}`)
+
+    // Activity blocks summary
+    const activeBlocks = activityBlocks.filter(b => b.activityType)
+    if (activeBlocks.length > 0) {
+      lines.push('')
+      lines.push(`--- ${activeBlocks.length} Activity Block(s) ---`)
+
+      activeBlocks.forEach((block, idx) => {
+        lines.push('')
+        lines.push(`Block #${idx + 1}: ${block.activityType}`)
+        if (block.contractor) lines.push(`  Contractor: ${block.contractor}`)
+        if (block.foreman) lines.push(`  Foreman: ${block.foreman}`)
+        if (block.startKP || block.endKP) lines.push(`  KP Range: ${block.startKP || '?'} to ${block.endKP || '?'}`)
+        if (block.metersToday) lines.push(`  Metres Today: ${block.metersToday}`)
+        if (block.metersPrevious) lines.push(`  Metres Previous: ${block.metersPrevious}`)
+        if (block.ticketNumber) lines.push(`  Ticket #: ${block.ticketNumber}`)
+        if (block.workDescription) lines.push(`  Work Description: ${block.workDescription}`)
+
+        // Time lost
+        if (block.timeLostReason && block.timeLostReason !== 'None') {
+          lines.push(`  Time Lost: ${block.timeLostHours || '?'} hrs — ${block.timeLostReason}${block.timeLostDetails ? ' (' + block.timeLostDetails + ')' : ''}`)
+        }
+
+        // Labour summary
+        if (block.labourEntries?.length > 0) {
+          const totalRT = block.labourEntries.reduce((s, e) => s + (parseFloat(e.rt) || 0), 0)
+          const totalOT = block.labourEntries.reduce((s, e) => s + (parseFloat(e.ot) || 0), 0)
+          lines.push(`  Labour: ${block.labourEntries.length} worker(s), ${totalRT} RT hrs, ${totalOT} OT hrs`)
+          block.labourEntries.forEach(e => {
+            lines.push(`    - ${e.employeeName || 'Unnamed'} (${e.classification || '?'}): RT ${e.rt || 0}, OT ${e.ot || 0}${e.productionStatus && e.productionStatus !== 'ACTIVE' ? ' [' + e.productionStatus + ']' : ''}${e.dragReason ? ' — ' + e.dragReason : ''}`)
+          })
+        }
+
+        // Equipment summary
+        if (block.equipmentEntries?.length > 0) {
+          const totalEqHrs = block.equipmentEntries.reduce((s, e) => s + (parseFloat(e.hours) || 0), 0)
+          lines.push(`  Equipment: ${block.equipmentEntries.length} unit(s), ${totalEqHrs} total hrs`)
+          block.equipmentEntries.forEach(e => {
+            lines.push(`    - ${e.type || '?'}${e.unitNumber ? ' (' + e.unitNumber + ')' : ''}: ${e.hours || 0} hrs${e.productionStatus && e.productionStatus !== 'ACTIVE' ? ' [' + e.productionStatus + ']' : ''}${e.dragReason ? ' — ' + e.dragReason : ''}`)
+          })
+        }
+
+        // Quality data (non-empty fields)
+        if (block.qualityData && Object.keys(block.qualityData).length > 0) {
+          const filledFields = Object.entries(block.qualityData)
+            .filter(([, v]) => v !== undefined && v !== null && v !== '')
+          if (filledFields.length > 0) {
+            lines.push(`  Quality Data (${filledFields.length} fields filled):`)
+            filledFields.forEach(([key, val]) => {
+              lines.push(`    ${key}: ${val}`)
+            })
+          }
+        }
+
+        // Work photos count
+        const photoCount = block.workPhotos?.filter(p => p.file || p.filename)?.length || 0
+        if (photoCount > 0) lines.push(`  Work Photos: ${photoCount}`)
+      })
+    }
+
+    // Safety notes
+    if (safetyNotes) {
+      lines.push('')
+      lines.push(`Safety Notes: ${safetyNotes}`)
+    }
+
+    // Health score
+    if (healthScore) {
+      lines.push('')
+      lines.push(`Health Score: ${Math.round(healthScore.score)}/100 (${healthScore.passing ? 'PASSING' : 'BELOW THRESHOLD'})`)
+    }
+
+    return lines.join('\n')
+  }, [selectedDate, inspectorName, spread, afe, pipeline, weather, tempHigh, tempLow, precipitation, windSpeed, rowCondition, startTime, stopTime, activityBlocks, safetyNotes, healthScore])
 
   // Flatten all mentor alerts for sidebar display
   const allMentorAlerts = Object.values(mentorAlerts).flat()
@@ -6952,6 +7044,7 @@ CRITICAL - Individual Entries Required:
               activityType={activityBlocks[0]?.activityType || ''}
               organizationId={organizationId}
               blockId={activityBlocks[0]?.id || 'main'}
+              reportContext={reportContext}
             />
           </div>
         </div>
