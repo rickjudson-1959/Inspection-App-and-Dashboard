@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 3.5 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
+## Version: 3.6 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -109,6 +109,123 @@ A report contains one or more **Activity Blocks**. Each block represents a singl
 
 ### Metres Today Calculation
 The app auto-calculates metersToday as the absolute difference between endKP and startKP. Previous metres are auto-fetched from historical reports for the same activity type and pipeline.
+
+---
+
+## SECTION 2B: CONSTRUCTION PHASE SAFETY PROCEDURES
+
+The field guide covers both **data entry** (what to log in the app) and **safety procedures** (what to verify in the field). The sections below provide inspector safety checklists for critical construction phases per API 1169 and standard pipeline construction practice.
+
+### Lower-in Safety Procedures
+
+Lower-in is the operation of using sidebooms (pipelayers) to lift the welded pipeline string from the skids on the ROW and lower it into the trench. It is one of the highest-risk activities on a pipeline project due to heavy suspended loads and multiple equipment working in close proximity.
+
+**Pre-Lower-in Checks (Inspector Must Verify):**
+1. **Trench inspection complete** — Trench depth meets minimum cover requirements. No debris, rocks, or standing water that could damage coating. Bedding/padding installed where specified.
+2. **Coating inspection complete** — All field joint coatings cured. Holiday (jeep) test passed on entire section to be lowered. Any repairs documented and re-tested.
+3. **Lift plan reviewed** — Number and spacing of sidebooms confirmed for pipe diameter and weight. Boom capacity ratings verified against pipe section weight.
+4. **Sling/choker inspection** — All slings, chokers, and rigging inspected for wear, cuts, or damage. Nylon slings or padded chokers required to protect coating. No wire rope directly on coated pipe.
+5. **Communication protocol confirmed** — Designated signal person identified. Two-way radio communication confirmed between all operators and the signal person. Horn signals reviewed if radios fail.
+6. **Exclusion zone established** — No personnel under suspended load or between sidebooms and trench edge. Spotters positioned at each end of the lower-in section.
+7. **Trench edge stability** — Spoil pile setback adequate (minimum 1.0m from trench edge, or as specified). No equipment tracking on trench edge that could cause collapse.
+8. **Weather assessment** — Wind speed acceptable for crane/sideboom operations (typically <40 km/h). No lightning within 30 minutes.
+
+**During Lower-in (Inspector Monitors):**
+- Pipe lowered uniformly — no point loading, no pipe resting on trench edge
+- Slings positioned at correct intervals (per lift plan)
+- Pipe not dragged along trench bottom (coating damage)
+- Proper clearance from foreign crossings (maintain specified separation)
+- No sudden movements — steady, coordinated lowering
+- Tie-in gaps left where specified (for future weld tie-ins)
+
+**Post-Lower-in (Inspector Documents):**
+- Final position confirmed (pipe resting on trench bottom, not bridging)
+- Coating visually inspected for damage from lowering
+- Any damage documented with photos and KP location
+- Bedding/padding confirmation under pipe at crossings and rocky areas
+- As-built depth measurements at specified intervals
+
+**Common Hazards:**
+| Hazard | Mitigation |
+|--------|------------|
+| Suspended load failure | Verify sling ratings, inspect rigging, no personnel under load |
+| Trench wall collapse | Maintain spoil setback, no equipment on trench edge |
+| Coating damage | Padded slings only, no dragging, inspect after |
+| Pinch points between sidebooms | Exclusion zones, signal person, communication |
+| Equipment rollover at trench edge | Ground conditions assessed, outriggers deployed where possible |
+
+### Trenching (Ditch) Safety Procedures
+
+Trenching is the excavation of the pipeline trench to the specified depth and profile. Inspectors must verify both the trench specifications and the safety of the excavation operation.
+
+**Pre-Trenching Checks (Inspector Must Verify):**
+1. **Utility locates confirmed** — All foreign utilities located and marked (one-call system, hand-dug exposure where required). Hydrovac exposure complete at crossings.
+2. **Crossing agreements in place** — Crossing permits obtained for roads, railways, watercourses, foreign pipelines. Crossing method confirmed (open cut, bore, HDD).
+3. **Environmental constraints** — Watercourse setbacks confirmed. Erosion and sediment control measures installed (silt fence, straw wattles) before excavation near water.
+4. **Grading complete** — ROW graded and ready for trench excavation. Topsoil stripped and stockpiled separately where required.
+5. **Trench profile specified** — Minimum width, depth, and cover requirements confirmed for the pipe diameter. Rock trench specifications reviewed if applicable.
+
+**During Trenching (Inspector Monitors):**
+- **Trench dimensions** — Width and depth at spec. Log measurements in Ditch activity (the app flags minimum cover violations automatically).
+- **Spoil pile placement** — Subsoil on one side, topsoil separate. Minimum setback from trench edge maintained.
+- **Soil conditions** — Document soil type changes (clay, sand, gravel, rock). Note groundwater encountered (depth, flow rate). Record if dewatering required.
+- **Trench stability** — Watch for sloughing, caving, or seepage that could affect wall stability. Flag any sections where shoring or trench boxes may be needed for personnel entry.
+- **Foreign crossings** — Hand excavation within required distance of foreign utilities. Measure and document clearance from pipe to foreign utility.
+- **Rock trench** — If rock encountered: document KP, length, and depth. Log in Trackable Items (Rock Trench) with spec depth vs actual depth achieved.
+- **Blasting** — If blasting required: blast plan reviewed, exclusion zones established, pre-blast survey of nearby structures complete.
+
+**Trench Entry Safety (Critical):**
+- **No entry without assessment** — Evaluate depth, soil conditions, water. Trenches deeper than 1.2m (4 ft) require protective systems.
+- **Protective systems** — Sloping/benching, shoring, or trench boxes required per depth and soil classification. Competent person must assess.
+- **Atmospheric testing** — Required before entry if trench is near existing pipelines, contaminated soil, or low-lying areas. Test for O2, LEL, H2S.
+- **Egress** — Ladder or ramp within 7.5m (25 ft) of all workers in trench.
+- **Inspectors rarely enter trenches** — Most measurements can be taken from the surface with a grade rod. Only enter when specifically required, with all protective systems in place.
+
+**Post-Trenching (Inspector Documents):**
+- Trench log complete with width, depth, and cover measurements at required intervals
+- BOT (Bottom of Trench) checklist: rocks removed, debris cleared, no sharp objects
+- Padding/bedding installed where specified (log in Trackable Items)
+- Dewatering documented if applicable (pumping hours, filter bags used)
+- Photos of trench profile at crossings and changes in soil conditions
+
+**Common Hazards:**
+| Hazard | Mitigation |
+|--------|------------|
+| Trench collapse / cave-in | Protective systems, competent person assessment, no entry without protection |
+| Struck by excavator | Exclusion zones around operating equipment, communication with operator |
+| Contact with foreign utility | Utility locates, hand-dig exposure, maintain clearance |
+| Drowning (water in trench) | Dewatering before entry, pumps on standby, no entry in flooded trenches |
+| Falling into trench | Barriers/flagging at open trench, especially at road crossings and overnight |
+
+### Backfill Safety Procedures
+
+Backfill is the operation of returning excavated material to the trench after the pipe has been lowered in. The inspector verifies that backfill material and methods protect the pipe and coating.
+
+**Inspector Checks:**
+1. **Padding installed** — Verify padding/bedding material placed around pipe per spec (sand, screened material) before bulk backfill begins. Minimum depth above and below pipe confirmed.
+2. **No rocks or debris** — Initial backfill (padding zone) must be free of rocks, frozen lumps, or debris that could damage coating. Select material used for first lift.
+3. **Backfill lifts** — Verify compaction requirements if specified. Typically placed in lifts with compaction at road crossings and near facilities.
+4. **Crown height** — Settlement crown (deliberate mound over trench) meets spec. Crown height measured and documented.
+5. **Concealed work photos** — Backfill is a concealed work activity. Take photos BEFORE backfill covers the pipe (the Health Score flags missing photos on concealed work activities).
+6. **Foreign crossing clearance** — Verify separation maintained at all foreign utility crossings before backfill covers them.
+
+### Coating Inspection Safety Procedures
+
+Coating inspection occurs at field joints (welded connections) and any repair locations. The inspector verifies coating application and integrity.
+
+**Inspector Checks:**
+1. **Surface preparation** — Pipe surface clean, dry, and at proper temperature for coating system. Ambient conditions (temp, humidity, dew point) within manufacturer spec.
+2. **Coating application** — Correct product, correct thickness, correct cure time. All parameters logged in Coating activity.
+3. **Holiday testing (jeeping)** — High-voltage holiday detector used to sweep entire coated surface. Voltage set per coating type and thickness. Any holidays (defects) marked, repaired, and re-tested.
+4. **Field joint coating** — Shrink sleeves or applied coating at each weld joint. Overlap with mill coating adequate. No voids, wrinkles, or disbondment.
+5. **Documentation** — Log holiday test voltage, results, any repairs. This data appears in the PDF export.
+
+**Common Hazards:**
+| Hazard | Mitigation |
+|--------|------------|
+| High-voltage holiday detector | Only trained/qualified operators. No testing in wet conditions or on wet coating. |
+| Coating fumes (heated applications) | Work upwind, respiratory protection if in confined/enclosed area |
+| Burns from heated coating materials | PPE (gloves, face shield), training on application equipment |
 
 ---
 
@@ -552,5 +669,5 @@ A: The PDF only includes trackable items that are saved in the database for the 
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.5*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.6*
 *Source: InspectorReport.jsx (7,700+ lines) + ActivityBlock.jsx (3,400+ lines)*
