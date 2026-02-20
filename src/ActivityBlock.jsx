@@ -515,6 +515,7 @@ function ActivityBlock({
   const [currentEquipment, setCurrentEquipment] = useState({ type: '', hours: '', count: '', unitNumber: '' })
   const [ocrProcessing, setOcrProcessing] = useState(false)
   const [ocrError, setOcrError] = useState(null)
+  const [ocrSuccess, setOcrSuccess] = useState(false)
   const [showTicketPhoto, setShowTicketPhoto] = useState(false)
   
   // Build known crew names from all blocks + localStorage for autocomplete
@@ -829,6 +830,7 @@ function ActivityBlock({
     const newFiles = Array.isArray(imageFiles) ? imageFiles : [imageFiles]
     setOcrProcessing(true)
     setOcrError(null)
+    setOcrSuccess(false)
 
     // Append new photos to any existing ones (supports adding pages one at a time)
     const existingPhotos = block.ticketPhotos || (block.ticketPhoto ? [block.ticketPhoto] : [])
@@ -914,26 +916,46 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
       
       if (jsonMatch) {
         const data = JSON.parse(jsonMatch[0])
-        
+
         if (data.ticketNumber) updateBlock(blockId, 'ticketNumber', data.ticketNumber)
         if (data.contractor) updateBlock(blockId, 'contractor', data.contractor)
         if (data.foreman) updateBlock(blockId, 'foreman', data.foreman)
-        
+
+        // Dedup: check existing entries to avoid doubling when same ticket is scanned twice
+        const existingLabour = block.labourEntries || []
+        const existingEquipment = block.equipmentEntries || []
+
         if (data.labour && Array.isArray(data.labour)) {
           data.labour.forEach(l => {
             if (l.classification) {
-              addLabourToBlock(blockId, l.name || '', l.classification, l.rt || 0, l.ot || 0, 0, 1)
+              // Skip if an entry with same name + classification already exists
+              const isDuplicate = existingLabour.some(
+                e => (e.employeeName || '').toLowerCase() === (l.name || '').toLowerCase() &&
+                     (e.classification || '').toLowerCase() === (l.classification || '').toLowerCase()
+              )
+              if (!isDuplicate) {
+                addLabourToBlock(blockId, l.name || '', l.classification, l.rt || 0, l.ot || 0, 0, 1)
+              }
             }
           })
         }
-        
+
         if (data.equipment && Array.isArray(data.equipment)) {
           data.equipment.forEach(e => {
             if (e.type) {
-              addEquipmentToBlock(blockId, e.type, e.hours || 0, 1, e.unitNumber || '')
+              // Skip if an entry with same type + unit number already exists
+              const isDuplicate = existingEquipment.some(
+                ex => (ex.type || '').toLowerCase() === (e.type || '').toLowerCase() &&
+                      (ex.unitNumber || '').toLowerCase() === (e.unitNumber || '').toLowerCase()
+              )
+              if (!isDuplicate) {
+                addEquipmentToBlock(blockId, e.type, e.hours || 0, 1, e.unitNumber || '')
+              }
             }
           })
         }
+
+        setOcrSuccess(true)
       }
     } catch (err) {
       console.error('OCR Error:', err)
@@ -2289,8 +2311,18 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
         <p style={{ fontSize: '12px', color: '#666', margin: '5px 0 0 0' }}>
           Take a photo or upload images of the contractor's ticket. For multi-page tickets, you can add pages one at a time or select all at once — AI will combine data from all pages.
         </p>
+        {ocrProcessing && (
+          <div style={{ padding: '10px', backgroundColor: '#cce5ff', borderRadius: '6px', border: '1px solid #b8daff', margin: '10px 0' }}>
+            <span style={{ color: '#004085', fontSize: '13px', fontWeight: 'bold' }}>⏳ Photo received — extracting labour & equipment data...</span>
+          </div>
+        )}
         {ocrError && (
           <p style={{ color: '#dc3545', fontSize: '13px', margin: '10px 0' }}>{ocrError}</p>
+        )}
+        {ocrSuccess && !ocrProcessing && (
+          <div style={{ padding: '10px', backgroundColor: '#d4edda', borderRadius: '6px', border: '1px solid #c3e6cb', margin: '10px 0' }}>
+            <span style={{ color: '#155724', fontSize: '13px', fontWeight: 'bold' }}>✓ Ticket scanned — labour and equipment data added below. Review and correct if needed.</span>
+          </div>
         )}
 
         {/* Show ticket photo if one exists (either new upload or saved from database) */}
