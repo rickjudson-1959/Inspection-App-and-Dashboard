@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 3.7 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
+## Version: 3.8 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -208,6 +208,16 @@ Backfill is the operation of returning excavated material to the trench after th
 4. **Crown height** — Settlement crown (deliberate mound over trench) meets spec. Crown height measured and documented.
 5. **Concealed work photos** — Backfill is a concealed work activity. Take photos BEFORE backfill covers the pipe (the Health Score flags missing photos on concealed work activities).
 6. **Foreign crossing clearance** — Verify separation maintained at all foreign utility crossings before backfill covers them.
+
+**Handling a Backfill Compaction Failure:**
+
+If a compaction test fails or visual inspection reveals inadequate compaction, the inspector must document the deficiency in the system:
+
+1. **Document the Location & Issue** — Open the activity block (e.g., "Cleanup - Machine") and tap the **GPS KP Sync** button to record the exact chainage of the compaction failure. Ensure the "mechanical compaction" field is accurately filled out (Y/N). Note the specific lift number and test result in the `workDescription` field.
+
+2. **Capture Visual and Written Evidence** — Upload clear images of the poor compaction using the **Work Photos** section (the Health Score will flag missing photos on concealed work). Tap the microphone icon to use **Voice Input** and dictate a detailed explanation of the failure into the `workDescription` or comments textarea — include the test method, results, and visual observations.
+
+3. **Log Associated Downtime or Rework** — If the failure requires the crew to stop progressing and perform rework, update the `productionStatus` of the affected **Labour** and **Equipment** entries. Change their status from "Working" to "Sync Delay" (or "Management Drag" if work stops entirely), enter the hours lost in the downtime fields, and assign an appropriate **Drag Reason** (e.g., "Ground conditions", "Rework", or a custom reason) so the system calculates the impact on project efficiency via the Shadow Efficiency Audit.
 
 ### Coating Inspection Safety Procedures
 
@@ -675,5 +685,5 @@ A: The PDF only includes trackable items that are saved in the database for the 
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.7*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.8*
 *Source: InspectorReport.jsx (7,700+ lines) + ActivityBlock.jsx (3,400+ lines)*
