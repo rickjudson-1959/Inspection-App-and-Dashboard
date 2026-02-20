@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 3.6 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
+## Version: 3.7 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -526,6 +526,8 @@ When OCR extracts total hours from a ticket, the app auto-splits: RT = min(total
 | Anode | A sacrificial metal component in the cathodic protection system |
 | API 1169 | American Petroleum Institute standard for Pipeline Construction Inspection |
 | Backfill | Returning excavated material to the trench after pipe installation |
+| CAP | Corrective Action Procedure — a documented repair or rework process triggered by a weld or coating defect |
+| CL (Centerline) | The surveyed center of the pipeline trench or ROW — used as a reference for offset measurements (e.g., "Offset from CL (m)") |
 | Bedding/Padding | Select material placed around the pipe to protect coating |
 | Cathodic Protection (CP) | Electrochemical system that prevents pipe corrosion |
 | Chainage | Linear distance along the pipeline from a reference point (KP 0) |
@@ -537,6 +539,8 @@ When OCR extracts total hours from a ticket, the app auto-splits: RT = min(total
 | Drag Reason | Documented cause of non-productive time |
 | Field Joint Coating | Corrosion protection applied at weld locations in the field |
 | GPS KP Sync | Feature that calculates chainage from device GPS and pipeline centerline |
+| GRP (Glass Reinforced Plastic) | A fiberglass composite material used for goal post construction — listed as "GRP/Fiberglass" in goal post material options |
+| HDD (Horizontal Directional Drilling) | A trenchless construction method that drills a pilot hole underground and pulls the pipe through — has its own Activity Type and specialized log in Pipe-Up |
 | Heat Number | Manufacturer's batch tracking number for steel pipe |
 | Holiday | A defect in pipe coating that exposes bare steel |
 | Holiday Test (Jeeping) | Electrical test to detect coating defects using a high-voltage probe |
@@ -546,6 +550,8 @@ When OCR extracts total hours from a ticket, the app auto-splits: RT = min(total
 | JH (Jump Hours) | Bonus hours paid to workers — separate from RT and OT |
 | KP | Kilometre Post — distance along the pipeline in X+XXX format |
 | Lower-in | Using sidebooms to place the welded pipeline into the trench |
+| NDE (Non-Destructive Examination) | Inspection methods (radiography, ultrasonic, magnetic particle, etc.) used to evaluate weld integrity without damaging the pipe — referenced in Welding - Mainline specialized log as "NDE results" |
+| NDT (Non-Destructive Testing) | Interchangeable with NDE — used in Weld UPI Items tracking for failure reasons ("NDT Fail Repair", "NDT Failure") |
 | Management Drag | Complete work stoppage due to decisions outside crew control (0% productive) |
 | Mat Tracker | Pipe-Up feature for logging access mat movements |
 | Mentor Agent | AI-powered real-time auditor that checks field values against thresholds |
@@ -669,5 +675,5 @@ A: The PDF only includes trackable items that are saved in the database for the 
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.6*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.7*
 *Source: InspectorReport.jsx (7,700+ lines) + ActivityBlock.jsx (3,400+ lines)*
