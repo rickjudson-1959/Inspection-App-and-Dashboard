@@ -396,6 +396,29 @@ src/version.js                  # 2.3.8 → 2.4.0
 
 ---
 
+### Construction Phase Safety Procedures Added to Field Guide (February 19, 2026)
+
+**Field guide gap analysis identified missing procedural safety steps for Lower-in, Trenching, Backfill, and Coating phases**
+
+1. **Section 2B: Construction Phase Safety Procedures** — New field guide section with comprehensive pre-inspection, during-inspection, and post-inspection checklists for four construction phases: Lower-in, Trenching (Ditch), Backfill, and Coating. Each phase includes common hazards tables with risk levels and mitigation steps per API 1169.
+
+2. **Lower-in Safety Procedures** — Pre-checks: pipe support spacing, side boom certification, sling/choker integrity, trench clearance, coating condition. During: controlled descent monitoring, stress management, side boom load adherence, tie-in point alignment. Post: as-built position verification, support removal, inspector signoff.
+
+3. **Trenching (Ditch) Safety Procedures** — Pre-checks: dig permits, locate markings, spoil placement, shoring/benching requirements. During: grade/depth compliance, groundwater monitoring, existing utilities proximity, wall stability. Post: trench readiness for lowering-in, spoil management. Includes trench entry safety section for confined space protocols when depth exceeds 1.2m.
+
+4. **Backfill Safety Procedures** — Pre-checks: coating inspection complete, pipe position documented, padding material approved. During: lift height compliance, compaction testing, no direct rock contact. Post: grade restoration, erosion control, compaction records.
+
+5. **Coating Inspection Safety Procedures** — Pre-checks: holiday detector calibration, surface prep verification. During: DFT readings, holiday detection sweeps, repair procedures. Post: clearance documentation, final coating log.
+
+**Field Guide updated to v3.6** — Re-uploaded and re-indexed (35 chunks, 0 errors).
+
+**Files Modified:**
+```
+pipe-up-field-guide-agent-kb.md  # Section 2B added, version 3.5 → 3.6
+```
+
+---
+
 ### Trackable Items DB Schema Gap Fix & PDF Improvements (February 19, 2026)
 
 **Fixed silent data loss: 29 missing DB columns added, dynamic save, enriched PDF descriptions**
@@ -1594,4 +1617,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 19, 2026 (Report-Aware AI Agent, Health Check UX, v2.4.0)*
+*Last Updated: February 19, 2026 (Construction Phase Safety Procedures, Field Guide v3.6)*
