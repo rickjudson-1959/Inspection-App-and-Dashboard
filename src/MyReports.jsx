@@ -5,6 +5,7 @@ import { useOrgQuery } from './utils/queryHelpers.js'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 import NotificationBell from './components/NotificationBell.jsx'
 import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
+import FeedbackButton from './components/FeedbackButton.jsx'
 
 function MyReports({ user, onEditReport, onBack }) {
   const navigate = useNavigate()
@@ -716,6 +717,8 @@ function MyReports({ user, onEditReport, onBack }) {
         <strong>💡 Tip:</strong> All changes you make are tracked in the audit log. 
         Click "Edit" to modify any report - your original submission is preserved in the revision history.
       </div>
+
+      <FeedbackButton pageName="my_reports" userProfile={{ id: user?.id, email: user?.email }} organizationId={organizationId} />
     </div>
   )
 }

@@ -6,6 +6,7 @@ import { useOrgQuery } from './utils/queryHelpers.js'
 import TenantSwitcher from './components/TenantSwitcher.jsx'
 import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 import AgentAuditFindingsPanel from './components/AgentAuditFindingsPanel.jsx'
+import FeedbackButton from './components/FeedbackButton.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 import { getFlagTypeConfig, SEVERITY_COLORS } from './utils/flagTypeConfig.js'
 
@@ -1799,6 +1800,8 @@ function WeldingChiefDashboard() {
           />
         </div>
       )}
+
+      <FeedbackButton pageName="welding_chief" userProfile={userProfile} organizationId={organizationId} />
 
       {/* AI Agent Audit Findings Panel */}
       <AgentAuditFindingsPanel

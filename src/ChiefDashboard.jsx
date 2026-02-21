@@ -8,6 +8,7 @@ import { useOrgQuery } from './utils/queryHelpers.js'
 import TenantSwitcher from './components/TenantSwitcher.jsx'
 import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 import AgentAuditFindingsPanel from './components/AgentAuditFindingsPanel.jsx'
+import FeedbackButton from './components/FeedbackButton.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 import ProjectCalendar from './components/ProjectCalendar.jsx'
 
@@ -1602,6 +1603,8 @@ function ChiefDashboard() {
           </div>
         </div>
       )}
+
+      <FeedbackButton pageName="chief_dashboard" userProfile={userProfile} organizationId={organizationId} />
 
       {/* AI Agent Audit Findings Panel */}
       <AgentAuditFindingsPanel

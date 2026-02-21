@@ -21,6 +21,7 @@ import { useOrgPath } from './contexts/OrgContext.jsx'
 import SignaturePad from './components/SignaturePad.jsx'
 import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 import AgentAuditFindingsPanel from './components/AgentAuditFindingsPanel.jsx'
+import FeedbackButton from './components/FeedbackButton.jsx'
 import JSZip from 'jszip'
 import jsPDF from 'jspdf'
 import { saveAs } from 'file-saver'
@@ -7827,6 +7828,8 @@ function AdminPortal() {
         )}
 
       </div>
+
+      <FeedbackButton pageName="admin_portal" userProfile={userProfile} organizationId={organizationId} />
 
       {/* ==================== AI AGENT AUDIT FINDINGS PANEL ==================== */}
       <AgentAuditFindingsPanel

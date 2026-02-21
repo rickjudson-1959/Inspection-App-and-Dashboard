@@ -11,6 +11,7 @@ import { useOrgQuery } from './utils/queryHelpers.js'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 import AskTheAgentPanel from './components/AskTheAgentPanel.jsx'
+import FeedbackButton from './components/FeedbackButton.jsx'
 
 // Offline mode imports
 import { syncManager, chainageCache, useOnlineStatus, useSyncStatus } from './offline'
@@ -7847,6 +7848,8 @@ CRITICAL - Individual Entries Required:
           </div>
         )}
       </div>
+
+      <FeedbackButton pageName="inspector_report" userProfile={userProfile} organizationId={organizationId} />
 
       {/* TRACKABLE ITEMS CONFIRMATION MODAL */}
       {showTrackableItemsModal && (
