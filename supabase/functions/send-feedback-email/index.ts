@@ -73,7 +73,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         from: 'Pipe-Up Feedback <noreply@pipe-up.ca>',
-        to: ['rjudson@pipe-up.ca'],
+        to: ['rickjudson@telusmail.net'],
         subject: `Pipe-Up Feedback from ${userName || 'User'} (${page})`,
         html: emailHtml,
       }),
