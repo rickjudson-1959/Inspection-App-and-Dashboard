@@ -73,7 +73,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         from: 'Pipe-Up Feedback <noreply@pipe-up.ca>',
-        to: ['rickjudson@telusmail.net'],
+        to: ['rickjudson@telusmail.net', 'rjudson@pipe-up.ca'],
         subject: `Pipe-Up Feedback from ${userName || 'User'} (${page})`,
         html: emailHtml,
       }),
@@ -90,7 +90,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ success: true, resend: result }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )
   } catch (error) {
