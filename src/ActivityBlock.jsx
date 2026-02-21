@@ -3358,6 +3358,19 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
       {/* Work Photos */}
       <div style={{ padding: '15px', backgroundColor: '#e9ecef', borderRadius: '8px' }}>
         <h4 style={{ margin: '0 0 15px 0', color: '#495057' }}>📷 Work Photos</h4>
+        {['Lower-in', 'Backfill', 'Coating', 'HD Bores', 'HDD'].includes(block.activityType) && (
+          <div style={{
+            padding: '10px 12px',
+            backgroundColor: '#fff3cd',
+            border: '1px solid #ffc107',
+            borderRadius: '6px',
+            marginBottom: '12px',
+            fontSize: '13px',
+            color: '#856404'
+          }}>
+            <strong>Concealed-work activity</strong> — This work will be permanently buried or hidden. Take photos <strong>before</strong> it is covered up (e.g., pipe position, coating condition, padding placement). These photos serve as visual evidence for audit and regulatory compliance.
+          </div>
+        )}
         <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginBottom: '15px' }}>
           <label style={{ padding: '10px 20px', backgroundColor: '#007bff', color: 'white', borderRadius: '4px', cursor: 'pointer', fontSize: '14px' }}>
             📁 Upload from Gallery

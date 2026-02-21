@@ -41,7 +41,7 @@ function scorePhotoCompleteness(activityBlocks) {
 
   const missing = concealedBlocks.filter(b => !b.workPhotos || b.workPhotos.length === 0)
   for (const block of missing) {
-    issues.push(`Activity Block #${block._blockNum} "${block.activityType}" (KP ${block.startKP || '?'}) — add concealed-work photos in the "Work Photos" section`)
+    issues.push(`Block #${block._blockNum} "${block.activityType}" (KP ${block.startKP || '?'}) — this work will be buried/hidden. Add photos BEFORE it is covered up in the "Work Photos" section`)
   }
 
   return { score, weight: 25, issues }
