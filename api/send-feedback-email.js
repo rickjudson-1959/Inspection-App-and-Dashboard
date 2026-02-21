@@ -61,7 +61,7 @@ export default async function handler(req, res) {
         'Authorization': `Bearer ${process.env.RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: 'Pipe-Up Feedback <feedback@pipe-up.ca>',
+        from: 'Pipe-Up Feedback <noreply@pipe-up.ca>',
         to: ['rjudson@pipe-up.ca'],
         subject: `Pipe-Up Feedback from ${userName || 'User'} (${page})`,
         html: emailHtml,
