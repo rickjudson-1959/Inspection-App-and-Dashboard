@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 3.9 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
+## Version: 4.0 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -91,7 +91,7 @@ A report contains one or more **Activity Blocks**. Each block represents a singl
 | `metersPrevious` | Number | Auto-populated from previous reports for the same activity type |
 | `ticketNumber` | Text | Contractor ticket number (can auto-fill from OCR) |
 | `ticketPhoto` / `ticketPhotos` | File upload (single or multi) | Photo(s) of contractor daily ticket — triggers OCR scanning. Multi-page tickets show page count in indicator and all pages in modal viewer |
-| `workPhotos` | File uploads | Work progress photos with metadata (caption, location) |
+| `workPhotos` | File uploads | Work progress photos with metadata (caption, location). For concealed-work activities (Lower-in, Backfill, Coating, HD Bores, HDD), a yellow banner reminds inspectors to take photos BEFORE work is buried or hidden — these serve as visual evidence for audit and regulatory compliance. |
 | `labourEntries` | Array | Personnel logged (name, classification, RT, OT, JH, count). All fields are editable inline after OCR — name (with crew roster autocomplete), classification (searchable dropdown), RT, OT, JH, and count. |
 | `equipmentEntries` | Array | Equipment logged (type, unit number, hours, count). All fields are editable inline after OCR — type (searchable dropdown), unit number, hours, and count. |
 | `qualityData` | Object | Activity-specific quality check fields |
@@ -207,7 +207,7 @@ Backfill is the operation of returning excavated material to the trench after th
 2. **No rocks or debris** — Initial backfill (padding zone) must be free of rocks, frozen lumps, or debris that could damage coating. Select material used for first lift.
 3. **Backfill lifts** — Verify compaction requirements if specified. Typically placed in lifts with compaction at road crossings and near facilities.
 4. **Crown height** — Settlement crown (deliberate mound over trench) meets spec. Crown height measured and documented.
-5. **Concealed work photos** — Backfill is a concealed work activity. Take photos BEFORE backfill covers the pipe (the Health Score flags missing photos on concealed work activities).
+5. **Concealed work photos** — Backfill is a concealed work activity. A yellow banner in the Work Photos section reminds you to take photos BEFORE backfill covers the pipe. The Health Score flags any concealed-work block without photos. This applies to: Lower-in, Backfill, Coating, HD Bores, and HDD.
 6. **Foreign crossing clearance** — Verify separation maintained at all foreign utility crossings before backfill covers them.
 
 **Handling a Backfill Compaction Failure:**
@@ -690,5 +690,5 @@ A: The PDF only includes trackable items that are saved in the database for the 
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.9*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.0*
 *Source: InspectorReport.jsx (7,700+ lines) + ActivityBlock.jsx (3,400+ lines)*
