@@ -210,9 +210,9 @@ export const TOUR_STEPS = {
       placement: 'top'
     },
     {
-      target: '[data-tour="doc-search"]',
-      title: 'Document Search',
-      content: 'Need to reference project documents? Use the AI-powered document search to quickly find specifications, procedures, and standards.',
+      target: '[data-tour="ask-agent"]',
+      title: 'Ask the Agent',
+      content: 'Tap the chat button in the bottom-right corner to ask questions about your report, specs, standards, or procedures. The agent knows your current report data.',
       placement: 'left'
     },
     {

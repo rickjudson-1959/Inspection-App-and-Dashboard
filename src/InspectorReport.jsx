@@ -6966,22 +6966,6 @@ CRITICAL - Individual Entries Required:
             🗺️ {showMap ? 'Hide Map' : 'Map'}
           </button>
 
-          <button
-            data-tour="doc-search"
-            onClick={() => setShowDocSearch(!showDocSearch)}
-            style={{
-              padding: '8px 12px',
-              backgroundColor: showDocSearch ? '#4f46e5' : '#8b5cf6',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '12px'
-            }}
-          >
-            🔍 {showDocSearch ? 'Close Search' : 'Doc Search'}
-          </button>
-
           <TourHelpButton onClick={startTour} />
 
           <AIAgentStatusIcon organizationId={organizationId} />
@@ -6995,14 +6979,44 @@ CRITICAL - Individual Entries Required:
         </div>
       </div>
 
-      {/* Document Search Panel - Floating */}
+      {/* Floating Agent Button - Always visible bottom-right */}
+      <button
+        data-tour="ask-agent"
+        onClick={() => setShowDocSearch(!showDocSearch)}
+        style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          width: '56px',
+          height: '56px',
+          borderRadius: '50%',
+          background: 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%)',
+          color: 'white',
+          border: 'none',
+          boxShadow: '0 4px 16px rgba(79, 70, 229, 0.4)',
+          cursor: 'pointer',
+          fontSize: '24px',
+          zIndex: 10000,
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          transition: 'transform 0.2s ease, box-shadow 0.2s ease'
+        }}
+        onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(79, 70, 229, 0.5)' }}
+        onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 16px rgba(79, 70, 229, 0.4)' }}
+        title="Ask the Agent"
+      >
+        {showDocSearch ? '×' : '💬'}
+      </button>
+
+      {/* Agent Panel - Floating above the button */}
       {showDocSearch && (
         <div style={{
           position: 'fixed',
-          top: '120px',
-          right: '20px',
+          bottom: '92px',
+          right: '24px',
           width: '380px',
-          maxHeight: 'calc(100vh - 160px)',
+          maxHeight: 'calc(100vh - 140px)',
           backgroundColor: 'white',
           borderRadius: '12px',
           boxShadow: '0 10px 40px rgba(0,0,0,0.2)',
@@ -7020,8 +7034,8 @@ CRITICAL - Individual Entries Required:
             alignItems: 'center'
           }}>
             <div>
-              <div style={{ fontWeight: 'bold', fontSize: '14px' }}>🔍 Document Search</div>
-              <div style={{ fontSize: '11px', opacity: 0.9 }}>Search specs, standards & procedures</div>
+              <div style={{ fontWeight: 'bold', fontSize: '14px' }}>Ask the Agent</div>
+              <div style={{ fontSize: '11px', opacity: 0.9 }}>Your report, specs & procedures</div>
             </div>
             <button
               onClick={() => setShowDocSearch(false)}
