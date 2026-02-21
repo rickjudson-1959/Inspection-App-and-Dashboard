@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 4.0 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
+## Version: 4.1 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -15,7 +15,7 @@
 - **Audit Trail**: Every report is auto-assigned a unique Document ID and SHA-256 Hash. Inspectors do not need to do anything — the system handles compliance automatically.
 - **Governing Standard**: API 1169 (Pipeline Construction Inspection)
 - **Mentor Agent**: A real-time AI auditor runs in the background, checking field values against thresholds and flagging anomalies. Alerts appear in a sidebar with severity levels. The "Ask the Agent" button — a floating purple chat icon pinned to the bottom-right corner of the screen — is always visible. Tap it to ask questions about your current report (e.g., "how many workers on my trenching block?") or search specs, standards, and procedures from the project knowledge base.
-- **Feedback**: Every page has a "Send Feedback" link at the bottom. Tap it to submit suggestions, report issues, or share what's working well. Feedback is saved and emailed to the project team.
+- **Feedback**: Every page has a blue "Send Feedback" button at the very bottom. Tap it to submit suggestions, report issues, or share what's working well. Feedback is saved to the database and emailed to the project team.
 - **Health Score**: Each report is scored by the ReportHealthScorer — visible to inspectors and reviewers. Health check issues include the specific block number, activity type, and exact section to navigate to for fixing.
 
 ---
@@ -503,7 +503,7 @@ Tracks pipe protection materials. Fields include:
 | Auto-Save Draft | Saves to localStorage every 1.5s + 30s intervals | Automatic |
 | Draft Restore | Prompts to restore or discard saved draft | On new report load |
 | Mentor Agent | Real-time field auditing with alerts + report-aware Q&A | Sidebar alerts + floating chat button (bottom-right) |
-| Feedback | Submit suggestions or report issues from any page | "Send Feedback" link at page bottom |
+| Feedback | Submit suggestions or report issues from any page | Blue "Send Feedback" button at page bottom |
 | Health Score | Report quality score with specific fix locations | Report header indicator |
 | Production Status Flags | Working / Sync Delay / Management Drag | Labour/equipment rows |
 | Inertia Ratio | Shadow Hours / Billed Hours efficiency score | Executive Dashboard |
@@ -690,5 +690,5 @@ A: The PDF only includes trackable items that are saved in the database for the 
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.0*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.1*
 *Source: InspectorReport.jsx (7,700+ lines) + ActivityBlock.jsx (3,400+ lines)*

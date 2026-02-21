@@ -374,15 +374,17 @@
 
 1. **Floating agent button** — Replaced the header "Doc Search" button with a persistent floating purple chat button pinned to the bottom-right corner of the screen. Always visible as the user scrolls. Tapping opens the "Ask the Agent" panel above the button; tapping again closes it. Updated guided tour step.
 
-2. **Feedback button on all pages** — New reusable `FeedbackButton` component added to: Inspector Report, Chief Dashboard, Welding Chief Dashboard, Assistant Chief Dashboard, My Reports, and Admin Portal. Subtle "Send Feedback" link at the bottom of each page opens a modal. Feedback is saved to the `user_feedback` database table AND emailed to rjudson@pipe-up.ca via Resend.
+2. **Feedback button on all pages** — New reusable `FeedbackButton` component added to: Inspector Report, Chief Dashboard, Welding Chief Dashboard, Assistant Chief Dashboard, My Reports, and Admin Portal. Solid blue "Send Feedback" button at the very bottom of each page with helper text. Opens a modal for typed feedback. Saved to `user_feedback` database table AND emailed to rjudson@pipe-up.ca via Resend.
 
-3. **Field guide v3.6: Construction phase safety procedures** — Added Section 2B with comprehensive pre/during/post inspection checklists and hazard tables for Lower-in, Trenching (Ditch), Backfill, and Coating phases per API 1169.
+3. **Concealed-work photo explanation** — For Lower-in, Backfill, Coating, HD Bores, and HDD activity blocks, a yellow banner in the Work Photos section explains that photos must be taken BEFORE work is buried/hidden. Health score message also clarified to explain why photos are needed.
 
-4. **Field guide v3.7: Missing glossary terms** — Added definitions for NDE, NDT, CAP, HDD, GRP, and CL — acronyms used in application fields but previously undefined.
+4. **Field guide v3.6: Construction phase safety procedures** — Added Section 2B with comprehensive pre/during/post inspection checklists and hazard tables for Lower-in, Trenching (Ditch), Backfill, and Coating phases per API 1169.
 
-5. **Field guide v3.8: Backfill compaction failure procedure** — Step-by-step instructions for documenting compaction failures: GPS location capture, photo/voice evidence, and downtime/rework logging with drag reasons.
+5. **Field guide v3.7: Missing glossary terms** — Added definitions for NDE, NDT, CAP, HDD, GRP, and CL — acronyms used in application fields but previously undefined.
 
-6. **Field guide v3.9: Agent & feedback documentation** — Updated brand context, feature table, and FAQ to reflect floating agent button and feedback system.
+6. **Field guide v3.8: Backfill compaction failure procedure** — Step-by-step instructions for documenting compaction failures: GPS location capture, photo/voice evidence, and downtime/rework logging with drag reasons.
+
+7. **Field guide v3.9–v4.1: Agent, feedback & concealed-work documentation** — Updated brand context, feature table, and FAQ to reflect floating agent button, feedback system, and concealed-work photo explanation.
 
 **Database Migration:** `user_feedback` table with RLS policies.
 
@@ -397,12 +399,14 @@ supabase/migrations/20260219_user_feedback.sql  # DB table + RLS
 ```
 src/InspectorReport.jsx              # Floating agent button, removed Doc Search, added FeedbackButton
 src/components/GuidedTour.jsx        # Updated tour step for new button location
+src/ActivityBlock.jsx                # Concealed-work photo yellow banner
+src/agents/ReportHealthScorer.js     # Clearer concealed-work health score message
 src/ChiefDashboard.jsx               # Added FeedbackButton
 src/WeldingChiefDashboard.jsx        # Added FeedbackButton
 src/AssistantChiefDashboard.jsx      # Added FeedbackButton
 src/MyReports.jsx                    # Added FeedbackButton
 src/AdminPortal.jsx                  # Added FeedbackButton
-pipe-up-field-guide-agent-kb.md      # v3.5 → v3.9
+pipe-up-field-guide-agent-kb.md      # v3.5 → v4.1
 ```
 
 ---
@@ -1656,4 +1660,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 19, 2026 (Floating Agent Button, Feedback System, Field Guide v3.9)*
+*Last Updated: February 19, 2026 (Floating Agent, Feedback, Concealed-Work Photos, Field Guide v4.1)*
