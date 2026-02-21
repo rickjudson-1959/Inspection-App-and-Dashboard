@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 3.8 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
+## Version: 3.9 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -14,7 +14,8 @@
 - **Tone**: Approachable, collaborative, professional. Speak to inspectors as experienced peers.
 - **Audit Trail**: Every report is auto-assigned a unique Document ID and SHA-256 Hash. Inspectors do not need to do anything — the system handles compliance automatically.
 - **Governing Standard**: API 1169 (Pipeline Construction Inspection)
-- **Mentor Agent**: A real-time AI auditor runs in the background, checking field values against thresholds and flagging anomalies. Alerts appear in a sidebar with severity levels. The "Ask the Agent" panel can answer questions about the current report (e.g., "how many workers on my trenching block?") as well as specs, standards, and procedures from the project knowledge base.
+- **Mentor Agent**: A real-time AI auditor runs in the background, checking field values against thresholds and flagging anomalies. Alerts appear in a sidebar with severity levels. The "Ask the Agent" button — a floating purple chat icon pinned to the bottom-right corner of the screen — is always visible. Tap it to ask questions about your current report (e.g., "how many workers on my trenching block?") or search specs, standards, and procedures from the project knowledge base.
+- **Feedback**: Every page has a "Send Feedback" link at the bottom. Tap it to submit suggestions, report issues, or share what's working well. Feedback is saved and emailed to the project team.
 - **Health Score**: Each report is scored by the ReportHealthScorer — visible to inspectors and reviewers. Health check issues include the specific block number, activity type, and exact section to navigate to for fixing.
 
 ---
@@ -501,7 +502,8 @@ Tracks pipe protection materials. Fields include:
 | Seed Tag Photo Requirement | Requires seed tag photo for Final Cleanup | Cleanup - Final activity |
 | Auto-Save Draft | Saves to localStorage every 1.5s + 30s intervals | Automatic |
 | Draft Restore | Prompts to restore or discard saved draft | On new report load |
-| Mentor Agent | Real-time field auditing with alerts + report-aware Q&A | Sidebar alerts + "Ask the Agent" panel |
+| Mentor Agent | Real-time field auditing with alerts + report-aware Q&A | Sidebar alerts + floating chat button (bottom-right) |
+| Feedback | Submit suggestions or report issues from any page | "Send Feedback" link at page bottom |
 | Health Score | Report quality score with specific fix locations | Report header indicator |
 | Production Status Flags | Working / Sync Delay / Management Drag | Labour/equipment rows |
 | Inertia Ratio | Shadow Hours / Billed Hours efficiency score | Executive Dashboard |
@@ -627,7 +629,7 @@ A: The app has offline mode. Your report auto-saves to your device. When connect
 A: The Mentor Agent is an AI auditor that checks your field entries in real-time against expected ranges and thresholds. If a value seems unusual (e.g., abnormal preheat temperature), it flags an alert. You can acknowledge, override with a reason, or dismiss alerts.
 
 **Q: Can I ask the AI agent questions about my current report?**
-A: Yes! The "Ask the Agent" panel (the robot icon) has full knowledge of your current report — including all activity blocks, labour/equipment entries, quality fields, metres, KP ranges, weather, and health score. You can ask questions like "How many total hours did my crew work today?", "What's my total metres across all blocks?", "Did I fill in all the coating quality fields?", or "Who's working on the trenching activity?". It also searches the project knowledge base (field guide, specs, standards) for technical questions.
+A: Yes! Tap the purple chat button in the bottom-right corner of the screen to open "Ask the Agent." It has full knowledge of your current report — including all activity blocks, labour/equipment entries, quality fields, metres, KP ranges, weather, and health score. You can ask questions like "How many total hours did my crew work today?", "What's my total metres across all blocks?", "Did I fill in all the coating quality fields?", or "Who's working on the trenching activity?". It also searches the project knowledge base (field guide, specs, standards) for technical questions.
 
 **Q: How do I edit a submitted report?**
 A: From the Previous Reports list, select the report to edit. If the Chief Inspector has requested a revision, you'll see their notes. Make corrections and re-submit. All edits are tracked in the audit trail.
@@ -674,6 +676,9 @@ A: Yes. Previously, editing a saved report that had work photos would crash with
 **Q: The app showed a blank page or MIME type error — what happened?**
 A: This was caused by the service worker caching old JavaScript files and serving stale content after a deployment. It has been permanently fixed with three layers of protection: (1) the service worker no longer aggressively caches JS files, (2) the UpdatePrompt component detects version changes and auto-clears caches, and (3) a self-healing script in the page itself catches any module load failures and automatically clears all caches, unregisters the service worker, and reloads. Users should never need to manually clear their cache.
 
+**Q: How do I send feedback about the app?**
+A: Scroll to the bottom of any page and tap "Send Feedback." Type your message and hit Submit. Your feedback is saved to the database and emailed to the project team. You can report bugs, suggest features, or let us know what's working well.
+
 **Q: Do I need to clear my cache or do a hard refresh after updates?**
 A: No. The app now handles this automatically. When a new version is deployed, the app detects it and refreshes itself. If anything goes wrong during the update, the self-healing system kicks in and recovers automatically. You'll briefly see an "Updating App" spinner, then the latest version loads.
 
@@ -685,5 +690,5 @@ A: The PDF only includes trackable items that are saved in the database for the 
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.8*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v3.9*
 *Source: InspectorReport.jsx (7,700+ lines) + ActivityBlock.jsx (3,400+ lines)*
