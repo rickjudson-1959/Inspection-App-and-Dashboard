@@ -23,18 +23,16 @@ export default function FeedbackButton({ pageName, userProfile, organizationId }
         feedback_text: feedbackText.trim()
       })
 
-      // Send email notification
+      // Send email notification via Supabase Edge Function
       try {
-        await fetch('/api/send-feedback-email', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        await supabase.functions.invoke('send-feedback-email', {
+          body: {
             userName: userProfile?.full_name || userProfile?.email || 'Unknown',
             userEmail: userProfile?.email || '',
             userRole: userProfile?.role || '',
             page: pageName,
             feedbackText: feedbackText.trim()
-          })
+          }
         })
       } catch (emailErr) {
         console.warn('Feedback email failed (saved to DB):', emailErr)
