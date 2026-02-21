@@ -7849,8 +7849,6 @@ CRITICAL - Individual Entries Required:
         )}
       </div>
 
-      <FeedbackButton pageName="inspector_report" userProfile={userProfile} organizationId={organizationId} />
-
       {/* TRACKABLE ITEMS CONFIRMATION MODAL */}
       {showTrackableItemsModal && (
         <div style={{
@@ -8017,6 +8015,8 @@ CRITICAL - Individual Entries Required:
           onClick={() => setMentorSidebarOpen(true)}
         />
       )}
+
+      <FeedbackButton pageName="inspector_report" userProfile={userProfile} organizationId={organizationId} />
     </div>
   )
 }

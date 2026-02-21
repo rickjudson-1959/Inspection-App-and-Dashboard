@@ -56,21 +56,25 @@ export default function FeedbackButton({ pageName, userProfile, organizationId }
 
   return (
     <>
-      <div style={{ textAlign: 'center', padding: '20px 0', marginTop: '10px' }}>
+      <div style={{ textAlign: 'center', padding: '24px 0', marginTop: '16px', borderTop: '1px solid #e5e7eb' }}>
         <button
           onClick={() => setShowModal(true)}
           style={{
-            background: 'none',
+            background: 'linear-gradient(135deg, #003366 0%, #1E3A5F 100%)',
             border: 'none',
-            color: '#6b7280',
-            fontSize: '13px',
+            color: 'white',
+            fontSize: '14px',
             cursor: 'pointer',
-            textDecoration: 'underline',
-            padding: '8px 16px'
+            padding: '10px 24px',
+            borderRadius: '6px',
+            fontWeight: '500'
           }}
         >
-          Send Feedback
+          💬 Send Feedback
         </button>
+        <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '6px' }}>
+          Report issues, suggest improvements, or tell us what's working
+        </div>
       </div>
 
       {showModal && (
