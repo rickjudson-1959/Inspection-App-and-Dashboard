@@ -3771,24 +3771,32 @@ CRITICAL - Individual Entries Required:
       const gapReason = chainageReasons[block.id]?.gapReason
       
       if (overlapReason) {
-        checkPageBreak(12)
+        const overlapLines = doc.splitTextToSize('OVERLAP: ' + overlapReason, contentWidth - 6)
+        const overlapBoxHeight = Math.max(7, overlapLines.length * 4 + 3)
+        checkPageBreak(overlapBoxHeight + 3)
         setColor(BRAND.redLight, 'fill')
-        doc.roundedRect(margin, y, contentWidth, 7, 1, 1, 'F')
+        doc.roundedRect(margin, y, contentWidth, overlapBoxHeight, 1, 1, 'F')
         setColor(BRAND.red, 'text')
         doc.setFont('helvetica', 'bold')
         doc.setFontSize(8)
-        doc.text('OVERLAP: ' + overlapReason.substring(0, 80), margin + 3, y + 4.5)
-        y += 9
+        overlapLines.forEach((line, li) => {
+          doc.text(line, margin + 3, y + 4.5 + (li * 4))
+        })
+        y += overlapBoxHeight + 2
       }
       if (gapReason) {
-        checkPageBreak(12)
+        const gapLines = doc.splitTextToSize('GAP: ' + gapReason, contentWidth - 6)
+        const gapBoxHeight = Math.max(7, gapLines.length * 4 + 3)
+        checkPageBreak(gapBoxHeight + 3)
         setColor(BRAND.orangeLight, 'fill')
-        doc.roundedRect(margin, y, contentWidth, 7, 1, 1, 'F')
+        doc.roundedRect(margin, y, contentWidth, gapBoxHeight, 1, 1, 'F')
         setColor(BRAND.orange, 'text')
         doc.setFont('helvetica', 'bold')
         doc.setFontSize(8)
-        doc.text('GAP: ' + gapReason.substring(0, 80), margin + 3, y + 4.5)
-        y += 9
+        gapLines.forEach((line, li) => {
+          doc.text(line, margin + 3, y + 4.5 + (li * 4))
+        })
+        y += gapBoxHeight + 2
       }
 
       // Work Description
