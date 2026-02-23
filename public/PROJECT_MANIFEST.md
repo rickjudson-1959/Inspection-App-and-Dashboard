@@ -368,6 +368,24 @@
 
 ## 6. RECENT UPDATES (January/February 2026)
 
+### God Mode View Button Navigation Fix (February 23, 2026)
+
+**Fixed "Organization Not Found" error when clicking View on reports from God Mode or dashboard report tables**
+
+1. **ChiefDashboard View button fix** — The "View" button on pending reports in ChiefDashboard navigated to `/report?id=...` without the organization slug prefix. When accessed via God Mode (Admin Portal), this caused OrgContext to fail with "Access Error — Organization Not Found" because no org slug was in the URL. Wrapped with `orgPath()` to match all other navigation calls in the file.
+
+2. **AssistantChiefDashboard View Full Report fix** — Same bug: the "View Full Report →" button navigated without `orgPath()`. Fixed identically.
+
+**Field Guide updated to v4.2** — Version bump only (no inspector-facing content changes).
+
+**Files Modified:**
+```
+src/ChiefDashboard.jsx           # orgPath() added to View button navigate (line 1121)
+src/AssistantChiefDashboard.jsx   # orgPath() added to View Full Report navigate (line 2047)
+```
+
+---
+
 ### Floating Agent Button, Feedback System & Field Guide Updates (February 19, 2026)
 
 **Floating chat button for AI agent, in-app feedback on every page, field guide expanded with safety procedures, glossary, and compaction failure instructions**

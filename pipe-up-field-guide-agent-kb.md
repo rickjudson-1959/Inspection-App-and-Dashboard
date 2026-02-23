@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 4.1 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-19
+## Version: 4.2 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-23
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
