@@ -2044,7 +2044,7 @@ function AssistantChiefDashboard() {
                       <div><strong>Submitted:</strong> {new Date(selectedReport.submitted_at || selectedReport.created_at).toLocaleString()}</div>
                     </div>
                     <button
-                      onClick={() => navigate(`/report?id=${selectedReport.id}`)}
+                      onClick={() => navigate(orgPath(`/report?id=${selectedReport.id}`))}
                       style={{ marginTop: '15px', padding: '8px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                     >
                       View Full Report →

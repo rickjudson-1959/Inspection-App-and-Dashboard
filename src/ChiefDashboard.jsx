@@ -1118,7 +1118,7 @@ function ChiefDashboard() {
                       <td style={{ ...tdStyle, fontSize: '13px' }}>{(report.ticket?.activity_blocks || []).map(b => b.activityType).filter(Boolean).join(', ') || '-'}</td>
                       <td style={{ ...tdStyle, fontFamily: 'monospace', color: '#28a745' }}>{getKPRange(report.ticket?.activity_blocks)}</td>
                       <td style={{ ...tdStyle, textAlign: 'center' }}>
-                        <button onClick={() => navigate(`/report?id=${report.ticket?.id || report.report_id}`)} style={{ padding: '8px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}>View</button>
+                        <button onClick={() => navigate(orgPath(`/report?id=${report.ticket?.id || report.report_id}`))} style={{ padding: '8px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px' }}>View</button>
                         <button onClick={() => acceptReport(report.report_id)} style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginRight: '8px', fontWeight: 'bold' }}>Accept</button>
                         <button onClick={() => openRejectModal(report)} style={{ padding: '8px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Reject</button>
                       </td>
