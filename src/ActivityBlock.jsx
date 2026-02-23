@@ -31,7 +31,6 @@ import ShieldedInput from './components/common/ShieldedInput.jsx'
 import { useMentorAuditor } from './hooks/useMentorAuditor.js'
 import { getTipsForActivity } from './agents/MentorTipService.js'
 import MentorTipOverlay from './components/MentorTipOverlay.jsx'
-import AskTheAgentPanel from './components/AskTheAgentPanel.jsx'
 
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -2232,15 +2231,6 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
           </div>
         )}
       </div>
-
-      {/* Ask the Agent */}
-      {block.activityType && (
-        <AskTheAgentPanel
-          activityType={block.activityType}
-          organizationId={organizationId}
-          blockId={String(block.id)}
-        />
-      )}
 
       {/* Mentor Tips Overlay */}
       {showMentorTips && mentorTips.length > 0 && (
