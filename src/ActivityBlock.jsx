@@ -3358,7 +3358,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
       {/* Work Photos */}
       <div style={{ padding: '15px', backgroundColor: '#e9ecef', borderRadius: '8px' }}>
         <h4 style={{ margin: '0 0 15px 0', color: '#495057' }}>📷 Work Photos</h4>
-        {['Lower-in', 'Backfill', 'Coating', 'HD Bores', 'HDD'].includes(block.activityType) && (
+        {['Lower-in', 'Backfill', 'Coating', 'HD Bores', 'HDD', 'Frost Packing'].includes(block.activityType) && (
           <div style={{
             padding: '10px 12px',
             backgroundColor: '#fff3cd',

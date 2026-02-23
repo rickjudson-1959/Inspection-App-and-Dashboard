@@ -8,7 +8,7 @@ const DEFAULT_HEALTH_THRESHOLD = 90
 
 // Concealed-work activities that should have photos
 const CONCEALED_WORK_ACTIVITIES = [
-  'Lower-in', 'Backfill', 'Coating', 'HD Bores', 'HDD'
+  'Lower-in', 'Backfill', 'Coating', 'HD Bores', 'HDD', 'Frost Packing'
 ]
 
 // ─────────────────────────────────────────────────────────────

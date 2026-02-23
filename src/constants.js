@@ -51,7 +51,8 @@ export const activityTypes = [
   'Piling',
   'Equipment Cleaning',
   'Hydrovac',
-  'Welder Testing'
+  'Welder Testing',
+  'Frost Packing'
 ]
 
 // Quality fields per activity type (API 1169 based)
@@ -237,6 +238,16 @@ export const qualityFieldsByActivity = {
     { name: 'casingSize', label: 'Casing Size (in)', type: 'number' },
     { name: 'carrierPipeSize', label: 'Carrier Pipe Size (in)', type: 'number' },
     { name: 'annularSpace', label: 'Annular Space Filled', type: 'select', options: ['Yes', 'No'] }
+  ],
+  'Frost Packing': [
+    { name: 'frostPackMaterial', label: 'Packing Material', type: 'select', options: ['Sand', 'Gravel', 'Select Fill', 'Screened Material', 'Other'] },
+    { name: 'frostPackDepth', label: 'Cover Depth (cm)', type: 'number' },
+    { name: 'frostPackMethod', label: 'Placement Method', type: 'select', options: ['Machine Placed', 'Hand Placed', 'Combination'] },
+    { name: 'groundCondition', label: 'Ground Condition', type: 'select', options: ['Frozen', 'Partially Frozen', 'Thawed', 'Mixed'] },
+    { name: 'frostDepth', label: 'Frost Depth (cm)', type: 'number' },
+    { name: 'ambientTemp', label: 'Ambient Temp (°C)', type: 'number' },
+    { name: 'pipeProtection', label: 'Pipe Protection in Place', type: 'select', options: ['Yes', 'No', 'N/A'] },
+    { name: 'compactionAchieved', label: 'Compaction Achieved', type: 'select', options: ['Yes', 'No', 'N/A - Frozen'] }
   ]
 }
 

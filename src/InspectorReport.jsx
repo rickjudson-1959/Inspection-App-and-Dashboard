@@ -532,10 +532,10 @@ CRITICAL - Individual Entries Required:
   // AUTO-SAVE / DRAFT FUNCTIONALITY
   // ============================================
 
-  // Initialize chainage cache for offline overlap checking
+  // Initialize chainage cache for offline overlap checking (org-scoped)
   useEffect(() => {
-    chainageCache.init()
-  }, [])
+    chainageCache.init(organizationId)
+  }, [organizationId])
 
   // Check for existing draft on component mount
   useEffect(() => {
@@ -1318,11 +1318,20 @@ CRITICAL - Individual Entries Required:
     if (activitiesToCheck.length === 0) return warnings
 
     try {
-      // Fetch existing reports
-      const { data: existingReports, error } = await supabase
+      // Fetch existing reports (org-scoped)
+      let query = supabase
         .from('daily_reports')
         .select('date, spread, activity_blocks')
         .neq('date', selectedDate) // Exclude current date
+
+      query = addOrgFilter(query)
+
+      // Exclude current report when editing
+      if (currentReportId) {
+        query = query.neq('id', currentReportId)
+      }
+
+      const { data: existingReports, error } = await query
 
       console.log('Fetched existing reports:', existingReports?.length || 0, 'Error:', error)
       if (error || !existingReports) return warnings
@@ -6514,7 +6523,7 @@ CRITICAL - Individual Entries Required:
   'Welding - Section Crew',
   'Welding - Poor Boy', 'Welding - Tie-in', 'Coating', 'Lowering-in',
       'Backfill', 'Hydro Test', 'Tie-in Completion', 'Cleanup - Machine', 'Cleanup - Final',
-      'HDD', 'HD Bores', 'Other'
+      'HDD', 'HD Bores', 'Frost Packing', 'Other'
     ]
 
     // Build header row

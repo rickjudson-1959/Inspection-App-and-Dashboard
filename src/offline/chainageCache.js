@@ -12,10 +12,12 @@ const MAX_REPORTS_TO_FETCH = 500
 class ChainageCacheManager {
   constructor() {
     this.isRefreshing = false
+    this.organizationId = null
   }
 
   // Initialize cache on app load
-  async init() {
+  async init(organizationId) {
+    if (organizationId) this.organizationId = organizationId
     const cache = await getAllChainageCache()
     const now = Date.now()
 
@@ -38,12 +40,18 @@ class ChainageCacheManager {
     console.log('[ChainageCache] Refreshing cache from server...')
 
     try {
-      // Fetch last N reports with chainage data
-      const { data: reports, error } = await supabase
+      // Fetch last N reports with chainage data (org-scoped)
+      let query = supabase
         .from('daily_reports')
         .select('date, spread, activity_blocks')
         .order('date', { ascending: false })
         .limit(MAX_REPORTS_TO_FETCH)
+
+      if (this.organizationId) {
+        query = query.eq('organization_id', this.organizationId)
+      }
+
+      const { data: reports, error } = await query
 
       if (error) {
         console.error('[ChainageCache] Error fetching reports:', error)
