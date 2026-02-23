@@ -70,7 +70,7 @@
 - Weather condition logging with offline cache
 - Digital signature capture
 
-### Activity Types (25 Supported)
+### Activity Types (26 Supported)
 1. Clearing
 2. Access
 3. Topsoil (with horizon separation tracking)
@@ -96,6 +96,7 @@
 23. Hydrovac
 24. Welder Testing
 25. Counterbore/Transition
+26. Frost Packing
 
 ### Inspector Invoicing System
 - Inspector profile management (company/banking info)
@@ -367,6 +368,29 @@
 ---
 
 ## 6. RECENT UPDATES (January/February 2026)
+
+### Chainage Overlap Fix, Frost Packing Activity & PDF Overlap Text (February 23, 2026)
+
+**Fixed false chainage overlap warnings, added Frost Packing as a new activity type, and fixed PDF truncating overlap reason text**
+
+1. **Chainage overlap org filter bug** — `checkHistoricalOverlaps()` was querying ALL organizations' reports instead of only the current org, causing false overlap warnings. Inspectors were told KP ranges were "already reported" when they hadn't entered them. Added `addOrgFilter(query)` to match the correct pattern in `fetchExistingChainages()`. Also added org-scoped filtering to the offline `chainageCache.js` manager.
+
+2. **Frost Packing activity type (#26)** — New activity type with 8 quality fields: Packing Material (Sand/Gravel/Select Fill/Screened/Other), Cover Depth (cm), Placement Method (Machine/Hand/Combination), Ground Condition (Frozen/Partially Frozen/Thawed/Mixed), Frost Depth (cm), Ambient Temp (°C), Pipe Protection in Place, Compaction Achieved. Added to concealed-work photo banner and health scorer.
+
+3. **PDF overlap/gap reason text truncation** — Overlap and gap reason text in the PDF was hardcoded to `substring(0, 80)` in a fixed single-line 7px box. Now uses `splitTextToSize()` to wrap the full text across multiple lines with a dynamically sized background box.
+
+**Field Guide updated to v4.3** — Frost Packing added to activity table, glossary, concealed-work lists. Chainage overlap docs updated.
+
+**Files Modified:**
+```
+src/InspectorReport.jsx           # addOrgFilter in checkHistoricalOverlaps, PDF multi-line overlap text, Frost Packing in Excel phases
+src/constants.js                  # Frost Packing activity type + 8 quality fields
+src/ActivityBlock.jsx             # Frost Packing in concealed-work photo list
+src/agents/ReportHealthScorer.js  # Frost Packing in CONCEALED_WORK_ACTIVITIES
+src/offline/chainageCache.js      # Org-scoped cache refresh
+```
+
+---
 
 ### God Mode View Button Navigation Fix (February 23, 2026)
 
