@@ -421,10 +421,11 @@ If offline, the report saves locally via syncManager. A pending count badge show
 Click "Download PDF Copy" to generate a comprehensive PDF of the entire report. The PDF includes:
 - **Report header**: Date, inspector, spread, pipeline, AFE, start/end time
 - **Weather**: Conditions, temps, wind, precipitation, ROW condition
-- **Per activity block**: Activity type, contractor, foreman, start/end KP, metres today/previous, ticket number, work description
+- **Per activity block**: Activity type, contractor, foreman, start/end KP, metres today/previous, ticket number, work description, work photos (thumbnail images with KP location and description)
 - **Manpower table**: Employee name, classification, RT, OT, JH, qty, production status, productive hours, drag reason
 - **Equipment table**: Equipment type, unit number, hours, qty, production status, productive hours, drag reason
 - **Quality checks**: All fields including collapsible sections (Topsoil horizon separation, Stringing pipe receiving, etc.)
+- **Work photos**: Thumbnail images (30×22 mm) for every uploaded work photo, with KP location and description beside each. Appears for all activity types. If a photo fails to load, a placeholder is shown and the PDF still generates successfully.
 - **Specialized logs**: Full data from all 19 specialized log components (Welding, Bending, Stringing, Coating, Tie-in Coating, Clearing, Ditch, Tie-in Backfill, HDD, Grading, Hydrovac, Piling, HD Bores, Equipment Cleaning, Machine Cleanup, Final Cleanup, Welder Testing, Hydrostatic Testing, Counterbore/Transition)
 - **Hydrovac**: Contractor/foreman, facility details table
 - **Safety**: Safety notes, safety recognition cards, wildlife sightings
