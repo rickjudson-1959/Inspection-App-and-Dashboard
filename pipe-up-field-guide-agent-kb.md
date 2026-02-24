@@ -254,7 +254,7 @@ Each activity type may trigger a specialized log component with activity-specifi
 | **Welding - Tie-in** | CounterboreTransitionLog | Counterbore measurements, transition data, upstream/downstream joint numbers |
 | **Bending** | BendingLog | Dmax, Dmin, ovality calculation, bend angle, bend location |
 | **Stringing** | StringingLog | Joint numbers, heat numbers, pipe tally, joint layout |
-| **Coating** | CoatingLog | Ambient temp, humidity, coating type/product, holiday test results |
+| **Coating** | CoatingLog | Weld identification (weld #, KP, diameter NPS dropdown, wall thickness mm, grade dropdown, coating company), ambient conditions (up to 3 readings: wet/dry bulb, dew point, humidity, steel temp), surface prep & blasting (per-weld: contaminants, steel condition, abrasive type, blast finish, profile depths, tape test), coating material (system type, sleeve type, batch numbers, expiry, storage temp), preheat & application (method, temps, times, visual appearance), inspection & holiday detection (DFT readings ×6, holiday voltage, detector ID, jeeps, low mils), repairs (patch stick, liquid repair, spec compliance, repair thickness), cure tests (V-cut rating, Shore-D hardness, pass/fail), sign-off (NCR status, inspector notes) |
 | **Clearing** | ClearingLog | Timber deck IDs, species, volumes, slash disposal |
 | **HDD** | HDDLog | Entry/exit KP, bore depth, drilling fluid, pullback data |
 | **HD Bores** | ConventionalBoreLog | Conventional bore data, casing details |
