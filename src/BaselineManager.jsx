@@ -23,11 +23,15 @@ const ACTIVITY_TYPES = [
   'Welding - Mainline',
   'Welding - Tie-in',
   'Coating',
+  'Tie-in Coating',
   'Lowering-In',
   'Backfill',
+  'Tie-in Backfill',
   'Cleanup',
   'HDD',
-  'Hydrotest'
+  'Hydrotest',
+  'Pipe Yard',
+  'Other'
 ]
 
 export default function BaselineManager() {
@@ -159,7 +163,7 @@ export default function BaselineManager() {
       [''],
       ['COLUMN DESCRIPTIONS:'],
       ['spread', 'Project spread/section (e.g., Spread 1, Spread 2)'],
-      ['activity_type', 'Must match: Clearing, Grading, Stringing, Bending, Welding - Mainline, Welding - Tie-in, Coating, Lowering-In, Backfill, Cleanup, HDD, Hydrotest'],
+      ['activity_type', 'Must match: Clearing, Grading, Stringing, Bending, Welding - Mainline, Welding - Tie-in, Coating, Tie-in Coating, Lowering-In, Backfill, Tie-in Backfill, Cleanup, HDD, Hydrotest, Pipe Yard, Other'],
       ['planned_metres', 'Total metres planned for this activity'],
       ['start_kp', 'Starting kilometre post (e.g., 0+000)'],
       ['end_kp', 'Ending kilometre post (e.g., 50+000)'],

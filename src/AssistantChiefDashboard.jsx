@@ -1775,9 +1775,9 @@ function AssistantChiefDashboard() {
   // =============================================
   const activityOptions = [
     'Clearing', 'Grading', 'Stringing', 'Bending', 'Welding - Mainline',
-    'Welding - Tie-ins', 'NDT', 'Coating', 'Lowering-In', 'Backfill',
-    'Hydrostatic Testing', 'Cleanup', 'Restoration', 'HDD', 'Bore',
-    'Road Crossing', 'Environmental Monitoring', 'Safety', 'General'
+    'Welding - Tie-ins', 'NDT', 'Coating', 'Tie-in Coating', 'Lowering-In', 'Backfill',
+    'Tie-in Backfill', 'Hydrostatic Testing', 'Cleanup', 'Restoration', 'HDD', 'Bore',
+    'Road Crossing', 'Environmental Monitoring', 'Safety', 'Pipe Yard', 'General'
   ]
 
   // =============================================

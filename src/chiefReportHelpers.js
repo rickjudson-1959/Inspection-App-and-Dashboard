@@ -228,9 +228,10 @@ export async function buildProgressData(reportDate, organizationId = null) {
 
   // Merge all data
   const activities = [
-    'Clearing', 'Grading', 'Stringing', 'Bending', 
-    'Welding - Mainline', 'Welding - Tie-in', 'Coating', 
-    'Lowering-In', 'Backfill', 'Cleanup', 'HDD', 'Hydrotest'
+    'Clearing', 'Grading', 'Stringing', 'Bending',
+    'Welding - Mainline', 'Welding - Tie-in', 'Coating', 'Tie-in Coating',
+    'Lowering-In', 'Backfill', 'Tie-in Backfill', 'Cleanup', 'HDD', 'Hydrotest',
+    'Pipe Yard', 'Other'
   ]
 
   const progressData = activities.map(activity => {

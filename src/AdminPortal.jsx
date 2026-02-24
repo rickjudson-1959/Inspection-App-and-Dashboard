@@ -3202,9 +3202,9 @@ function AdminPortal() {
 
     const phases = [
       'Clearing', 'Access', 'Topsoil', 'Grading', 'Stringing', 'Bending',
-      'Welding - Mainline', 'Welding - Tie-in', 'Coating', 'Lowering-in',
-      'Backfill', 'Hydro Test', 'Tie-ins', 'Cleanup - Machine', 'Cleanup - Final',
-      'HDD', 'HD Bores', 'Other'
+      'Welding - Mainline', 'Welding - Tie-in', 'Coating', 'Tie-in Coating', 'Lowering-in',
+      'Backfill', 'Hydro Test', 'Tie-in Backfill', 'Cleanup - Machine', 'Cleanup - Final',
+      'HDD', 'HD Bores', 'Frost Packing', 'Pipe Yard', 'Other'
     ]
 
     const headers = ['Date', 'Spread', 'Inspector']
