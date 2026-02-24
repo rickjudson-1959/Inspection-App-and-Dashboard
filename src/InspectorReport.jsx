@@ -3577,6 +3577,7 @@ CRITICAL - Individual Entries Required:
       blueLight: [219, 234, 254],
       red: [239, 68, 68],
       redLight: [254, 226, 226],
+      yellowLight: [255, 248, 225],
     }
 
     const setColor = (color, type = 'fill') => {
@@ -3677,6 +3678,24 @@ CRITICAL - Individual Entries Required:
       doc.text(String(value || 'N/A'), x + labelWidth, y)
     }
 
+    // Fetch a remote image URL and return as base64 data URL for jsPDF
+    const fetchImageAsBase64 = async (url) => {
+      try {
+        const response = await fetch(url)
+        if (!response.ok) return null
+        const blob = await response.blob()
+        return new Promise((resolve) => {
+          const reader = new FileReader()
+          reader.onloadend = () => resolve(reader.result)
+          reader.onerror = () => resolve(null)
+          reader.readAsDataURL(blob)
+        })
+      } catch (e) {
+        console.warn('[PDF] Failed to fetch image:', url, e)
+        return null
+      }
+    }
+
     // BUILD PDF
     addHeader()
     y = 42
@@ -3725,7 +3744,8 @@ CRITICAL - Individual Entries Required:
     // ═══════════════════════════════════════════════════════════
     // ACTIVITIES
     // ═══════════════════════════════════════════════════════════
-    activityBlocks.forEach((block, idx) => {
+    for (let idx = 0; idx < activityBlocks.length; idx++) {
+      const block = activityBlocks[idx]
       checkPageBreak(60)
       
       // Activity header bar
@@ -5907,8 +5927,63 @@ CRITICAL - Individual Entries Required:
           y += 1
         }
       }
+      // ─── WORK PHOTOS ───
+      if (block.workPhotos && block.workPhotos.length > 0) {
+        checkPageBreak(30)
+        addSubHeader('Work Photos', BRAND.yellowLight)
+
+        for (let pi = 0; pi < block.workPhotos.length; pi++) {
+          const photo = block.workPhotos[pi]
+          checkPageBreak(28)
+
+          // Resolve image to base64 for jsPDF
+          let imgData = null
+          try {
+            if (photo.savedUrl) {
+              imgData = await fetchImageAsBase64(photo.savedUrl)
+            } else if (photo.file instanceof File) {
+              const raw = await imageToBase64(photo.file)
+              imgData = `data:image/jpeg;base64,${raw}`
+            }
+          } catch (e) {
+            console.warn('[PDF] Skipping photo', pi, e)
+          }
+
+          if (imgData) {
+            try {
+              doc.addImage(imgData, 'JPEG', margin + 2, y, 30, 22)
+            } catch (e) {
+              console.warn('[PDF] addImage failed for photo', pi, e)
+              imgData = null
+            }
+          }
+
+          // Metadata text beside thumbnail
+          const textX = imgData ? margin + 35 : margin + 2
+          setColor(BRAND.gray, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(8)
+          if (photo.location) {
+            doc.text(`Location: KP ${photo.location}`, textX, y + 6)
+          }
+          if (photo.description) {
+            const descLines = doc.splitTextToSize(photo.description, contentWidth - (textX - margin) - 4)
+            descLines.forEach((line, li) => {
+              if (li < 3) doc.text(line, textX, y + 11 + (li * 4))
+            })
+          }
+          if (!imgData) {
+            setColor(BRAND.grayMid, 'text')
+            doc.setFontSize(7)
+            doc.text('[Photo unavailable]', margin + 2, y + 6)
+          }
+
+          y += 25
+        }
+      }
+
       y += 5
-    })
+    }
 
     // ═══════════════════════════════════════════════════════════
     // NOTES
