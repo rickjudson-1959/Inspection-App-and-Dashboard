@@ -39,10 +39,11 @@ export const activityTypes = [
   'Welding - Poor Boy',
   'Welding - Tie-in',
   'Coating',
+  'Tie-in Coating',
   'Ditch',
   'Lower-in',
   'Backfill',
-  'Tie-in Completion',
+  'Tie-in Backfill',
   'Cleanup - Machine',
   'Cleanup - Final',
   'Hydrostatic Testing',
@@ -52,7 +53,9 @@ export const activityTypes = [
   'Equipment Cleaning',
   'Hydrovac',
   'Welder Testing',
-  'Frost Packing'
+  'Frost Packing',
+  'Pipe Yard',
+  'Other'
 ]
 
 // Quality fields per activity type (API 1169 based)
@@ -224,7 +227,10 @@ export const qualityFieldsByActivity = {
     { name: 'compactionPercent', label: 'Compaction %', type: 'number' },
     { name: 'rockShield', label: 'Rock Shield Used', type: 'select', options: ['Yes', 'No', 'N/A'] }
   ],
-  'Tie-in Completion': [], // Handled by TieInCompletionLog component
+  'Tie-in Backfill': [], // Handled by TieInCompletionLog component
+  'Tie-in Coating': [], // Handled by CoatingLog component
+  'Pipe Yard': [], // Generic activity
+  'Other': [], // Generic catch-all activity
   'Cleanup - Machine': [], // Handled by MachineCleanupLog component
   'Cleanup - Final': [], // Handled by FinalCleanupLog component
   'HDD': [], // Handled by HDDLog component

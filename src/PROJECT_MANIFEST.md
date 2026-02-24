@@ -82,21 +82,24 @@
 9. Welding - Poor Boy
 10. Welding - Tie-in
 11. Coating
-12. Ditch (with BOT checklist, pay items)
-13. Lower-in
-14. Backfill
-15. Tie-in Completion
-16. Cleanup - Machine
-17. Cleanup - Final
-18. Hydrostatic Testing
-19. HDD (Horizontal Directional Drilling)
-20. HD Bores
-21. Piling
-22. Equipment Cleaning
-23. Hydrovac
-24. Welder Testing
-25. Counterbore/Transition
-26. Frost Packing
+12. Tie-in Coating (uses CoatingLog component)
+13. Ditch (with BOT checklist, pay items)
+14. Lower-in
+15. Backfill
+16. Tie-in Backfill (renamed from Tie-in Completion; uses TieInCompletionLog component)
+17. Cleanup - Machine
+18. Cleanup - Final
+19. Hydrostatic Testing
+20. HDD (Horizontal Directional Drilling)
+21. HD Bores
+22. Piling
+23. Equipment Cleaning
+24. Hydrovac
+25. Welder Testing
+26. Counterbore/Transition
+27. Frost Packing
+28. Pipe Yard (generic activity)
+29. Other (generic catch-all)
 
 ### Inspector Invoicing System
 - Inspector profile management (company/banking info)

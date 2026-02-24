@@ -1,5 +1,5 @@
 // CrossingSupport.jsx
-// Billable pipe support tracking for Tie-in Completion activities
+// Billable pipe support tracking for Tie-in Backfill activities
 // Links directly to trackable_items table for financial reconciliation
 
 import React, { useState, useRef, useEffect } from 'react'

@@ -1032,7 +1032,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
       )
     }
 
-    if (block.activityType === 'Coating') {
+    if (block.activityType === 'Coating' || block.activityType === 'Tie-in Coating') {
       return (
         <CoatingLog
           contractor={block.contractor}
@@ -1191,7 +1191,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
       )
     }
 
-    if (block.activityType === 'Tie-in Completion') {
+    if (block.activityType === 'Tie-in Backfill') {
       return (
         <TieInCompletionLog
           data={block.tieInCompletionData || {}}

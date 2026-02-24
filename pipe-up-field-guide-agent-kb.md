@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 4.3 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-23
+## Version: 4.4 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-24
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -266,9 +266,17 @@ Each activity type may trigger a specialized log component with activity-specifi
 | **Hydrostatic Testing** | HydrotestLog | Start/end pressure, test duration, pressure log attachment |
 | **Ditch** | DitchInspection | Trench width, depth, minimum cover check, soil conditions |
 | **Grading** | GradingLog | ROW width, grade measurements, soft spots (KP, length, treatment) |
-| **Tie-in Completion** | TieInCompletionLog | CP leads, anodes, crossing clearances, as-built measurements |
+| **Tie-in Backfill** | TieInCompletionLog | CP leads, anodes, crossing clearances, as-built measurements (renamed from "Tie-in Completion"; data key remains `tieInCompletionData`) |
+| **Tie-in Coating** | CoatingLog | Same coating fields as regular Coating — ambient temp, humidity, coating type/product, holiday test results |
 | **Cleanup - Machine** | MachineCleanupLog | See detailed breakdown below |
 | **Cleanup - Final** | FinalCleanupLog | See detailed breakdown below |
+
+### Generic Activities (no specialized log)
+
+| Activity Type | Notes |
+|---|---|
+| **Pipe Yard** | General pipe yard activity — uses standard quality fields only (none defined by default) |
+| **Other** | Catch-all for activities not covered above — uses standard quality fields only (none defined by default) |
 
 ### Activities with Quality Check Fields (from qualityFieldsByActivity)
 Activities not in the specialized log list above use generic quality check fields defined in constants.js. These render as a grid of input fields, dropdowns, and collapsible sections. If an activity has no defined quality fields, the message "No quality checks defined for this activity" appears.
@@ -417,7 +425,7 @@ Click "Download PDF Copy" to generate a comprehensive PDF of the entire report. 
 - **Manpower table**: Employee name, classification, RT, OT, JH, qty, production status, productive hours, drag reason
 - **Equipment table**: Equipment type, unit number, hours, qty, production status, productive hours, drag reason
 - **Quality checks**: All fields including collapsible sections (Topsoil horizon separation, Stringing pipe receiving, etc.)
-- **Specialized logs**: Full data from all 18 specialized log components (Welding, Bending, Stringing, Coating, Clearing, Ditch, Tie-In, HDD, Grading, Hydrovac, Piling, HD Bores, Equipment Cleaning, Machine Cleanup, Final Cleanup, Welder Testing, Hydrostatic Testing, Counterbore/Transition)
+- **Specialized logs**: Full data from all 19 specialized log components (Welding, Bending, Stringing, Coating, Tie-in Coating, Clearing, Ditch, Tie-in Backfill, HDD, Grading, Hydrovac, Piling, HD Bores, Equipment Cleaning, Machine Cleanup, Final Cleanup, Welder Testing, Hydrostatic Testing, Counterbore/Transition)
 - **Hydrovac**: Contractor/foreman, facility details table
 - **Safety**: Safety notes, safety recognition cards, wildlife sightings
 - **Land & environment**: Environmental observations

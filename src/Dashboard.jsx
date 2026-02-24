@@ -45,13 +45,16 @@ const phaseColors = {
   'Bending': '#4169E1',
   'Welding': '#DC143C',
   'Tie-ins': '#FF6347',
-  'Tie-in Completion': '#DB7093',
+  'Tie-in Backfill': '#DB7093',
+  'Tie-in Coating': '#FF7F50',
   'Coating': '#FF8C00',
   'Ditch': '#32CD32',
   'Lower-in': '#1E90FF',
   'Backfill': '#8B008B',
   'Cleanup - Machine': '#20B2AA',
-  'Cleanup - Final': '#3CB371'
+  'Cleanup - Final': '#3CB371',
+  'Pipe Yard': '#708090',
+  'Other': '#A9A9A9'
 }
 
 // 15-Activity Construction Sequence (NO Hydrostatic Test)
@@ -64,7 +67,8 @@ const CONSTRUCTION_SEQUENCE = [
   'Bending',
   'Welding',
   'Tie-ins',
-  'Tie-in Completion',
+  'Tie-in Backfill',
+  'Tie-in Coating',
   'Coating',
   'Ditch',
   'Lower-in',
@@ -83,13 +87,16 @@ const plannedTargets = {
   'Bending': { metres: 47000, costPerMetre: 65, rate: '400-600 m/day' },
   'Welding': { metres: 47000, costPerMetre: 320, rate: '300-500 m/day' },
   'Tie-ins': { metres: 47000, costPerMetre: 350, rate: '200-400 m/day' },
-  'Tie-in Completion': { metres: 47000, costPerMetre: 380, rate: '150-250 m/day' },
+  'Tie-in Backfill': { metres: 47000, costPerMetre: 380, rate: '150-250 m/day' },
+  'Tie-in Coating': { metres: 47000, costPerMetre: 100, rate: '300-500 m/day' },
   'Coating': { metres: 47000, costPerMetre: 95, rate: '500-800 m/day' },
   'Ditch': { metres: 47000, costPerMetre: 75, rate: '600-900 m/day' },
   'Lower-in': { metres: 47000, costPerMetre: 145, rate: '800-1,200 m/day' },
   'Backfill': { metres: 47000, costPerMetre: 55, rate: '1,000-1,500 m/day' },
   'Cleanup - Machine': { metres: 47000, costPerMetre: 30, rate: '500-800 m/day' },
-  'Cleanup - Final': { metres: 47000, costPerMetre: 25, rate: '400-600 m/day' }
+  'Cleanup - Final': { metres: 47000, costPerMetre: 25, rate: '400-600 m/day' },
+  'Pipe Yard': { metres: 47000, costPerMetre: 20, rate: '0 m/day' },
+  'Other': { metres: 47000, costPerMetre: 20, rate: '0 m/day' }
 }
 
 // Generate EGP-specific demo data

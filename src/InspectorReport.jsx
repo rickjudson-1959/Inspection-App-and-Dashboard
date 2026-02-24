@@ -4687,7 +4687,7 @@ CRITICAL - Individual Entries Required:
       }
 
       // Tie-In Completion Log
-      if (block.activityType === 'Tie-in Completion' && block.tieInCompletionData) {
+      if (block.activityType === 'Tie-in Backfill' && block.tieInCompletionData) {
         checkPageBreak(80)
         addSubHeader('Tie-In Completion Data', '#e8f4f8')
 
@@ -6530,8 +6530,8 @@ CRITICAL - Individual Entries Required:
       'Welding - Mainline',
   'Welding - Section Crew',
   'Welding - Poor Boy', 'Welding - Tie-in', 'Coating', 'Lowering-in',
-      'Backfill', 'Hydro Test', 'Tie-in Completion', 'Cleanup - Machine', 'Cleanup - Final',
-      'HDD', 'HD Bores', 'Frost Packing', 'Other'
+      'Backfill', 'Hydro Test', 'Tie-in Backfill', 'Tie-in Coating', 'Cleanup - Machine', 'Cleanup - Final',
+      'HDD', 'HD Bores', 'Frost Packing', 'Pipe Yard', 'Other'
     ]
 
     // Build header row
