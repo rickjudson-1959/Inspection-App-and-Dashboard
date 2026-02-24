@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - February 4, 2026
+## Project Manifest - February 24, 2026
 
 ---
 
@@ -120,7 +120,7 @@
 - **Reconciliation Dashboard** - Financial reconciliation
 
 ### Reporting & Export
-- PDF report generation with all activity data
+- PDF report generation with all activity data, quality checks, specialized logs, work photo thumbnails, and document certification
 - Excel data export
 - Weekly executive summary emails (automated)
 - Audit trail reports
@@ -368,6 +368,33 @@
 ---
 
 ## 6. RECENT UPDATES (January/February 2026)
+
+### PDF Export — Work Photos, Coating Quality Checks, Counterbore Log & Quality Fix (February 24, 2026)
+
+**Added work photo thumbnails to PDF, complete Coating inspection sections, Counterbore/Transition rendering, fixed duplicate quality checks, fixed Metres Today, and updated Coating weld identification fields**
+
+1. **Work photo thumbnails in PDF** — Work photos uploaded by inspectors now appear as 30×22mm thumbnail images in the PDF for all activity types. Each photo row shows the image with KP location and description beside it. Gracefully handles missing or failed images with a `[Photo unavailable]` placeholder. Required converting the activity block loop from `forEach` to `for...of` to enable `await` for image fetching.
+
+2. **Metres Today PDF fix** — PDF showed "0" for Metres Today when the value was auto-calculated from Start/End KP rather than manually entered. Added the same KP-based fallback calculation used by the web UI (`Math.abs(endKP - startKP)` via `parseKPToMetres()`).
+
+3. **Coating weld identification field improvements** — Diameter changed from free text to NPS dropdown (4"–42") matching Stringing. Grade changed from free text to dropdown (X42–X80) matching Stringing. Wall header now shows units (mm). "Co." renamed to "Coating Co." for clarity (auto-fills with contractor name).
+
+4. **Complete Coating quality checks in PDF** — The Coating activity PDF section only rendered the weld identification table. Added rendering for all 8 remaining CoatingLog sections: Ambient Conditions (table with up to 3 readings), Surface Prep & Blasting (per-weld with profile depths), Coating Material, Preheat & Application, Inspection & Holiday Detection (DFT readings ×6, jeeps, low mils), Repairs (with repair thickness readings), Cure Tests (table), and Sign-Off (NCR status, inspector notes).
+
+5. **Counterbore/Transition log added to PDF** — Welding - Tie-in activities now render the full Counterbore/Transition log: weld info (welder ID/name, WPS, preheat/interpass temps, location type), diagram values (bore length, taper angle, transition WT, bevel angle), transition records table (ovality, wall thickness, taper, bore length, accept/reject), NDT results, repair info, and comments.
+
+6. **Duplicate quality check section removed** — There were two quality check rendering sections in the PDF. The structured section (using `qualityFieldsByActivity` with proper labels) was correct. A second "raw fallback" section was rendering the same data again with auto-generated camelCase-to-display labels. Removed the duplicate to prevent double-printed quality data.
+
+**Field Guide updated to v19** — PDF Export section updated to document work photos, all Coating quality sections, Counterbore/Transition rendering, and structured quality check rendering. Coating and Welding - Tie-in specialized log descriptions expanded. Re-indexed (37 chunks, 0 embedding errors).
+
+**Files Modified:**
+```
+src/InspectorReport.jsx           # Work photo thumbnails, Metres Today KP fallback, Coating quality sections PDF, Counterbore/Transition PDF, weld table header updates, duplicate quality section removed, fetchImageAsBase64 helper, forEach→for loop
+src/CoatingLog.jsx                # Dia→NPS dropdown, Grade→dropdown, Wall units, Co.→Coating Co. label
+pipe-up-field-guide-agent-kb.md   # v19 — PDF export docs, Coating/Counterbore log descriptions
+```
+
+---
 
 ### Chainage Overlap Fix, Frost Packing Activity & PDF Overlap Text (February 23, 2026)
 
