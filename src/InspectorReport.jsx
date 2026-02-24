@@ -4439,10 +4439,10 @@ CRITICAL - Individual Entries Required:
         doc.setFontSize(6)
         doc.text('WELD #', margin + 2, y + 3.5)
         doc.text('KP', margin + 35, y + 3.5)
-        doc.text('DIAM', margin + 55, y + 3.5)
-        doc.text('WALL', margin + 75, y + 3.5)
+        doc.text('DIA (NPS)', margin + 55, y + 3.5)
+        doc.text('WALL (mm)', margin + 75, y + 3.5)
         doc.text('GRADE', margin + 95, y + 3.5)
-        doc.text('COMPANY', margin + 125, y + 3.5)
+        doc.text('COATING CO.', margin + 120, y + 3.5)
         y += 6
         
         // Table rows
@@ -4460,10 +4460,293 @@ CRITICAL - Individual Entries Required:
           doc.text(String(weld.diameter || '-').substring(0, 6), margin + 55, y + 2.5)
           doc.text(String(weld.wallThickness || '-').substring(0, 6), margin + 75, y + 2.5)
           doc.text(String(weld.grade || '-').substring(0, 8), margin + 95, y + 2.5)
-          doc.text(String(weld.coatingCompany || '-').substring(0, 20), margin + 125, y + 2.5)
+          doc.text(String(weld.coatingCompany || '-').substring(0, 20), margin + 120, y + 2.5)
           y += 4.5
         })
         y += 3
+      }
+
+      // Coating Log - Ambient Conditions
+      if (block.activityType === 'Coating' && block.coatingData?.ambientReadings?.length > 0) {
+        const readings = block.coatingData.ambientReadings.filter(r => r.time || r.wetBulb || r.dryBulb || r.dewPoint || r.humidity || r.steelTemp)
+        if (readings.length > 0) {
+          checkPageBreak(20)
+          addSubHeader('Ambient Conditions', BRAND.blueLight)
+          // Table header
+          setColor(BRAND.blue, 'fill')
+          doc.rect(margin, y, contentWidth, 5, 'F')
+          setColor(BRAND.white, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(6)
+          doc.text('TIME', margin + 2, y + 3.5)
+          doc.text('WET BULB (°C)', margin + 28, y + 3.5)
+          doc.text('DRY BULB (°C)', margin + 58, y + 3.5)
+          doc.text('DEW PT (°C)', margin + 88, y + 3.5)
+          doc.text('RH (%)', margin + 118, y + 3.5)
+          doc.text('STEEL (°C)', margin + 145, y + 3.5)
+          y += 6
+          readings.forEach((r, i) => {
+            checkPageBreak(5)
+            if (i % 2 === 0) { setColor(BRAND.grayLight, 'fill'); doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F') }
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(String(r.time || '-'), margin + 2, y + 2.5)
+            doc.text(String(r.wetBulb || '-'), margin + 28, y + 2.5)
+            doc.text(String(r.dryBulb || '-'), margin + 58, y + 2.5)
+            doc.text(String(r.dewPoint || '-'), margin + 88, y + 2.5)
+            doc.text(String(r.humidity || '-'), margin + 118, y + 2.5)
+            doc.text(String(r.steelTemp || '-'), margin + 145, y + 2.5)
+            y += 4.5
+          })
+          // Steel above dew point check
+          if (block.coatingData.surfacePrep?.steelAboveDewPoint) {
+            checkPageBreak(6)
+            setColor(BRAND.navy, 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text(`Steel ≥3°C Above Dew Point: ${block.coatingData.surfacePrep.steelAboveDewPoint}`, margin + 2, y + 3)
+            y += 5
+          }
+          y += 3
+        }
+      }
+
+      // Coating Log - Surface Prep
+      if (block.activityType === 'Coating' && block.coatingData?.surfacePrepEntries?.length > 0) {
+        const preps = block.coatingData.surfacePrepEntries.filter(p => p.weldNumber || p.contaminants || p.steelCondition || p.blastFinish)
+        if (preps.length > 0) {
+          checkPageBreak(20)
+          addSubHeader('Surface Prep & Blasting', BRAND.blueLight)
+          preps.forEach((prep, i) => {
+            checkPageBreak(22)
+            setColor(BRAND.navy, 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text(`Weld: ${prep.weldNumber || '-'}`, margin + 2, y + 3)
+            y += 5
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(7)
+            let fc = 0
+            const prepFields = [
+              ['Contaminants', prep.contaminants], ['Steel Condition', prep.steelCondition],
+              ['Abrasive Type', prep.abrasiveType], ['Conductivity (µs)', prep.conductivity],
+              ['Sweep Blast (mm)', prep.sweepBlast], ['Surface Cleaned', prep.surfaceCleaned],
+              ['Blast Finish', prep.blastFinish], ['Tape Test (%)', prep.tapeTest],
+              ['Time Before Coating (min)', prep.timeBeforeCoating]
+            ]
+            prepFields.forEach(([label, val]) => {
+              if (val) {
+                if (fc > 0 && fc % 2 === 0) y += 4
+                checkPageBreak(5)
+                const col = fc % 2 === 0 ? leftCol : rightCol
+                addField(label, val, col, 45)
+                fc++
+              }
+            })
+            if (fc > 0) y += 5
+            // Profile depths
+            if (prep.profileDepth1 || prep.profileDepth2 || prep.profileDepth3) {
+              checkPageBreak(5)
+              doc.setFont('helvetica', 'normal')
+              doc.setFontSize(7)
+              setColor(BRAND.gray, 'text')
+              doc.text(`Profile Depth (mils): #1=${prep.profileDepth1 || '-'}  #2=${prep.profileDepth2 || '-'}  #3=${prep.profileDepth3 || '-'}`, margin + 2, y)
+              y += 5
+            }
+            if (i < preps.length - 1) y += 2
+          })
+          y += 3
+        }
+      }
+
+      // Coating Log - Coating Material
+      if (block.activityType === 'Coating' && block.coatingData?.coatingMaterial) {
+        const cm = block.coatingData.coatingMaterial
+        const cmFields = [
+          ['Coating System', cm.coatingType], ['Shrink Sleeve Type', cm.sleeveType],
+          ['Base Batch No.', cm.baseBatch], ['Hardener Batch No.', cm.hardenerBatch],
+          ['Hardener Expiry', cm.hardenerExpiry], ['Storage Temp (°C)', cm.storageTemp]
+        ]
+        const hasData = cmFields.some(([, v]) => v)
+        if (hasData) {
+          checkPageBreak(18)
+          addSubHeader('Coating Material', BRAND.blueLight)
+          let fc = 0
+          cmFields.forEach(([label, val]) => {
+            if (val) {
+              if (fc > 0 && fc % 2 === 0) y += 5
+              checkPageBreak(6)
+              const col = fc % 2 === 0 ? leftCol : rightCol
+              addField(label, val, col, 45)
+              fc++
+            }
+          })
+          if (fc > 0) y += 6
+        }
+      }
+
+      // Coating Log - Preheat & Application
+      if (block.activityType === 'Coating' && block.coatingData?.application) {
+        const app = block.coatingData.application
+        const appFields = [
+          ['Surface Still Near White', app.stillNearWhite], ['Preheat Method', app.preheatMethod],
+          ['Preheat Temp (°C)', app.preheatTemp], ['Time to Preheat (min)', app.timeToPreheat],
+          ['Application Method', app.appMethod], ['Mix to Coat Time (min)', app.mixToCoatTime],
+          ['Temp When Applied (°C)', app.tempWhenApplied], ['Time to Coat (min)', app.timeToCoat],
+          ['Visual Appearance', app.visualAppearance]
+        ]
+        const hasData = appFields.some(([, v]) => v)
+        if (hasData) {
+          checkPageBreak(18)
+          addSubHeader('Preheat & Application', BRAND.blueLight)
+          let fc = 0
+          appFields.forEach(([label, val]) => {
+            if (val) {
+              if (fc > 0 && fc % 2 === 0) y += 5
+              checkPageBreak(6)
+              const col = fc % 2 === 0 ? leftCol : rightCol
+              addField(label, val, col, 45)
+              fc++
+            }
+          })
+          if (fc > 0) y += 6
+        }
+      }
+
+      // Coating Log - Inspection & Holiday Detection
+      if (block.activityType === 'Coating' && block.coatingData?.inspection) {
+        const insp = block.coatingData.inspection
+        const inspFields = [
+          ['DFT Min Spec (mils)', insp.dftMinSpec], ['DFT Compliant', insp.dftCompliant],
+          ['Holiday Voltage (V)', insp.holidayVoltage], ['Detector ID', insp.detectorId],
+          ['Calibration Date', insp.calibrationDate],
+          ['Jeeps <25mm', insp.jeepsUnder25], ['Jeeps >25mm', insp.jeepsOver25],
+          ['Total Jeeps Today', insp.totalJeeps], ['Low Mils Today', insp.lowMilsToday]
+        ]
+        const hasDft = [1,2,3,4,5,6].some(n => insp[`dft${n}`])
+        const hasData = inspFields.some(([, v]) => v) || hasDft
+        if (hasData) {
+          checkPageBreak(20)
+          addSubHeader('Inspection & Holiday Detection', BRAND.blueLight)
+          // DFT readings row
+          if (hasDft) {
+            setColor(BRAND.gray, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(7)
+            const dftVals = [1,2,3,4,5,6].map(n => insp[`dft${n}`] || '-').join('  ')
+            doc.text(`DFT Thickness (mils): ${dftVals}`, margin + 2, y)
+            y += 5
+          }
+          let fc = 0
+          inspFields.forEach(([label, val]) => {
+            if (val) {
+              if (fc > 0 && fc % 2 === 0) y += 5
+              checkPageBreak(6)
+              const col = fc % 2 === 0 ? leftCol : rightCol
+              addField(label, val, col, 45)
+              fc++
+            }
+          })
+          if (fc > 0) y += 6
+        }
+      }
+
+      // Coating Log - Repairs
+      if (block.activityType === 'Coating' && block.coatingData?.repairs) {
+        const rep = block.coatingData.repairs
+        const repFields = [
+          ['Repairs Required', rep.required], ['Patch Stick Type', rep.patchStickType],
+          ['Liquid Repair Type', rep.liquidRepairType], ['Spec Followed', rep.specFollowed],
+          ['Repair Tested', rep.repairTested]
+        ]
+        const hasData = repFields.some(([, v]) => v)
+        if (hasData) {
+          checkPageBreak(18)
+          addSubHeader('Repairs', BRAND.blueLight)
+          let fc = 0
+          repFields.forEach(([label, val]) => {
+            if (val) {
+              if (fc > 0 && fc % 2 === 0) y += 5
+              checkPageBreak(6)
+              const col = fc % 2 === 0 ? leftCol : rightCol
+              addField(label, val, col, 45)
+              fc++
+            }
+          })
+          if (fc > 0) y += 5
+          // Repair thicknesses
+          if (rep.required === 'Yes' && (rep.thickness1 || rep.thickness2 || rep.thickness3)) {
+            checkPageBreak(5)
+            setColor(BRAND.gray, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(7)
+            doc.text(`Repair Thickness (mils): #1=${rep.thickness1 || '-'}  #2=${rep.thickness2 || '-'}  #3=${rep.thickness3 || '-'}`, margin + 2, y)
+            y += 5
+          }
+          y += 2
+        }
+      }
+
+      // Coating Log - Cure Tests
+      if (block.activityType === 'Coating' && block.coatingData?.cureTests?.length > 0) {
+        const tests = block.coatingData.cureTests.filter(t => t.weldNumber || t.vCutRating || t.shoreDHardness || t.pass)
+        if (tests.length > 0) {
+          checkPageBreak(20)
+          addSubHeader('Cure Tests', BRAND.blueLight)
+          setColor(BRAND.blue, 'fill')
+          doc.rect(margin, y, contentWidth, 5, 'F')
+          setColor(BRAND.white, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(6)
+          doc.text('WELD #', margin + 2, y + 3.5)
+          doc.text('V-CUT RATING', margin + 45, y + 3.5)
+          doc.text('SHORE-D HARDNESS', margin + 85, y + 3.5)
+          doc.text('PASS', margin + 140, y + 3.5)
+          y += 6
+          tests.forEach((t, i) => {
+            checkPageBreak(5)
+            if (i % 2 === 0) { setColor(BRAND.grayLight, 'fill'); doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F') }
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(String(t.weldNumber || '-'), margin + 2, y + 2.5)
+            doc.text(String(t.vCutRating || '-'), margin + 45, y + 2.5)
+            doc.text(String(t.shoreDHardness || '-'), margin + 85, y + 2.5)
+            doc.text(String(t.pass || '-'), margin + 140, y + 2.5)
+            y += 4.5
+          })
+          y += 3
+        }
+      }
+
+      // Coating Log - Sign-Off
+      if (block.activityType === 'Coating' && block.coatingData?.signOff) {
+        const so = block.coatingData.signOff
+        if (so.ncrRequired || so.notes) {
+          checkPageBreak(15)
+          addSubHeader('Sign-Off', BRAND.blueLight)
+          if (so.ncrRequired) {
+            addField('NCR Required', so.ncrRequired, leftCol, 35)
+            y += 5
+          }
+          if (so.notes) {
+            setColor(BRAND.gray, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(7)
+            doc.text('Inspector Notes:', margin + 2, y)
+            y += 4
+            setColor(BRAND.black, 'text')
+            const noteLines = doc.splitTextToSize(so.notes, contentWidth - 6)
+            noteLines.forEach(line => {
+              checkPageBreak(4)
+              doc.text(line, margin + 2, y)
+              y += 3.5
+            })
+            y += 2
+          }
+        }
       }
 
       // Clearing Log - Timber Decks

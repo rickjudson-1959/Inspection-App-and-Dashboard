@@ -95,10 +95,10 @@ function CoatingLog({ contractor, foreman, blockId, reportId, existingData, onDa
                   <tr style={{ backgroundColor: '#f8f9fa' }}>
                     <th style={{ padding: '8px', border: '1px solid #dee2e6' }}>Weld #</th>
                     <th style={{ padding: '8px', border: '1px solid #dee2e6' }}>KP</th>
-                    <th style={{ padding: '8px', border: '1px solid #dee2e6' }}>Dia</th>
-                    <th style={{ padding: '8px', border: '1px solid #dee2e6' }}>Wall</th>
+                    <th style={{ padding: '8px', border: '1px solid #dee2e6' }}>Dia (NPS)</th>
+                    <th style={{ padding: '8px', border: '1px solid #dee2e6' }}>Wall (mm)</th>
                     <th style={{ padding: '8px', border: '1px solid #dee2e6' }}>Grade</th>
-                    <th style={{ padding: '8px', border: '1px solid #dee2e6' }}>Co.</th>
+                    <th style={{ padding: '8px', border: '1px solid #dee2e6' }}>Coating Co.</th>
                     <th style={{ padding: '8px', border: '1px solid #dee2e6', width: '40px' }}></th>
                   </tr>
                 </thead>
@@ -107,9 +107,9 @@ function CoatingLog({ contractor, foreman, blockId, reportId, existingData, onDa
                     <tr key={idx}>
                       <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><ShieldedInput type="text" value={weld.weldNumber || ''} onChange={(val) => updateWeld(idx, 'weldNumber', val)} style={{ ...inputStyle, padding: '6px' }} /></td>
                       <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><ShieldedInput type="text" inputMode="decimal" value={weld.kp || ''} onChange={(val) => updateWeld(idx, 'kp', val)} style={{ ...inputStyle, padding: '6px' }} /></td>
-                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><ShieldedInput type="text" inputMode="decimal" value={weld.diameter || ''} onChange={(val) => updateWeld(idx, 'diameter', val)} style={{ ...inputStyle, padding: '6px' }} /></td>
-                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><ShieldedInput type="text" inputMode="decimal" value={weld.wallThickness || ''} onChange={(val) => updateWeld(idx, 'wallThickness', val)} style={{ ...inputStyle, padding: '6px' }} /></td>
-                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><ShieldedInput type="text" value={weld.grade || ''} onChange={(val) => updateWeld(idx, 'grade', val)} style={{ ...inputStyle, padding: '6px' }} /></td>
+                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><select value={weld.diameter || ''} onChange={(e) => updateWeld(idx, 'diameter', e.target.value)} style={{ ...inputStyle, padding: '6px' }}><option value="">-</option><option value='4"'>4"</option><option value='6"'>6"</option><option value='8"'>8"</option><option value='10"'>10"</option><option value='12"'>12"</option><option value='16"'>16"</option><option value='20"'>20"</option><option value='24"'>24"</option><option value='30"'>30"</option><option value='36"'>36"</option><option value='42"'>42"</option></select></td>
+                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><ShieldedInput type="text" inputMode="decimal" value={weld.wallThickness || ''} onChange={(val) => updateWeld(idx, 'wallThickness', val)} placeholder="mm" style={{ ...inputStyle, padding: '6px' }} /></td>
+                      <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><select value={weld.grade || ''} onChange={(e) => updateWeld(idx, 'grade', e.target.value)} style={{ ...inputStyle, padding: '6px' }}><option value="">-</option><option value="X42">X42</option><option value="X52">X52</option><option value="X60">X60</option><option value="X65">X65</option><option value="X70">X70</option><option value="X80">X80</option></select></td>
                       <td style={{ padding: '4px', border: '1px solid #dee2e6' }}><ShieldedInput type="text" value={weld.coatingCompany || ''} onChange={(val) => updateWeld(idx, 'coatingCompany', val)} style={{ ...inputStyle, padding: '6px' }} /></td>
                       <td style={{ padding: '4px', border: '1px solid #dee2e6', textAlign: 'center' }}><button type="button" onClick={() => removeWeld(idx)} style={{ padding: '4px 8px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer' }}>✕</button></td>
                     </tr>
