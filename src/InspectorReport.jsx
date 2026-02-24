@@ -3778,7 +3778,16 @@ CRITICAL - Individual Entries Required:
       addField('Start KP', block.startKP, leftCol, 28)
       addField('End KP', block.endKP, rightCol, 28)
       y += 6
-      addField('Metres Today', block.metersToday || '0', leftCol, 35)
+      // Calculate metres from KP if not explicitly stored
+      let metresToday = block.metersToday
+      if (!metresToday && block.startKP && block.endKP) {
+        const startM = parseKPToMetres(block.startKP)
+        const endM = parseKPToMetres(block.endKP)
+        if (startM !== null && endM !== null) {
+          metresToday = Math.abs(endM - startM).toFixed(0)
+        }
+      }
+      addField('Metres Today', metresToday || '0', leftCol, 35)
       addField('Previous', block.metersPrevious || '0', rightCol, 28)
       y += 6
       if (block.ticketNumber) {
