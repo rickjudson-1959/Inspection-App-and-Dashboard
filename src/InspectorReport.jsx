@@ -3499,7 +3499,7 @@ CRITICAL - Individual Entries Required:
       .slice(0, 3) // Limit to first 3 activity types
       .join('_')
     const activityPart = activityTypes ? `_${activityTypes}` : ''
-    const filename = `${PROJECT_SHORT}_Report${reportId}_${selectedDate}${activityPart}.xlsx`
+    const filename = `${selectedDate}${activityPart}_${PROJECT_SHORT}${reportId}.xlsx`
     XLSX.writeFile(wb, filename)
   }
 
@@ -6980,7 +6980,7 @@ CRITICAL - Individual Entries Required:
       addFooter(i, pageCount)
     }
 
-    // SAVE - filename with ID, date, and activity type
+    // SAVE - filename: date first (for sort order), then activity, then ID
     const reportId = currentReportId ? `_ID${currentReportId}` : ''
     const activityTypes = activityBlocks
       .filter(b => b.activityType)
@@ -6988,7 +6988,7 @@ CRITICAL - Individual Entries Required:
       .slice(0, 3) // Limit to first 3 activity types
       .join('_')
     const activityPart = activityTypes ? `_${activityTypes}` : ''
-    const filename = `${PROJECT_SHORT}_Report${reportId}_${selectedDate}${activityPart}.pdf`
+    const filename = `${selectedDate}${activityPart}_${PROJECT_SHORT}${reportId}.pdf`
 
     // Generate PDF blob for hash and storage
     const pdfBlob = doc.output('blob')
