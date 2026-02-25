@@ -15,7 +15,7 @@ The field guide is the AI agent's knowledge base for inspector mentoring. If it 
 **Check this at the start of every new session and after every conversation compression.**
 
 ## Key References
-- **Project Manifests:** `src/PROJECT_MANIFEST.md` and `Project Manifest docs/Project_Manifest_v1.9_UPDATED.md`
+- **Project Manifest:** `src/PROJECT_MANIFEST.md`
 - **Production URL:** https://app.pipe-up.ca
 - **Deployment:** Vercel (auto-deploys on push to main)
 - **Database:** Supabase (PostgreSQL + Auth + Edge Functions)
