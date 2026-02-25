@@ -3848,10 +3848,11 @@ CRITICAL - Individual Entries Required:
       }
 
       // Quality Checks
-      if (block.activityType && qualityFieldsByActivity[block.activityType] && Object.keys(block.qualityData || {}).length > 0) {
+      if (block.activityType && Object.keys(block.qualityData || {}).length > 0) {
         checkPageBreak(20)
         addSubHeader('Quality Checks', BRAND.orangeLight)
-        const fields = qualityFieldsByActivity[block.activityType]
+        const fields = qualityFieldsByActivity[block.activityType] || []
+        let renderedCount = 0
 
         // Helper to render a list of flat fields in 2-column layout
         const renderQualityFields = (fieldList) => {
@@ -3868,6 +3869,7 @@ CRITICAL - Individual Entries Required:
             }
           })
           if (fieldCount > 0) y += 6
+          renderedCount += fieldCount
         }
 
         // Separate flat fields from collapsible sections
@@ -3898,6 +3900,21 @@ CRITICAL - Individual Entries Required:
             renderQualityFields(section.fields)
           }
         })
+
+        // Raw data fallback — if structured rendering produced nothing, dump raw key-value pairs
+        if (renderedCount === 0) {
+          let rawCount = 0
+          const camelToLabel = (s) => s.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).substring(0, 28)
+          Object.entries(block.qualityData).forEach(([key, value]) => {
+            if (value === undefined || value === null || value === '') return
+            if (rawCount > 0 && rawCount % 2 === 0) y += 5
+            checkPageBreak(8)
+            const col = rawCount % 2 === 0 ? leftCol : rightCol
+            addField(camelToLabel(key), String(value), col, 50)
+            rawCount++
+          })
+          if (rawCount > 0) y += 6
+        }
       }
 
       // Systemic Delay (Entire Crew Impact) - if active
@@ -6516,7 +6533,20 @@ CRITICAL - Individual Entries Required:
         y += 4
         doc.text(`Location: ${card.location || 'N/A'}`, margin + 5, y)
         y += 4
-        
+
+        // Cause type (for hazard cards)
+        if (card.causeType) {
+          const causeLabel = card.causeType === 'behavior' ? 'Behavior' : card.causeType === 'condition' ? 'Condition' : card.causeType === 'both' ? 'Behavior & Condition' : card.causeType
+          doc.text(`Cause Type: ${causeLabel}`, margin + 5, y)
+          y += 4
+        }
+
+        // Incident number (for hazard cards)
+        if (card.incidentNumber) {
+          doc.text(`Incident #: ${card.incidentNumber}`, margin + 5, y)
+          y += 4
+        }
+
         // Situation description
         if (card.situationDescription) {
           const lines = doc.splitTextToSize(`Situation: ${card.situationDescription}`, contentWidth - 10)
@@ -6530,6 +6560,37 @@ CRITICAL - Individual Entries Required:
         // What could have happened (for hazard cards)
         if (card.cardType === 'safe' && card.whatCouldHaveHappened) {
           const lines = doc.splitTextToSize(`Potential Outcome: ${card.whatCouldHaveHappened}`, contentWidth - 10)
+          lines.forEach(line => {
+            checkPageBreak(5)
+            doc.text(line, margin + 5, y)
+            y += 4
+          })
+        }
+
+        // Dialogue section (for positive recognitions)
+        if (card.dialogueOccurred) {
+          checkPageBreak(5)
+          doc.text(`Dialogue Occurred: ${card.dialogueOccurred}`, margin + 5, y)
+          y += 4
+        }
+        if (card.dialogueComment) {
+          const lines = doc.splitTextToSize(`Dialogue Comment: ${card.dialogueComment}`, contentWidth - 10)
+          lines.forEach(line => {
+            checkPageBreak(5)
+            doc.text(line, margin + 5, y)
+            y += 4
+          })
+        }
+        if (card.questionsAsked) {
+          const lines = doc.splitTextToSize(`Questions Asked: ${card.questionsAsked}`, contentWidth - 10)
+          lines.forEach(line => {
+            checkPageBreak(5)
+            doc.text(line, margin + 5, y)
+            y += 4
+          })
+        }
+        if (card.responses) {
+          const lines = doc.splitTextToSize(`Responses: ${card.responses}`, contentWidth - 10)
           lines.forEach(line => {
             checkPageBreak(5)
             doc.text(line, margin + 5, y)
@@ -6551,6 +6612,20 @@ CRITICAL - Individual Entries Required:
           })
         }
 
+        // Supervisor sign-off
+        if (card.supervisorSignoff) {
+          checkPageBreak(5)
+          doc.text(`Supervisor Sign-off: ${card.supervisorSignoff}`, margin + 5, y)
+          y += 4
+        }
+
+        // Acknowledged
+        if (card.acknowledged) {
+          checkPageBreak(5)
+          doc.text(`Acknowledged: Yes`, margin + 5, y)
+          y += 4
+        }
+
         // Comments
         if (card.comments) {
           const lines = doc.splitTextToSize(`Comments: ${card.comments}`, contentWidth - 10)
@@ -6560,7 +6635,7 @@ CRITICAL - Individual Entries Required:
             y += 4
           })
         }
-        
+
         y += 4
       })
       y += 2
@@ -6584,23 +6659,37 @@ CRITICAL - Individual Entries Required:
         doc.text(`${idx + 1}. ${speciesText} (Count: ${sighting.numberOfAnimals || 1})`, margin + 2, y)
         y += 4
         doc.setFont('helvetica', 'normal')
-        
-        // Location and time
-        doc.text(`Location: ${sighting.location || 'N/A'} | Time: ${sighting.time || 'N/A'}`, margin + 5, y)
+
+        // Species detail (subspecies/coloring)
+        if (sighting.speciesDetail) {
+          doc.text(`Detail: ${sighting.speciesDetail}`, margin + 5, y)
+          y += 4
+        }
+
+        // Date, time, observer info
+        doc.text(`Date: ${sighting.date || 'N/A'} | Time: ${sighting.time || 'N/A'}`, margin + 5, y)
         y += 4
-        
+        if (sighting.inspector || sighting.crew) {
+          doc.text(`Observer: ${sighting.inspector || 'N/A'} | Crew: ${sighting.crew || 'N/A'}`, margin + 5, y)
+          y += 4
+        }
+
+        // Location
+        doc.text(`Location: ${sighting.location || 'N/A'}`, margin + 5, y)
+        y += 4
+
         // GPS if provided
         if (sighting.gpsCoordinates) {
           doc.text(`GPS: ${sighting.gpsCoordinates}`, margin + 5, y)
           y += 4
         }
-        
+
         // Gender and age
         if (sighting.gender || sighting.ageGroup) {
           doc.text(`Gender: ${sighting.gender || 'N/A'} | Age: ${sighting.ageGroup || 'N/A'}`, margin + 5, y)
           y += 4
         }
-        
+
         // Activity
         if (sighting.activity) {
           const lines = doc.splitTextToSize(`Activity: ${sighting.activity}`, contentWidth - 10)
