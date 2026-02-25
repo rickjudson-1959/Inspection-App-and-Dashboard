@@ -394,6 +394,28 @@ pipe-up-field-guide-agent-kb.md   # Weld UPI Items → Welding (6 instances)
 
 ---
 
+### Data Persistence & Report Quality Fixes (February 24, 2026)
+
+**Fixed chainage/field data disappearing on reload, health score false positives, PDF quality gaps, and filename sort order**
+
+1. **Data persistence fix** — Fixed multiple fields being lost during save/reload cycle. Draft auto-save now clears `ticketPhotos` (File objects) to prevent localStorage corruption. Added `ticketNumber`, `metersToday`, `metersPrevious`, `metersToDate`, `systemicDelay`, and `conventionalBoreData` to the Supabase save flow (processedBlocks). Added `metersToDate`, `systemicDelay`, and `conventionalBoreData` to the edit-mode load flow.
+
+2. **Chainage health score fix** — Health Score previously reported 100% chainage integrity when no KP values were entered. Now detects blocks with an activity type but missing Start/End KP and scores accordingly. The chainage overlap check button also now warns when no KP data is entered instead of falsely reporting "no overlaps detected."
+
+3. **Quality checks PDF fix** — Quality check data was not printing in PDF exports. Removed the `qualityFieldsByActivity` gate that silently skipped blocks without defined field schemas. Added raw data fallback when structured rendering produces nothing.
+
+4. **Safety Recognition & Wildlife Sighting PDF fix** — Added 8 missing fields to Safety Recognition PDF output (causeType, incidentNumber, dialogueOccurred, dialogueComment, questionsAsked, responses, supervisorSignoff, acknowledged). Added 4 missing fields to Wildlife Sighting PDF output (date, speciesDetail, inspector, crew).
+
+5. **Date-first report filenames** — PDF and Excel download filenames now start with the date for proper chronological sort order (e.g., `2026-02-24_Backfill_PipeUp12345.pdf` instead of `PipeUp_Report12345_2026-02-24.pdf`).
+
+**Files Modified:**
+```
+src/InspectorReport.jsx           # Draft ticketPhotos null, processedBlocks save fields, populateFormFromReport load fields, quality checks PDF gate, safety/wildlife PDF fields, filename format
+src/agents/ReportHealthScorer.js  # Chainage integrity scoring for missing KP data
+```
+
+---
+
 ### PDF Export — Work Photos, Coating Quality Checks, Counterbore Log & Quality Fix (February 24, 2026)
 
 **Added work photo thumbnails to PDF, complete Coating inspection sections, Counterbore/Transition rendering, fixed duplicate quality checks, fixed Metres Today, and updated Coating weld identification fields**
@@ -1754,4 +1776,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 19, 2026 (Floating Agent, Feedback, Concealed-Work Photos, Field Guide v4.1)*
+*Last Updated: February 24, 2026 (Pipeline Names, Welding Rename, Data Persistence Fix, Chainage Scoring, PDF Quality/Safety/Wildlife, Date-First Filenames)*

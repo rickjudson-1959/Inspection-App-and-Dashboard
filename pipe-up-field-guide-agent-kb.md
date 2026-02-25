@@ -31,7 +31,7 @@ Every inspection day begins by filling out the Report Header. This creates the a
 | `inspectorName` | Inspector Name | Text | YES — from user profile (`userProfile.full_name`) | Can also restore from draft or localStorage project config |
 | `selectedDate` | Report Date | Date | YES — defaults to today | Format: YYYY-MM-DD |
 | `spread` | Spread | Dropdown | NO — inspector selects | Options come from `spreadOptions` in constants.js |
-| `pipeline` | Pipeline Name | Text | YES — auto-fills when Spread is selected via `spreadToPipeline` mapping | |
+| `pipeline` | Pipeline Name | Dropdown | YES — auto-fills when Spread is selected via `spreadToPipeline` mapping | Options: Coquitlam Start, Indian Arm, Mid-Route, Woodfibre Approach. Old KP-range values from legacy reports are auto-migrated on load. |
 | `afe` | AFE/Contract # | Text | YES — auto-fetched from `contract_config` table for the organization | Can be manually overridden |
 | `weather` | Weather | Text | YES — from Auto-Fetch Weather | Main condition (e.g., "Clear", "Rain", "Snow") |
 | `precipitation` | Precipitation | Number | YES — from Auto-Fetch Weather | mm of rain in last hour |
