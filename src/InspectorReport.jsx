@@ -3805,6 +3805,9 @@ CRITICAL - Individual Entries Required:
       addField('Metres Today', metresToday || '0', leftCol, 35)
       addField('Previous', block.metersPrevious || '0', rightCol, 28)
       y += 6
+      const metersToDate = (parseFloat(metresToday) || 0) + (parseFloat(block.metersPrevious) || 0)
+      addField('Total Metres', String(metersToDate), leftCol, 35)
+      y += 6
       if (block.ticketNumber) {
         addField('Ticket #', block.ticketNumber, leftCol, 28)
       }
@@ -5220,17 +5223,40 @@ CRITICAL - Individual Entries Required:
           y += 8
 
           block.tieInCompletionData.thirdPartyCrossings.forEach((crossing, i) => {
-            checkPageBreak(6)
+            checkPageBreak(14)
             setColor(BRAND.black, 'text')
-            doc.setFont('helvetica', 'normal')
+            doc.setFont('helvetica', 'bold')
             doc.setFontSize(6)
-            const crossingInfo = []
-            if (crossing.utilityType) crossingInfo.push(crossing.utilityType)
-            if (crossing.owner) crossingInfo.push(`Owner: ${crossing.owner}`)
-            if (crossing.clearance) crossingInfo.push(`Clearance: ${crossing.clearance}m`)
-            if (crossing.protectionMethod) crossingInfo.push(`Protection: ${crossing.protectionMethod}`)
-            doc.text(`${i + 1}. ${crossingInfo.join('  |  ')}`, margin + 4, y + 3)
-            y += 5
+            const line1 = []
+            if (crossing.crossingType) line1.push(crossing.crossingType)
+            if (crossing.utilityType) line1.push(crossing.utilityType)
+            if (crossing.facilityType) line1.push(`Facility: ${crossing.facilityType}`)
+            if (crossing.owner) line1.push(`Owner: ${crossing.owner}`)
+            doc.text(`${i + 1}. ${line1.join('  |  ')}`, margin + 4, y + 3)
+            y += 4.5
+            doc.setFont('helvetica', 'normal')
+            const line2 = []
+            if (crossing.ourPipeDepth) line2.push(`Our Depth: ${crossing.ourPipeDepth}m`)
+            if (crossing.thirdPartyDepth) line2.push(`3rd Party Depth: ${crossing.thirdPartyDepth}m`)
+            if (crossing.separationDistance) line2.push(`Separation: ${crossing.separationDistance}m`)
+            if (crossing.minimumRequired) line2.push(`Min Req: ${crossing.minimumRequired}m`)
+            if (crossing.clearance) line2.push(`Clearance: ${crossing.clearance}m`)
+            if (crossing.protectionMethod) line2.push(`Protection: ${crossing.protectionMethod}`)
+            if (crossing.compliant) {
+              const compColor = crossing.compliant === 'Yes' ? BRAND.green : BRAND.red
+              line2.push(`Compliant: ${crossing.compliant}`)
+            }
+            if (crossing.surveyedBy) line2.push(`Surveyed: ${crossing.surveyedBy}`)
+            if (line2.length > 0) {
+              doc.text(`   ${line2.join('  |  ')}`, margin + 4, y + 3)
+              y += 4.5
+            }
+            if (crossing.comments) {
+              doc.setFont('helvetica', 'italic')
+              doc.setFontSize(5.5)
+              doc.text(`   Comments: ${String(crossing.comments).substring(0, 100)}`, margin + 8, y + 2.5)
+              y += 4
+            }
           })
           y += 3
         }
@@ -5251,29 +5277,47 @@ CRITICAL - Individual Entries Required:
           doc.rect(margin, y, contentWidth, 5, 'F')
           setColor('white', 'text')
           doc.setFont('helvetica', 'bold')
-          doc.setFontSize(6)
+          doc.setFontSize(5.5)
           doc.text('TYPE', margin + 2, y + 3.5)
-          doc.text('MANUFACTURER', margin + 35, y + 3.5)
-          doc.text('SIZE', margin + 80, y + 3.5)
-          doc.text('SERIAL #', margin + 110, y + 3.5)
-          doc.text('LOCATION', margin + 150, y + 3.5)
+          doc.text('MFR', margin + 25, y + 3.5)
+          doc.text('MATERIAL', margin + 52, y + 3.5)
+          doc.text('SIZE', margin + 76, y + 3.5)
+          doc.text('DEPTH', margin + 93, y + 3.5)
+          doc.text('WEIGHT', margin + 110, y + 3.5)
+          doc.text('QTY', margin + 128, y + 3.5)
+          doc.text('SERIAL #', margin + 140, y + 3.5)
+          doc.text('LOCATION', margin + 165, y + 3.5)
           y += 6
 
           block.tieInCompletionData.anodes.forEach((anode, i) => {
-            checkPageBreak(5)
+            checkPageBreak(10)
             if (i % 2 === 0) {
               setColor(BRAND.grayLight, 'fill')
               doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
             }
             setColor(BRAND.black, 'text')
             doc.setFont('helvetica', 'normal')
-            doc.setFontSize(6)
-            doc.text(String(anode.type || '-').substring(0, 15), margin + 2, y + 2.5)
-            doc.text(String(anode.manufacturer || '-').substring(0, 20), margin + 35, y + 2.5)
-            doc.text(String(anode.size || '-').substring(0, 12), margin + 80, y + 2.5)
-            doc.text(String(anode.serialNumber || '-').substring(0, 15), margin + 110, y + 2.5)
-            doc.text(String(anode.location || anode.kp || '-').substring(0, 15), margin + 150, y + 2.5)
+            doc.setFontSize(5.5)
+            doc.text(String(anode.type || '-').substring(0, 12), margin + 2, y + 2.5)
+            doc.text(String(anode.manufacturer || '-').substring(0, 14), margin + 25, y + 2.5)
+            doc.text(String(anode.material || '-').substring(0, 10), margin + 52, y + 2.5)
+            doc.text(String(anode.size || '-').substring(0, 8), margin + 76, y + 2.5)
+            doc.text(String(anode.depth || '-').substring(0, 8), margin + 93, y + 2.5)
+            doc.text(String(anode.weight || '-').substring(0, 8), margin + 110, y + 2.5)
+            doc.text(String(anode.quantity || '-').substring(0, 4), margin + 128, y + 2.5)
+            doc.text(String(anode.serialNumber || '-').substring(0, 12), margin + 140, y + 2.5)
+            doc.text(String(anode.location || anode.kp || '-').substring(0, 12), margin + 165, y + 2.5)
             y += 4.5
+            // Footer info per anode if present
+            if (anode.testLeadInstalled || anode.comments) {
+              doc.setFontSize(5)
+              doc.setFont('helvetica', 'italic')
+              const footerParts = []
+              if (anode.testLeadInstalled) footerParts.push(`Test Lead: ${anode.testLeadInstalled}`)
+              if (anode.comments) footerParts.push(`Notes: ${String(anode.comments).substring(0, 60)}`)
+              doc.text(`   ${footerParts.join('  |  ')}`, margin + 4, y + 2.5)
+              y += 4
+            }
           })
           y += 3
         }
@@ -5354,6 +5398,315 @@ CRITICAL - Individual Entries Required:
           doc.text('Comments: ' + String(block.hddData.comments).substring(0, 150), margin + 4, y + 6)
           y += 12
         }
+
+        // HDD Waste Management
+        if (block.hddData.wasteManagementData) {
+          const wm = block.hddData.wasteManagementData
+          const hasWMData = wm.totalVolumeMixedM3 || wm.volumeInStorageM3 || wm.volumeHauledM3 ||
+            wm.storageType || wm.disposalFacilityName || wm.manifestNumber ||
+            wm.vacTruckHours || wm.salinityTestPassed || wm.toxicityTestPassed || wm.metalsTestPassed ||
+            (wm.additives && wm.additives.length > 0) || wm.comments
+
+          if (hasWMData) {
+            checkPageBreak(30)
+            setColor('#e8f5e9', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#2e7d32', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('DRILLING WASTE MANAGEMENT', margin + 4, y + 4)
+            y += 8
+
+            // Volumes & Storage (two-column)
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            const wmLeft = margin + 4
+            const wmRight = margin + contentWidth / 2
+
+            if (wm.totalVolumeMixedM3 || wm.volumeInStorageM3 || wm.volumeHauledM3) {
+              checkPageBreak(8)
+              setColor(BRAND.gray, 'text')
+              doc.text('Total Mixed:', wmLeft, y + 3)
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.text(`${wm.totalVolumeMixedM3 || '-'} m³`, wmLeft + 30, y + 3)
+              doc.setFont('helvetica', 'normal')
+              setColor(BRAND.gray, 'text')
+              doc.text('In Storage:', wmRight, y + 3)
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.text(`${wm.volumeInStorageM3 || '-'} m³`, wmRight + 28, y + 3)
+              y += 5
+              doc.setFont('helvetica', 'normal')
+              setColor(BRAND.gray, 'text')
+              doc.text('Hauled:', wmLeft, y + 3)
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.text(`${wm.volumeHauledM3 || '-'} m³`, wmLeft + 30, y + 3)
+              y += 5
+            }
+
+            // Storage
+            if (wm.storageType || wm.storageCapacityM3) {
+              doc.setFont('helvetica', 'normal')
+              setColor(BRAND.gray, 'text')
+              doc.text('Storage Type:', wmLeft, y + 3)
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.text(wm.storageType || '-', wmLeft + 30, y + 3)
+              doc.setFont('helvetica', 'normal')
+              setColor(BRAND.gray, 'text')
+              doc.text('Capacity:', wmRight, y + 3)
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.text(`${wm.storageCapacityM3 || '-'} m³`, wmRight + 28, y + 3)
+              y += 5
+            }
+
+            // Disposal
+            if (wm.disposalFacilityName || wm.disposalFacilityLocation || wm.manifestNumber) {
+              doc.setFont('helvetica', 'normal')
+              const disposalInfo = []
+              if (wm.disposalFacilityName) disposalInfo.push(`Facility: ${wm.disposalFacilityName}`)
+              if (wm.disposalFacilityLocation) disposalInfo.push(`Location: ${wm.disposalFacilityLocation}`)
+              if (wm.manifestNumber) disposalInfo.push(`Manifest #: ${wm.manifestNumber}`)
+              if (wm.disposalDate) disposalInfo.push(`Date: ${wm.disposalDate}`)
+              if (wm.disposalMethod) disposalInfo.push(`Method: ${wm.disposalMethod}`)
+              setColor(BRAND.black, 'text')
+              doc.setFontSize(6)
+              doc.text(disposalInfo.join('  |  '), wmLeft, y + 3)
+              y += 5
+            }
+
+            // Additives table
+            if (wm.additives && wm.additives.length > 0) {
+              checkPageBreak(15)
+              y += 2
+              setColor('#43a047', 'fill')
+              doc.rect(margin, y, contentWidth, 5, 'F')
+              setColor('white', 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.setFontSize(5.5)
+              doc.text('PRODUCT', margin + 2, y + 3.5)
+              doc.text('QTY', margin + 50, y + 3.5)
+              doc.text('UNIT', margin + 70, y + 3.5)
+              doc.text('BATCH #', margin + 90, y + 3.5)
+              doc.text('SUPPLIER', margin + 125, y + 3.5)
+              y += 6
+
+              wm.additives.forEach((add, ai) => {
+                checkPageBreak(5)
+                if (ai % 2 === 0) {
+                  setColor(BRAND.grayLight, 'fill')
+                  doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+                }
+                setColor(BRAND.black, 'text')
+                doc.setFont('helvetica', 'normal')
+                doc.setFontSize(5.5)
+                doc.text(String(add.productName || '-').substring(0, 25), margin + 2, y + 2.5)
+                doc.text(String(add.quantity || '-').substring(0, 10), margin + 50, y + 2.5)
+                doc.text(String(add.unit || '-').substring(0, 10), margin + 70, y + 2.5)
+                doc.text(String(add.batchNumber || '-').substring(0, 15), margin + 90, y + 2.5)
+                doc.text(String(add.supplier || '-').substring(0, 20), margin + 125, y + 2.5)
+                y += 4.5
+              })
+              y += 2
+            }
+
+            // Vac Truck
+            if (wm.vacTruckHours || wm.vacTruckEquipmentId || wm.vacTruckOperator) {
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'normal')
+              doc.setFontSize(6)
+              const vacInfo = []
+              if (wm.vacTruckHours) vacInfo.push(`Hours: ${wm.vacTruckHours}`)
+              if (wm.vacTruckEquipmentId) vacInfo.push(`Equipment ID: ${wm.vacTruckEquipmentId}`)
+              if (wm.vacTruckOperator) vacInfo.push(`Operator: ${wm.vacTruckOperator}`)
+              doc.text('Vac Truck: ' + vacInfo.join('  |  '), wmLeft, y + 3)
+              y += 5
+            }
+
+            // Compliance Testing
+            if (wm.salinityTestPassed || wm.toxicityTestPassed || wm.metalsTestPassed || wm.testLabName) {
+              checkPageBreak(12)
+              y += 2
+              setColor('#e8f5e9', 'fill')
+              doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+              setColor('#2e7d32', 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.setFontSize(6)
+              doc.text('COMPLIANCE TESTING', margin + 4, y + 4)
+              y += 8
+
+              doc.setFontSize(6)
+              const testItems = [
+                { label: 'Salinity', value: wm.salinityTestPassed },
+                { label: 'Toxicity', value: wm.toxicityTestPassed },
+                { label: 'Metals', value: wm.metalsTestPassed }
+              ]
+              testItems.forEach((t, ti) => {
+                const xPos = wmLeft + (ti * 55)
+                setColor(BRAND.gray, 'text')
+                doc.setFont('helvetica', 'normal')
+                doc.text(t.label + ':', xPos, y + 3)
+                if (t.value === true || t.value === 'Pass') setColor(BRAND.green, 'text')
+                else if (t.value === false || t.value === 'Fail') setColor(BRAND.red, 'text')
+                else setColor(BRAND.black, 'text')
+                doc.setFont('helvetica', 'bold')
+                const displayVal = t.value === true ? 'Pass' : t.value === false ? 'Fail' : String(t.value || '-')
+                doc.text(displayVal, xPos + 20, y + 3)
+              })
+              y += 5
+
+              if (wm.testLabName || wm.testDate) {
+                doc.setFont('helvetica', 'normal')
+                setColor(BRAND.gray, 'text')
+                const labInfo = []
+                if (wm.testLabName) labInfo.push(`Lab: ${wm.testLabName}`)
+                if (wm.testDate) labInfo.push(`Date: ${wm.testDate}`)
+                setColor(BRAND.black, 'text')
+                doc.text(labInfo.join('  |  '), wmLeft, y + 3)
+                y += 5
+              }
+            }
+
+            // Comments
+            if (wm.comments) {
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'italic')
+              doc.setFontSize(6)
+              doc.text('WM Comments: ' + String(wm.comments).substring(0, 120), wmLeft, y + 3)
+              y += 5
+            }
+            y += 3
+          }
+        }
+
+        // HDD Steering Log
+        if (block.hddData.steeringLogData) {
+          const sl = block.hddData.steeringLogData
+          const hasSLData = sl.guidanceType || sl.guidanceSystemModel ||
+            sl.designEntryAngle || sl.designExitAngle || sl.designMaxDepth ||
+            (sl.stations && sl.stations.length > 0) || sl.comments
+
+          if (hasSLData) {
+            checkPageBreak(30)
+            setColor('#e1f5fe', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#0277bd', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('HDD STEERING LOG', margin + 4, y + 4)
+            y += 8
+
+            // Guidance Setup
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            const guidanceInfo = []
+            if (sl.guidanceType) guidanceInfo.push(`Type: ${sl.guidanceType}`)
+            if (sl.guidanceSystemModel) guidanceInfo.push(`Model: ${sl.guidanceSystemModel}`)
+            if (sl.frequencyChannel) guidanceInfo.push(`Freq/Channel: ${sl.frequencyChannel}`)
+            if (sl.calibrationDate) guidanceInfo.push(`Cal. Date: ${sl.calibrationDate}`)
+            if (sl.calibrationVerified !== undefined && sl.calibrationVerified !== null) {
+              guidanceInfo.push(`Cal. Verified: ${sl.calibrationVerified ? 'Yes' : 'No'}`)
+            }
+            if (guidanceInfo.length > 0) {
+              doc.text(guidanceInfo.join('  |  '), margin + 4, y + 3)
+              y += 6
+            }
+
+            // Design Parameters
+            const designInfo = []
+            if (sl.designEntryAngle) designInfo.push(`Entry Angle: ${sl.designEntryAngle}°`)
+            if (sl.designExitAngle) designInfo.push(`Exit Angle: ${sl.designExitAngle}°`)
+            if (sl.designMaxDepth) designInfo.push(`Max Depth: ${sl.designMaxDepth}m`)
+            if (sl.designBoreLength) designInfo.push(`Bore Length: ${sl.designBoreLength}m`)
+            if (sl.pipeDiameterInches) designInfo.push(`Pipe OD: ${sl.pipeDiameterInches}"`)
+            if (sl.minimumBendRadiusM) designInfo.push(`Min Bend Radius: ${sl.minimumBendRadiusM}m`)
+            if (designInfo.length > 0) {
+              doc.setFont('helvetica', 'bold')
+              doc.setFontSize(6)
+              doc.text('Design: ', margin + 4, y + 3)
+              doc.setFont('helvetica', 'normal')
+              doc.text(designInfo.join('  |  '), margin + 20, y + 3)
+              y += 6
+            }
+
+            // Actual angles
+            const actualInfo = []
+            if (sl.actualEntryAngle) actualInfo.push(`Actual Entry: ${sl.actualEntryAngle}°`)
+            if (sl.actualExitAngle) actualInfo.push(`Actual Exit: ${sl.actualExitAngle}°`)
+            if (sl.withinDesignTolerance !== undefined && sl.withinDesignTolerance !== null) {
+              actualInfo.push(`Within Tolerance: ${sl.withinDesignTolerance ? 'Yes' : 'No'}`)
+            }
+            if (sl.boreComplete !== undefined && sl.boreComplete !== null) {
+              actualInfo.push(`Bore Complete: ${sl.boreComplete ? 'Yes' : 'No'}`)
+            }
+            if (actualInfo.length > 0) {
+              doc.text(actualInfo.join('  |  '), margin + 4, y + 3)
+              y += 6
+            }
+
+            // Station Readings table
+            if (sl.stations && sl.stations.length > 0) {
+              checkPageBreak(15)
+              y += 2
+              setColor('#039be5', 'fill')
+              doc.rect(margin, y, contentWidth, 5, 'F')
+              setColor('white', 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.setFontSize(5)
+              doc.text('STN', margin + 2, y + 3.5)
+              doc.text('JOINT', margin + 16, y + 3.5)
+              doc.text('DEPTH(m)', margin + 30, y + 3.5)
+              doc.text('PITCH%', margin + 52, y + 3.5)
+              doc.text('AZIMUTH', margin + 72, y + 3.5)
+              doc.text('TVD(m)', margin + 94, y + 3.5)
+              doc.text('H-OFF(m)', margin + 114, y + 3.5)
+              doc.text('V-OFF(m)', margin + 136, y + 3.5)
+              doc.text('BEND R(m)', margin + 158, y + 3.5)
+              y += 6
+
+              sl.stations.forEach((stn, si) => {
+                checkPageBreak(5)
+                if (si % 2 === 0) {
+                  setColor(BRAND.grayLight, 'fill')
+                  doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+                }
+                setColor(BRAND.black, 'text')
+                doc.setFont('helvetica', 'normal')
+                doc.setFontSize(5)
+                doc.text(String(stn.stationNumber || '-'), margin + 2, y + 2.5)
+                doc.text(String(stn.drillPipeJointNumber || '-'), margin + 16, y + 2.5)
+                doc.text(String(stn.measuredDepthM || '-'), margin + 30, y + 2.5)
+                doc.text(String(stn.pitchPercent || '-'), margin + 52, y + 2.5)
+                doc.text(String(stn.azimuthDegrees || '-'), margin + 72, y + 2.5)
+                doc.text(String(stn.trueVerticalDepthM || '-'), margin + 94, y + 2.5)
+                doc.text(String(stn.horizontalOffsetM || '-'), margin + 114, y + 2.5)
+                doc.text(String(stn.verticalOffsetM || '-'), margin + 136, y + 2.5)
+                // Highlight bend radius alerts
+                if (stn.bendRadiusAlert) setColor(BRAND.red, 'text')
+                doc.text(String(stn.calculatedBendRadiusM || '-'), margin + 158, y + 2.5)
+                setColor(BRAND.black, 'text')
+                y += 4.5
+              })
+              y += 2
+            }
+
+            // Comments
+            if (sl.comments) {
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'italic')
+              doc.setFontSize(6)
+              doc.text('Steering Comments: ' + String(sl.comments).substring(0, 120), margin + 4, y + 3)
+              y += 5
+            }
+            y += 3
+          }
+        }
+
         y += 3
       }
 
@@ -5435,15 +5788,59 @@ CRITICAL - Individual Entries Required:
           y += 8
 
           block.gradingData.softSpots.entries.slice(0, 5).forEach((spot, i) => {
+            checkPageBreak(10)
             setColor(BRAND.black, 'text')
             doc.setFont('helvetica', 'normal')
             doc.setFontSize(6)
             const spotInfo = []
             if (spot.kp) spotInfo.push(`KP: ${spot.kp}`)
             if (spot.length) spotInfo.push(`Length: ${spot.length}m`)
-            if (spot.treatment) spotInfo.push(`Treatment: ${spot.treatment}`)
-            doc.text(spotInfo.join('  |  '), margin + 4, y + 3)
+            if (spot.width) spotInfo.push(`Width: ${spot.width}m`)
+            if (spot.cause) spotInfo.push(`Cause: ${spot.cause}`)
+            if (spot.actionTaken) spotInfo.push(`Action: ${spot.actionTaken}`)
+            if (spot.resolved) spotInfo.push(`Resolved: ${spot.resolved}`)
+            doc.text(`${i + 1}. ${spotInfo.join('  |  ')}`, margin + 4, y + 3)
             y += 5
+            if (spot.comments) {
+              doc.setFont('helvetica', 'italic')
+              doc.setFontSize(5.5)
+              doc.text(`   Comments: ${String(spot.comments).substring(0, 100)}`, margin + 8, y + 2.5)
+              y += 4
+            }
+          })
+        }
+
+        // Crossings
+        if (block.gradingData.crossings?.enabled && block.gradingData.crossings?.entries?.length > 0) {
+          checkPageBreak(20)
+          setColor('#e3f2fd', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#1565c0', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text(`CROSSINGS (${block.gradingData.crossings.entries.length})`, margin + 4, y + 4)
+          y += 8
+
+          block.gradingData.crossings.entries.forEach((cx, i) => {
+            checkPageBreak(10)
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            const cxInfo = []
+            if (cx.crossingType) cxInfo.push(cx.crossingType)
+            if (cx.kp) cxInfo.push(`KP: ${cx.kp}`)
+            if (cx.accessMaintained) cxInfo.push(`Access: ${cx.accessMaintained}`)
+            if (cx.signageInPlace) cxInfo.push(`Signage: ${cx.signageInPlace}`)
+            if (cx.trafficControl) cxInfo.push(`Traffic Control: ${cx.trafficControl}`)
+            if (cx.condition) cxInfo.push(`Condition: ${cx.condition}`)
+            doc.text(`${i + 1}. ${cxInfo.join('  |  ')}`, margin + 4, y + 3)
+            y += 5
+            if (cx.comments) {
+              doc.setFont('helvetica', 'italic')
+              doc.setFontSize(5.5)
+              doc.text(`   Comments: ${String(cx.comments).substring(0, 100)}`, margin + 8, y + 2.5)
+              y += 4
+            }
           })
         }
 
@@ -6087,6 +6484,191 @@ CRITICAL - Individual Entries Required:
           doc.text('Comments: ' + String(block.conventionalBoreData.comments).substring(0, 100), margin + 4, y + 3)
           y += 6
         }
+
+        // HD Bores Waste Management
+        if (block.conventionalBoreData.wasteManagementData) {
+          const wm = block.conventionalBoreData.wasteManagementData
+          const hasWMData = wm.totalVolumeMixedM3 || wm.volumeInStorageM3 || wm.volumeHauledM3 ||
+            wm.storageType || wm.disposalFacilityName || wm.manifestNumber ||
+            wm.vacTruckHours || wm.salinityTestPassed || wm.toxicityTestPassed || wm.metalsTestPassed ||
+            (wm.additives && wm.additives.length > 0) || wm.comments
+
+          if (hasWMData) {
+            checkPageBreak(30)
+            setColor('#e8f5e9', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#2e7d32', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('DRILLING WASTE MANAGEMENT', margin + 4, y + 4)
+            y += 8
+
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            const wmLeft = margin + 4
+            const wmRight = margin + contentWidth / 2
+
+            // Volumes
+            if (wm.totalVolumeMixedM3 || wm.volumeInStorageM3 || wm.volumeHauledM3) {
+              checkPageBreak(8)
+              setColor(BRAND.gray, 'text')
+              doc.text('Total Mixed:', wmLeft, y + 3)
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.text(`${wm.totalVolumeMixedM3 || '-'} m³`, wmLeft + 30, y + 3)
+              doc.setFont('helvetica', 'normal')
+              setColor(BRAND.gray, 'text')
+              doc.text('In Storage:', wmRight, y + 3)
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.text(`${wm.volumeInStorageM3 || '-'} m³`, wmRight + 28, y + 3)
+              y += 5
+              doc.setFont('helvetica', 'normal')
+              setColor(BRAND.gray, 'text')
+              doc.text('Hauled:', wmLeft, y + 3)
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.text(`${wm.volumeHauledM3 || '-'} m³`, wmLeft + 30, y + 3)
+              y += 5
+            }
+
+            // Storage
+            if (wm.storageType || wm.storageCapacityM3) {
+              doc.setFont('helvetica', 'normal')
+              setColor(BRAND.gray, 'text')
+              doc.text('Storage Type:', wmLeft, y + 3)
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.text(wm.storageType || '-', wmLeft + 30, y + 3)
+              doc.setFont('helvetica', 'normal')
+              setColor(BRAND.gray, 'text')
+              doc.text('Capacity:', wmRight, y + 3)
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.text(`${wm.storageCapacityM3 || '-'} m³`, wmRight + 28, y + 3)
+              y += 5
+            }
+
+            // Disposal
+            if (wm.disposalFacilityName || wm.disposalFacilityLocation || wm.manifestNumber) {
+              doc.setFont('helvetica', 'normal')
+              const disposalInfo = []
+              if (wm.disposalFacilityName) disposalInfo.push(`Facility: ${wm.disposalFacilityName}`)
+              if (wm.disposalFacilityLocation) disposalInfo.push(`Location: ${wm.disposalFacilityLocation}`)
+              if (wm.manifestNumber) disposalInfo.push(`Manifest #: ${wm.manifestNumber}`)
+              if (wm.disposalDate) disposalInfo.push(`Date: ${wm.disposalDate}`)
+              if (wm.disposalMethod) disposalInfo.push(`Method: ${wm.disposalMethod}`)
+              setColor(BRAND.black, 'text')
+              doc.setFontSize(6)
+              doc.text(disposalInfo.join('  |  '), wmLeft, y + 3)
+              y += 5
+            }
+
+            // Additives table
+            if (wm.additives && wm.additives.length > 0) {
+              checkPageBreak(15)
+              y += 2
+              setColor('#43a047', 'fill')
+              doc.rect(margin, y, contentWidth, 5, 'F')
+              setColor('white', 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.setFontSize(5.5)
+              doc.text('PRODUCT', margin + 2, y + 3.5)
+              doc.text('QTY', margin + 50, y + 3.5)
+              doc.text('UNIT', margin + 70, y + 3.5)
+              doc.text('BATCH #', margin + 90, y + 3.5)
+              doc.text('SUPPLIER', margin + 125, y + 3.5)
+              y += 6
+
+              wm.additives.forEach((add, ai) => {
+                checkPageBreak(5)
+                if (ai % 2 === 0) {
+                  setColor(BRAND.grayLight, 'fill')
+                  doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+                }
+                setColor(BRAND.black, 'text')
+                doc.setFont('helvetica', 'normal')
+                doc.setFontSize(5.5)
+                doc.text(String(add.productName || '-').substring(0, 25), margin + 2, y + 2.5)
+                doc.text(String(add.quantity || '-').substring(0, 10), margin + 50, y + 2.5)
+                doc.text(String(add.unit || '-').substring(0, 10), margin + 70, y + 2.5)
+                doc.text(String(add.batchNumber || '-').substring(0, 15), margin + 90, y + 2.5)
+                doc.text(String(add.supplier || '-').substring(0, 20), margin + 125, y + 2.5)
+                y += 4.5
+              })
+              y += 2
+            }
+
+            // Vac Truck
+            if (wm.vacTruckHours || wm.vacTruckEquipmentId || wm.vacTruckOperator) {
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'normal')
+              doc.setFontSize(6)
+              const vacInfo = []
+              if (wm.vacTruckHours) vacInfo.push(`Hours: ${wm.vacTruckHours}`)
+              if (wm.vacTruckEquipmentId) vacInfo.push(`Equipment ID: ${wm.vacTruckEquipmentId}`)
+              if (wm.vacTruckOperator) vacInfo.push(`Operator: ${wm.vacTruckOperator}`)
+              doc.text('Vac Truck: ' + vacInfo.join('  |  '), wmLeft, y + 3)
+              y += 5
+            }
+
+            // Compliance Testing
+            if (wm.salinityTestPassed || wm.toxicityTestPassed || wm.metalsTestPassed || wm.testLabName) {
+              checkPageBreak(12)
+              y += 2
+              setColor('#e8f5e9', 'fill')
+              doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+              setColor('#2e7d32', 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.setFontSize(6)
+              doc.text('COMPLIANCE TESTING', margin + 4, y + 4)
+              y += 8
+
+              doc.setFontSize(6)
+              const testItems = [
+                { label: 'Salinity', value: wm.salinityTestPassed },
+                { label: 'Toxicity', value: wm.toxicityTestPassed },
+                { label: 'Metals', value: wm.metalsTestPassed }
+              ]
+              testItems.forEach((t, ti) => {
+                const xPos = wmLeft + (ti * 55)
+                setColor(BRAND.gray, 'text')
+                doc.setFont('helvetica', 'normal')
+                doc.text(t.label + ':', xPos, y + 3)
+                if (t.value === true || t.value === 'Pass') setColor(BRAND.green, 'text')
+                else if (t.value === false || t.value === 'Fail') setColor(BRAND.red, 'text')
+                else setColor(BRAND.black, 'text')
+                doc.setFont('helvetica', 'bold')
+                const displayVal = t.value === true ? 'Pass' : t.value === false ? 'Fail' : String(t.value || '-')
+                doc.text(displayVal, xPos + 20, y + 3)
+              })
+              y += 5
+
+              if (wm.testLabName || wm.testDate) {
+                doc.setFont('helvetica', 'normal')
+                setColor(BRAND.gray, 'text')
+                const labInfo = []
+                if (wm.testLabName) labInfo.push(`Lab: ${wm.testLabName}`)
+                if (wm.testDate) labInfo.push(`Date: ${wm.testDate}`)
+                setColor(BRAND.black, 'text')
+                doc.text(labInfo.join('  |  '), wmLeft, y + 3)
+                y += 5
+              }
+            }
+
+            // Comments
+            if (wm.comments) {
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'italic')
+              doc.setFontSize(6)
+              doc.text('WM Comments: ' + String(wm.comments).substring(0, 120), wmLeft, y + 3)
+              y += 5
+            }
+            y += 3
+          }
+        }
+
         y += 3
       }
 
@@ -6141,10 +6723,14 @@ CRITICAL - Individual Entries Required:
           doc.rect(margin, y, contentWidth, 5, 'F')
           setColor(BRAND.white, 'text')
           doc.setFont('helvetica', 'bold')
-          doc.setFontSize(6)
+          doc.setFontSize(5.5)
           doc.text('LOCATION', margin + 2, y + 3.5)
-          doc.text('KP', margin + 60, y + 3.5)
-          doc.text('NOTES', margin + 100, y + 3.5)
+          doc.text('DWG #', margin + 45, y + 3.5)
+          doc.text('REQUIRED', margin + 75, y + 3.5)
+          doc.text('TODAY', margin + 100, y + 3.5)
+          doc.text('PREVIOUS', margin + 120, y + 3.5)
+          doc.text('TO DATE', margin + 145, y + 3.5)
+          doc.text('NOTES', margin + 165, y + 3.5)
           y += 6
 
           block.pilingData.locations.forEach((loc, i) => {
@@ -6155,12 +6741,60 @@ CRITICAL - Individual Entries Required:
             }
             setColor(BRAND.black, 'text')
             doc.setFont('helvetica', 'normal')
-            doc.setFontSize(6)
-            doc.text(String(loc.description || loc.location || '-').substring(0, 25), margin + 2, y + 2.5)
-            doc.text(String(loc.kp || '-').substring(0, 15), margin + 60, y + 2.5)
-            doc.text(String(loc.notes || '-').substring(0, 40), margin + 100, y + 2.5)
+            doc.setFontSize(5.5)
+            doc.text(String(loc.description || loc.location || '-').substring(0, 22), margin + 2, y + 2.5)
+            doc.text(String(loc.drawingNumber || '-').substring(0, 12), margin + 45, y + 2.5)
+            doc.text(String(loc.pilesRequired || '-').substring(0, 6), margin + 75, y + 2.5)
+            doc.text(String(loc.pilesToday || '-').substring(0, 6), margin + 100, y + 2.5)
+            doc.text(String(loc.pilesPrevious || '-').substring(0, 6), margin + 120, y + 2.5)
+            const toDate = loc.pilesToDate || (loc.pilesToday && loc.pilesPrevious ? String((parseFloat(loc.pilesToday) || 0) + (parseFloat(loc.pilesPrevious) || 0)) : '-')
+            doc.text(String(toDate).substring(0, 6), margin + 145, y + 2.5)
+            doc.text(String(loc.notes || '-').substring(0, 20), margin + 165, y + 2.5)
             y += 4.5
           })
+        }
+
+        // Quality Verifications
+        if (block.pilingData.verifications) {
+          const v = block.pilingData.verifications
+          const vItems = [
+            { label: 'Material Traceability', value: v.materialTraceability },
+            { label: 'Location Per Drawings', value: v.locationPerDrawings },
+            { label: 'Clear of Facilities', value: v.clearOfFacilities },
+            { label: 'Plumb & Vertical', value: v.plumbAndVertical },
+            { label: 'Splice Welding', value: v.spliceWelding },
+            { label: 'QC Documentation', value: v.qcDocumentation }
+          ].filter(item => item.value)
+
+          if (vItems.length > 0) {
+            checkPageBreak(20)
+            setColor('#fce4ec', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#880e4f', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('QUALITY VERIFICATIONS', margin + 4, y + 4)
+            y += 8
+
+            const colWidth = (contentWidth - 8) / 2
+            vItems.forEach((item, i) => {
+              const col = i % 2
+              const xPos = margin + 4 + (col * colWidth)
+              if (col === 0) checkPageBreak(6)
+              doc.setFont('helvetica', 'normal')
+              doc.setFontSize(6)
+              setColor(BRAND.gray, 'text')
+              doc.text(item.label + ':', xPos, y + 3)
+              if (item.value === 'Pass') setColor(BRAND.green, 'text')
+              else if (item.value === 'Fail') setColor(BRAND.red, 'text')
+              else setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.text(String(item.value), xPos + 42, y + 3)
+              if (col === 1 || i === vItems.length - 1) y += 5
+            })
+            setColor(BRAND.black, 'text')
+            y += 2
+          }
         }
 
         if (block.pilingData.comments) {
@@ -6287,6 +6921,19 @@ CRITICAL - Individual Entries Required:
         checkPageBreak(40)
         addSubHeader('Welder Testing Log', '#fff8e1')
 
+        // Header info (location, times)
+        const wtHeaderInfo = []
+        if (block.welderTestingData.testLocation) wtHeaderInfo.push(`Location: ${block.welderTestingData.testLocation}`)
+        if (block.welderTestingData.startTime) wtHeaderInfo.push(`Start: ${block.welderTestingData.startTime}`)
+        if (block.welderTestingData.stopTime) wtHeaderInfo.push(`Stop: ${block.welderTestingData.stopTime}`)
+        if (wtHeaderInfo.length > 0) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(wtHeaderInfo.join('  |  '), margin + 4, y + 3)
+          y += 7
+        }
+
         // Summary
         setColor('#fff8e1', 'fill')
         doc.roundedRect(margin, y, contentWidth, 8, 1, 1, 'F')
@@ -6303,13 +6950,16 @@ CRITICAL - Individual Entries Required:
         doc.rect(margin, y, contentWidth, 5, 'F')
         setColor(BRAND.black, 'text')
         doc.setFont('helvetica', 'bold')
-        doc.setFontSize(6)
+        doc.setFontSize(5.5)
         doc.text('WELDER', margin + 2, y + 3.5)
-        doc.text('PROJECT ID', margin + 40, y + 3.5)
-        doc.text('DATE', margin + 75, y + 3.5)
-        doc.text('MATERIAL', margin + 100, y + 3.5)
-        doc.text('RESULT', margin + 130, y + 3.5)
-        doc.text('PROCEDURE', margin + 155, y + 3.5)
+        doc.text('ID', margin + 28, y + 3.5)
+        doc.text('ABSA #', margin + 48, y + 3.5)
+        doc.text('DATE', margin + 68, y + 3.5)
+        doc.text('MATERIAL', margin + 88, y + 3.5)
+        doc.text('WALL/DIA', margin + 108, y + 3.5)
+        doc.text('PROC', margin + 130, y + 3.5)
+        doc.text('RESULT', margin + 148, y + 3.5)
+        doc.text('REPAIR', margin + 168, y + 3.5)
         y += 6
 
         // Table rows
@@ -6321,17 +6971,29 @@ CRITICAL - Individual Entries Required:
           }
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
-          doc.setFontSize(6)
-          doc.text(String(test.welderName || '-').substring(0, 15), margin + 2, y + 2.5)
-          doc.text(String(test.welderProjectId || '-').substring(0, 12), margin + 40, y + 2.5)
-          doc.text(String(test.testDate || '-').substring(0, 10), margin + 75, y + 2.5)
-          doc.text(String(test.testMaterial || '-').substring(0, 12), margin + 100, y + 2.5)
+          doc.setFontSize(5.5)
+          doc.text(String(test.welderName || '-').substring(0, 13), margin + 2, y + 2.5)
+          doc.text(String(test.welderProjectId || '-').substring(0, 10), margin + 28, y + 2.5)
+          doc.text(String(test.welderAbsaNo || '-').substring(0, 10), margin + 48, y + 2.5)
+          doc.text(String(test.testDate || '-').substring(0, 10), margin + 68, y + 2.5)
+          doc.text(String(test.testMaterial || '-').substring(0, 10), margin + 88, y + 2.5)
+          doc.text(String(test.wallThicknessDiameter || '-').substring(0, 10), margin + 108, y + 2.5)
+          doc.text(String(test.weldProcedure || '-').substring(0, 10), margin + 130, y + 2.5)
           // Color code pass/fail
           if (test.passFail === 'Pass') setColor(BRAND.green, 'text')
           else if (test.passFail === 'Fail') setColor(BRAND.red, 'text')
-          doc.text(String(test.passFail || '-').substring(0, 8), margin + 130, y + 2.5)
+          doc.text(String(test.passFail || '-').substring(0, 6), margin + 148, y + 2.5)
           setColor(BRAND.black, 'text')
-          doc.text(String(test.weldProcedure || '-').substring(0, 15), margin + 155, y + 2.5)
+          // Repair info
+          const repairInfo = []
+          if (test.repairTestDate) repairInfo.push(String(test.repairTestDate).substring(0, 10))
+          if (test.repairsPassFail) {
+            if (test.repairsPassFail === 'Pass') setColor(BRAND.green, 'text')
+            else if (test.repairsPassFail === 'Fail') setColor(BRAND.red, 'text')
+            repairInfo.push(test.repairsPassFail)
+          }
+          doc.text(repairInfo.join(' ') || '-', margin + 168, y + 2.5)
+          setColor(BRAND.black, 'text')
           y += 4.5
         })
         y += 3
@@ -6860,8 +7522,8 @@ CRITICAL - Individual Entries Required:
       addSectionHeader('UNIT PRICE ITEMS', [111, 66, 193]) // Purple
 
       // Table header
-      const upiColWidths = [8, 35, 45, 15, 15, 22, contentWidth - 140]
-      const upiHeaders = ['#', 'Category', 'Item', 'Qty', 'Unit', 'KP', 'Notes']
+      const upiColWidths = [8, 30, 40, 12, 12, 20, 20, contentWidth - 142]
+      const upiHeaders = ['#', 'Category', 'Item', 'Qty', 'Unit', 'KP', 'Date', 'Notes']
 
       setColor([240, 235, 248], 'fill')
       doc.rect(margin, y, contentWidth, 5, 'F')
@@ -6892,12 +7554,13 @@ CRITICAL - Individual Entries Required:
         const itemName = item.category === 'Custom' ? (item.customItem || 'Custom') : (item.itemName || 'N/A')
         const rowData = [
           String(idx + 1),
-          (item.category || 'N/A').substring(0, 20),
-          itemName.substring(0, 28),
+          (item.category || 'N/A').substring(0, 18),
+          itemName.substring(0, 24),
           String(item.quantity || ''),
           item.unit || '',
           item.locationKP || '',
-          (item.notes || '').substring(0, 35)
+          item.installedDate ? String(item.installedDate).substring(0, 10) : '',
+          (item.notes || '').substring(0, 30)
         ]
         rowData.forEach((val, i) => {
           doc.text(val, upiX, y + 1)
