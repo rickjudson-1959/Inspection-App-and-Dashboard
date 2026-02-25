@@ -607,7 +607,8 @@ CRITICAL - Individual Entries Required:
           activityBlocks: activityBlocks.map(block => ({
             ...block,
             workPhotos: [], // Can't serialize File objects
-            ticketPhoto: null
+            ticketPhoto: null,
+            ticketPhotos: null
           })),
           safetyNotes,
           safetyRecognitionData,
@@ -623,7 +624,7 @@ CRITICAL - Individual Entries Required:
 
         localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData))
         setDraftSaved(true)
-        
+
         // Show the indicator briefly
         setShowDraftIndicator(true)
         setTimeout(() => setShowDraftIndicator(false), 2000)
@@ -683,7 +684,8 @@ CRITICAL - Individual Entries Required:
           activityBlocks: activityBlocks.map(block => ({
             ...block,
             workPhotos: [],
-            ticketPhoto: null
+            ticketPhoto: null,
+            ticketPhotos: null
           })),
           safetyNotes,
           safetyRecognitionData,
@@ -699,7 +701,7 @@ CRITICAL - Individual Entries Required:
 
         localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draftData))
         setDraftSaved(true)
-        
+
         // Show the popup indicator
         setShowDraftIndicator(true)
         setTimeout(() => setShowDraftIndicator(false), 2000)
@@ -1634,6 +1636,9 @@ CRITICAL - Individual Entries Required:
           metersToday: block.metersToday || '',
           metersPrevious: block.metersPrevious || '',
           ticketNumber: block.ticketNumber || '',
+          metersToDate: block.metersToDate || '',
+          systemicDelay: block.systemicDelay || null,
+          conventionalBoreData: block.conventionalBoreData || null,
           weldData: block.weldData || null,
           bendingData: block.bendingData || null,
           stringingData: block.stringingData || null,
@@ -2938,7 +2943,14 @@ CRITICAL - Individual Entries Required:
           chainageGapReason: chainageReasons[block.id]?.gapReason || null,
           // Efficiency Audit summary
           shadowAuditSummary: generateShadowAuditSummary(blockForAudit),
+          // Fields used during edit-mode reload
+          ticketNumber: block.ticketNumber || '',
+          metersToday: block.metersToday || '',
+          metersPrevious: block.metersPrevious || '',
+          metersToDate: block.metersToDate || '',
+          systemicDelay: block.systemicDelay || null,
           // Specialized data for different activity types
+          conventionalBoreData: block.conventionalBoreData || null,
           weldData: block.weldData || null,
           bendingData: block.bendingData || null,
           stringingData: block.stringingData || null,
