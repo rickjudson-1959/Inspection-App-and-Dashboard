@@ -186,6 +186,29 @@ function scoreFieldCompleteness(activityBlocks) {
  * All gaps/overlaps have documented reasons
  */
 function scoreChainageIntegrity(activityBlocks) {
+  const issues = []
+
+  // Check for blocks with an activity type but missing KP data
+  const activeBlocks = activityBlocks.filter(b => b.activityType)
+  const missingKP = []
+  activeBlocks.forEach((block, idx) => {
+    if (!block.startKP || !block.endKP) {
+      missingKP.push({ block, num: idx + 1 })
+    }
+  })
+
+  if (missingKP.length > 0) {
+    missingKP.forEach(({ block, num }) => {
+      const missing = !block.startKP && !block.endKP ? 'Start KP and End KP' :
+                      !block.startKP ? 'Start KP' : 'End KP'
+      issues.push(`Block #${num} "${block.activityType}" — ${missing} not entered`)
+    })
+    // Score based on how many active blocks have complete chainage
+    const completeCount = activeBlocks.length - missingKP.length
+    const score = activeBlocks.length > 0 ? Math.round((completeCount / activeBlocks.length) * 100) : 100
+    return { score, weight: 15, issues }
+  }
+
   // Group blocks by activity type, tracking block numbers
   const byType = {}
   activityBlocks.forEach((block, idx) => {
@@ -196,7 +219,6 @@ function scoreChainageIntegrity(activityBlocks) {
 
   let totalIssues = 0
   let documentedIssues = 0
-  const issues = []
 
   for (const [type, blocks] of Object.entries(byType)) {
     if (blocks.length < 2) continue

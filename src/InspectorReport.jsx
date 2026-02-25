@@ -8168,9 +8168,23 @@ CRITICAL - Individual Entries Required:
       <div style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '8px', marginBottom: '20px', textAlign: 'center' }}>
         <button
           onClick={async () => {
+            // Check if any activity blocks are missing KP data
+            const activeBlocks = activityBlocks.filter(b => b.activityType)
+            const blocksWithKP = activeBlocks.filter(b => b.startKP && b.endKP)
+            if (activeBlocks.length > 0 && blocksWithKP.length === 0) {
+              alert('⚠️ No chainage data entered. Please fill in Start KP and End KP for your activity blocks before checking for overlaps.')
+              return
+            }
+            const missingKP = activeBlocks.filter(b => !b.startKP || !b.endKP)
             const currentWarnings = checkChainageOverlaps(activityBlocks)
             const historicalWarnings = await checkHistoricalOverlaps(activityBlocks)
             const allWarnings = [...currentWarnings, ...historicalWarnings]
+            if (missingKP.length > 0) {
+              missingKP.forEach((block, i) => {
+                const idx = activityBlocks.indexOf(block) + 1
+                allWarnings.unshift({ type: 'missing', message: `⚠️ Activity #${idx} "${block.activityType}" — Start KP and/or End KP not entered` })
+              })
+            }
             setOverlapWarnings(allWarnings)
             if (allWarnings.length === 0) {
               alert('✅ No chainage overlaps detected!')
