@@ -369,6 +369,28 @@
 
 ## 6. RECENT UPDATES (January/February 2026)
 
+### Pipeline Names & Welding Label Rename (February 24, 2026)
+
+**Pipeline dropdown now shows geographic names instead of KP ranges; "Weld UPI Items" renamed to "Welding" throughout**
+
+1. **Pipeline dropdown — geographic names** — Pipeline selector now shows meaningful names (Coquitlam Start, Indian Arm, Mid-Route, Woodfibre Approach) instead of raw KP ranges. Old KP-range values in saved reports and drafts are automatically migrated to new names on load. Weather lookup, PDF, and spread auto-population all work with the new names.
+
+2. **KP discrepancy warning** — A small orange warning appears below the Pipeline dropdown when any activity block's work KPs fall outside the selected pipeline segment's KP range.
+
+3. **Weld UPI Items → Welding** — Renamed the trackable item label from "Weld UPI Items" to "Welding" in: TrackableItemsTracker section header, PDF export type labels, pre-submit reminder banner, and submit confirmation modal.
+
+**Field Guide updated** — Welding label updated (6 instances), pipeline naming documented.
+
+**Files Modified:**
+```
+src/constants.js                  # pipelineLocations keys → geographic names + kpStart/kpEnd, spreadToPipeline updated, pipelineMigrationMap added
+src/InspectorReport.jsx           # Import pipelineMigrationMap, migration in restoreDraft + populateFormFromReport, KP discrepancy warning, Weld UPI Items → Welding (3 places)
+src/TrackableItemsTracker.jsx     # Label '⚙️ Weld UPI Items' → '⚙️ Welding'
+pipe-up-field-guide-agent-kb.md   # Weld UPI Items → Welding (6 instances)
+```
+
+---
+
 ### PDF Export — Work Photos, Coating Quality Checks, Counterbore Log & Quality Fix (February 24, 2026)
 
 **Added work photo thumbnails to PDF, complete Coating inspection sections, Counterbore/Transition rendering, fixed duplicate quality checks, fixed Metres Today, and updated Coating weld identification fields**

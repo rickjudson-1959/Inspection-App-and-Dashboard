@@ -29,7 +29,8 @@ import {
   labourClassifications,
   equipmentTypes,
   createEmptyActivity,
-  dragReasonCategories
+  dragReasonCategories,
+  pipelineMigrationMap
 } from './constants.js'
 
 // Import ActivityBlock component (handles all specialized logs internally)
@@ -728,7 +729,8 @@ CRITICAL - Individual Entries Required:
       setInspectorName(pendingDraft.inspectorName || '')
       setSpread(pendingDraft.spread || '')
       setAfe(pendingDraft.afe || '')
-      setPipeline(pendingDraft.pipeline || '')
+      const draftPipeline = pendingDraft.pipeline || ''
+      setPipeline(pipelineMigrationMap[draftPipeline] || draftPipeline)
       setWeather(pendingDraft.weather || '')
       setPrecipitation(pendingDraft.precipitation || '')
       setTempHigh(pendingDraft.tempHigh || '')
@@ -1543,7 +1545,8 @@ CRITICAL - Individual Entries Required:
     setInspectorName(report.inspector_name || '')
     setSpread(report.spread || '')
     setAfe(report.afe || '')
-    setPipeline(report.pipeline || '')
+    const savedPipeline = report.pipeline || ''
+    setPipeline(pipelineMigrationMap[savedPipeline] || savedPipeline)
     setWeather(report.weather || '')
     setPrecipitation(report.precipitation || '')
     setTempHigh(report.temp_high || '')
@@ -6667,7 +6670,7 @@ CRITICAL - Individual Entries Required:
         rock_trench: 'Rock Trench',
         extra_depth: 'Extra Depth Ditch',
         bedding_padding: 'Bedding & Padding',
-        weld_upi: 'Weld UPI Items'
+        weld_upi: 'Welding'
       }
       
       Object.entries(groupedItems).forEach(([type, items]) => {
@@ -7745,6 +7748,19 @@ CRITICAL - Individual Entries Required:
                 <option key={p} value={p}>{p}</option>
               ))}
             </select>
+            {/* KP discrepancy warning */}
+            {pipeline && pipelineLocations[pipeline] && activityBlocks.some(block => {
+              if (!block.startKP && !block.endKP) return false
+              const loc = pipelineLocations[pipeline]
+              const startM = block.startKP ? parseKPToMetres(block.startKP) : null
+              const endM = block.endKP ? parseKPToMetres(block.endKP) : null
+              return (startM !== null && (startM < loc.kpStart || startM > loc.kpEnd)) ||
+                     (endM !== null && (endM < loc.kpStart || endM > loc.kpEnd))
+            }) && (
+              <div style={{ marginTop: '4px', padding: '3px 6px', backgroundColor: '#fff3cd', border: '1px solid #ffc107', borderRadius: '4px', fontSize: '10px', color: '#856404' }}>
+                ⚠️ Activity KPs fall outside this pipeline segment
+              </div>
+            )}
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '3px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>AFE / Contract #</label>
@@ -8019,7 +8035,7 @@ CRITICAL - Individual Entries Required:
               </div>
               <div style={{ fontSize: '13px', color: '#856404' }}>
                 Before submitting, check each category below to ensure nothing is missed:
-                <strong> Mats, Rock Trench, Extra Depth, Fencing, Ramps, Goal Posts, Access Roads, Hydrovac, Erosion Control, Signage, Equipment Cleaning, Weld UPI Items</strong>
+                <strong> Mats, Rock Trench, Extra Depth, Fencing, Ramps, Goal Posts, Access Roads, Hydrovac, Erosion Control, Signage, Equipment Cleaning, Welding</strong>
               </div>
             </div>
             
@@ -8435,7 +8451,7 @@ CRITICAL - Individual Entries Required:
                 <li>🌊 Erosion Control</li>
                 <li>🚧 Signage & Flagging</li>
                 <li>🧹 Equipment Cleaning</li>
-                <li>⚙️ Weld UPI Items</li>
+                <li>⚙️ Welding</li>
               </ul>
             </div>
             <p style={{ margin: '0 0 20px 0', color: '#666', fontSize: '14px' }}>

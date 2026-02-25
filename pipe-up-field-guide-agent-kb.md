@@ -404,7 +404,7 @@ Accurately categorize each labour and equipment entry's production status. The s
 
 ### Submit Flow
 1. Inspector fills out the report and clicks Submit Report.
-2. A Trackable Items modal appears asking: "Have you checked ALL trackable items?" — listing Mats, Rock Trench, Extra Depth Ditch, Bedding & Padding, Temporary Fencing, Ramps, Goal Posts (Power Lines), Access Roads, Hydrovac Holes, Erosion Control, Signage & Flagging, Equipment Cleaning, Weld UPI Items (all 13 types).
+2. A Trackable Items modal appears asking: "Have you checked ALL trackable items?" — listing Mats, Rock Trench, Extra Depth Ditch, Bedding & Padding, Temporary Fencing, Ramps, Goal Posts (Power Lines), Access Roads, Hydrovac Holes, Erosion Control, Signage & Flagging, Equipment Cleaning, Welding (all 13 types).
 3. If confirmed, the report saves to Supabase and goes to the Chief Inspector for review.
 4. Reports with welding activities (Welding - Mainline, Welding - Section Crew, Welding - Poor Boy, Welding - Tie-in, Welder Testing) also require Welding Chief review.
 
@@ -440,7 +440,7 @@ Click "Download PDF Copy" to generate a comprehensive PDF of the entire report. 
 
 ## SECTION 9: TRACKABLE ITEMS
 
-Trackable items are project-wide assets and quantities tracked across reports. Categories include: Mats, Rock Trench, Extra Depth Ditch, Bedding & Padding, Temporary Fencing, Ramps, Goal Posts (Power Lines), Access Roads, Hydrovac Holes, Erosion Control, Signage & Flagging, Equipment Cleaning, Weld UPI Items.
+Trackable items are project-wide assets and quantities tracked across reports. Categories include: Mats, Rock Trench, Extra Depth Ditch, Bedding & Padding, Temporary Fencing, Ramps, Goal Posts (Power Lines), Access Roads, Hydrovac Holes, Erosion Control, Signage & Flagging, Equipment Cleaning, Welding.
 
 ### Auto-Save & Data Persistence
 Trackable item entries auto-save to Supabase when the inspector leaves a field (on blur). There is no manual Save button — only a Remove button to delete entries. **All type-specific fields are persisted to the database** — the `saveItem` function dynamically saves every field that has a corresponding DB column. Fields without DB columns (e.g., newly added form fields awaiting a migration) are noted in the code.
@@ -467,8 +467,8 @@ Goal Posts track electrical safety compliance for overhead power line crossings.
 - **Offset from CL (m)**: Distance from centerline (≥6m required)
 - **≥6m Offset?**: Pass / Fail - TOO CLOSE
 
-### Weld UPI Items
-The Weld UPI Items category tracks welding-related unit price items such as cut outs, repairs, reworks, and NDT fail repairs. Fields include:
+### Welding
+The Welding category tracks welding-related unit price items such as cut outs, repairs, reworks, and NDT fail repairs. Fields include:
 - **UPI Type**: Cut Out, Repair, Rework, NDT Fail Repair, Other
 - **Weld Number(s)**: The weld identifier(s) affected (e.g., W-001)
 - **KP**: Location chainage
@@ -574,7 +574,7 @@ When OCR extracts total hours from a ticket, the app auto-splits: RT = min(total
 | KP | Kilometre Post — distance along the pipeline in X+XXX format |
 | Lower-in | Using sidebooms to place the welded pipeline into the trench |
 | NDE (Non-Destructive Examination) | Inspection methods (radiography, ultrasonic, magnetic particle, etc.) used to evaluate weld integrity without damaging the pipe — referenced in Welding - Mainline specialized log as "NDE results" |
-| NDT (Non-Destructive Testing) | Interchangeable with NDE — used in Weld UPI Items tracking for failure reasons ("NDT Fail Repair", "NDT Failure") |
+| NDT (Non-Destructive Testing) | Interchangeable with NDE — used in Welding tracking for failure reasons ("NDT Fail Repair", "NDT Failure") |
 | Management Drag | Complete work stoppage due to decisions outside crew control (0% productive) |
 | Mat Tracker | Pipe-Up feature for logging access mat movements |
 | Mentor Agent | AI-powered real-time auditor that checks field values against thresholds |

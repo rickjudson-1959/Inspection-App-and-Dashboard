@@ -241,7 +241,7 @@ const ITEM_TYPES = [
   },
   {
     id: 'weld_upi',
-    label: '⚙️ Weld UPI Items',
+    label: '⚙️ Welding',
     color: '#ff6b35',
     fields: [
       { name: 'upi_type', label: 'UPI Type', type: 'select', options: ['Cut Out', 'Repair', 'Rework', 'NDT Fail Repair', 'Other'] },

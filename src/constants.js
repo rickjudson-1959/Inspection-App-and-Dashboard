@@ -9,10 +9,18 @@ export const PROJECT_SHORT = "EGP"
 // KP 0+000 at Coquitlam to KP 38+470 at Woodfibre approach
 // Data extracted from FortisBC provisional asbuilt KML
 export const pipelineLocations = {
-  'KP 0+000 to 10+000': { lat: 49.525, lon: -122.84, name: 'Coquitlam Start' },
-  'KP 10+000 to 20+000': { lat: 49.56, lon: -122.94, name: 'Indian Arm' },
-  'KP 20+000 to 30+000': { lat: 49.64, lon: -123.02, name: 'Mid-Route' },
-  'KP 30+000 to 38+470': { lat: 49.71, lon: -123.12, name: 'Woodfibre Approach' }
+  'Coquitlam Start':    { lat: 49.525, lon: -122.84, name: 'Coquitlam Start', kpStart: 0, kpEnd: 10000 },
+  'Indian Arm':         { lat: 49.56, lon: -122.94, name: 'Indian Arm', kpStart: 10000, kpEnd: 20000 },
+  'Mid-Route':          { lat: 49.64, lon: -123.02, name: 'Mid-Route', kpStart: 20000, kpEnd: 30000 },
+  'Woodfibre Approach': { lat: 49.71, lon: -123.12, name: 'Woodfibre Approach', kpStart: 30000, kpEnd: 38470 }
+}
+
+// Migration mapping for old KP-range pipeline values to new geographic names
+export const pipelineMigrationMap = {
+  'KP 0+000 to 10+000':  'Coquitlam Start',
+  'KP 10+000 to 20+000': 'Indian Arm',
+  'KP 20+000 to 30+000': 'Mid-Route',
+  'KP 30+000 to 38+470': 'Woodfibre Approach'
 }
 
 // Spread definitions - maps spread to pipeline section
@@ -20,10 +28,10 @@ export const spreadOptions = ['Spread 1', 'Spread 2', 'Spread 3', 'Spread 4']
 
 // Mapping of spread to pipeline section (auto-populates when spread is selected)
 export const spreadToPipeline = {
-  'Spread 1': 'KP 0+000 to 10+000',
-  'Spread 2': 'KP 10+000 to 20+000',
-  'Spread 3': 'KP 20+000 to 30+000',
-  'Spread 4': 'KP 30+000 to 38+470'
+  'Spread 1': 'Coquitlam Start',
+  'Spread 2': 'Indian Arm',
+  'Spread 3': 'Mid-Route',
+  'Spread 4': 'Woodfibre Approach'
 }
 
 // Activity types for pipeline construction
