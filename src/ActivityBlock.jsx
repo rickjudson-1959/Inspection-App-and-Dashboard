@@ -1155,6 +1155,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
           startKP={block.startKP}
           endKP={block.endKP}
           metersToday={calculateMetersToday(block)}
+          logId={block.id}
+          reportId={reportId}
         />
       )
     }

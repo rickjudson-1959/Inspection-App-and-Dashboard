@@ -7712,35 +7712,169 @@ CRITICAL - Individual Entries Required:
       // Hydrostatic Testing Log
       if (block.activityType === 'Hydrostatic Testing' && block.hydrotestData) {
         const ht = block.hydrotestData
-        checkPageBreak(35)
+        checkPageBreak(50)
         addSubHeader('Hydrostatic Testing', '#e8eaf6')
 
-        setColor(BRAND.grayLight, 'fill')
-        doc.roundedRect(margin + 2, y, contentWidth - 4, 22, 2, 2, 'F')
-        y += 5
-        addField('Test Section', ht.testSection || 'N/A', leftCol, 30)
-        addField('Test Pressure', ht.testPressure ? `${ht.testPressure} kPa` : 'N/A', rightCol, 35)
-        y += 6
-        addField('Hold Time', ht.holdTime ? `${ht.holdTime} hrs` : 'N/A', leftCol, 30)
-        addField('Water Source', ht.waterSource || 'N/A', rightCol, 35)
-        y += 6
-        const resultColor = ht.testResult === 'Pass' ? BRAND.green : ht.testResult === 'Fail' ? BRAND.red : BRAND.black
-        setColor(BRAND.gray, 'text')
-        doc.setFont('helvetica', 'bold')
-        doc.setFontSize(7)
-        doc.text('Result:', leftCol, y)
-        setColor(resultColor, 'text')
-        doc.setFont('helvetica', 'normal')
-        doc.text(ht.testResult || 'Pending', leftCol + 18, y)
-        if (ht.pressureDropPSI) {
-          setColor(BRAND.gray, 'text')
-          doc.setFont('helvetica', 'bold')
-          doc.text('Pressure Drop:', rightCol, y)
+        // Test Identification
+        const testId = []
+        if (ht.testSection) testId.push(`Section: ${ht.testSection}`)
+        if (ht.testMedium) testId.push(`Medium: ${ht.testMedium}`)
+        if (ht.testType) testId.push(`Type: ${ht.testType}`)
+        if (testId.length > 0) {
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
-          doc.text(`${ht.pressureDropPSI} PSI`, rightCol + 35, y)
+          doc.setFontSize(6)
+          doc.text(testId.join('  |  '), margin + 4, y + 3)
+          y += 6
         }
+
+        // Pressure Parameters
+        setColor(BRAND.grayLight, 'fill')
+        doc.roundedRect(margin + 2, y, contentWidth - 4, 16, 2, 2, 'F')
+        y += 5
+        addField('Design Pressure', ht.designPressure ? `${ht.designPressure} kPa` : 'N/A', leftCol, 38)
+        addField('Test Pressure', ht.testPressure ? `${ht.testPressure} kPa` : 'N/A', rightCol, 35)
+        y += 6
+        addField('Start Pressure', ht.startPressure ? `${ht.startPressure} kPa` : 'N/A', leftCol, 38)
+        addField('Final Pressure', ht.finalPressure ? `${ht.finalPressure} kPa` : 'N/A', rightCol, 35)
+        y += 8
+
+        // Timeline
+        const timeline = []
+        if (ht.holdTime) timeline.push(`Hold: ${ht.holdTime} hrs`)
+        if (ht.fillStartTime) timeline.push(`Fill: ${ht.fillStartTime}–${ht.fillEndTime || '?'}`)
+        if (ht.testStartTime) timeline.push(`Test: ${ht.testStartTime}–${ht.testEndTime || '?'}`)
+        if (timeline.length > 0) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(timeline.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Water Management
+        const water = []
+        if (ht.waterSource) water.push(`Source: ${ht.waterSource}`)
+        if (ht.waterVolume) water.push(`Volume: ${ht.waterVolume} m³`)
+        if (ht.waterDischargeLocation) water.push(`Discharge: ${ht.waterDischargeLocation}`)
+        if (ht.waterDischargePermit) water.push(`Permit: ${ht.waterDischargePermit}`)
+        if (ht.waterTemperature) water.push(`Temp: ${ht.waterTemperature}°C`)
+        if (water.length > 0) {
+          doc.text(water.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Instrumentation
+        const instr = []
+        if (ht.gaugeId) instr.push(`Gauge: ${ht.gaugeId}`)
+        if (ht.recorderType) instr.push(`Recorder: ${ht.recorderType}`)
+        if (ht.calibrationDate) instr.push(`Cal Date: ${ht.calibrationDate}`)
+        if (ht.calibrationCertificate) instr.push(`Cert: ${ht.calibrationCertificate}`)
+        if (instr.length > 0) {
+          doc.text(instr.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Pressure Readings Table
+        if (ht.pressureReadings?.length > 0) {
+          checkPageBreak(20)
+          setColor('#3f51b5', 'fill')
+          doc.rect(margin, y, contentWidth, 5, 'F')
+          setColor(BRAND.white, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(5.5)
+          doc.text('TIME', margin + 2, y + 3.5)
+          doc.text('PRESSURE (kPa)', margin + 35, y + 3.5)
+          doc.text('TEMP (°C)', margin + 80, y + 3.5)
+          doc.text('NOTES', margin + 115, y + 3.5)
+          y += 6
+
+          ht.pressureReadings.forEach((reading, i) => {
+            checkPageBreak(5)
+            if (i % 2 === 0) {
+              setColor(BRAND.grayLight, 'fill')
+              doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+            }
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(5.5)
+            doc.text(String(reading.time || '-').substring(0, 8), margin + 2, y + 2.5)
+            doc.text(String(reading.pressure || '-').substring(0, 12), margin + 35, y + 2.5)
+            doc.text(String(reading.temperature || '-').substring(0, 8), margin + 80, y + 2.5)
+            doc.text(String(reading.notes || '-').substring(0, 40), margin + 115, y + 2.5)
+            y += 4.5
+          })
+          y += 3
+        }
+
+        // Personnel
+        const personnel = []
+        if (ht.testEngineer) personnel.push(`Engineer: ${ht.testEngineer}`)
+        if (ht.testWitness) personnel.push(`Witness: ${ht.testWitness}`)
+        if (ht.witnessCompany) personnel.push(`Company: ${ht.witnessCompany}`)
+        if (personnel.length > 0) {
+          checkPageBreak(8)
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(personnel.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Test Result Banner
+        checkPageBreak(12)
+        const resultColor = ht.testResult === 'Pass' ? BRAND.green : ht.testResult === 'Fail' ? BRAND.red : BRAND.orange
+        const resultBg = ht.testResult === 'Pass' ? BRAND.greenLight : ht.testResult === 'Fail' ? BRAND.redLight : BRAND.yellowLight
+        setColor(resultBg, 'fill')
+        doc.roundedRect(margin + 2, y, contentWidth - 4, 7, 1, 1, 'F')
+        setColor(resultColor, 'text')
+        doc.setFont('helvetica', 'bold')
+        doc.setFontSize(8)
+        const resultText = `TEST ${(ht.testResult || 'Pending').toUpperCase()}`
+        const dropText = ht.pressureDropPSI ? `  —  Pressure Drop: ${ht.pressureDropPSI} PSI` : ''
+        const maxDropText = ht.maxAllowableDrop ? `  (Max: ${ht.maxAllowableDrop} PSI)` : ''
+        doc.text(resultText + dropText + maxDropText, margin + 6, y + 5)
         y += 10
+
+        // Failure details (if Fail)
+        if (ht.testResult === 'Fail') {
+          const failInfo = []
+          if (ht.failureReason) failInfo.push(`Reason: ${ht.failureReason}`)
+          if (ht.leaksFound) failInfo.push(`Leaks: ${ht.leaksFound}`)
+          if (ht.leakLocation) failInfo.push(`Location: ${ht.leakLocation}`)
+          if (ht.leakRepairMethod) failInfo.push(`Repair: ${ht.leakRepairMethod}`)
+          if (failInfo.length > 0) {
+            setColor(BRAND.red, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(failInfo.join('  |  '), margin + 4, y + 3)
+            y += 6
+          }
+        }
+
+        // NCR + Comments
+        const signoff = []
+        if (ht.ncrRequired) signoff.push(`NCR Required: ${ht.ncrRequired}`)
+        if (signoff.length > 0) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(signoff.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+        if (ht.comments) {
+          checkPageBreak(10)
+          setColor(BRAND.gray, 'text')
+          doc.setFont('helvetica', 'italic')
+          doc.setFontSize(6)
+          const commentLines = doc.splitTextToSize(ht.comments, contentWidth - 8)
+          commentLines.slice(0, 4).forEach(line => {
+            doc.text(line, margin + 4, y + 3)
+            y += 4
+          })
+          y += 2
+        }
+        y += 4
       }
 
       // Time Lost
