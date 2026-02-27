@@ -4197,17 +4197,19 @@ CRITICAL - Individual Entries Required:
           doc.setFont('helvetica', 'bold')
           doc.setFontSize(6)
           doc.text('JOINT #', margin + 2, y + 3.5)
-          doc.text('HEAT #', margin + 25, y + 3.5)
-          doc.text('STATION', margin + 48, y + 3.5)
-          doc.text('SIDE', margin + 68, y + 3.5)
-          doc.text('SIZE', margin + 82, y + 3.5)
-          doc.text('LENGTH', margin + 97, y + 3.5)
-          doc.text('W.T.', margin + 118, y + 3.5)
-          doc.text('COAT', margin + 133, y + 3.5)
-          doc.text('VIS', margin + 150, y + 3.5)
-          doc.text('SRC', margin + 163, y + 3.5)
+          doc.text('HEAT #', margin + 20, y + 3.5)
+          doc.text('STATION', margin + 38, y + 3.5)
+          doc.text('SIDE', margin + 55, y + 3.5)
+          doc.text('SIZE', margin + 65, y + 3.5)
+          doc.text('LEN', margin + 78, y + 3.5)
+          doc.text('W.T.', margin + 90, y + 3.5)
+          doc.text('COAT', margin + 102, y + 3.5)
+          doc.text('COND', margin + 118, y + 3.5)
+          doc.text('LOC', margin + 137, y + 3.5)
+          doc.text('VIS', margin + 153, y + 3.5)
+          doc.text('SRC', margin + 165, y + 3.5)
           y += 6
-          
+
           // Table rows
           strungJoints.forEach((joint, i) => {
             checkPageBreak(6)
@@ -4218,20 +4220,35 @@ CRITICAL - Individual Entries Required:
             setColor(BRAND.black, 'text')
             doc.setFont('helvetica', 'normal')
             doc.setFontSize(6)
-            doc.text(String(joint.jointNumber || '-').substring(0, 12), margin + 2, y + 2.5)
-            doc.text(String(joint.heatNumber || '-').substring(0, 12), margin + 25, y + 2.5)
-            doc.text(String(joint.stationKP || '-').substring(0, 8), margin + 48, y + 2.5)
-            doc.text(String(joint.sideOfRow || '-').substring(0, 4), margin + 68, y + 2.5)
-            doc.text(String(joint.pipeSize || '-').substring(0, 5), margin + 82, y + 2.5)
-            doc.text(String(joint.lengthM || '-').substring(0, 6), margin + 97, y + 2.5)
-            doc.text(String(joint.wallThickness || '-').substring(0, 5), margin + 118, y + 2.5)
-            doc.text(String(joint.coatingType || '-').substring(0, 5), margin + 133, y + 2.5)
-            doc.text(joint.visualCheck ? 'Y' : 'N', margin + 151, y + 2.5)
-            doc.text(joint.source === 'tally_sheet' ? 'OCR' : 'MAN', margin + 163, y + 2.5)
+            doc.text(String(joint.jointNumber || '-').substring(0, 10), margin + 2, y + 2.5)
+            doc.text(String(joint.heatNumber || '-').substring(0, 10), margin + 20, y + 2.5)
+            doc.text(String(joint.stationKP || '-').substring(0, 7), margin + 38, y + 2.5)
+            doc.text(String(joint.sideOfRow || '-').substring(0, 4), margin + 55, y + 2.5)
+            doc.text(String(joint.pipeSize || '-').substring(0, 5), margin + 65, y + 2.5)
+            doc.text(String(joint.lengthM || '-').substring(0, 5), margin + 78, y + 2.5)
+            doc.text(String(joint.wallThickness || '-').substring(0, 5), margin + 90, y + 2.5)
+            doc.text(String(joint.coatingType || '-').substring(0, 5), margin + 102, y + 2.5)
+            doc.text(String(joint.condition || '-').substring(0, 8), margin + 118, y + 2.5)
+            doc.text(String(joint.locationType || '-').substring(0, 8), margin + 137, y + 2.5)
+            doc.text(joint.visualCheck ? 'Y' : 'N', margin + 154, y + 2.5)
+            doc.text(joint.source === 'tally_sheet' ? 'OCR' : 'MAN', margin + 165, y + 2.5)
             y += 4.5
           })
           y += 3
           
+          // Pup joints summary
+          const pupJoints = block.stringingData.jointEntries.filter(j => j.isPup && j.pupDesignation)
+          if (pupJoints.length > 0) {
+            checkPageBreak(6)
+            setColor(BRAND.blueLight, 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor(BRAND.navy, 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(6)
+            doc.text(`Pup Joints: ${pupJoints.map(p => `#${p.jointNumber || '?'} (${p.pupDesignation})`).join(', ').substring(0, 140)}`, margin + 4, y + 4)
+            y += 8
+          }
+
           // Visual confirmation summary
           const confirmedCount = strungJoints.filter(j => j.visualCheck).length
           const unconfirmedCount = strungJoints.length - confirmedCount
@@ -4323,6 +4340,19 @@ CRITICAL - Individual Entries Required:
           }
           setColor(BRAND.black, 'text')
           y += 4.5
+
+          // Engineer note (italic below row)
+          if (bend.engineerNote) {
+            checkPageBreak(5)
+            setColor(BRAND.navy, 'text')
+            doc.setFont('helvetica', 'italic')
+            doc.setFontSize(5.5)
+            doc.text(`  Engineer: ${String(bend.engineerNote).substring(0, 100)}`, margin + 4, y + 2.5)
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            y += 4
+          }
         })
         y += 3
       }
@@ -4784,6 +4814,317 @@ CRITICAL - Individual Entries Required:
         }
       }
 
+      // Clearing Log - Full Data
+      if (block.activityType === 'Clearing' && block.clearingData) {
+        checkPageBreak(40)
+        addSubHeader('Clearing Log', BRAND.greenLight)
+
+        // --- ROW & Boundaries ---
+        if (block.clearingData.rowBoundaries) {
+          const rb = block.clearingData.rowBoundaries
+          const rbItems = []
+          if (rb.rowWidthDesign) rbItems.push(`Design Width: ${rb.rowWidthDesign}m`)
+          if (rb.rowWidthActual) rbItems.push(`Actual Width: ${rb.rowWidthActual}m`)
+          if (rb.rowWidthCompliant) rbItems.push(`Compliant: ${rb.rowWidthCompliant}`)
+          if (rb.rowAlignmentVerified) rbItems.push(`Alignment: ${rb.rowAlignmentVerified}`)
+          if (rb.boundariesFlagged) rbItems.push(`Flagged: ${rb.boundariesFlagged}`)
+          if (rb.twsStaked) rbItems.push(`TWS Staked: ${rb.twsStaked}`)
+          if (rb.legalSurveyPinsProtected) rbItems.push(`Survey Pins: ${rb.legalSurveyPinsProtected}`)
+
+          if (rbItems.length > 0) {
+            checkPageBreak(14)
+            setColor('#c8e6c9', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#2e7d32', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('ROW & BOUNDARIES', margin + 4, y + 4)
+            y += 8
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            const rbRow1 = rbItems.slice(0, 4).join('  |  ')
+            const rbRow2 = rbItems.slice(4).join('  |  ')
+            doc.text(rbRow1, margin + 4, y + 3)
+            y += 5
+            if (rbRow2) {
+              doc.text(rbRow2, margin + 4, y + 3)
+              y += 5
+            }
+            y += 2
+          }
+        }
+
+        // --- Pre-Clearing Approvals ---
+        if (block.clearingData.preClearingApprovals) {
+          const pca = block.clearingData.preClearingApprovals
+          const pcaItems = []
+          if (pca.cgrPlanApproved) pcaItems.push(`CGR Plan: ${pca.cgrPlanApproved}`)
+          if (pca.cgrPlanCompliance) pcaItems.push(`Compliance: ${pca.cgrPlanCompliance}`)
+          if (pca.offRowApprovalsInPlace) pcaItems.push(`Off-ROW: ${pca.offRowApprovalsInPlace}`)
+          if (pca.constructionLineListReviewed) pcaItems.push(`Line List: ${pca.constructionLineListReviewed}`)
+          if (pca.landownerRestrictionsNoted) pcaItems.push(`Landowner: ${pca.landownerRestrictionsNoted}`)
+          if (pca.landAgentContact) pcaItems.push(`Land Agent: ${pca.landAgentContact}`)
+
+          if (pcaItems.length > 0) {
+            checkPageBreak(14)
+            setColor('#e8f5e9', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#2e7d32', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('PRE-CLEARING APPROVALS', margin + 4, y + 4)
+            y += 8
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            const pcaRow1 = pcaItems.slice(0, 3).join('  |  ')
+            const pcaRow2 = pcaItems.slice(3).join('  |  ')
+            doc.text(pcaRow1, margin + 4, y + 3)
+            y += 5
+            if (pcaRow2) {
+              doc.text(pcaRow2, margin + 4, y + 3)
+              y += 5
+            }
+            y += 2
+          }
+        }
+
+        // --- Environmental ---
+        if (block.clearingData.environmental) {
+          const env = block.clearingData.environmental
+          const envItems = []
+          if (env.environmentalInspectorLiaison) envItems.push(`Env Inspector: ${env.environmentalInspectorLiaison}`)
+          if (env.timingConstraintsMet) envItems.push(`Timing: ${env.timingConstraintsMet}`)
+          if (env.wildlifeRegulationsCompliant) envItems.push(`Wildlife: ${env.wildlifeRegulationsCompliant}`)
+          if (env.rarePlantProtection) envItems.push(`Rare Plants: ${env.rarePlantProtection}`)
+          if (env.asrdCommitmentsMet) envItems.push(`ASRD: ${env.asrdCommitmentsMet}`)
+          if (env.groundDisturbanceCompliant) envItems.push(`Ground Dist: ${env.groundDisturbanceCompliant}`)
+
+          if (envItems.length > 0) {
+            checkPageBreak(14)
+            setColor('#dcedc8', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#33691e', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('ENVIRONMENTAL', margin + 4, y + 4)
+            y += 8
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            const envRow1 = envItems.slice(0, 3).join('  |  ')
+            const envRow2 = envItems.slice(3).join('  |  ')
+            doc.text(envRow1, margin + 4, y + 3)
+            y += 5
+            if (envRow2) {
+              doc.text(envRow2, margin + 4, y + 3)
+              y += 5
+            }
+            y += 2
+          }
+        }
+
+        // --- Buried Facilities ---
+        if (block.clearingData.buriedFacilities) {
+          const bf = block.clearingData.buriedFacilities
+          const bfItems = []
+          if (bf.buriedFacilitiesIdentified) bfItems.push(`Identified: ${bf.buriedFacilitiesIdentified}`)
+          if (bf.locatesComplete) bfItems.push(`Locates: ${bf.locatesComplete}`)
+          if (bf.handExposingComplete) bfItems.push(`Hand Expose: ${bf.handExposingComplete}`)
+          if (bf.foreignCrossingsMarked) bfItems.push(`Foreign Crossings: ${bf.foreignCrossingsMarked}`)
+
+          if (bfItems.length > 0) {
+            checkPageBreak(12)
+            setColor('#fff3e0', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#e65100', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('BURIED FACILITIES', margin + 4, y + 4)
+            y += 8
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(bfItems.join('  |  '), margin + 4, y + 3)
+            y += 7
+          }
+        }
+
+        // --- Power Lines ---
+        if (block.clearingData.powerLines) {
+          const pl = block.clearingData.powerLines
+          const plItems = []
+          if (pl.powerLinesPresent) plItems.push(`Present: ${pl.powerLinesPresent}`)
+          if (pl.powerLinesIdentified) plItems.push(`Identified: ${pl.powerLinesIdentified}`)
+          if (pl.powerLinesMarked) plItems.push(`Marked: ${pl.powerLinesMarked}`)
+          if (pl.powerLinesClearance) plItems.push(`Clearance: ${pl.powerLinesClearance}`)
+          if (pl.powerLineVoltage) plItems.push(`Voltage: ${pl.powerLineVoltage}`)
+
+          if (plItems.length > 0) {
+            checkPageBreak(12)
+            setColor('#fff9c4', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#f57f17', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('POWER LINES', margin + 4, y + 4)
+            y += 8
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(plItems.join('  |  '), margin + 4, y + 3)
+            y += 7
+          }
+        }
+
+        // --- Timber Salvage ---
+        if (block.clearingData.timberSalvage) {
+          const ts = block.clearingData.timberSalvage
+          const tsItems = []
+          if (ts.timberSalvageRequired) tsItems.push(`Required: ${ts.timberSalvageRequired}`)
+          if (ts.timberSalvageCompliant) tsItems.push(`Compliant: ${ts.timberSalvageCompliant}`)
+          if (ts.merchantableTimberSalvaged) tsItems.push(`Merchantable: ${ts.merchantableTimberSalvaged}`)
+          if (ts.timberDisposalMethod) tsItems.push(`Disposal: ${ts.timberDisposalMethod}`)
+
+          if (tsItems.length > 0) {
+            checkPageBreak(12)
+            setColor('#efebe9', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#4e342e', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('TIMBER SALVAGE', margin + 4, y + 4)
+            y += 8
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(tsItems.join('  |  '), margin + 4, y + 3)
+            y += 7
+          }
+        }
+
+        // --- Grubbing & Stripping ---
+        if (block.clearingData.grubbingStripping) {
+          const gs = block.clearingData.grubbingStripping
+          const gsItems = []
+          if (gs.grubbingComplete) gsItems.push(`Grubbing: ${gs.grubbingComplete}`)
+          if (gs.stumpHeightCompliant) gsItems.push(`Stump Height: ${gs.stumpHeightCompliant}`)
+          if (gs.stumpHeightMax) gsItems.push(`Max Height: ${gs.stumpHeightMax} cm`)
+          if (gs.topsoilStripped) gsItems.push(`Topsoil Stripped: ${gs.topsoilStripped}`)
+          if (gs.topsoilSeparation) gsItems.push(`Separation: ${gs.topsoilSeparation}`)
+
+          if (gsItems.length > 0) {
+            checkPageBreak(12)
+            setColor('#f3e5f5', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#6a1b9a', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('GRUBBING & STRIPPING', margin + 4, y + 4)
+            y += 8
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(gsItems.join('  |  '), margin + 4, y + 3)
+            y += 7
+          }
+        }
+
+        // --- Watercourse ---
+        if (block.clearingData.watercourse) {
+          const wc = block.clearingData.watercourse
+          const wcItems = []
+          if (wc.watercoursePresent) wcItems.push(`Present: ${wc.watercoursePresent}`)
+          if (wc.watercourseAccessCompliant) wcItems.push(`Access: ${wc.watercourseAccessCompliant}`)
+          if (wc.equipmentCrossingInstalled) wcItems.push(`Crossing: ${wc.equipmentCrossingInstalled}`)
+          if (wc.equipmentCrossingType) wcItems.push(`Type: ${wc.equipmentCrossingType}`)
+          if (wc.regulatoryApprovalCompliant) wcItems.push(`Regulatory: ${wc.regulatoryApprovalCompliant}`)
+          if (wc.erosionControlsInstalled) wcItems.push(`Erosion Ctrl: ${wc.erosionControlsInstalled}`)
+
+          if (wcItems.length > 0) {
+            checkPageBreak(14)
+            setColor('#e0f7fa', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#006064', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('WATERCOURSE', margin + 4, y + 4)
+            y += 8
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            const wcRow1 = wcItems.slice(0, 3).join('  |  ')
+            const wcRow2 = wcItems.slice(3).join('  |  ')
+            doc.text(wcRow1, margin + 4, y + 3)
+            y += 5
+            if (wcRow2) {
+              doc.text(wcRow2, margin + 4, y + 3)
+              y += 5
+            }
+            y += 2
+          }
+        }
+
+        // --- Temp Fencing ---
+        if (block.clearingData.tempFencing) {
+          const tf = block.clearingData.tempFencing
+          const tfItems = []
+          if (tf.tempFencingRequired) tfItems.push(`Required: ${tf.tempFencingRequired}`)
+          if (tf.tempFencingInstalled) tfItems.push(`Installed: ${tf.tempFencingInstalled}`)
+          if (tf.tempFencingType) tfItems.push(`Type: ${tf.tempFencingType}`)
+          if (tf.tempFencingLength) tfItems.push(`Length: ${tf.tempFencingLength}m`)
+          if (tf.gatesInstalled) tfItems.push(`Gates: ${tf.gatesInstalled}`)
+          if (tf.gatesCount) tfItems.push(`Gate Count: ${tf.gatesCount}`)
+
+          if (tfItems.length > 0) {
+            checkPageBreak(12)
+            setColor('#fce4ec', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#880e4f', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('TEMPORARY FENCING', margin + 4, y + 4)
+            y += 8
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(tfItems.join('  |  '), margin + 4, y + 3)
+            y += 7
+          }
+        }
+
+        // --- Sign-Off ---
+        if (block.clearingData.signOff) {
+          const so = block.clearingData.signOff
+          if (so.ncrRequired || so.notes) {
+            checkPageBreak(12)
+            if (so.ncrRequired) {
+              const ncrColor = so.ncrRequired === 'Yes' ? '#f8d7da' : '#d4edda'
+              const ncrText = so.ncrRequired === 'Yes' ? '#721c24' : '#155724'
+              setColor(ncrColor, 'fill')
+              doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+              setColor(ncrText, 'text')
+              doc.setFont('helvetica', 'bold')
+              doc.setFontSize(7)
+              doc.text(`NCR REQUIRED: ${so.ncrRequired}`, margin + 4, y + 4)
+              y += 8
+            }
+            if (so.notes) {
+              setColor(BRAND.grayLight, 'fill')
+              doc.roundedRect(margin, y, contentWidth, 10, 1, 1, 'F')
+              setColor(BRAND.black, 'text')
+              doc.setFont('helvetica', 'italic')
+              doc.setFontSize(6)
+              doc.text('Sign-Off Notes: ' + String(so.notes).substring(0, 150), margin + 4, y + 6)
+              y += 12
+            }
+          }
+        }
+
+        y += 3
+      }
+
       // Clearing Log - Timber Decks
       if (block.activityType === 'Clearing' && block.clearingData?.timberDecks?.length > 0) {
         checkPageBreak(40)
@@ -4803,15 +5144,19 @@ CRITICAL - Individual Entries Required:
         doc.rect(margin, y, contentWidth, 5, 'F')
         setColor(BRAND.white, 'text')
         doc.setFont('helvetica', 'bold')
-        doc.setFontSize(6)
+        doc.setFontSize(5.5)
         doc.text('DECK ID', margin + 2, y + 3.5)
-        doc.text('START KP', margin + 35, y + 3.5)
-        doc.text('END KP', margin + 65, y + 3.5)
-        doc.text('SPECIES', margin + 95, y + 3.5)
-        doc.text('CONDITION', margin + 130, y + 3.5)
-        doc.text('VOL (m³)', margin + 165, y + 3.5)
+        doc.text('START KP', margin + 22, y + 3.5)
+        doc.text('END KP', margin + 42, y + 3.5)
+        doc.text('OWNER', margin + 60, y + 3.5)
+        doc.text('SPECIES', margin + 78, y + 3.5)
+        doc.text('COND', margin + 98, y + 3.5)
+        doc.text('CUT SPEC', margin + 114, y + 3.5)
+        doc.text('MIN DIA', margin + 135, y + 3.5)
+        doc.text('DEST', margin + 152, y + 3.5)
+        doc.text('VOL', margin + 170, y + 3.5)
         y += 6
-        
+
         // Table rows
         block.clearingData.timberDecks.forEach((deck, i) => {
           checkPageBreak(6)
@@ -4821,13 +5166,17 @@ CRITICAL - Individual Entries Required:
           }
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
-          doc.setFontSize(6)
-          doc.text(String(deck.deckId || '-').substring(0, 12), margin + 2, y + 2.5)
-          doc.text(String(deck.startKp || '-').substring(0, 10), margin + 35, y + 2.5)
-          doc.text(String(deck.endKp || '-').substring(0, 10), margin + 65, y + 2.5)
-          doc.text(String(deck.speciesSort || '-').substring(0, 12), margin + 95, y + 2.5)
-          doc.text(String(deck.condition || '-').substring(0, 12), margin + 130, y + 2.5)
-          doc.text(String(deck.volumeEstimate || '-').substring(0, 8), margin + 165, y + 2.5)
+          doc.setFontSize(5.5)
+          doc.text(String(deck.deckId || '-').substring(0, 10), margin + 2, y + 2.5)
+          doc.text(String(deck.startKp || '-').substring(0, 8), margin + 22, y + 2.5)
+          doc.text(String(deck.endKp || '-').substring(0, 8), margin + 42, y + 2.5)
+          doc.text(String(deck.ownerStatus || '-').substring(0, 8), margin + 60, y + 2.5)
+          doc.text(String(deck.speciesSort || '-').substring(0, 8), margin + 78, y + 2.5)
+          doc.text(String(deck.condition || '-').substring(0, 6), margin + 98, y + 2.5)
+          doc.text(String(deck.cutSpec || '-').substring(0, 8), margin + 114, y + 2.5)
+          doc.text(String(deck.minTopDiameter || '-').substring(0, 6), margin + 135, y + 2.5)
+          doc.text(String(deck.destination || '-').substring(0, 8), margin + 152, y + 2.5)
+          doc.text(String(deck.volumeEstimate || '-').substring(0, 6), margin + 170, y + 2.5)
           y += 4.5
         })
         y += 3
@@ -4969,12 +5318,22 @@ CRITICAL - Individual Entries Required:
             if (block.ditchData.waterManagement.filterBagCount) waterItems.push(`Count: ${block.ditchData.waterManagement.filterBagCount}`)
             if (block.ditchData.waterManagement.dischargeLocation) waterItems.push(`Discharge: ${block.ditchData.waterManagement.dischargeLocation}`)
           }
+          if (block.ditchData.waterManagement.dischargePermitNumber) waterItems.push(`Permit #: ${block.ditchData.waterManagement.dischargePermitNumber}`)
 
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
           doc.setFontSize(6)
           doc.text(waterItems.join('  |  '), margin + 4, y + 3)
           y += 6
+
+          if (block.ditchData.waterManagement.notes) {
+            doc.setFont('helvetica', 'italic')
+            doc.setFontSize(5.5)
+            doc.text(`Water Mgmt Notes: ${String(block.ditchData.waterManagement.notes).substring(0, 120)}`, margin + 8, y + 2.5)
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            y += 5
+          }
         }
 
         // Soil Conditions
@@ -5037,6 +5396,19 @@ CRITICAL - Individual Entries Required:
       if (block.activityType === 'Tie-in Backfill' && block.tieInCompletionData) {
         checkPageBreak(80)
         addSubHeader('Tie-In Completion Data', '#e8f4f8')
+
+        // Location info
+        const tieInLocItems = []
+        if (block.tieInCompletionData.tieInLocation) tieInLocItems.push(`Location: ${block.tieInCompletionData.tieInLocation}`)
+        if (block.tieInCompletionData.fromKP) tieInLocItems.push(`From KP: ${block.tieInCompletionData.fromKP}`)
+        if (block.tieInCompletionData.toKP) tieInLocItems.push(`To KP: ${block.tieInCompletionData.toKP}`)
+        if (tieInLocItems.length > 0) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(tieInLocItems.join('  |  '), margin + 4, y + 3)
+          y += 7
+        }
 
         // Backfill Details
         if (block.tieInCompletionData.backfill && (block.tieInCompletionData.backfill.method || block.tieInCompletionData.backfill.liftThickness || block.tieInCompletionData.backfill.compactionMethod)) {
@@ -5344,6 +5716,171 @@ CRITICAL - Individual Entries Required:
           doc.setFontSize(6)
           doc.text(hddBasic.join('  |  '), margin + 4, y + 3)
           y += 8
+        }
+
+        // Bore Information (expanded)
+        const boreInfoItems = []
+        if (block.hddData.boreId) boreInfoItems.push(`Bore ID: ${block.hddData.boreId}`)
+        if (block.hddData.crossingType) boreInfoItems.push(`Crossing: ${block.hddData.crossingType}`)
+        if (block.hddData.entryKP) boreInfoItems.push(`Entry KP: ${block.hddData.entryKP}`)
+        if (block.hddData.exitKP) boreInfoItems.push(`Exit KP: ${block.hddData.exitKP}`)
+        if (block.hddData.boreLength) boreInfoItems.push(`Bore Length: ${block.hddData.boreLength}m`)
+        if (block.hddData.subcontractor) boreInfoItems.push(`Sub: ${block.hddData.subcontractor}`)
+        if (block.hddData.rigNumber) boreInfoItems.push(`Rig #: ${block.hddData.rigNumber}`)
+        if (block.hddData.rigSize) boreInfoItems.push(`Rig Size: ${block.hddData.rigSize}`)
+
+        if (boreInfoItems.length > 0) {
+          checkPageBreak(12)
+          setColor('#e1f5fe', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#01579b', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('BORE INFORMATION', margin + 4, y + 4)
+          y += 8
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(boreInfoItems.join('  |  '), margin + 4, y + 3)
+          y += 7
+        }
+
+        // Pilot Hole
+        if (block.hddData.pilotHole) {
+          const ph = block.hddData.pilotHole
+          const phItems = []
+          if (ph.mudWeight) phItems.push(`Mud Wt: ${ph.mudWeight} ppg`)
+          if (ph.viscosity) phItems.push(`Visc: ${ph.viscosity} sec/qt`)
+          if (ph.ph) phItems.push(`pH: ${ph.ph}`)
+          if (ph.fluidLoss) phItems.push(`Fluid Loss: ${ph.fluidLoss} mL/30min`)
+          if (ph.pitchAngle) phItems.push(`Pitch: ${ph.pitchAngle}°`)
+          if (ph.azimuth) phItems.push(`Azimuth: ${ph.azimuth}°`)
+          if (ph.depth) phItems.push(`Depth: ${ph.depth}m`)
+          if (ph.variance) phItems.push(`Variance: ±${ph.variance}m`)
+
+          if (phItems.length > 0) {
+            checkPageBreak(14)
+            setColor('#b3e5fc', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#01579b', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('PILOT HOLE', margin + 4, y + 4)
+            y += 8
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            // Split into two rows if many items
+            const phRow1 = phItems.slice(0, 4).join('  |  ')
+            const phRow2 = phItems.slice(4).join('  |  ')
+            doc.text(phRow1, margin + 4, y + 3)
+            y += 5
+            if (phRow2) {
+              doc.text(phRow2, margin + 4, y + 3)
+              y += 5
+            }
+            y += 2
+          }
+        }
+
+        // Reaming Passes
+        if (block.hddData.reamingPasses?.enabled && block.hddData.reamingPasses?.entries?.length > 0) {
+          checkPageBreak(20)
+          setColor('#b3e5fc', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#01579b', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text(`REAMING PASSES (${block.hddData.reamingPasses.entries.length})`, margin + 4, y + 4)
+          y += 8
+
+          // Reaming table header
+          setColor('#0288d1', 'fill')
+          doc.rect(margin, y, contentWidth, 5, 'F')
+          setColor(BRAND.white, 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(6)
+          doc.text('PASS #', margin + 2, y + 3.5)
+          doc.text('REAMER (in)', margin + 30, y + 3.5)
+          doc.text('PULLBACK (lbs)', margin + 62, y + 3.5)
+          doc.text('PRESSURE (psi)', margin + 98, y + 3.5)
+          doc.text('FLOW (gpm)', margin + 134, y + 3.5)
+          doc.text('COMPLETE', margin + 164, y + 3.5)
+          y += 6
+
+          block.hddData.reamingPasses.entries.forEach((pass, i) => {
+            checkPageBreak(5)
+            if (i % 2 === 0) {
+              setColor(BRAND.grayLight, 'fill')
+              doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F')
+            }
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(String(pass.passNumber || i + 1), margin + 2, y + 2.5)
+            doc.text(String(pass.reamerSize || '-'), margin + 30, y + 2.5)
+            doc.text(String(pass.pullbackForce || '-'), margin + 62, y + 2.5)
+            doc.text(String(pass.drillingFluidPressure || '-'), margin + 98, y + 2.5)
+            doc.text(String(pass.flowRate || '-'), margin + 134, y + 2.5)
+            setColor(pass.passComplete === 'Yes' ? BRAND.green : BRAND.red, 'text')
+            doc.text(String(pass.passComplete || '-'), margin + 164, y + 2.5)
+            setColor(BRAND.black, 'text')
+            y += 4.5
+          })
+          y += 3
+        }
+
+        // Pipe Installation
+        if (block.hddData.pipeInstallation) {
+          const pi = block.hddData.pipeInstallation
+          const piItems = []
+          if (pi.pullbackForce) piItems.push(`Pullback: ${pi.pullbackForce} lbs`)
+          if (pi.swivelConnectionVerified) piItems.push(`Swivel: ${pi.swivelConnectionVerified}`)
+          if (pi.flotationRisk) piItems.push(`Flotation Risk: ${pi.flotationRisk}`)
+          if (pi.pullbackSpeed) piItems.push(`Speed: ${pi.pullbackSpeed} ft/min`)
+          if (pi.installationComplete) piItems.push(`Complete: ${pi.installationComplete}`)
+
+          if (piItems.length > 0) {
+            checkPageBreak(14)
+            setColor('#c8e6c9', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#2e7d32', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('PIPE INSTALLATION', margin + 4, y + 4)
+            y += 8
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(piItems.join('  |  '), margin + 4, y + 3)
+            y += 7
+          }
+        }
+
+        // Post-Installation
+        if (block.hddData.postInstallation) {
+          const post = block.hddData.postInstallation
+          const postItems = []
+          if (post.annularSpaceVerified) postItems.push(`Annular Space: ${post.annularSpaceVerified}`)
+          if (post.groutRequired) postItems.push(`Grout Req: ${post.groutRequired}`)
+          if (post.groutVolume) postItems.push(`Grout Vol: ${post.groutVolume} m³`)
+          if (post.groutPressure) postItems.push(`Grout Press: ${post.groutPressure} psi`)
+
+          if (postItems.length > 0) {
+            checkPageBreak(14)
+            setColor('#fff9c4', 'fill')
+            doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+            setColor('#f57f17', 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(7)
+            doc.text('POST-INSTALLATION', margin + 4, y + 4)
+            y += 8
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            doc.setFontSize(6)
+            doc.text(postItems.join('  |  '), margin + 4, y + 3)
+            y += 7
+          }
         }
 
         // Drilling Progress
@@ -5718,6 +6255,7 @@ CRITICAL - Individual Entries Required:
         // ROW Conditions
         const rowItems = []
         if (block.gradingData.rowWidth) rowItems.push(`ROW Width: ${block.gradingData.rowWidth}m`)
+        if (block.gradingData.rowWidthSpec) rowItems.push(`Spec: ${block.gradingData.rowWidthSpec}m`)
         if (block.gradingData.rowCondition) rowItems.push(`Condition: ${block.gradingData.rowCondition}`)
         if (block.gradingData.accessMaintained) rowItems.push(`Access: ${block.gradingData.accessMaintained}`)
 
@@ -5732,6 +6270,7 @@ CRITICAL - Individual Entries Required:
         // Pile Separation
         const pileItems = []
         if (block.gradingData.pileSeparationMaintained) pileItems.push(`Pile Sep: ${block.gradingData.pileSeparationMaintained}`)
+        if (block.gradingData.topsoilPileSeparation) pileItems.push(`Separation: ${block.gradingData.topsoilPileSeparation}m`)
         if (block.gradingData.topsoilPileLocation) pileItems.push(`Topsoil: ${block.gradingData.topsoilPileLocation}`)
         if (block.gradingData.subsoilPileLocation) pileItems.push(`Subsoil: ${block.gradingData.subsoilPileLocation}`)
 
@@ -5740,11 +6279,23 @@ CRITICAL - Individual Entries Required:
           y += 6
         }
 
+        if (block.gradingData.pileSeparationIssues) {
+          doc.setFont('helvetica', 'italic')
+          doc.setFontSize(5.5)
+          doc.text(`Pile Issues: ${String(block.gradingData.pileSeparationIssues).substring(0, 120)}`, margin + 8, y + 2.5)
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          y += 5
+        }
+
         // Drainage
         const drainItems = []
         if (block.gradingData.drainageCondition) drainItems.push(`Drainage: ${block.gradingData.drainageCondition}`)
         if (block.gradingData.crownMaintained) drainItems.push(`Crown: ${block.gradingData.crownMaintained}`)
         if (block.gradingData.pondingObserved) drainItems.push(`Ponding: ${block.gradingData.pondingObserved}`)
+        if (block.gradingData.pondingLocation) drainItems.push(`Ponding Loc: ${block.gradingData.pondingLocation}`)
+        if (block.gradingData.drainageControlsInstalled) drainItems.push(`Controls: ${block.gradingData.drainageControlsInstalled}`)
+        if (block.gradingData.drainageControlsType) drainItems.push(`Type: ${block.gradingData.drainageControlsType}`)
 
         if (drainItems.length > 0) {
           doc.text(drainItems.join('  |  '), margin + 4, y + 3)
@@ -5758,6 +6309,7 @@ CRITICAL - Individual Entries Required:
         if (block.gradingData.strawBales) envItems.push(`Straw Bales: ${block.gradingData.strawBales}`)
         if (block.gradingData.erosionBlankets) envItems.push(`Erosion Blankets: ${block.gradingData.erosionBlankets}`)
         if (block.gradingData.sedimentTraps) envItems.push(`Sed. Traps: ${block.gradingData.sedimentTraps}`)
+        if (block.gradingData.environmentalIssues) envItems.push(`Issues: ${block.gradingData.environmentalIssues}`)
 
         if (envItems.length > 0) {
           checkPageBreak(12)
@@ -5842,6 +6394,19 @@ CRITICAL - Individual Entries Required:
               y += 4
             }
           })
+        }
+
+        // Topsoil
+        if (block.gradingData.topsoilStripped || block.gradingData.topsoilDepth || block.gradingData.topsoilStockpiled) {
+          const topsoilItems = []
+          if (block.gradingData.topsoilStripped) topsoilItems.push(`Stripped: ${block.gradingData.topsoilStripped}`)
+          if (block.gradingData.topsoilDepth) topsoilItems.push(`Depth: ${block.gradingData.topsoilDepth} cm`)
+          if (block.gradingData.topsoilStockpiled) topsoilItems.push(`Stockpiled: ${block.gradingData.topsoilStockpiled}`)
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text('Topsoil: ' + topsoilItems.join('  |  '), margin + 4, y + 3)
+          y += 6
         }
 
         if (block.gradingData.comments) {
@@ -6461,6 +7026,150 @@ CRITICAL - Individual Entries Required:
           y += 8
         }
 
+        // Bore ID & Details
+        const boreIdItems = []
+        if (block.conventionalBoreData.boreId) boreIdItems.push(`Bore ID: ${block.conventionalBoreData.boreId}`)
+        if (block.conventionalBoreData.crossingDescription) boreIdItems.push(`Desc: ${block.conventionalBoreData.crossingDescription}`)
+        if (block.conventionalBoreData.designEntryKP) boreIdItems.push(`Entry KP: ${block.conventionalBoreData.designEntryKP}`)
+        if (block.conventionalBoreData.designExitKP) boreIdItems.push(`Exit KP (Design): ${block.conventionalBoreData.designExitKP}`)
+        if (block.conventionalBoreData.actualExitKP) boreIdItems.push(`Exit KP (Actual): ${block.conventionalBoreData.actualExitKP}`)
+        if (block.conventionalBoreData.subcontractor) boreIdItems.push(`Sub: ${block.conventionalBoreData.subcontractor}`)
+        if (block.conventionalBoreData.machineId) boreIdItems.push(`Machine: ${block.conventionalBoreData.machineId}`)
+
+        if (boreIdItems.length > 0) {
+          checkPageBreak(12)
+          setColor('#e3f2fd', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#1565c0', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('BORE DETAILS', margin + 4, y + 4)
+          y += 8
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          const boreRow1 = boreIdItems.slice(0, 4).join('  |  ')
+          const boreRow2 = boreIdItems.slice(4).join('  |  ')
+          doc.text(boreRow1, margin + 4, y + 3)
+          y += 5
+          if (boreRow2) {
+            doc.text(boreRow2, margin + 4, y + 3)
+            y += 5
+          }
+          y += 2
+        }
+
+        // Pipe Specifications
+        const pipeSpecItems = []
+        if (block.conventionalBoreData.casingDiameterInches) pipeSpecItems.push(`Casing OD: ${block.conventionalBoreData.casingDiameterInches}"`)
+        if (block.conventionalBoreData.casingWallThickness) pipeSpecItems.push(`Casing WT: ${block.conventionalBoreData.casingWallThickness}"`)
+        if (block.conventionalBoreData.carrierDiameterInches) pipeSpecItems.push(`Carrier OD: ${block.conventionalBoreData.carrierDiameterInches}"`)
+        if (block.conventionalBoreData.carrierWallThickness) pipeSpecItems.push(`Carrier WT: ${block.conventionalBoreData.carrierWallThickness}"`)
+
+        if (pipeSpecItems.length > 0) {
+          checkPageBreak(12)
+          setColor('#bbdefb', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#1565c0', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('PIPE SPECIFICATIONS', margin + 4, y + 4)
+          y += 8
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(pipeSpecItems.join('  |  '), margin + 4, y + 3)
+          y += 7
+        }
+
+        // Method-Specific fields
+        const methodItems = []
+        if (block.conventionalBoreData.winchTension) methodItems.push(`Winch Tension: ${block.conventionalBoreData.winchTension} lbs`)
+        if (block.conventionalBoreData.boomPositioningVerified != null) methodItems.push(`Boom Position: ${block.conventionalBoreData.boomPositioningVerified ? 'Verified' : 'Not Verified'}`)
+        if (block.conventionalBoreData.backstopDeadmanConfirmed != null) methodItems.push(`Backstop: ${block.conventionalBoreData.backstopDeadmanConfirmed ? 'Confirmed' : 'Not Confirmed'}`)
+
+        if (methodItems.length > 0) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(methodItems.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Alignment & Grade
+        const alignItems = []
+        if (block.conventionalBoreData.startPitchPercent) alignItems.push(`Start Pitch: ${block.conventionalBoreData.startPitchPercent}%`)
+        if (block.conventionalBoreData.exitPitchPercent) alignItems.push(`Exit Pitch: ${block.conventionalBoreData.exitPitchPercent}%`)
+        if (block.conventionalBoreData.steeringHeadUsed != null) alignItems.push(`Steering Head: ${block.conventionalBoreData.steeringHeadUsed ? 'Yes' : 'No'}`)
+        if (block.conventionalBoreData.steeringHeadType) alignItems.push(`Type: ${block.conventionalBoreData.steeringHeadType}`)
+
+        if (alignItems.length > 0) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(alignItems.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Fluid & Mud Loop
+        const fluidItems = []
+        if (block.conventionalBoreData.lubricationRequired != null) fluidItems.push(`Lubrication: ${block.conventionalBoreData.lubricationRequired ? 'Yes' : 'No'}`)
+        if (block.conventionalBoreData.totalWaterUsedM3) fluidItems.push(`Water: ${block.conventionalBoreData.totalWaterUsedM3} m³`)
+        if (block.conventionalBoreData.mudType) fluidItems.push(`Mud: ${block.conventionalBoreData.mudType}`)
+        if (block.conventionalBoreData.mudVolumeM3) fluidItems.push(`Mud Vol: ${block.conventionalBoreData.mudVolumeM3} m³`)
+
+        if (fluidItems.length > 0) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(fluidItems.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
+        // Grouting
+        const groutItems = []
+        if (block.conventionalBoreData.calculatedAnnulusVolume) groutItems.push(`Annulus Vol: ${block.conventionalBoreData.calculatedAnnulusVolume} m³`)
+        if (block.conventionalBoreData.actualGroutPumpedM3) groutItems.push(`Grout Pumped: ${block.conventionalBoreData.actualGroutPumpedM3} m³`)
+        if (block.conventionalBoreData.groutVariancePercent != null) groutItems.push(`Variance: ${block.conventionalBoreData.groutVariancePercent}%`)
+
+        if (groutItems.length > 0) {
+          checkPageBreak(14)
+          setColor('#fff9c4', 'fill')
+          doc.roundedRect(margin, y, contentWidth, 6, 1, 1, 'F')
+          setColor('#f57f17', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('GROUTING', margin + 4, y + 4)
+          y += 8
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(groutItems.join('  |  '), margin + 4, y + 3)
+          y += 7
+          if (block.conventionalBoreData.groutVarianceAlert) {
+            setColor(BRAND.red, 'text')
+            doc.setFont('helvetica', 'bold')
+            doc.setFontSize(6)
+            doc.text('! GROUT VARIANCE >15% — REVIEW REQUIRED', margin + 4, y + 3)
+            setColor(BRAND.black, 'text')
+            doc.setFont('helvetica', 'normal')
+            y += 6
+          }
+        }
+
+        // Asset Link
+        const assetItems = []
+        if (block.conventionalBoreData.weldId) assetItems.push(`Weld ID: ${block.conventionalBoreData.weldId}`)
+        if (block.conventionalBoreData.exitPitPhotoKP) assetItems.push(`Exit Pit Photo KP: ${block.conventionalBoreData.exitPitPhotoKP}`)
+
+        if (assetItems.length > 0) {
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(6)
+          doc.text(assetItems.join('  |  '), margin + 4, y + 3)
+          y += 6
+        }
+
         // Progress
         const progressItems = []
         if (block.conventionalBoreData.progressTodayM) progressItems.push(`Today: ${block.conventionalBoreData.progressTodayM}m`)
@@ -6923,6 +7632,7 @@ CRITICAL - Individual Entries Required:
 
         // Header info (location, times)
         const wtHeaderInfo = []
+        if (block.welderTestingData.reportDate) wtHeaderInfo.push(`Report Date: ${block.welderTestingData.reportDate}`)
         if (block.welderTestingData.testLocation) wtHeaderInfo.push(`Location: ${block.welderTestingData.testLocation}`)
         if (block.welderTestingData.startTime) wtHeaderInfo.push(`Start: ${block.welderTestingData.startTime}`)
         if (block.welderTestingData.stopTime) wtHeaderInfo.push(`Stop: ${block.welderTestingData.stopTime}`)
