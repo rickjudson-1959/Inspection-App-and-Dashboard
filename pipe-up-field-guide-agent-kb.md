@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 4.4 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-24
+## Version: 4.5 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-25
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -89,6 +89,7 @@ A report contains one or more **Activity Blocks**. Each block represents a singl
 | `workDescription` | Textarea (6 rows) | Free-text description — supports Voice Input. Resizable vertically. |
 | `metersToday` | Number | Auto-calculated from endKP minus startKP, or manual entry |
 | `metersPrevious` | Number | Auto-populated from previous reports for the same activity type |
+| *(Total Metres)* | Calculated | Sum of metersToday + metersPrevious — shown in PDF alongside today/previous |
 | `ticketNumber` | Text | Contractor ticket number (can auto-fill from OCR) |
 | `ticketPhoto` / `ticketPhotos` | File upload (single or multi) | Photo(s) of contractor daily ticket — triggers OCR scanning. Multi-page tickets show page count in indicator and all pages in modal viewer |
 | `workPhotos` | File uploads | Work progress photos with metadata (caption, location). For concealed-work activities (Lower-in, Backfill, Coating, HD Bores, HDD, Frost Packing), a yellow banner reminds inspectors to take photos BEFORE work is buried or hidden — these serve as visual evidence for audit and regulatory compliance. |
@@ -256,17 +257,17 @@ Each activity type may trigger a specialized log component with activity-specifi
 | **Stringing** | StringingLog | Joint numbers, heat numbers, pipe tally, joint layout |
 | **Coating** | CoatingLog | Weld identification (weld #, KP, diameter NPS dropdown, wall thickness mm, grade dropdown, coating company), ambient conditions (up to 3 readings: wet/dry bulb, dew point, humidity, steel temp), surface prep & blasting (per-weld: contaminants, steel condition, abrasive type, blast finish, profile depths, tape test), coating material (system type, sleeve type, batch numbers, expiry, storage temp), preheat & application (method, temps, times, visual appearance), inspection & holiday detection (DFT readings ×6, holiday voltage, detector ID, jeeps, low mils), repairs (patch stick, liquid repair, spec compliance, repair thickness), cure tests (V-cut rating, Shore-D hardness, pass/fail), sign-off (NCR status, inspector notes) |
 | **Clearing** | ClearingLog | Timber deck IDs, species, volumes, slash disposal |
-| **HDD** | HDDLog | Entry/exit KP, bore depth, drilling fluid, pullback data |
-| **HD Bores** | ConventionalBoreLog | Conventional bore data, casing details |
-| **Piling** | PilingLog | Pile type, depth, driving records |
+| **HDD** | HDDLog | Entry/exit KP, bore depth, drilling fluid, pullback data. **Waste Management sub-log** (DrillingWasteManagement): volumes (total mixed/in storage/hauled m³), storage type/capacity, disposal facility/location/manifest/date/method, additives table (product/qty/unit/batch/supplier), vac truck (hours/equipment ID/operator), compliance testing (salinity/toxicity/metals pass/fail, lab name, test date), comments. **Steering Log sub-log** (HDDSteeringLog): guidance setup (type/model/freq/calibration), design parameters (entry/exit angle, max depth, bore length, pipe OD, min bend radius), actual angles, tolerance/completion status, station readings table (station/joint/depth/pitch/azimuth/TVD/offsets/bend radius with alerts), comments. |
+| **HD Bores** | ConventionalBoreLog | Conventional bore data, casing details. **Waste Management sub-log** (DrillingWasteManagement): same structure as HDD waste management — volumes, storage, disposal, additives table, vac truck, compliance testing, comments. |
+| **Piling** | PilingLog | Pile type, depth, driving records. **Locations table**: location, drawing number, piles required/today/previous/to-date (auto-calculated). **Quality Verifications**: material traceability, location per drawings, clear of facilities, plumb & vertical, splice welding, QC documentation — each Pass/Fail/N/A with color coding in PDF. |
 | **Equipment Cleaning** | EquipmentCleaningLog | Equipment ID, cleaning method, inspector verification |
 | **Hydrovac** | HydrovacLog | Hydrovac Contractor/Foreman (in header), facility details (station, owner, P/X, type, depth, boundary, GPS) |
-| **Welder Testing** | WelderTestingLog | Welder qualifications, test results, spread, weather conditions |
+| **Welder Testing** | WelderTestingLog | Header: test location, start/stop time. Per-welder table: welder name, project ID, ABSA #, test date, test material, wall thickness/diameter, weld procedure, pass/fail (color-coded), repair test date, repairs pass/fail. Summary shows total pass/fail counts. |
 | **Frost Packing** | Quality fields only | Packing material, cover depth, placement method, ground condition, frost depth, ambient temp, pipe protection, compaction achieved |
 | **Hydrostatic Testing** | HydrotestLog | Start/end pressure, test duration, pressure log attachment |
 | **Ditch** | DitchInspection | Trench width, depth, minimum cover check, soil conditions |
-| **Grading** | GradingLog | ROW width, grade measurements, soft spots (KP, length, treatment) |
-| **Tie-in Backfill** | TieInCompletionLog | CP leads, anodes, crossing clearances, as-built measurements (renamed from "Tie-in Completion"; data key remains `tieInCompletionData`) |
+| **Grading** | GradingLog | ROW width/condition, access, topsoil/subsoil separation, drainage, environmental controls. **Soft Spots** (toggleable): KP, length, width, cause, action taken, resolved, comments. **Crossings** (toggleable): crossing type, KP, access maintained, signage in place, traffic control, condition, comments. |
+| **Tie-in Backfill** | TieInCompletionLog | CP leads, as-built measurements (renamed from "Tie-in Completion"; data key remains `tieInCompletionData`). **Third Party Crossings**: crossing type, utility type, facility type, owner, our pipe depth, third party depth, separation distance, minimum required, clearance, protection method, compliant (Y/N), surveyed by, comments. **Anodes table**: type, manufacturer, material, size, depth, weight, quantity, serial number, location, test lead installed, comments. |
 | **Tie-in Coating** | CoatingLog | Same coating fields as regular Coating — ambient temp, humidity, coating type/product, holiday test results |
 | **Cleanup - Machine** | MachineCleanupLog | See detailed breakdown below |
 | **Cleanup - Final** | FinalCleanupLog | See detailed breakdown below |
@@ -421,18 +422,18 @@ If offline, the report saves locally via syncManager. A pending count badge show
 Click "Download PDF Copy" to generate a comprehensive PDF of the entire report. The PDF includes:
 - **Report header**: Date, inspector, spread, pipeline, AFE, start/end time
 - **Weather**: Conditions, temps, wind, precipitation, ROW condition
-- **Per activity block**: Activity type, contractor, foreman, start/end KP, metres today/previous, ticket number, work description, work photos (thumbnail images with KP location and description)
+- **Per activity block**: Activity type, contractor, foreman, start/end KP, metres today/previous/total, ticket number, work description, work photos (thumbnail images with KP location and description)
 - **Manpower table**: Employee name, classification, RT, OT, JH, qty, production status, productive hours, drag reason
 - **Equipment table**: Equipment type, unit number, hours, qty, production status, productive hours, drag reason
 - **Quality checks**: All activity-specific quality fields with structured labels — flat fields (Access, Bending, Lower-in, Backfill, Frost Packing, HD Bores) and collapsible sections (Topsoil horizon separation, Stringing pipe receiving, etc.). Rendered once per block using the `qualityFieldsByActivity` definitions from constants.
 - **Work photos**: Thumbnail images (30×22 mm) for every uploaded work photo, with KP location and description beside each. Appears for all activity types. If a photo fails to load, a placeholder is shown and the PDF still generates successfully.
-- **Specialized logs**: Full data from all specialized log components including Welding (mainline + tie-in), Bending, Stringing, Coating (weld ID, ambient conditions, surface prep, material, application, inspection/holiday detection, repairs, cure tests, sign-off), Counterbore/Transition (weld info, diagram values, transition records table, NDT, repairs), Clearing, Ditch, Tie-in Backfill, HDD, Grading, Hydrovac, Piling, HD Bores, Equipment Cleaning, Machine Cleanup, Final Cleanup, Welder Testing, Hydrostatic Testing
+- **Specialized logs**: Full data from all specialized log components including Welding (mainline + tie-in), Bending, Stringing, Coating (weld ID, ambient conditions, surface prep, material, application, inspection/holiday detection, repairs, cure tests, sign-off), Counterbore/Transition (weld info, diagram values, transition records table, NDT, repairs), Clearing, Ditch, Tie-in Backfill (crossings with depths/separation/compliance, anodes with material/depth/weight/qty/test lead), HDD (drilling data + waste management with volumes/storage/disposal/additives/vac truck/compliance testing + steering log with guidance setup/design params/station readings table), Grading (soft spots with width/cause/action/resolved, crossings with signage/traffic control), Hydrovac, Piling (locations with drawing #/piles counts, quality verifications with Pass/Fail color coding), HD Bores (bore data + waste management), Equipment Cleaning, Machine Cleanup, Final Cleanup, Welder Testing (location/times header, expanded table with ABSA #/wall thickness/repair columns), Hydrostatic Testing
 - **Hydrovac**: Contractor/foreman, facility details table
 - **Safety**: Safety notes, safety recognition cards, wildlife sightings
 - **Land & environment**: Environmental observations
 - **Site visitors**: Name, company, position
 - **Trackable items**: All 13 categories with type-specific descriptions (goalposts include safety compliance fields, ramps include material/crossing ID, rock trench includes spec depth/equipment, extra depth includes reason/approver, bedding/padding includes material/depth)
-- **Unit price items**: Category, item, qty, unit, KP, notes
+- **Unit price items**: Category, item, qty, unit, KP, installed date, notes
 - **Inspector info**: Mileage, equipment used
 - **Document certification**: Document ID, SHA-256 hash, generation timestamp
 
@@ -597,6 +598,9 @@ When OCR extracts total hours from a ticket, the app auto-splits: RT = min(total
 | Trackable Items | Project-wide tracked assets (mats, fencing, erosion control, etc.) |
 | Trench Crown | Deliberate mound of soil over the pipeline trench for settlement |
 | UPI | Unit Price Item — a tracked line item for billing (e.g., weld cut outs, repairs, reworks) |
+| Steering Log | Record of HDD bore path guidance readings at each drill pipe joint — tracks station, depth, pitch, azimuth, offsets, and bend radius |
+| TVD (True Vertical Depth) | The vertical distance from surface to the drill bit, as opposed to measured depth along the bore path |
+| Waste Management Log | Record of drilling fluid volumes, storage, disposal, additives, and compliance testing for HDD and HD Bore activities |
 | WPS | Welding Procedure Specification — approved parameters for each weld type |
 
 ---
@@ -701,5 +705,5 @@ A: The PDF only includes trackable items that are saved in the database for the 
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.1*
-*Source: InspectorReport.jsx (7,700+ lines) + ActivityBlock.jsx (3,400+ lines)*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.5*
+*Source: InspectorReport.jsx (8,400+ lines) + ActivityBlock.jsx (3,400+ lines)*
