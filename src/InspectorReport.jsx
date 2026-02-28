@@ -9106,7 +9106,7 @@ CRITICAL - Individual Entries Required:
 
           <TourHelpButton onClick={startTour} />
 
-          <AIAgentStatusIcon organizationId={organizationId} />
+          <AIAgentStatusIcon organizationId={organizationId} inspectorUserId={userProfile?.id} />
 
           <button
             onClick={signOut}
