@@ -7,15 +7,44 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 
-export default function AIAgentStatusIcon({ organizationId, onFlagClick }) {
+export default function AIAgentStatusIcon({ organizationId, onFlagClick, inspectorUserId }) {
   const [status, setStatus] = useState('idle') // 'idle' | 'analyzing' | 'clear' | 'warning' | 'flagged'
   const [lastAnalysis, setLastAnalysis] = useState(null)
   const [showTooltip, setShowTooltip] = useState(false)
   const [flagCount, setFlagCount] = useState(0)
   const [criticalCount, setCriticalCount] = useState(0)
+  const [inspectorReportDates, setInspectorReportDates] = useState(null)
+
+  // When filtering for a specific inspector, fetch their report dates first
+  useEffect(() => {
+    if (!inspectorUserId || !organizationId) {
+      setInspectorReportDates(null)
+      return
+    }
+
+    async function fetchInspectorDates() {
+      try {
+        const { data, error } = await supabase
+          .from('daily_reports')
+          .select('report_date')
+          .eq('created_by', inspectorUserId)
+          .eq('organization_id', organizationId)
+
+        if (!error && data) {
+          setInspectorReportDates(new Set(data.map(r => r.report_date).filter(Boolean)))
+        }
+      } catch (err) {
+        console.error('Error fetching inspector dates:', err)
+      }
+    }
+
+    fetchInspectorDates()
+  }, [inspectorUserId, organizationId])
 
   useEffect(() => {
     if (!organizationId) return
+    // If inspector filtering is requested but dates haven't loaded yet, wait
+    if (inspectorUserId && inspectorReportDates === null) return
 
     // Fetch latest analysis status
     async function fetchStatus() {
@@ -34,21 +63,59 @@ export default function AIAgentStatusIcon({ organizationId, onFlagClick }) {
         }
 
         if (data) {
-          setLastAnalysis(data)
-          setFlagCount(data.flags_raised || 0)
-          setCriticalCount(data.flags_by_severity?.critical || 0)
+          // If filtering for a specific inspector, only count their flags
+          if (inspectorReportDates && inspectorReportDates.size > 0) {
+            const allFlags = data.analysis_result?.flags || []
+            const myFlags = allFlags.filter(f => f.ticket_date && inspectorReportDates.has(f.ticket_date))
+            const myCritical = myFlags.filter(f => f.severity === 'critical').length
+            const myWarning = myFlags.filter(f => f.severity === 'warning').length
 
-          // Determine status based on flags and processing state
-          if (data.status === 'processing' || data.status === 'pending') {
-            setStatus('analyzing')
-          } else if (data.flags_by_severity?.critical > 0) {
-            setStatus('flagged')
-          } else if (data.flags_raised > 0) {
-            setStatus('warning')
-          } else if (data.status === 'completed') {
-            setStatus('clear')
-          } else {
+            // Build filtered analysis data
+            const filteredData = {
+              ...data,
+              flags_raised: myFlags.length,
+              flags_by_severity: { critical: myCritical, warning: myWarning, info: myFlags.length - myCritical - myWarning },
+              analysis_result: { ...data.analysis_result, flags: myFlags }
+            }
+
+            setLastAnalysis(filteredData)
+            setFlagCount(myFlags.length)
+            setCriticalCount(myCritical)
+
+            if (data.status === 'processing' || data.status === 'pending') {
+              setStatus('analyzing')
+            } else if (myCritical > 0) {
+              setStatus('flagged')
+            } else if (myFlags.length > 0) {
+              setStatus('warning')
+            } else if (data.status === 'completed') {
+              setStatus('clear')
+            } else {
+              setStatus('idle')
+            }
+          } else if (inspectorReportDates && inspectorReportDates.size === 0) {
+            // Inspector has no reports — show idle
+            setLastAnalysis(null)
+            setFlagCount(0)
+            setCriticalCount(0)
             setStatus('idle')
+          } else {
+            // No inspector filter — show all org flags (admin/chief view)
+            setLastAnalysis(data)
+            setFlagCount(data.flags_raised || 0)
+            setCriticalCount(data.flags_by_severity?.critical || 0)
+
+            if (data.status === 'processing' || data.status === 'pending') {
+              setStatus('analyzing')
+            } else if (data.flags_by_severity?.critical > 0) {
+              setStatus('flagged')
+            } else if (data.flags_raised > 0) {
+              setStatus('warning')
+            } else if (data.status === 'completed') {
+              setStatus('clear')
+            } else {
+              setStatus('idle')
+            }
           }
         }
       } catch (err) {
@@ -60,7 +127,7 @@ export default function AIAgentStatusIcon({ organizationId, onFlagClick }) {
 
     // Subscribe to real-time updates
     const channel = supabase
-      .channel('ai_agent_status_' + organizationId)
+      .channel('ai_agent_status_' + organizationId + (inspectorUserId || ''))
       .on('postgres_changes', {
         event: '*',
         schema: 'public',
@@ -75,7 +142,7 @@ export default function AIAgentStatusIcon({ organizationId, onFlagClick }) {
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [organizationId])
+  }, [organizationId, inspectorReportDates])
 
   // Status configurations matching AdminPortal color scheme
   const statusConfig = {

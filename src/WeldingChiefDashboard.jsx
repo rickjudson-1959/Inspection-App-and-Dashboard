@@ -4,7 +4,6 @@ import { useAuth } from './AuthContext.jsx'
 import { supabase } from './supabase'
 import { useOrgQuery } from './utils/queryHelpers.js'
 import TenantSwitcher from './components/TenantSwitcher.jsx'
-import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 import AgentAuditFindingsPanel from './components/AgentAuditFindingsPanel.jsx'
 import FeedbackButton from './components/FeedbackButton.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
@@ -457,31 +456,6 @@ function WeldingChiefDashboard() {
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <TenantSwitcher compact />
-          <AIAgentStatusIcon
-            organizationId={organizationId}
-            onFlagClick={async (ticketId, flagData) => {
-              setLoadingAuditPanel(true)
-              try {
-                const { data: ticket, error } = await supabase
-                  .from('daily_reports')
-                  .select('*')
-                  .eq('id', ticketId)
-                  .single()
-
-                if (error) throw error
-
-                setAuditPanelData({
-                  ticket,
-                  flag: flagData
-                })
-              } catch (err) {
-                console.error('Error fetching flagged ticket:', err)
-                alert(`Error loading ticket #${ticketId}`)
-              } finally {
-                setLoadingAuditPanel(false)
-              }
-            }}
-          />
           <button onClick={() => navigate(orgPath('/ndt-auditor?from=welding-chief'))} style={{ padding: '10px 16px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
             🔬 NDT Auditor
           </button>

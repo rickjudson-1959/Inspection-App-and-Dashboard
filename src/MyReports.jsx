@@ -485,7 +485,7 @@ function MyReports({ user, onEditReport, onBack }) {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <AIAgentStatusIcon organizationId={organizationId} />
+          <AIAgentStatusIcon organizationId={organizationId} inspectorUserId={user?.id} />
           <NotificationBell />
           <button style={backButtonStyle} onClick={onBack}>
             ← Back to New Report

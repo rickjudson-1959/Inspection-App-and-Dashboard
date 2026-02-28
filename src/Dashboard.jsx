@@ -12,7 +12,6 @@ import { aggregateReliabilityScore, calculateTotalBilledHours, calculateTotalSha
 import { MetricInfoIcon, MetricIntegrityModal, useMetricIntegrityModal } from './components/MetricIntegrityInfo.jsx'
 import { useOrgQuery } from './utils/queryHelpers.js'
 import { useOrgPath } from './contexts/OrgContext.jsx'
-import AIAgentStatusIcon from './components/AIAgentStatusIcon.jsx'
 import ProjectCalendar from './components/ProjectCalendar.jsx'
 
 // ============================================================================
@@ -685,7 +684,6 @@ function Dashboard({ onBackToReport }) {
             >
               Chief Dashboard
             </button>
-            <AIAgentStatusIcon organizationId={organizationId} />
             <button
               onClick={signOut}
               style={{ padding: '10px 16px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
