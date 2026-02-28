@@ -13,6 +13,11 @@ export default function OfflineStatusBar() {
     }
   }
 
+  // Only show when offline or there are pending items to sync
+  const showBar = !isOnline || pendingCount > 0
+
+  if (!showBar) return null
+
   return (
     <>
       {/* CSS for safe area and animations */}
