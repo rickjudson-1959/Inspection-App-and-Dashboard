@@ -109,7 +109,7 @@ function InspectorReport({
   const [afe, setAfe] = useState('')
   const [pipeline, setPipeline] = useState('')
   
-  // Unit Price Items (report-level toggle)
+  // Trackable Items (report-level toggle)
   const [unitPriceItemsEnabled, setUnitPriceItemsEnabled] = useState(false)
   const [unitPriceData, setUnitPriceData] = useState({ items: [], comments: '' })
   
@@ -5210,7 +5210,7 @@ CRITICAL - Individual Entries Required:
           y += 7
         }
 
-        // Pay Items section
+        // Trackable Items section
         if (block.ditchData.rockDitch || block.ditchData.extraDepth || block.ditchData.paddingBedding) {
           checkPageBreak(30)
           setColor('#fff3cd', 'fill')
@@ -5218,10 +5218,10 @@ CRITICAL - Individual Entries Required:
           setColor('#856404', 'text')
           doc.setFont('helvetica', 'bold')
           doc.setFontSize(7)
-          doc.text('PAY ITEMS (UPIs)', margin + 4, y + 4)
+          doc.text('TRACKABLE ITEMS', margin + 4, y + 4)
           y += 8
 
-          // Pay items table header
+          // Trackable items table header
           setColor('#ffc107', 'fill')
           doc.rect(margin, y, contentWidth, 5, 'F')
           setColor(BRAND.black, 'text')
@@ -8359,11 +8359,11 @@ CRITICAL - Individual Entries Required:
     }
 
     // ═══════════════════════════════════════════════════════════
-    // UNIT PRICE ITEMS
+    // TRACKABLE ITEMS (INSTALLED)
     // ═══════════════════════════════════════════════════════════
     if (unitPriceItemsEnabled && unitPriceData?.items?.length > 0) {
       checkPageBreak(30)
-      addSectionHeader('UNIT PRICE ITEMS', [111, 66, 193]) // Purple
+      addSectionHeader('TRACKABLE ITEMS', [111, 66, 193]) // Purple
 
       // Table header
       const upiColWidths = [8, 30, 40, 12, 12, 20, 20, contentWidth - 142]
@@ -8433,7 +8433,7 @@ CRITICAL - Individual Entries Required:
       setColor([111, 66, 193], 'text')
       doc.setFont('helvetica', 'bold')
       doc.setFontSize(7)
-      doc.text(`Total: ${unitPriceData.items.length} unit price item(s) recorded`, margin + 2, y)
+      doc.text(`Total: ${unitPriceData.items.length} trackable item(s) recorded`, margin + 2, y)
       setColor(BRAND.black, 'text')
       y += 8
     }

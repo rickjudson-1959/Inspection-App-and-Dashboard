@@ -538,10 +538,10 @@ function ReportViewer() {
                         </div>
                       </div>
 
-                      {/* Pay Items (UPIs) */}
+                      {/* Trackable Items */}
                       {block.ditchData.paddingBedding && (
                         <div style={{ marginBottom: '12px', padding: '10px', backgroundColor: '#fff3cd', borderRadius: '4px', border: '1px solid #ffc107' }}>
-                          <h5 style={{ fontSize: '12px', color: '#856404', margin: '0 0 8px 0' }}>Pay Items (UPIs)</h5>
+                          <h5 style={{ fontSize: '12px', color: '#856404', margin: '0 0 8px 0' }}>Trackable Items</h5>
                           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '10px', fontSize: '12px' }}>
                             <div style={{ padding: '8px', backgroundColor: '#fff', borderRadius: '4px', border: '1px solid #dee2e6' }}>
                               <strong>Padding/Bedding:</strong>
@@ -1508,10 +1508,10 @@ function ReportViewer() {
           </div>
         )}
 
-        {/* UNIT PRICE ITEMS */}
+        {/* TRACKABLE ITEMS */}
         {report.unit_price_items_enabled && report.unit_price_data?.items?.length > 0 && (
           <div style={sectionStyle}>
-            <h2 style={sectionHeaderStyle('#ff9800')}>💰 Unit Price Items</h2>
+            <h2 style={sectionHeaderStyle('#ff9800')}>💰 Trackable Items</h2>
             <table style={{ width: '100%', fontSize: '13px', borderCollapse: 'collapse' }}>
               <thead>
                 <tr style={{ backgroundColor: '#f8f9fa' }}>

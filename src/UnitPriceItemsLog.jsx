@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 
 function UnitPriceItemsLog({ data, onChange, reportDate, spread, afe }) {
-  // Predefined unit price item categories and items
+  // Predefined trackable item categories and items
   // NOTE: In production, these would come from project setup by Admin
   const itemCategories = {
     'Pipeline Markers & Signs': [
@@ -192,7 +192,7 @@ function UnitPriceItemsLog({ data, onChange, reportDate, spread, afe }) {
       {/* ITEMS LIST */}
       {unitPriceData.items.length === 0 ? (
         <p style={{ color: '#666', fontStyle: 'italic', textAlign: 'center', padding: '10px', margin: 0, fontSize: '13px' }}>
-          Click a category above to add unit price items installed today.
+          Click a category above to add trackable items installed today.
         </p>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -322,7 +322,7 @@ function UnitPriceItemsLog({ data, onChange, reportDate, spread, afe }) {
           fontWeight: 'bold',
           color: '#155724'
         }}>
-          ✓ {unitPriceData.items.length} unit price item(s) recorded
+          ✓ {unitPriceData.items.length} trackable item(s) recorded
         </div>
       )}
 
@@ -333,7 +333,7 @@ function UnitPriceItemsLog({ data, onChange, reportDate, spread, afe }) {
           <textarea
             value={unitPriceData.comments}
             onChange={(e) => updateField('comments', e.target.value)}
-            placeholder="Additional comments about unit price items..."
+            placeholder="Additional comments about trackable items..."
             style={{
               width: '100%',
               padding: '8px',

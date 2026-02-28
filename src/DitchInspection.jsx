@@ -72,7 +72,7 @@ function DitchInspection({
     depthOfCoverRequired: '',
     depthOfCoverActual: '',
 
-    // Padding/Bedding UPI
+    // Padding/Bedding Trackable Items
     paddingBedding: false,
     paddingBeddingFromKP: '',
     paddingBeddingToKP: '',
@@ -363,7 +363,7 @@ function DitchInspection({
         </div>
       </div>
 
-      {/* PAY ITEMS (UPIs) */}
+      {/* TRACKABLE ITEMS */}
       <div style={{
         marginBottom: '20px',
         padding: '15px',
@@ -380,7 +380,7 @@ function DitchInspection({
             color: '#333'
           }}
         >
-          <span>PAY ITEMS (UPIs) - Inspector Verification Required</span>
+          <span>TRACKABLE ITEMS - Inspector Verification Required</span>
           <span>{expandedSections.payItems ? '[-]' : '[+]'}</span>
         </button>
 

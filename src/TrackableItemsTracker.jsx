@@ -42,7 +42,7 @@ const TRACKABLE_DB_COLUMNS = new Set([
   'extra_depth_amount', 'total_depth', 'in_drawings', 'approved_by',
   // Bedding & padding
   'protection_type', 'material',
-  // Weld UPI
+  // Welding trackable items
   'upi_type', 'weld_number', 'status'
 ])
 
@@ -244,7 +244,7 @@ const ITEM_TYPES = [
     label: '⚙️ Welding',
     color: '#ff6b35',
     fields: [
-      { name: 'upi_type', label: 'UPI Type', type: 'select', options: ['Cut Out', 'Repair', 'Rework', 'NDT Fail Repair', 'Other'] },
+      { name: 'upi_type', label: 'Item Type', type: 'select', options: ['Cut Out', 'Repair', 'Rework', 'NDT Fail Repair', 'Other'] },
       { name: 'weld_number', label: 'Weld Number(s)', type: 'text', placeholder: 'e.g., W-001' },
       { name: 'kp_location', label: 'KP', type: 'text', placeholder: '0+000' },
       { name: 'quantity', label: 'Quantity', type: 'number' },

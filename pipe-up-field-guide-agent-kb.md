@@ -62,8 +62,8 @@ Every inspection day begins by filling out the Report Header. This creates the a
 | `visitors` | Log of site visitors (name, company, position). Auto-saved on report submit — if visitor fields are filled but not yet "Added," the save function captures them automatically. |
 | `inspectorMileage` | Inspector's mileage/KMs for the day. Used by timesheet auto-populate for KM tracking. |
 | `inspectorEquipment` | Inspector's equipment used |
-| `unitPriceItemsEnabled` | Toggle for Unit Price Items tracking |
-| `unitPriceData` | Unit price items and comments |
+| `unitPriceItemsEnabled` | Toggle for Trackable Items tracking |
+| `unitPriceData` | Trackable items and comments |
 
 ### Key Terms
 - **Spread**: A geographic segment of the pipeline project assigned to a specific construction crew and inspector.
@@ -433,7 +433,7 @@ Click "Download PDF Copy" to generate a comprehensive PDF of the entire report. 
 - **Land & environment**: Environmental observations
 - **Site visitors**: Name, company, position
 - **Trackable items**: All 13 categories with type-specific descriptions (goalposts include safety compliance fields, ramps include material/crossing ID, rock trench includes spec depth/equipment, extra depth includes reason/approver, bedding/padding includes material/depth)
-- **Unit price items**: Category, item, qty, unit, KP, installed date, notes
+- **Trackable items (installed)**: Category, item, qty, unit, KP, installed date, notes
 - **Inspector info**: Mileage, equipment used
 - **Document certification**: Document ID, SHA-256 hash, generation timestamp
 
@@ -469,8 +469,8 @@ Goal Posts track electrical safety compliance for overhead power line crossings.
 - **≥6m Offset?**: Pass / Fail - TOO CLOSE
 
 ### Welding
-The Welding category tracks welding-related unit price items such as cut outs, repairs, reworks, and NDT fail repairs. Fields include:
-- **UPI Type**: Cut Out, Repair, Rework, NDT Fail Repair, Other
+The Welding category tracks welding-related trackable items such as cut outs, repairs, reworks, and NDT fail repairs. Fields include:
+- **Item Type**: Cut Out, Repair, Rework, NDT Fail Repair, Other
 - **Weld Number(s)**: The weld identifier(s) affected (e.g., W-001)
 - **KP**: Location chainage
 - **Quantity**: Number of items
@@ -597,7 +597,7 @@ When OCR extracts total hours from a ticket, the app auto-splits: RT = min(total
 | Timber Deck | Designated area where salvaged timber is stacked and cataloged |
 | Trackable Items | Project-wide tracked assets (mats, fencing, erosion control, etc.) |
 | Trench Crown | Deliberate mound of soil over the pipeline trench for settlement |
-| UPI | Unit Price Item — a tracked line item for billing (e.g., weld cut outs, repairs, reworks) |
+| Trackable Item | A tracked line item for project tracking and billing (e.g., weld cut outs, repairs, reworks, markers, cathodic protection) |
 | Steering Log | Record of HDD bore path guidance readings at each drill pipe joint — tracks station, depth, pitch, azimuth, offsets, and bend radius |
 | TVD (True Vertical Depth) | The vertical distance from surface to the drill bit, as opposed to measured depth along the bore path |
 | Waste Management Log | Record of drilling fluid volumes, storage, disposal, additives, and compliance testing for HDD and HD Bore activities |
@@ -635,7 +635,7 @@ A: Select the "Ditch" activity type. The DitchInspection component will prompt y
 A: The Cleanup - Final log requires a seed tag photo. Upload a clear photo of the physical seed tag showing mix composition and lot number.
 
 **Q: What are Trackable Items and why does a modal pop up before I submit?**
-A: Trackable Items are project-wide assets (mats, fencing, erosion control, weld UPI items, etc.) that need to be logged consistently. The pre-submit modal reminds you to check all categories before submission.
+A: Trackable Items are project-wide assets (mats, fencing, erosion control, welding items, etc.) that need to be logged consistently. The pre-submit modal reminds you to check all categories before submission.
 
 **Q: What happens if I lose internet while filling out a report?**
 A: The app has offline mode. Your report auto-saves to your device. When connectivity returns, it syncs automatically. You'll see a pending count badge showing reports waiting to sync.
@@ -698,7 +698,7 @@ A: Scroll to the bottom of any page and tap "Send Feedback." Type your message a
 A: No. The app now handles this automatically. When a new version is deployed, the app detects it and refreshes itself. If anything goes wrong during the update, the self-healing system kicks in and recovers automatically. You'll briefly see an "Updating App" spinner, then the latest version loads.
 
 **Q: I entered data in trackable items (like goal post safety fields) but it disappeared after refreshing — is this fixed?**
-A: Yes. Previously, many type-specific fields (goalposts safety compliance, rock trench details, weld UPI data, extra depth reason/approver, ramp materials, etc.) were not being saved to the database — 29 fields were silently lost. This has been fixed with a database migration adding all missing columns and an updated save function that dynamically persists every field. All trackable item data now survives page refreshes and appears in PDF exports.
+A: Yes. Previously, many type-specific fields (goalposts safety compliance, rock trench details, welding trackable data, extra depth reason/approver, ramp materials, etc.) were not being saved to the database — 29 fields were silently lost. This has been fixed with a database migration adding all missing columns and an updated save function that dynamically persists every field. All trackable item data now survives page refreshes and appears in PDF exports.
 
 **Q: Why don't I see trackable items in my PDF download?**
 A: The PDF only includes trackable items that are saved in the database for the specific report you're viewing. If you haven't added any trackable items for that report, the section won't appear. The PDF fetches items from the database even if you haven't expanded the Trackable Items section during editing. Check that you've actually created items for the report in question — the summary totals at the top of each category show project-wide counts, not per-report counts.
