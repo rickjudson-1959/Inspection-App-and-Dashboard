@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - February 24, 2026
+## Project Manifest - March 1, 2026
 
 ---
 
@@ -70,7 +70,7 @@
 - Weather condition logging with offline cache
 - Digital signature capture
 
-### Activity Types (26 Supported)
+### Activity Types (29 Supported)
 1. Clearing
 2. Access
 3. Topsoil (with horizon separation tracking)
@@ -83,7 +83,7 @@
 10. Welding - Tie-in
 11. Coating
 12. Tie-in Coating (uses CoatingLog component)
-13. Ditch (with BOT checklist, pay items)
+13. Ditch (with BOT checklist, trackable items)
 14. Lower-in
 15. Backfill
 16. Tie-in Backfill (renamed from Tie-in Completion; uses TieInCompletionLog component)
@@ -120,7 +120,7 @@
 - **Admin Portal** - User/org/project management
 - **Inspector Invoicing** - Timesheet management
 - **NDT Auditor Dashboard** - NDT monitoring
-- **Reconciliation Dashboard** - Financial reconciliation
+- **Reconciliation Dashboard** - Three-way match (Contractor LEM vs. Timesheet vs. Inspector), billing status management, invoice batching, disputes, corrections, crossing support reconciliation, crossing variance (bore integrity audit)
 
 ### Reporting & Export
 - PDF report generation with all activity data, quality checks, specialized logs, work photo thumbnails, and document certification
@@ -230,11 +230,22 @@
 
 ### Trackable Items
 
-**bedding_padding** (NEW - January 2026)
-- Protection types: Bedding, Padding, Bedding and Padding, Pipe Protection, Rockshield, Lagging, Rockshield and Lagging
-- KP Location (single field)
-- Length, Material, Depth/Thickness
-- Action, Equipment, Notes
+**trackable_items** table — 13 categories tracked by inspectors via `TrackableItemsTracker.jsx`:
+1. **Mats** — mat_type, mat_size, crossing_reason
+2. **Rock Trench** — rock_type, depth_achieved, spec_depth
+3. **Extra Depth Ditch** — extra_depth_amount, total_depth, in_drawings, approved_by
+4. **Bedding & Padding** — protection_type, material (7 types each)
+5. **Temporary Fencing** — fence_type, fence_purpose, side, gates_qty, landowner
+6. **Ramps** — ramp_type, ramp_material, mats_used, mat_count, crossing_id, foreign_owner
+7. **Goal Posts** — utility_owner, post_material, material_compliant, authorized_clearance, posted_height, danger_sign, reflective_signage, grounding_required/installed, offset_distance/compliant
+8. **Access Roads** — access_type, surface, width
+9. **Hydrovac Holes** — hole_type, depth
+10. **Erosion Control** — control_type, watercourse
+11. **Signage & Flagging** — sign_type
+12. **Equipment Cleaning** — equipment_type, equipment_id, cleaning_type, cleaning_location, cleaning_station_kp, inspection_status, inspector_name, biosecurity_concerns, weed_wash_cert, photo_taken, contractor
+13. **Welding** — upi_type, weld_number, status
+
+Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, reason, equipment, notes, report_id, report_date, inspector, organization_id
 
 ### Document Control Tables (NEW - February 2026)
 
@@ -304,7 +315,13 @@
 │   ├── HDDLog.jsx              # Collapsible sections, waste mgmt, steering log
 │   ├── HDDSteeringLog.jsx      # NEW - Bore path tracking (Jan 2026)
 │   ├── DrillingWasteManagement.jsx  # NEW - Directive 050 (Jan 2026)
-│   ├── HydrotestLog.jsx
+│   ├── HydrotestLog.jsx        # Full 9-section hydrotest form (NEW - Mar 2026)
+│   ├── HydrovacLog.jsx
+│   ├── EquipmentCleaningLog.jsx
+│   ├── WelderTestingLog.jsx
+│   ├── MachineCleanupLog.jsx
+│   ├── FinalCleanupLog.jsx
+│   ├── ConventionalBoreLog.jsx
 │   ├── MainlineWeldData.jsx
 │   ├── PilingLog.jsx
 │   ├── StringingLog.jsx
@@ -370,7 +387,110 @@
 
 ---
 
-## 6. RECENT UPDATES (January/February 2026)
+## 6. RECENT UPDATES (January–March 2026)
+
+### PDF Printing Fixes — Corrine Barta QA (March 1, 2026)
+
+**Fixed missing PDF fields for Grading quality checks, Ditch specifications, equipment classifications, and trackable items**
+
+1. **Dozer D9 classification added** — Added `Dozer - D9 (or equivalent)` to equipment types. Previously only D9T existed.
+
+2. **Grading quality checks — section headers added** — ROW Conditions, Pile Separation, Drainage, and Topsoil Status were rendering as unlabeled 6pt text. Added proper labeled sub-headers (orange bars at 7pt) with full field labels (e.g., "Spec" → "Specified Width", "Controls" → "Drainage Controls Installed", "Separation" → "Separation Distance").
+
+3. **Ditch specifiedWidth added to PDF** — The Specified Width field existed in DitchLog form but was missing from the PDF trench specifications. Now renders as "Spec Width: {value}m".
+
+4. **Trackable items — all fields now print** — Expanded PDF descriptions for all 13 trackable item types to include every field. Previously missing: fencing (purpose, side, gates, landowner), ramps (mats_used, mat_count), goalposts (clearance, danger sign, reflective, grounding, offset), equipment cleaning (cleaning type, location, station KP, inspector, biosecurity, weed wash cert, photo, contractor), hydrovac (depth), erosion (watercourse), extra depth (extra_depth_amount, in_drawings). All types now use conditional rendering to avoid empty pipe-delimited segments.
+
+**Files Modified:**
+```
+src/constants.js              # Added Dozer - D9 (or equivalent)
+src/InspectorReport.jsx       # Grading section headers, Ditch specifiedWidth, trackable items expanded descriptions
+```
+
+---
+
+### AIAgentStatusIcon Scoping (March 1, 2026)
+
+**Critical issues button now scoped to authorized portals only**
+
+1. **Removed from** — Dashboard (general CMT), WeldingChiefDashboard, NDTAuditorDashboard
+2. **Inspector filtering** — AIAgentStatusIcon accepts `inspectorUserId` prop. When provided, fetches that inspector's report dates and filters flags to only show issues from their own reports. Applied to InspectorReport and MyReports.
+3. **Org-wide view retained** — ChiefDashboard, AssistantChiefDashboard, and AdminPortal continue to see all org flags.
+
+**Files Modified:**
+```
+src/components/AIAgentStatusIcon.jsx  # Added inspectorUserId prop and report date filtering
+src/Dashboard.jsx                     # Removed AIAgentStatusIcon
+src/WeldingChiefDashboard.jsx         # Removed AIAgentStatusIcon
+src/NDTAuditorDashboard.jsx           # Removed AIAgentStatusIcon
+src/MyReports.jsx                     # Added inspectorUserId={user?.id}
+src/InspectorReport.jsx               # Added inspectorUserId={userProfile?.id}
+```
+
+---
+
+### OfflineStatusBar Fix (March 1, 2026)
+
+**Green "Online" badge no longer obscures page headers**
+
+- OfflineStatusBar now only renders when offline or when pending sync items exist. Previously rendered as a fixed green bar at z-index 9999 at all times, obscuring Admin Portal/Reconciliation headers.
+
+**Files Modified:**
+```
+src/components/OfflineStatusBar.jsx   # Added showBar conditional, returns null when online with no pending items
+```
+
+---
+
+### UPI → Trackable Items Rename (March 1, 2026)
+
+**All user-facing references to "UPI" and "Unit Price Items" renamed to "Trackable Items"**
+
+- UI labels: "unit price item categories" → "trackable item categories", "Pay Items (UPIs)" → "Trackable Items", "UPI Type" → "Item Type"
+- PDF headers and summary text updated
+- Field guide updated and re-indexed
+- Database column names (`unit_price_data`, `upi_type`, `weld_upi`) preserved for backward compatibility
+
+**Files Modified:**
+```
+src/UnitPriceItemsLog.jsx         # UI string renames
+src/InspectorReport.jsx           # PDF header and summary text
+src/DitchInspection.jsx           # Section header
+src/ReportViewer.jsx              # Heading renames
+src/ReconciliationDashboard.jsx   # Section titles, table headers
+src/TrackableItemsTracker.jsx     # Field label "UPI Type" → "Item Type"
+pipe-up-field-guide-agent-kb.md   # Documentation updates
+```
+
+---
+
+### Hydrostatic Testing Log Build-Out (March 1, 2026)
+
+**Replaced HydrotestLog stub with full 9-section inspection form**
+
+1. **Test Identification** — testSection, testMedium (Water/Air/Nitrogen), testType (Strength/Leak/Combined)
+2. **Pressure Parameters** — designPressure, testPressure, startPressure, finalPressure, pressureDropPSI (auto-calculated kPa→PSI), maxAllowableDrop
+3. **Duration & Timeline** — holdTime, fillStartTime, fillEndTime, testStartTime, testEndTime
+4. **Water Management** — waterSource, waterVolume, waterDischargeLocation, waterDischargePermit, waterTemperature
+5. **Instrumentation** — gaugeId, recorderType, calibrationDate, calibrationCertificate
+6. **Pressure Readings** — Repeatable table (time, pressure kPa, temperature °C, notes) with add/remove
+7. **Personnel** — testEngineer, testWitness, witnessCompany
+8. **Test Result** — Color-coded banner (green=Pass, red=Fail, orange=Pending) with conditional failure fields (failureReason, leaksFound, leakLocation, leakRepairMethod)
+9. **Sign-Off & Comments** — ncrRequired, comments
+
+- Theme color: #3f51b5 (indigo). Follows PilingLog pattern (useActivityAudit, ShieldedInput, audit handlers).
+- PDF export expanded with all 9 sections including pressure readings table and color-coded result banner.
+- ActivityBlock passes logId and reportId props for audit trail.
+
+**Files Modified:**
+```
+src/HydrotestLog.jsx              # Complete rewrite from stub
+src/ActivityBlock.jsx             # Added logId/reportId props to HydrotestLog
+src/InspectorReport.jsx           # Expanded hydrostatic testing PDF export
+pipe-up-field-guide-agent-kb.md   # Hydrostatic Testing entry expanded
+```
+
+---
 
 ### Pipeline Names & Welding Label Rename (February 24, 2026)
 
