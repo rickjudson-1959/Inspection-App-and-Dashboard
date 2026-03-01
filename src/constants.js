@@ -590,6 +590,7 @@ export const equipmentTypes = [
   'Dozer - D7R (or equivalent)',
   'Dozer - D7R LGP (or equivalent)',
   'Dozer - D8T (or equivalent)',
+  'Dozer - D9 (or equivalent)',
   'Dozer - D9T (or equivalent)',
   'Dual 100 Kw Generator',
   'Dual 60 Kw Generator',

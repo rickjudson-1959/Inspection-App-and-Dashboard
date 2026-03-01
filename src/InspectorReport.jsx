@@ -5202,6 +5202,7 @@ CRITICAL - Individual Entries Required:
         doc.setFontSize(7)
         const specs = []
         if (block.ditchData.trenchWidth) specs.push(`Width: ${block.ditchData.trenchWidth}m`)
+        if (block.ditchData.specifiedWidth) specs.push(`Spec Width: ${block.ditchData.specifiedWidth}m`)
         if (block.ditchData.trenchDepth) specs.push(`Depth: ${block.ditchData.trenchDepth}m`)
         if (block.ditchData.depthOfCoverRequired) specs.push(`Cover Req: ${block.ditchData.depthOfCoverRequired}m`)
         if (block.ditchData.depthOfCoverActual) specs.push(`Cover Actual: ${block.ditchData.depthOfCoverActual}m`)
@@ -6255,49 +6256,79 @@ CRITICAL - Individual Entries Required:
         // ROW Conditions
         const rowItems = []
         if (block.gradingData.rowWidth) rowItems.push(`ROW Width: ${block.gradingData.rowWidth}m`)
-        if (block.gradingData.rowWidthSpec) rowItems.push(`Spec: ${block.gradingData.rowWidthSpec}m`)
+        if (block.gradingData.rowWidthSpec) rowItems.push(`Specified Width: ${block.gradingData.rowWidthSpec}m`)
         if (block.gradingData.rowCondition) rowItems.push(`Condition: ${block.gradingData.rowCondition}`)
-        if (block.gradingData.accessMaintained) rowItems.push(`Access: ${block.gradingData.accessMaintained}`)
+        if (block.gradingData.accessMaintained) rowItems.push(`Access Maintained: ${block.gradingData.accessMaintained}`)
 
         if (rowItems.length > 0) {
+          checkPageBreak(12)
+          setColor('#fff3e0', 'fill')
+          doc.rect(margin + 2, y, contentWidth - 4, 4.5, 'F')
+          setColor('#e65100', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('ROW CONDITIONS', margin + 4, y + 3.2)
+          y += 6
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
-          doc.setFontSize(6)
+          doc.setFontSize(7)
           doc.text(rowItems.join('  |  '), margin + 4, y + 3)
           y += 6
         }
 
         // Pile Separation
         const pileItems = []
-        if (block.gradingData.pileSeparationMaintained) pileItems.push(`Pile Sep: ${block.gradingData.pileSeparationMaintained}`)
-        if (block.gradingData.topsoilPileSeparation) pileItems.push(`Separation: ${block.gradingData.topsoilPileSeparation}m`)
-        if (block.gradingData.topsoilPileLocation) pileItems.push(`Topsoil: ${block.gradingData.topsoilPileLocation}`)
-        if (block.gradingData.subsoilPileLocation) pileItems.push(`Subsoil: ${block.gradingData.subsoilPileLocation}`)
+        if (block.gradingData.pileSeparationMaintained) pileItems.push(`Maintained: ${block.gradingData.pileSeparationMaintained}`)
+        if (block.gradingData.topsoilPileSeparation) pileItems.push(`Separation Distance: ${block.gradingData.topsoilPileSeparation}m`)
+        if (block.gradingData.topsoilPileLocation) pileItems.push(`Topsoil Pile: ${block.gradingData.topsoilPileLocation}`)
+        if (block.gradingData.subsoilPileLocation) pileItems.push(`Subsoil Pile: ${block.gradingData.subsoilPileLocation}`)
 
         if (pileItems.length > 0) {
+          checkPageBreak(12)
+          setColor('#fff3e0', 'fill')
+          doc.rect(margin + 2, y, contentWidth - 4, 4.5, 'F')
+          setColor('#e65100', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('PILE SEPARATION', margin + 4, y + 3.2)
+          y += 6
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(7)
           doc.text(pileItems.join('  |  '), margin + 4, y + 3)
           y += 6
         }
 
         if (block.gradingData.pileSeparationIssues) {
           doc.setFont('helvetica', 'italic')
-          doc.setFontSize(5.5)
-          doc.text(`Pile Issues: ${String(block.gradingData.pileSeparationIssues).substring(0, 120)}`, margin + 8, y + 2.5)
-          doc.setFont('helvetica', 'normal')
           doc.setFontSize(6)
+          doc.text(`Issues: ${String(block.gradingData.pileSeparationIssues).substring(0, 120)}`, margin + 8, y + 2.5)
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(7)
           y += 5
         }
 
         // Drainage
         const drainItems = []
-        if (block.gradingData.drainageCondition) drainItems.push(`Drainage: ${block.gradingData.drainageCondition}`)
-        if (block.gradingData.crownMaintained) drainItems.push(`Crown: ${block.gradingData.crownMaintained}`)
+        if (block.gradingData.drainageCondition) drainItems.push(`Condition: ${block.gradingData.drainageCondition}`)
+        if (block.gradingData.crownMaintained) drainItems.push(`Crown Maintained: ${block.gradingData.crownMaintained}`)
         if (block.gradingData.pondingObserved) drainItems.push(`Ponding: ${block.gradingData.pondingObserved}`)
-        if (block.gradingData.pondingLocation) drainItems.push(`Ponding Loc: ${block.gradingData.pondingLocation}`)
-        if (block.gradingData.drainageControlsInstalled) drainItems.push(`Controls: ${block.gradingData.drainageControlsInstalled}`)
-        if (block.gradingData.drainageControlsType) drainItems.push(`Type: ${block.gradingData.drainageControlsType}`)
+        if (block.gradingData.pondingLocation) drainItems.push(`Ponding Location: ${block.gradingData.pondingLocation}`)
+        if (block.gradingData.drainageControlsInstalled) drainItems.push(`Drainage Controls Installed: ${block.gradingData.drainageControlsInstalled}`)
+        if (block.gradingData.drainageControlsType) drainItems.push(`Control Type: ${block.gradingData.drainageControlsType}`)
 
         if (drainItems.length > 0) {
+          checkPageBreak(12)
+          setColor('#fff3e0', 'fill')
+          doc.rect(margin + 2, y, contentWidth - 4, 4.5, 'F')
+          setColor('#e65100', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('DRAINAGE', margin + 4, y + 3.2)
+          y += 6
+          setColor(BRAND.black, 'text')
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(7)
           doc.text(drainItems.join('  |  '), margin + 4, y + 3)
           y += 6
         }
@@ -6323,7 +6354,7 @@ CRITICAL - Individual Entries Required:
 
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
-          doc.setFontSize(6)
+          doc.setFontSize(7)
           doc.text(envItems.join('  |  '), margin + 4, y + 3)
           y += 6
         }
@@ -6396,16 +6427,24 @@ CRITICAL - Individual Entries Required:
           })
         }
 
-        // Topsoil
+        // Topsoil Status
         if (block.gradingData.topsoilStripped || block.gradingData.topsoilDepth || block.gradingData.topsoilStockpiled) {
+          checkPageBreak(12)
           const topsoilItems = []
           if (block.gradingData.topsoilStripped) topsoilItems.push(`Stripped: ${block.gradingData.topsoilStripped}`)
           if (block.gradingData.topsoilDepth) topsoilItems.push(`Depth: ${block.gradingData.topsoilDepth} cm`)
           if (block.gradingData.topsoilStockpiled) topsoilItems.push(`Stockpiled: ${block.gradingData.topsoilStockpiled}`)
+          setColor('#fff3e0', 'fill')
+          doc.rect(margin + 2, y, contentWidth - 4, 4.5, 'F')
+          setColor('#e65100', 'text')
+          doc.setFont('helvetica', 'bold')
+          doc.setFontSize(7)
+          doc.text('TOPSOIL STATUS', margin + 4, y + 3.2)
+          y += 6
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
-          doc.setFontSize(6)
-          doc.text('Topsoil: ' + topsoilItems.join('  |  '), margin + 4, y + 3)
+          doc.setFontSize(7)
+          doc.text(topsoilItems.join('  |  '), margin + 4, y + 3)
           y += 6
         }
 
@@ -8301,35 +8340,103 @@ CRITICAL - Individual Entries Required:
           // Build item description based on type
           let description = ''
           
+          // Build description parts array, then join to avoid empty segments
+          const parts = []
+
           if (type === 'mats') {
-            description = `${item.action || ''} ${item.quantity || ''} x ${item.mat_type || ''} (${item.mat_size || ''}) at KP ${item.kp_location || ''}`
+            parts.push(`${item.action || ''} ${item.quantity || ''} x ${item.mat_type || ''} (${item.mat_size || ''})`)
+            if (item.kp_location) parts.push(`KP ${item.kp_location}`)
+            if (item.from_kp || item.to_kp) parts.push(`KP ${item.from_kp || ''} - ${item.to_kp || ''}`)
+            if (item.crossing_reason) parts.push(`Reason: ${item.crossing_reason}`)
           } else if (type === 'fencing') {
-            description = `${item.action || ''} ${item.length || ''}m ${item.fence_type || ''} at KP ${item.kp_location || ''}`
+            parts.push(`${item.action || ''} ${item.length || ''}m ${item.fence_type || ''}`)
+            if (item.fence_purpose) parts.push(`Purpose: ${item.fence_purpose}`)
+            if (item.side) parts.push(`Side: ${item.side}`)
+            if (item.kp_location) parts.push(`KP ${item.kp_location}`)
+            if (item.from_kp || item.to_kp) parts.push(`KP ${item.from_kp || ''} - ${item.to_kp || ''}`)
+            if (item.gates_qty) parts.push(`Gates: ${item.gates_qty}`)
+            if (item.landowner) parts.push(`Landowner: ${item.landowner}`)
           } else if (type === 'ramps') {
-            description = `${item.action || ''} ${item.quantity || ''} x ${item.ramp_type || ''} (${item.ramp_material || ''}) at KP ${item.kp_location || ''}${item.foreign_owner ? ' - ' + item.foreign_owner : ''}${item.crossing_id ? ' [' + item.crossing_id + ']' : ''}`
+            parts.push(`${item.action || ''} ${item.quantity || ''} x ${item.ramp_type || ''} (${item.ramp_material || ''})`)
+            if (item.kp_location) parts.push(`KP ${item.kp_location}`)
+            if (item.mats_used) parts.push(`Mats: ${item.mats_used}`)
+            if (item.mat_count) parts.push(`Mat Count: ${item.mat_count}`)
+            if (item.foreign_owner) parts.push(item.foreign_owner)
+            if (item.crossing_id) parts.push(`[${item.crossing_id}]`)
           } else if (type === 'goalposts') {
-            description = `${item.action || ''} ${item.quantity || ''} set(s) at KP ${item.kp_location || ''} - ${item.utility_owner || ''}${item.post_material ? ', ' + item.post_material : ''}${item.posted_height ? ', Height: ' + item.posted_height + 'm' : ''}${item.material_compliant ? ' [' + item.material_compliant + ']' : ''}${item.offset_compliant ? ' [Offset: ' + item.offset_compliant + ']' : ''}`
+            parts.push(`${item.action || ''} ${item.quantity || ''} set(s)`)
+            if (item.kp_location) parts.push(`KP ${item.kp_location}`)
+            if (item.utility_owner) parts.push(item.utility_owner)
+            if (item.post_material) parts.push(item.post_material)
+            if (item.posted_height) parts.push(`Height: ${item.posted_height}m`)
+            if (item.material_compliant) parts.push(`Material: ${item.material_compliant}`)
+            if (item.authorized_clearance) parts.push(`Clearance: ${item.authorized_clearance}`)
+            if (item.danger_sign) parts.push(`Danger Sign: ${item.danger_sign}`)
+            if (item.reflective_signage) parts.push(`Reflective: ${item.reflective_signage}`)
+            if (item.grounding_required) parts.push(`Grounding Req: ${item.grounding_required}`)
+            if (item.grounding_installed) parts.push(`Grounding Inst: ${item.grounding_installed}`)
+            if (item.offset_distance) parts.push(`Offset: ${item.offset_distance}m`)
+            if (item.offset_compliant) parts.push(`Offset: ${item.offset_compliant}`)
           } else if (type === 'equipment_cleaning') {
-            description = `${item.action || ''}: ${item.equipment_type || ''} (${item.equipment_id || ''}) - ${item.inspection_pass || item.inspection_status || ''}`
+            parts.push(`${item.action || ''}: ${item.equipment_type || ''} (${item.equipment_id || ''})`)
+            if (item.cleaning_type) parts.push(item.cleaning_type)
+            if (item.cleaning_location) parts.push(`Location: ${item.cleaning_location}`)
+            if (item.cleaning_station_kp) parts.push(`Station KP: ${item.cleaning_station_kp}`)
+            if (item.inspection_status) parts.push(`Inspection: ${item.inspection_status}`)
+            if (item.inspector_name) parts.push(`Inspector: ${item.inspector_name}`)
+            if (item.biosecurity_concerns) parts.push(`Biosecurity: ${item.biosecurity_concerns}`)
+            if (item.weed_wash_cert) parts.push(`Weed Wash Cert: ${item.weed_wash_cert}`)
+            if (item.photo_taken) parts.push(`Photo: ${item.photo_taken}`)
+            if (item.contractor) parts.push(`Contractor: ${item.contractor}`)
           } else if (type === 'hydrovac') {
-            description = `${item.action || ''} ${item.quantity || ''} x ${item.hole_type || ''} at KP ${item.kp_location || ''}`
+            parts.push(`${item.action || ''} ${item.quantity || ''} x ${item.hole_type || ''}`)
+            if (item.kp_location) parts.push(`KP ${item.kp_location}`)
+            if (item.depth) parts.push(`Depth: ${item.depth}m`)
           } else if (type === 'erosion') {
-            description = `${item.action || ''} ${item.quantity || ''} ${item.unit || ''} ${item.control_type || ''} at KP ${item.kp_location || ''}`
+            parts.push(`${item.action || ''} ${item.quantity || ''} ${item.unit || ''} ${item.control_type || ''}`)
+            if (item.kp_location) parts.push(`KP ${item.kp_location}`)
+            if (item.watercourse) parts.push(`Watercourse: ${item.watercourse}`)
           } else if (type === 'rock_trench') {
-            description = `${item.length || ''}m ${item.rock_type || ''} at KP ${item.kp_location || ''}, Depth: ${item.depth_achieved || ''}m${item.spec_depth ? ' (Spec: ' + item.spec_depth + 'm)' : ''}${item.equipment ? ', ' + item.equipment : ''}`
+            parts.push(`${item.length || ''}m ${item.rock_type || ''}`)
+            if (item.kp_location) parts.push(`KP ${item.kp_location}`)
+            if (item.depth_achieved) parts.push(`Depth: ${item.depth_achieved}m`)
+            if (item.spec_depth) parts.push(`Spec: ${item.spec_depth}m`)
+            if (item.equipment) parts.push(item.equipment)
           } else if (type === 'extra_depth') {
-            description = `${item.length || ''}m extra depth at KP ${item.kp_location || ''}, Total: ${item.total_depth || ''}m${item.reason ? ', Reason: ' + item.reason : ''}${item.approved_by ? ', Approved: ' + item.approved_by : ''}`
+            parts.push(`${item.length || ''}m extra depth`)
+            if (item.kp_location) parts.push(`KP ${item.kp_location}`)
+            if (item.extra_depth_amount) parts.push(`Extra: ${item.extra_depth_amount}m`)
+            if (item.total_depth) parts.push(`Total: ${item.total_depth}m`)
+            if (item.in_drawings) parts.push(`In Drawings: ${item.in_drawings}`)
+            if (item.reason) parts.push(`Reason: ${item.reason}`)
+            if (item.approved_by) parts.push(`Approved: ${item.approved_by}`)
           } else if (type === 'bedding_padding') {
-            description = `${item.action || ''} ${item.protection_type || 'Bedding/Padding'}: ${item.material || ''} (${item.depth || ''}mm) at KP ${item.kp_location || ''}, ${item.length || ''}m`
+            parts.push(`${item.action || ''} ${item.protection_type || 'Bedding/Padding'}: ${item.material || ''}`)
+            if (item.depth) parts.push(`${item.depth}mm`)
+            if (item.kp_location) parts.push(`KP ${item.kp_location}`)
+            if (item.length) parts.push(`${item.length}m`)
           } else if (type === 'weld_upi') {
-            description = `${item.upi_type || ''} - Weld ${item.weld_number || 'N/A'}, Qty: ${item.quantity || ''} at KP ${item.kp_location || ''} | Reason: ${item.reason || 'N/A'} | Status: ${item.status || 'N/A'}`
+            parts.push(`${item.upi_type || ''} - Weld ${item.weld_number || 'N/A'}`)
+            if (item.quantity) parts.push(`Qty: ${item.quantity}`)
+            if (item.kp_location) parts.push(`KP ${item.kp_location}`)
+            if (item.reason) parts.push(`Reason: ${item.reason}`)
+            if (item.status) parts.push(`Status: ${item.status}`)
           } else if (type === 'signage') {
-            description = `${item.action || ''} ${item.quantity || ''} x ${item.sign_type || 'Sign'} at KP ${item.kp_location || ''}`
+            parts.push(`${item.action || ''} ${item.quantity || ''} x ${item.sign_type || 'Sign'}`)
+            if (item.kp_location) parts.push(`KP ${item.kp_location}`)
           } else if (type === 'access') {
-            description = `${item.action || ''} ${item.access_type || 'Access Road'} at KP ${item.kp_location || ''}, ${item.surface || ''} ${item.width ? item.width + 'm wide' : ''}${item.length ? ', ' + item.length + 'm long' : ''}`
+            parts.push(`${item.action || ''} ${item.access_type || 'Access Road'}`)
+            if (item.kp_location) parts.push(`KP ${item.kp_location}`)
+            if (item.surface) parts.push(item.surface)
+            if (item.width) parts.push(`${item.width}m wide`)
+            if (item.length) parts.push(`${item.length}m long`)
           } else {
-            description = `${item.action || ''} at KP ${item.kp_location || ''}`
+            parts.push(`${item.action || ''}`)
+            if (item.kp_location) parts.push(`KP ${item.kp_location}`)
+            if (item.quantity) parts.push(`Qty: ${item.quantity}`)
           }
+
+          description = parts.filter(p => p && p.trim()).join(' | ')
           
           const lines = doc.splitTextToSize(`${idx + 1}. ${description}`, contentWidth - 4)
           lines.forEach(line => {
