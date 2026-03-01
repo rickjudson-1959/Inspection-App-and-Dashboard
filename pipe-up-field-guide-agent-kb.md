@@ -444,7 +444,7 @@ Click "Download PDF Copy" to generate a comprehensive PDF of the entire report. 
 Trackable items are project-wide assets and quantities tracked across reports. Categories include: Mats, Rock Trench, Extra Depth Ditch, Bedding & Padding, Temporary Fencing, Ramps, Goal Posts (Power Lines), Access Roads, Hydrovac Holes, Erosion Control, Signage & Flagging, Equipment Cleaning, Welding.
 
 ### Auto-Save & Data Persistence
-Trackable item entries auto-save to Supabase when the inspector leaves a field (on blur). There is no manual Save button — only a Remove button to delete entries. **All type-specific fields are persisted to the database** — the `saveItem` function dynamically saves every field that has a corresponding DB column. Fields without DB columns (e.g., newly added form fields awaiting a migration) are noted in the code.
+Trackable item entries auto-save to Supabase when the inspector leaves a field (on blur). There is no manual Save button — only a Remove button to delete entries. **All type-specific fields are persisted to the database** — the `saveItem` function dynamically saves every field that has a corresponding DB column. Fields without DB columns (e.g., newly added form fields awaiting a migration) are noted in the code. A race condition guard prevents duplicate database rows when tabbing quickly through fields — the first field blur triggers the INSERT, and subsequent blurs are queued until the INSERT completes.
 
 ### Hydrovac Holes
 Hydrovac holes are tracked as individual entries in Trackable Items (hole type, action, quantity, KP location, depth, foreign line owner, notes). The Hydrovac Contractor and Foreman are entered once in the HydrovacLog quality checks header — not per hole.
@@ -523,6 +523,7 @@ Tracks pipe protection materials. Fields include:
 | Offline Mode | Save locally and sync when connected | Automatic when offline |
 | Guided Tour | Step-by-step walkthrough | Help button |
 | Trackable Items Tracker | Log project-wide tracked assets (auto-saves on blur) | Collapsible section |
+| Duplicate Report Warning | Alerts if you already have a report for same date/spread | On save — confirmation dialog |
 | Report Workflow | Submit to Chief Inspector Review to Approve/Revise | Submit button + statuses |
 
 ---
@@ -703,7 +704,13 @@ A: Yes. Previously, many type-specific fields (goalposts safety compliance, rock
 **Q: Why don't I see trackable items in my PDF download?**
 A: The PDF only includes trackable items that are saved in the database for the specific report you're viewing. If you haven't added any trackable items for that report, the section won't appear. The PDF fetches items from the database even if you haven't expanded the Trackable Items section during editing. Check that you've actually created items for the report in question — the summary totals at the top of each category show project-wide counts, not per-report counts.
 
+**Q: I got a "Duplicate Report Warning" when saving — what does this mean?**
+A: The system detected you already have a report for the same date and spread. If you're on the same spread, you likely want to edit your existing report instead of creating a new one — click Cancel and go to Previous Reports to find it. If you intentionally need a second report (rare), click OK to proceed. If you're on a different spread, you'll see a lighter notice reminding you not to log the same trackable items (mats, fencing, ramps, etc.) on both reports, as this causes double-counting in billing reconciliation.
+
+**Q: Where can admins see all trackable items across reports for billing?**
+A: The Reconciliation Dashboard has a "Trackable Items" tab (teal). It shows all 13 trackable item categories with filter chips, summary cards per type (including deploy/retrieve/net counts for inventory items like mats, fencing, ramps, goalposts), a detail table with type-specific columns, and an inventory net position panel. Use the date range dropdown to adjust the time window.
+
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.5*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.6*
 *Source: InspectorReport.jsx (8,400+ lines) + ActivityBlock.jsx (3,400+ lines)*

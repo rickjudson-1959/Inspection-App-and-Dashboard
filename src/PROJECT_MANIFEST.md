@@ -120,7 +120,7 @@
 - **Admin Portal** - User/org/project management
 - **Inspector Invoicing** - Timesheet management
 - **NDT Auditor Dashboard** - NDT monitoring
-- **Reconciliation Dashboard** - Three-way match (Contractor LEM vs. Timesheet vs. Inspector), billing status management, invoice batching, disputes, corrections, crossing support reconciliation, crossing variance (bore integrity audit)
+- **Reconciliation Dashboard** - Three-way match (Contractor LEM vs. Timesheet vs. Inspector), billing status management, invoice batching, disputes, corrections, crossing support reconciliation, crossing variance (bore integrity audit), trackable items reconciliation (13 categories with filter chips, summary cards, detail table with type-specific columns, inventory net position panel)
 
 ### Reporting & Export
 - PDF report generation with all activity data, quality checks, specialized logs, work photo thumbnails, and document certification
@@ -388,6 +388,27 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–March 2026)
+
+### Trackable Items Reconciliation Tab & Duplicate Report Prevention (March 1, 2026)
+
+**Added Trackable Items tab to Reconciliation Dashboard and fixed data integrity issues**
+
+1. **Trackable Items tab** — New teal tab on Reconciliation Dashboard gives admins a centralized view of all 13 trackable item categories for billing reconciliation. Includes category filter chips, summary cards (with deploy/retrieve/net for inventory types), detail table with type-specific columns per category, and an inventory net position panel showing what's still on-site.
+
+2. **Duplicate report warning** — Before saving a new report, the system checks if the inspector already has a report for the same date and spread. Same-date/same-spread: strong warning with report list, suggesting they edit the existing report. Same-date/different-spread: lighter notice reminding them not to double-log trackable items across reports.
+
+3. **Race condition fix (TrackableItemsTracker)** — Fixed a bug where tabbing through fields on a new trackable item would fire multiple INSERT calls before the first completed, creating duplicate rows with partial data. Added a `savingRef` guard to prevent concurrent INSERTs for the same temp item, plus a post-INSERT flush to persist field changes made during the in-flight INSERT.
+
+4. **Data cleanup** — Removed 18 orphan trackable item rows (report_id = NULL) caused by the race condition, merging their data into proper rows where applicable. Removed 3 throwaway duplicate reports and 3 duplicate trackable items from Feb 26.
+
+**Files Modified:**
+```
+src/ReconciliationDashboard.jsx  # Trackable Items tab (constants, state, query, tab button, full content block)
+src/InspectorReport.jsx          # Duplicate report warning before save
+src/TrackableItemsTracker.jsx    # Race condition fix (savingRef guard + post-INSERT flush)
+```
+
+---
 
 ### PDF Printing Fixes — Corrine Barta QA (March 1, 2026)
 
@@ -1896,4 +1917,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: February 24, 2026 (Pipeline Names, Welding Rename, Data Persistence Fix, Chainage Scoring, PDF Quality/Safety/Wildlife, Date-First Filenames)*
+*Last Updated: March 1, 2026 (Trackable Items Reconciliation Tab, Duplicate Report Warning, TrackableItemsTracker Race Condition Fix)*
