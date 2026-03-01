@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 4.6 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-02-27
+## Version: 4.7 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-03-01
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -450,7 +450,23 @@ Trackable item entries auto-save to Supabase when the inspector leaves a field (
 Hydrovac holes are tracked as individual entries in Trackable Items (hole type, action, quantity, KP location, depth, foreign line owner, notes). The Hydrovac Contractor and Foreman are entered once in the HydrovacLog quality checks header — not per hole.
 
 ### Single KP Location
-All trackable item types use a single **KP** field for location (not From KP / To KP). Enter the chainage where the item is located (e.g., `5+200`).
+All trackable item types use a single **KP** field for location (not From KP / To KP). Enter the chainage where the item is located (e.g., `5+200`). Mats also have **From** and **To** location fields for tracking movement between yards and sites.
+
+### Mats
+Mats track access mat deployments, retrievals, relocations, and losses across the project. Fields include:
+- **Mat Type**: Rig Mat, Swamp Mat, Access Mat, Crane Mat, Other
+- **Size**: 8x14, 8x16, 4x8, 4x12, 8x40, Other
+- **Material**: Wood, CLT (Cross-Laminated), Composite, HDPE
+- **Action**: Deploy, Retrieve, Relocate, Damaged/Lost, Inspect
+- **Quantity**: Number of mats
+- **From**: Origin location (e.g., Yard, KP 5+200)
+- **To**: Destination location (e.g., KP 12+500, Yard)
+- **KP**: Chainage reference
+- **Crew**: Crew or contractor name
+- **Crossing/Reason**: Crossing ID or reason for placement (e.g., FL-001, wet area)
+- **Notes**: Additional details
+
+**Inventory logic:** Deploy adds to on-site count. Retrieve, Damaged/Lost subtract from on-site count. Relocate is neutral (moves between locations). The Admin Portal Mat Inventory tab and Reconciliation Dashboard both show net mat positions. All mat data is stored in the `trackable_items` table (item_type = 'mats').
 
 ### Goal Posts (Power Lines) — Safety Fields
 Goal Posts track electrical safety compliance for overhead power line crossings. All safety-critical fields persist to the database:
@@ -578,7 +594,7 @@ When OCR extracts total hours from a ticket, the app auto-splits: RT = min(total
 | NDE (Non-Destructive Examination) | Inspection methods (radiography, ultrasonic, magnetic particle, etc.) used to evaluate weld integrity without damaging the pipe — referenced in Welding - Mainline specialized log as "NDE results" |
 | NDT (Non-Destructive Testing) | Interchangeable with NDE — used in Welding tracking for failure reasons ("NDT Fail Repair", "NDT Failure") |
 | Management Drag | Complete work stoppage due to decisions outside crew control (0% productive) |
-| Mat Tracker | Pipe-Up feature for logging access mat movements |
+| Mat Tracker | Mats section in Trackable Items for logging access mat movements (deploy, retrieve, relocate, damaged/lost) |
 | Mentor Agent | AI-powered real-time auditor that checks field values against thresholds |
 | Minimum Cover | Required minimum depth of soil above the top of the pipe |
 | OCR Ticket Scanning | Claude Vision-powered extraction of data from contractor ticket photos |

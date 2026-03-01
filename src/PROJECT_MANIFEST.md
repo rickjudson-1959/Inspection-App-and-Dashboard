@@ -231,7 +231,7 @@
 ### Trackable Items
 
 **trackable_items** table — 13 categories tracked by inspectors via `TrackableItemsTracker.jsx`:
-1. **Mats** — mat_type, mat_size, crossing_reason
+1. **Mats** — mat_type, mat_size, mat_material, crossing_reason, from_location, to_location, crew (consolidated from MatTracker)
 2. **Rock Trench** — rock_type, depth_achieved, spec_depth
 3. **Extra Depth Ditch** — extra_depth_amount, total_depth, in_drawings, approved_by
 4. **Bedding & Padding** — protection_type, material (7 types each)
@@ -388,6 +388,32 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–March 2026)
+
+### MatTracker Consolidation into TrackableItemsTracker (March 1, 2026)
+
+**Eliminated duplicate mat tracking system by consolidating MatTracker into TrackableItemsTracker**
+
+1. **MatTracker removed** — `MatTracker.jsx` was imported in InspectorReport but never rendered (dead code). The `mat_transactions` table was empty. Deleted the file and removed the import.
+
+2. **Mats fields enhanced** — Added richer fields from MatTracker to the mats config in TrackableItemsTracker: `mat_material` (Wood, CLT, Composite, HDPE), `from_location`, `to_location`, `crew`, `4x12` size option, and `Damaged/Lost` action.
+
+3. **Admin Portal Mat Inventory redirected** — The Mat Inventory tab now queries `trackable_items` (filtered by `item_type = 'mats'`) instead of the empty `mat_transactions` table. Updated action badge colors for `Damaged/Lost`.
+
+4. **Reconciliation Dashboard updated** — Added `Damaged/Lost` to `RETRIEVE_ACTIONS` so damaged/lost mats subtract from net on-site count. Added `mat_material` column to mats detail table.
+
+5. **Database migration** — Added `mat_material`, `from_location`, `to_location`, `crew` columns to `trackable_items` table.
+
+**Files Modified:**
+```
+src/TrackableItemsTracker.jsx     # TRACKABLE_DB_COLUMNS + mats field config enhanced
+src/AdminPortal.jsx               # fetchMatData → trackable_items, Damaged/Lost badge
+src/ReconciliationDashboard.jsx   # RETRIEVE_ACTIONS + mat_material column
+src/InspectorReport.jsx           # Removed dead MatTracker import
+src/MatTracker.jsx                # DELETED
+supabase/migrations/20260301141022_add_mat_tracker_columns_to_trackable_items.sql
+```
+
+---
 
 ### Trackable Items Reconciliation Tab & Duplicate Report Prevention (March 1, 2026)
 
@@ -1917,4 +1943,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: March 1, 2026 (Trackable Items Reconciliation Tab, Duplicate Report Warning, TrackableItemsTracker Race Condition Fix)*
+*Last Updated: March 1, 2026 (MatTracker Consolidation into TrackableItemsTracker, Trackable Items Reconciliation Tab, Duplicate Report Warning)*

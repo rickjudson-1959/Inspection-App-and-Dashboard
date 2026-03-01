@@ -616,10 +616,11 @@ function AdminPortal() {
   async function fetchMatData() {
     setLoadingMats(true)
     try {
-      // Get all transactions to calculate inventory
+      // Get all mat items from trackable_items (consolidated from mat_transactions)
       let matQuery = supabase
-        .from('mat_transactions')
+        .from('trackable_items')
         .select('*')
+        .eq('item_type', 'mats')
         .order('created_at', { ascending: false })
       matQuery = addOrgFilter(matQuery, true)
       const { data: transactions } = await matQuery
@@ -632,7 +633,7 @@ function AdminPortal() {
 
         transactions.forEach(tx => {
           const multiplier = (tx.action === 'Deploy' || tx.action === 'Relocate') ? 1 :
-                            (tx.action === 'Retrieve' || tx.action === 'Damaged') ? -1 : 0
+                            (tx.action === 'Retrieve' || tx.action === 'Damaged/Lost') ? -1 : 0
 
           if (tx.mat_type === 'Rig Mat') {
             rigTotal += (tx.quantity || 0) * multiplier
@@ -4051,12 +4052,12 @@ function AdminPortal() {
                             <tr key={idx}>
                               <td style={{ padding: '12px', borderBottom: '1px solid #eee', fontSize: '13px' }}>{tx.report_date || formatDate(tx.created_at).split(',')[0]}</td>
                               <td style={{ padding: '12px', borderBottom: '1px solid #eee', fontSize: '13px' }}>
-                                <span style={{ 
-                                  padding: '3px 8px', 
-                                  borderRadius: '3px', 
-                                  fontSize: '11px', 
-                                  backgroundColor: tx.action === 'Deploy' ? '#28a745' : tx.action === 'Retrieve' ? '#17a2b8' : tx.action === 'Damaged' ? '#dc3545' : '#ffc107',
-                                  color: tx.action === 'Retrieve' || tx.action === 'Deploy' || tx.action === 'Damaged' ? 'white' : 'black'
+                                <span style={{
+                                  padding: '3px 8px',
+                                  borderRadius: '3px',
+                                  fontSize: '11px',
+                                  backgroundColor: tx.action === 'Deploy' ? '#28a745' : tx.action === 'Retrieve' ? '#17a2b8' : tx.action === 'Damaged/Lost' ? '#dc3545' : '#ffc107',
+                                  color: tx.action === 'Retrieve' || tx.action === 'Deploy' || tx.action === 'Damaged/Lost' ? 'white' : 'black'
                                 }}>
                                   {tx.action}
                                 </span>

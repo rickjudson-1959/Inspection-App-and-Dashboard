@@ -13,7 +13,8 @@ const TRACKABLE_DB_COLUMNS = new Set([
   'action', 'quantity', 'unit', 'from_kp', 'to_kp', 'kp_location',
   'length', 'reason', 'equipment', 'notes',
   // Mats
-  'mat_type', 'mat_size', 'crossing_reason',
+  'mat_type', 'mat_size', 'mat_material', 'crossing_reason',
+  'from_location', 'to_location', 'crew',
   // Fencing
   'fence_type', 'fence_purpose', 'side', 'gates_qty', 'landowner',
   // Ramps
@@ -53,16 +54,20 @@ const FIELD_TO_DB = {
 
 // Define all trackable item types with their fields
 const ITEM_TYPES = [
-  { 
-    id: 'mats', 
-    label: '🛤️ Mats', 
+  {
+    id: 'mats',
+    label: '🛤️ Mats',
     color: '#007bff',
     fields: [
       { name: 'mat_type', label: 'Mat Type', type: 'select', options: ['Rig Mat', 'Swamp Mat', 'Access Mat', 'Crane Mat', 'Other'] },
-      { name: 'mat_size', label: 'Size', type: 'select', options: ['8x14', '8x16', '4x8', '8x40', 'Other'] },
-      { name: 'action', label: 'Action', type: 'select', options: ['Deploy', 'Retrieve', 'Relocate', 'Inspect'] },
+      { name: 'mat_size', label: 'Size', type: 'select', options: ['8x14', '8x16', '4x8', '4x12', '8x40', 'Other'] },
+      { name: 'mat_material', label: 'Material', type: 'select', options: ['Wood', 'CLT (Cross-Laminated)', 'Composite', 'HDPE'] },
+      { name: 'action', label: 'Action', type: 'select', options: ['Deploy', 'Retrieve', 'Relocate', 'Damaged/Lost', 'Inspect'] },
       { name: 'quantity', label: 'Quantity', type: 'number' },
+      { name: 'from_location', label: 'From', type: 'text', placeholder: 'e.g., Yard, KP 5+200' },
+      { name: 'to_location', label: 'To', type: 'text', placeholder: 'e.g., KP 12+500, Yard' },
       { name: 'kp_location', label: 'KP', type: 'text', placeholder: '0+000' },
+      { name: 'crew', label: 'Crew', type: 'text', placeholder: 'Crew name' },
       { name: 'crossing_reason', label: 'Crossing/Reason', type: 'text', placeholder: 'e.g., FL-001, wet area' },
       { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
     ]
@@ -310,7 +315,7 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
             const qty = parseFloat(item.quantity) || 0
             if (['Deploy', 'Install', 'Build', 'Dig'].includes(item.action)) {
               calc[item.item_type].deployed += qty
-            } else if (['Retrieve', 'Remove', 'Backfill', 'Reclaim'].includes(item.action)) {
+            } else if (['Retrieve', 'Remove', 'Backfill', 'Reclaim', 'Damaged/Lost'].includes(item.action)) {
               calc[item.item_type].retrieved += qty
             }
             calc[item.item_type].net = calc[item.item_type].deployed - calc[item.item_type].retrieved
