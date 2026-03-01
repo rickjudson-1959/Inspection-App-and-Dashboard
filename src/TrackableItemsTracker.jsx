@@ -258,6 +258,7 @@ const ITEM_TYPES = [
 function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onDataChange }) {
   const [items, setItems] = useState([])
   const itemsRef = useRef(items)
+  const savingRef = useRef(new Set()) // Track in-flight saves to prevent duplicate INSERTs
   const [expandedTypes, setExpandedTypes] = useState({})
   const [loading, setLoading] = useState(true)
   const [summary, setSummary] = useState({})
@@ -367,6 +368,14 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
     const item = itemsRef.current.find(i => i.id === itemId)
     if (!item) return
 
+    const isTemp = item.id.toString().startsWith('temp-')
+
+    // Prevent concurrent INSERTs for the same temp item — the first onBlur
+    // fires the INSERT; subsequent onBlurs for the same temp-ID are skipped
+    // until the INSERT completes and replaces the temp ID with a real one.
+    if (isTemp && savingRef.current.has(itemId)) return
+    if (isTemp) savingRef.current.add(itemId)
+
     const record = {
       project_id: projectId || 'default',
       report_id: reportId,
@@ -391,13 +400,18 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
     }
 
     try {
-      if (item.id.toString().startsWith('temp-')) {
+      if (isTemp) {
         const { data } = await supabase.from('trackable_items').insert(record).select()
         if (data && data[0]) {
-          const updated = items.map(i => 
-            i.id === itemId ? { ...data[0], isNew: false } : i
+          const realId = data[0].id
+          const updated = itemsRef.current.map(i =>
+            i.id === itemId ? { ...i, ...data[0], isNew: false } : i
           )
           setItems(updated)
+          // Flush: if the inspector filled more fields while the INSERT was
+          // in-flight, those changes are in itemsRef but not in the DB row.
+          // Do one UPDATE with the latest local state to catch them.
+          setTimeout(() => saveItem(realId), 0)
         }
       } else {
         await supabase.from('trackable_items').update(record).eq('id', item.id)
@@ -406,6 +420,8 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
     } catch (err) {
       console.error('Error saving item:', err)
       alert('Error saving item')
+    } finally {
+      savingRef.current.delete(itemId)
     }
   }
 
