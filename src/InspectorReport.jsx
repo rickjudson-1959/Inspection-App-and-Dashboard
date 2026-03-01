@@ -2800,6 +2800,58 @@ CRITICAL - Individual Entries Required:
         setSaving(true)
       }
 
+      // Check for duplicate report (same inspector, same date, same spread) — new reports only
+      if (!isEditMode) {
+        let dupeQuery = supabase.from('daily_reports')
+          .select('id, date, spread, pipeline, created_at')
+          .eq('date', selectedDate)
+          .eq('created_by', userProfile?.id)
+        dupeQuery = addOrgFilter(dupeQuery)
+        const { data: existingReports } = await dupeQuery
+
+        if (existingReports && existingReports.length > 0) {
+          // Filter to same spread (case-insensitive, treat empty as match)
+          const sameSpread = existingReports.filter(r =>
+            (!r.spread && !spread) ||
+            (r.spread || '').toLowerCase().trim() === (spread || '').toLowerCase().trim()
+          )
+
+          if (sameSpread.length > 0) {
+            setSaving(false)
+            const reportList = sameSpread.map(r =>
+              `  - Report #${r.id} (${r.pipeline || 'No pipeline'}, created ${new Date(r.created_at).toLocaleTimeString()})`
+            ).join('\n')
+
+            const proceed = confirm(
+              '⚠️ DUPLICATE REPORT WARNING\n\n' +
+              `You already have ${sameSpread.length} report(s) for ${selectedDate} on "${spread || '(no spread)'}":\n\n` +
+              reportList +
+              '\n\n' +
+              'Creating another report for the same date and spread will result in duplicate data.\n\n' +
+              'Click OK to create a new report anyway, or Cancel to go back and edit your existing report instead.'
+            )
+            if (!proceed) return
+            setSaving(true)
+          } else if (existingReports.length > 0) {
+            // Same date, different spread — lighter notice
+            setSaving(false)
+            const reportList = existingReports.map(r =>
+              `  - Report #${r.id} (${r.spread || '(no spread)'} / ${r.pipeline || 'No pipeline'})`
+            ).join('\n')
+
+            const proceed = confirm(
+              'Note: You already have report(s) for ' + selectedDate + ' on other spreads:\n\n' +
+              reportList +
+              '\n\n' +
+              'Make sure any trackable items (mats, fencing, ramps, etc.) are only logged on one report to avoid double-counting.\n\n' +
+              'Click OK to continue saving.'
+            )
+            if (!proceed) return
+            setSaving(true)
+          }
+        }
+      }
+
       // If also exporting, do export first while data is in state
       if (alsoExport) {
         await exportToExcel()
