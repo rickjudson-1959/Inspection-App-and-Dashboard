@@ -393,7 +393,7 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 **Eliminated duplicate mat tracking system by consolidating MatTracker into TrackableItemsTracker**
 
-1. **MatTracker removed** — `MatTracker.jsx` was imported in InspectorReport but never rendered (dead code). The `mat_transactions` table was empty. Deleted the file and removed the import.
+1. **MatTracker removed** — `MatTracker.jsx` was imported in InspectorReport but never rendered (dead code). The `mat_transactions` table was empty and has been dropped. Deleted the file and removed the import.
 
 2. **Mats fields enhanced** — Added richer fields from MatTracker to the mats config in TrackableItemsTracker: `mat_material` (Wood, CLT, Composite, HDPE), `from_location`, `to_location`, `crew`, `4x12` size option, and `Damaged/Lost` action.
 
@@ -411,6 +411,7 @@ src/ReconciliationDashboard.jsx   # RETRIEVE_ACTIONS + mat_material column
 src/InspectorReport.jsx           # Removed dead MatTracker import
 src/MatTracker.jsx                # DELETED
 supabase/migrations/20260301141022_add_mat_tracker_columns_to_trackable_items.sql
+supabase/migrations/20260301142500_drop_mat_transactions.sql
 ```
 
 ---
