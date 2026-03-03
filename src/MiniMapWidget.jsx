@@ -160,6 +160,7 @@ export default function MiniMapWidget({
   const [showBoreFaces, setShowBoreFaces] = useState(true)
   const [showSagBends, setShowSagBends] = useState(false)
   const [showZones, setShowZones] = useState(true)
+  const [zoneLegendOpen, setZoneLegendOpen] = useState(false)
   const [zoneTypeVisible, setZoneTypeVisible] = useState(() => {
     const initial = {}
     Object.keys(ZONE_TYPE_CONFIG).forEach(t => { initial[t] = true })
@@ -522,26 +523,6 @@ export default function MiniMapWidget({
               />
               <span style={{ fontWeight: 'bold', color: '#333' }}>Zones ({filteredZones.length})</span>
             </label>
-            {showZones && Object.entries(ZONE_TYPE_CONFIG).map(([type, cfg]) => (
-              zoneTypeCounts[type] > 0 && (
-                <label key={type} style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-                  <input
-                    type="checkbox"
-                    checked={zoneTypeVisible[type] !== false}
-                    onChange={(e) => setZoneTypeVisible(prev => ({ ...prev, [type]: e.target.checked }))}
-                  />
-                  <span style={{
-                    display: 'inline-block',
-                    width: '10px',
-                    height: '4px',
-                    backgroundColor: cfg.color,
-                    borderRadius: '1px',
-                    marginRight: '2px'
-                  }} />
-                  <span style={{ color: cfg.color }}>{cfg.icon} {cfg.label.split(' ')[0]} ({zoneTypeCounts[type]})</span>
-                </label>
-              )
-            ))}
           </div>
 
           {/* Zone Alert Banners */}
@@ -1081,6 +1062,89 @@ export default function MiniMapWidget({
             )}
           </MapContainer>
 
+          {/* Floating Zone Legend (collapsible, bottom-right of map) */}
+          {showZones && (
+            <div style={{
+              position: 'absolute',
+              bottom: '44px',
+              right: '8px',
+              zIndex: 1000,
+              backgroundColor: 'rgba(255,255,255,0.95)',
+              borderRadius: '6px',
+              boxShadow: '0 1px 5px rgba(0,0,0,0.3)',
+              fontSize: '11px',
+              minWidth: zoneLegendOpen ? '180px' : 'auto',
+              overflow: 'hidden'
+            }}>
+              <div
+                onClick={() => setZoneLegendOpen(!zoneLegendOpen)}
+                style={{
+                  padding: '5px 8px',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  fontWeight: 'bold',
+                  color: '#333',
+                  borderBottom: zoneLegendOpen ? '1px solid #eee' : 'none',
+                  userSelect: 'none'
+                }}
+              >
+                <span style={{ fontSize: '9px' }}>{zoneLegendOpen ? '\u25BC' : '\u25B6'}</span>
+                Reg. Zones
+                {!zoneLegendOpen && (
+                  <span style={{ display: 'flex', gap: '2px', marginLeft: '4px' }}>
+                    {Object.entries(ZONE_TYPE_CONFIG).map(([type, cfg]) => (
+                      zoneTypeCounts[type] > 0 && (
+                        <span key={type} style={{
+                          display: 'inline-block',
+                          width: '10px',
+                          height: '3px',
+                          backgroundColor: zoneTypeVisible[type] !== false ? cfg.color : '#ccc',
+                          borderRadius: '1px'
+                        }} />
+                      )
+                    ))}
+                  </span>
+                )}
+              </div>
+              {zoneLegendOpen && (
+                <div style={{ padding: '4px 0' }}>
+                  {Object.entries(ZONE_TYPE_CONFIG).map(([type, cfg]) => {
+                    if (zoneTypeCounts[type] === 0) return null
+                    const active = zoneTypeVisible[type] !== false
+                    return (
+                      <div
+                        key={type}
+                        onClick={() => setZoneTypeVisible(prev => ({ ...prev, [type]: !prev[type] }))}
+                        style={{
+                          padding: '3px 8px',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          opacity: active ? 1 : 0.4,
+                          userSelect: 'none'
+                        }}
+                      >
+                        <span style={{
+                          display: 'inline-block',
+                          width: '14px',
+                          height: '4px',
+                          backgroundColor: cfg.color,
+                          borderRadius: '1px',
+                          flexShrink: 0
+                        }} />
+                        <span>{cfg.icon} {cfg.label.split(' ')[0]}</span>
+                        <span style={{ marginLeft: 'auto', color: '#999', fontSize: '10px' }}>{zoneTypeCounts[type]}</span>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* Legend */}
           <div style={{ 
             padding: '8px 10px', 
@@ -1100,22 +1164,6 @@ export default function MiniMapWidget({
             <span><span style={{ color: '#dc3545' }}>●</span> Weld</span>
             <span><span style={{ color: '#fd7e14' }}>●</span> Bend</span>
             <span><span style={{ color: '#795548' }}>●</span> Sag</span>
-            {showZones && Object.entries(ZONE_TYPE_CONFIG).map(([type, cfg]) => (
-              zoneTypeCounts[type] > 0 && zoneTypeVisible[type] !== false && (
-                <span key={`legend-${type}`}>
-                  <span style={{
-                    display: 'inline-block',
-                    width: '12px',
-                    height: '4px',
-                    backgroundColor: cfg.color,
-                    borderRadius: '1px',
-                    verticalAlign: 'middle',
-                    marginRight: '2px'
-                  }} />
-                  {cfg.label.split(' ')[0]}
-                </span>
-              )
-            ))}
           </div>
         </div>
       )}
