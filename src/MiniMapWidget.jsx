@@ -9,6 +9,9 @@ import 'leaflet/dist/leaflet.css'
 // Import actual EGP route data extracted from FortisBC KMZ files
 import EGP_ROUTE_DATA from './egpRouteData.js'
 
+// Import regulatory zone data for overlay
+import { REGULATORY_ZONES, ZONE_TYPE_CONFIG } from './regulatoryZones.js'
+
 // =====================================================
 // EGP PIPELINE ROUTE DATA (from FortisBC Provisional Asbuilt KMZ)
 // North Line: KP 0+000 to KP 38+470
@@ -156,6 +159,12 @@ export default function MiniMapWidget({
   const [showOpenEnds, setShowOpenEnds] = useState(true)
   const [showBoreFaces, setShowBoreFaces] = useState(true)
   const [showSagBends, setShowSagBends] = useState(false)
+  const [showZones, setShowZones] = useState(true)
+  const [zoneTypeVisible, setZoneTypeVisible] = useState(() => {
+    const initial = {}
+    Object.keys(ZONE_TYPE_CONFIG).forEach(t => { initial[t] = true })
+    return initial
+  })
 
   // Create icons using useMemo to avoid recreation on each render
   const workAreaIcon = useMemo(() => L.divIcon({
@@ -213,6 +222,102 @@ export default function MiniMapWidget({
     center = [startPosition.lat, startPosition.lon]
   } else if (endPosition) {
     center = [endPosition.lat, endPosition.lon]
+  }
+
+  // Filter regulatory zones to those near the work area
+  const filteredZones = useMemo(() => {
+    if (startKPValue !== null && endKPValue !== null) {
+      const bufferStart = startKPValue - 2
+      const bufferEnd = endKPValue + 2
+      return REGULATORY_ZONES.filter(z => z.kp_start <= bufferEnd && z.kp_end >= bufferStart)
+    }
+    return REGULATORY_ZONES
+  }, [startKPValue, endKPValue])
+
+  // Zones that directly overlap the inspector's exact work area (for alert banner)
+  const overlappingZones = useMemo(() => {
+    if (startKPValue === null || endKPValue === null) return []
+    return REGULATORY_ZONES.filter(z => z.kp_start <= endKPValue && z.kp_end >= startKPValue)
+  }, [startKPValue, endKPValue])
+
+  // Compute polyline coordinates for each filtered zone
+  const zonePolylines = useMemo(() => {
+    return filteredZones.map(zone => {
+      const points = []
+      const step = 0.1
+      for (let kp = zone.kp_start; kp <= zone.kp_end; kp += step) {
+        const pos = interpolatePosition(route, kp)
+        if (pos) points.push([pos.lat, pos.lon])
+      }
+      // Always include the end point
+      const endPos = interpolatePosition(route, zone.kp_end)
+      if (endPos) points.push([endPos.lat, endPos.lon])
+      return { ...zone, coords: points }
+    })
+  }, [filteredZones, route])
+
+  // Determine alert banner for overlapping zones
+  const zoneAlert = useMemo(() => {
+    if (overlappingZones.length === 0) return null
+
+    // Priority: red > amber > blue
+    const red = overlappingZones.find(z =>
+      z.status === 'CLOSED' || (z.type === 'safety' && z.status === 'ACTIVE TODAY')
+    )
+    if (red) {
+      const cfg = ZONE_TYPE_CONFIG[red.type]
+      return {
+        color: '#dc3545',
+        bg: '#f8d7da',
+        text: `You are working in: ${red.name} (${cfg.label} \u2014 ${red.status}${red.status_detail ? ' \u2014 ' + red.status_detail : ''})`
+      }
+    }
+    const amber = overlappingZones.find(z =>
+      z.status_detail || z.status === 'PENDING'
+    )
+    if (amber) {
+      const cfg = ZONE_TYPE_CONFIG[amber.type]
+      return {
+        color: '#856404',
+        bg: '#fff3cd',
+        text: `You are working in: ${amber.name} (${cfg.label} \u2014 ${amber.status_detail || amber.status})`
+      }
+    }
+    const blue = overlappingZones.find(z =>
+      ['ACTIVE WORK', 'RESTRICTION ACTIVE', 'MONITORING', 'ACTIVE HAULING'].includes(z.status)
+    )
+    if (blue) {
+      const cfg = ZONE_TYPE_CONFIG[blue.type]
+      return {
+        color: '#004085',
+        bg: '#cce5ff',
+        text: `You are working in: ${blue.name} (${cfg.label} \u2014 ${blue.status})`
+      }
+    }
+
+    return null
+  }, [overlappingZones])
+
+  // Count zones per type for toggle labels
+  const zoneTypeCounts = useMemo(() => {
+    const counts = {}
+    Object.keys(ZONE_TYPE_CONFIG).forEach(t => { counts[t] = 0 })
+    filteredZones.forEach(z => { counts[z.type] = (counts[z.type] || 0) + 1 })
+    return counts
+  }, [filteredZones])
+
+  // Helper: determine if a zone status should use dashed line
+  const isWarningStatus = (zone) => {
+    return ['PENDING', 'RESTRICTION ACTIVE', 'ACTIVE TODAY'].includes(zone.status) || !!zone.status_detail
+  }
+
+  // Status badge color
+  const getStatusColor = (status) => {
+    if (status === 'CLOSED' || status === 'ACTIVE TODAY') return '#F44336'
+    if (status === 'PENDING') return '#FF9800'
+    if (status === 'RESTRICTION ACTIVE') return '#FF9800'
+    if (status === 'VALID' || status === 'OPEN') return '#4CAF50'
+    return '#2196F3'
   }
 
   // Get user GPS location
@@ -403,14 +508,61 @@ export default function MiniMapWidget({
               <span style={{ color: '#00bcd4' }}>HDD ({egpBoreFaces.length})</span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
-              <input 
-                type="checkbox" 
-                checked={showSagBends} 
+              <input
+                type="checkbox"
+                checked={showSagBends}
                 onChange={(e) => setShowSagBends(e.target.checked)}
               />
               <span style={{ color: '#795548' }}>Sag Bends ({egpSagBends.length})</span>
             </label>
+            <span style={{ borderLeft: '1px solid #ccc', height: '14px' }} />
+            <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              <input
+                type="checkbox"
+                checked={showZones}
+                onChange={(e) => setShowZones(e.target.checked)}
+              />
+              <span style={{ fontWeight: 'bold', color: '#333' }}>Zones ({filteredZones.length})</span>
+            </label>
+            {showZones && Object.entries(ZONE_TYPE_CONFIG).map(([type, cfg]) => (
+              zoneTypeCounts[type] > 0 && (
+                <label key={type} style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+                  <input
+                    type="checkbox"
+                    checked={zoneTypeVisible[type] !== false}
+                    onChange={(e) => setZoneTypeVisible(prev => ({ ...prev, [type]: e.target.checked }))}
+                  />
+                  <span style={{
+                    display: 'inline-block',
+                    width: '10px',
+                    height: '4px',
+                    backgroundColor: cfg.color,
+                    borderRadius: '1px',
+                    marginRight: '2px'
+                  }} />
+                  <span style={{ color: cfg.color }}>{cfg.icon} {cfg.label.split(' ')[0]} ({zoneTypeCounts[type]})</span>
+                </label>
+              )
+            ))}
           </div>
+
+          {/* Zone Alert Banner */}
+          {showZones && zoneAlert && (
+            <div style={{
+              padding: '8px 12px',
+              backgroundColor: zoneAlert.bg,
+              color: zoneAlert.color,
+              fontSize: '12px',
+              fontWeight: 'bold',
+              borderBottom: '1px solid ' + zoneAlert.color + '33',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px'
+            }}>
+              <span style={{ fontSize: '14px' }}>{zoneAlert.color === '#dc3545' ? '\u26D4' : '\u26A0\uFE0F'}</span>
+              {zoneAlert.text}
+            </div>
+          )}
 
           {/* Map */}
           <MapContainer
@@ -493,6 +645,92 @@ export default function MiniMapWidget({
                 </Popup>
               </Marker>
             )}
+
+            {/* Regulatory Zone Overlays */}
+            {showZones && zonePolylines.map((zone, idx) => {
+              if (!zoneTypeVisible[zone.type] || zone.coords.length < 2) return null
+              const cfg = ZONE_TYPE_CONFIG[zone.type]
+              const warning = isWarningStatus(zone)
+              const isSafetyActive = zone.type === 'safety' && zone.status === 'ACTIVE TODAY'
+
+              const popupContent = (
+                <div style={{ fontSize: '11px', minWidth: '220px' }}>
+                  <div style={{
+                    fontWeight: 'bold',
+                    color: cfg.color,
+                    marginBottom: '5px',
+                    borderBottom: '1px solid #eee',
+                    paddingBottom: '3px',
+                    fontSize: '12px'
+                  }}>
+                    {cfg.icon} {zone.name}
+                  </div>
+                  <div style={{ fontSize: '10px', textTransform: 'uppercase', color: '#666', marginBottom: '4px' }}>
+                    {cfg.label}
+                  </div>
+                  <div style={{ marginBottom: '4px' }}>
+                    <span style={{ color: '#e67e22', fontWeight: 'bold' }}>
+                      KP {formatKP(zone.kp_start)} \u2014 {formatKP(zone.kp_end)}
+                    </span>
+                  </div>
+                  <div style={{ marginBottom: '6px', lineHeight: '1.4' }}>
+                    {zone.restriction}
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '3px' }}>
+                    <span style={{
+                      display: 'inline-block',
+                      padding: '1px 6px',
+                      borderRadius: '3px',
+                      fontSize: '10px',
+                      fontWeight: 'bold',
+                      color: '#fff',
+                      backgroundColor: getStatusColor(zone.status)
+                    }}>
+                      {zone.status}
+                    </span>
+                    {zone.status_detail && (
+                      <span style={{ fontSize: '10px', color: '#e67e22', fontWeight: 'bold' }}>
+                        {zone.status_detail}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ fontSize: '9px', color: '#999', marginTop: '4px' }}>
+                    {zone.authority}
+                  </div>
+                </div>
+              )
+
+              return (
+                <React.Fragment key={`zone-${idx}`}>
+                  {/* Thick semi-transparent highlight */}
+                  <Polyline
+                    positions={zone.coords}
+                    pathOptions={{
+                      color: cfg.color,
+                      weight: 14,
+                      opacity: 0.25,
+                      lineCap: 'round'
+                    }}
+                  >
+                    <Popup>{popupContent}</Popup>
+                  </Polyline>
+                  {/* Border line */}
+                  <Polyline
+                    positions={zone.coords}
+                    pathOptions={{
+                      color: cfg.color,
+                      weight: 4,
+                      opacity: warning ? 0.9 : 0.6,
+                      dashArray: warning ? '8, 6' : undefined,
+                      lineCap: 'round',
+                      className: isSafetyActive ? 'zone-pulse' : undefined
+                    }}
+                  >
+                    <Popup>{popupContent}</Popup>
+                  </Polyline>
+                </React.Fragment>
+              )
+            })}
 
             {/* Work Area Highlight (if start and end KP are set) */}
             {startPosition && endPosition && (
@@ -864,6 +1102,22 @@ export default function MiniMapWidget({
             <span><span style={{ color: '#dc3545' }}>●</span> Weld</span>
             <span><span style={{ color: '#fd7e14' }}>●</span> Bend</span>
             <span><span style={{ color: '#795548' }}>●</span> Sag</span>
+            {showZones && Object.entries(ZONE_TYPE_CONFIG).map(([type, cfg]) => (
+              zoneTypeCounts[type] > 0 && zoneTypeVisible[type] !== false && (
+                <span key={`legend-${type}`}>
+                  <span style={{
+                    display: 'inline-block',
+                    width: '12px',
+                    height: '4px',
+                    backgroundColor: cfg.color,
+                    borderRadius: '1px',
+                    verticalAlign: 'middle',
+                    marginRight: '2px'
+                  }} />
+                  {cfg.label.split(' ')[0]}
+                </span>
+              )
+            ))}
           </div>
         </div>
       )}
@@ -873,6 +1127,13 @@ export default function MiniMapWidget({
         .work-area-marker, .user-location, .start-end-marker {
           background: transparent !important;
           border: none !important;
+        }
+        @keyframes zonePulse {
+          0%, 100% { opacity: 0.9; }
+          50% { opacity: 0.3; }
+        }
+        .zone-pulse {
+          animation: zonePulse 2s ease-in-out infinite;
         }
       `}</style>
     </div>
