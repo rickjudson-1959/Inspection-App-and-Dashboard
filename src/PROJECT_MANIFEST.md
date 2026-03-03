@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - March 1, 2026
+## Project Manifest - March 3, 2026
 
 ---
 
@@ -365,6 +365,22 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
     ├── OfflineStatusBar.jsx     # PWA status indicator (NEW - Jan 2026)
     └── [supporting components]
 
+/pipe-up-automation/              # Regulatory Compliance Automation (NEW - Mar 2026)
+├── generate.py                # Single-file script: PDF → HTML map + Word report
+├── config.json                # Project config (paths, KP range, map center)
+├── requirements.txt           # pdfplumber, python-docx
+├── data/
+│   ├── doc.kml                # Pipeline route KML (chainage placemarks + centerline)
+│   ├── regulatory_zones.json  # 14 zones across 5 types (fisheries, environmental, GD, invasive, safety)
+│   └── kml_cache.json         # Auto-generated KML parse cache
+├── daily_reports/             # Input PDFs (EGMP Daily Work Plan)
+├── output/                    # Generated maps + reports
+│   ├── EGP_Daily_Map_YYYY-MM-DD.html
+│   └── EGP_Compliance_Report_YYYY-MM-DD.docx
+└── Claude code breifs for Regulatory/
+    ├── Claude_Code_Brief_1_Automation_Script.md
+    └── Claude_Code_Brief_2_Minimap_Zones.md
+
 /supabase/migrations/
 ├── create_inspector_invoicing_tables.sql
 ├── create_trench_logs.sql
@@ -388,6 +404,48 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–March 2026)
+
+### Regulatory Compliance Automation — `pipe-up-automation/` (March 3, 2026)
+
+**Standalone Python script that takes a daily contractor PDF work plan + KML pipeline route and generates a regulatory compliance map and Word report.**
+
+1. **`generate.py`** — Single-file automation script (11-step pipeline):
+   - **Steps 1-4:** Finds PDF, parses KML (regex-based, handles chainage format placemarks), extracts crew data from PDF tables, extracts KP locations via 4 regex patterns
+   - **Step 5:** Interpolates KP values to lat/lng coordinates using 737 chainage reference points
+   - **Step 6:** Categorizes crew activities (crew name priority, 17 keyword categories)
+   - **Step 7:** Cross-references all crew KP locations against 14 regulatory zones (5 types: fisheries, environmental, ground disturbance, invasive species, safety)
+   - **Step 8:** Generates compliance alerts with severity classification (HIGH/MEDIUM/LOW). Alerts include crew names, inspector names, and KP locations in detail text. Alert types: fisheries window closing (with day count), pending GD permits, archaeological monitor zones, active safety zones, environmental restrictions
+   - **Step 9:** Generates self-contained HTML map (Leaflet.js, dark CartoDB tiles, zone overlays, crew markers, alert markers with pulse animation, sidebar with toggleable layers and zone detail cards)
+   - **Step 10:** Generates Word compliance report (python-docx) matching Feb 27 reference format:
+     - **Summary page:** Pipe-separated subtitle, UPPERCASE stat headers, contextual summary paragraph with crew/zone percentages
+     - **7 numbered Heading 2 sections** in fixed order: (1) Compliance Alerts, (2) Fisheries Timing Windows, (3) Environmental Sensitive Areas, (4) Ground Disturbance Permits, (5) Safety Exclusion Zones, (6) Invasive Species Management, (7) Complete Crew-Zone Intersection Log
+     - **Section intros** with zone counts and intersection counts
+     - **Type-specific table headers:** CROSSING (fisheries), ESA (environmental), PERMIT (GD), CONDITIONS (GD)
+     - **Crew sub-tables** only for fisheries and environmental (headers: CREW, KP, ACTIVITY, ZONE)
+     - **Safety & invasive** rendered as paragraphs, not tables
+     - **Status format:** Single line with em dash (e.g., "OPEN — CLOSES IN 2 DAYS")
+     - **Audit log:** 5 columns (CREW, KP, ZONE, RESTRICTION, STATUS)
+     - **Signature block:** PREPARED BY / REVIEWED BY with Name/Signature/Date fields
+     - **Disclaimer:** Auto-generation notice
+     - Arial throughout, navy Heading 2 headers, color-coded status cells, alternating row shading, page numbering
+   - **Step 11:** Clean terminal output
+   - **Module-level constants:** `SECTION_ORDER` (fixed section rendering order), `SECTION_CONFIG` (per-type headings, column headers, format flags, crew table visibility)
+
+2. **Design decisions:**
+   - Regex-only KML parsing (avoids lxml namespace failures from `xsi:schemaLocation`)
+   - All 3 KML LineStrings concatenated for complete centerline
+   - Out-of-range KPs (e.g., "101+200") filtered to 0-38.5 range
+   - Windows compatible (pathlib throughout, no shell commands)
+   - CLI: `python generate.py` (most recent PDF) or `python generate.py --date 2026-02-27`
+
+3. **Data files:**
+   - `data/regulatory_zones.json` — 14 zones with type, KP range, restriction text, status, authority
+   - `data/doc.kml` — Pipeline route with 737 chainage placemarks + 3 centerline LineStrings
+   - `config.json` — Project name, KP range [0, 38.5], map center, paths
+
+4. **Future:** Brief 2 (`Claude_Code_Brief_2_Minimap_Zones.md`) defines regulatory zone overlay for the inspector's in-app minimap (React/Leaflet component). Not yet implemented.
+
+---
 
 ### MatTracker Consolidation into TrackableItemsTracker (March 1, 2026)
 
@@ -1944,4 +2002,4 @@ grout_pressure: 1
 ---
 
 *Manifest Generated: January 20, 2026*
-*Last Updated: March 1, 2026 (MatTracker Consolidation into TrackableItemsTracker, Trackable Items Reconciliation Tab, Duplicate Report Warning)*
+*Last Updated: March 3, 2026 (Word report formatting overhaul — pipe-up-automation/generate.py)*
