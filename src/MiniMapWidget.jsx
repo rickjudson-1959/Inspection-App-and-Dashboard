@@ -579,53 +579,7 @@ export default function MiniMapWidget({
               />
             ))}
 
-            {/* Pipeline Route */}
-            <Polyline
-              positions={routeCoords}
-              pathOptions={{
-                color: '#ff6600',
-                weight: 4,
-                opacity: 0.7
-              }}
-            />
-
-            {/* Pipeline Start Marker (KP 0) */}
-            {pipelineStart && (
-              <Marker position={[pipelineStart.lat, pipelineStart.lon]} icon={startEndIcon}>
-                <Popup>
-                  <div style={{ fontSize: '12px', textAlign: 'center', minWidth: '150px' }}>
-                    <div style={{ fontWeight: 'bold', color: '#e74c3c', marginBottom: '5px' }}>
-                      🚩 PIPELINE START
-                    </div>
-                    <div><strong>{pipelineStart.name}</strong></div>
-                    <div style={{ fontSize: '10px', color: '#666', marginTop: '3px' }}>
-                      Lat: {pipelineStart.lat.toFixed(6)}<br/>
-                      Lon: {pipelineStart.lon.toFixed(6)}
-                    </div>
-                  </div>
-                </Popup>
-              </Marker>
-            )}
-
-            {/* Pipeline End Marker (KP 38.47) */}
-            {pipelineEnd && (
-              <Marker position={[pipelineEnd.lat, pipelineEnd.lon]} icon={startEndIcon}>
-                <Popup>
-                  <div style={{ fontSize: '12px', textAlign: 'center', minWidth: '150px' }}>
-                    <div style={{ fontWeight: 'bold', color: '#e74c3c', marginBottom: '5px' }}>
-                      🏁 PIPELINE END
-                    </div>
-                    <div><strong>{pipelineEnd.name}</strong></div>
-                    <div style={{ fontSize: '10px', color: '#666', marginTop: '3px' }}>
-                      Lat: {pipelineEnd.lat.toFixed(6)}<br/>
-                      Lon: {pipelineEnd.lon.toFixed(6)}
-                    </div>
-                  </div>
-                </Popup>
-              </Marker>
-            )}
-
-            {/* Regulatory Zone Overlays */}
+            {/* Regulatory Zone Overlays (render before centerline so pipeline draws on top) */}
             {showZones && zonePolylines.map((zone, idx) => {
               if (!zoneTypeVisible[zone.type] || zone.coords.length < 2) return null
               const cfg = ZONE_TYPE_CONFIG[zone.type]
@@ -699,7 +653,7 @@ export default function MiniMapWidget({
                     pathOptions={{
                       color: cfg.color,
                       weight: 4,
-                      opacity: warning ? 0.9 : 0.6,
+                      opacity: warning ? 0.9 : 0.7,
                       dashArray: warning ? '8, 6' : undefined,
                       lineCap: 'round',
                       className: isSafetyActive ? 'zone-pulse' : undefined
@@ -710,6 +664,52 @@ export default function MiniMapWidget({
                 </React.Fragment>
               )
             })}
+
+            {/* Pipeline Route */}
+            <Polyline
+              positions={routeCoords}
+              pathOptions={{
+                color: '#ff6600',
+                weight: 4,
+                opacity: 0.7
+              }}
+            />
+
+            {/* Pipeline Start Marker (KP 0) */}
+            {pipelineStart && (
+              <Marker position={[pipelineStart.lat, pipelineStart.lon]} icon={startEndIcon}>
+                <Popup>
+                  <div style={{ fontSize: '12px', textAlign: 'center', minWidth: '150px' }}>
+                    <div style={{ fontWeight: 'bold', color: '#e74c3c', marginBottom: '5px' }}>
+                      🚩 PIPELINE START
+                    </div>
+                    <div><strong>{pipelineStart.name}</strong></div>
+                    <div style={{ fontSize: '10px', color: '#666', marginTop: '3px' }}>
+                      Lat: {pipelineStart.lat.toFixed(6)}<br/>
+                      Lon: {pipelineStart.lon.toFixed(6)}
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
+
+            {/* Pipeline End Marker (KP 38.47) */}
+            {pipelineEnd && (
+              <Marker position={[pipelineEnd.lat, pipelineEnd.lon]} icon={startEndIcon}>
+                <Popup>
+                  <div style={{ fontSize: '12px', textAlign: 'center', minWidth: '150px' }}>
+                    <div style={{ fontWeight: 'bold', color: '#e74c3c', marginBottom: '5px' }}>
+                      🏁 PIPELINE END
+                    </div>
+                    <div><strong>{pipelineEnd.name}</strong></div>
+                    <div style={{ fontSize: '10px', color: '#666', marginTop: '3px' }}>
+                      Lat: {pipelineEnd.lat.toFixed(6)}<br/>
+                      Lon: {pipelineEnd.lon.toFixed(6)}
+                    </div>
+                  </div>
+                </Popup>
+              </Marker>
+            )}
 
             {/* Work Area Highlight (if start and end KP are set) */}
             {startPosition && endPosition && (
