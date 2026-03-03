@@ -140,12 +140,13 @@ function FitBounds({ bounds }) {
   return null
 }
 
-export default function MiniMapWidget({ 
-  startKP, 
-  endKP, 
+export default function MiniMapWidget({
+  startKP,
+  endKP,
   pipeline = 'south',
   onKPSync,
-  height = '250px'
+  height = '250px',
+  regulatoryZones
 }) {
   const [expanded, setExpanded] = useState(true)
   const [userLocation, setUserLocation] = useState(null)
@@ -166,6 +167,9 @@ export default function MiniMapWidget({
     Object.keys(ZONE_TYPE_CONFIG).forEach(t => { initial[t] = true })
     return initial
   })
+
+  // Use prop zones if provided, fall back to static import
+  const zones = regulatoryZones || REGULATORY_ZONES
 
   // Create icons using useMemo to avoid recreation on each render
   const workAreaIcon = useMemo(() => L.divIcon({
@@ -230,16 +234,16 @@ export default function MiniMapWidget({
     if (startKPValue !== null && endKPValue !== null) {
       const bufferStart = startKPValue - 2
       const bufferEnd = endKPValue + 2
-      return REGULATORY_ZONES.filter(z => z.kp_start <= bufferEnd && z.kp_end >= bufferStart)
+      return zones.filter(z => z.kp_start <= bufferEnd && z.kp_end >= bufferStart)
     }
-    return REGULATORY_ZONES
-  }, [startKPValue, endKPValue])
+    return zones
+  }, [startKPValue, endKPValue, zones])
 
   // Zones that directly overlap the inspector's exact work area (for alert banner)
   const overlappingZones = useMemo(() => {
     if (startKPValue === null || endKPValue === null) return []
-    return REGULATORY_ZONES.filter(z => z.kp_start <= endKPValue && z.kp_end >= startKPValue)
-  }, [startKPValue, endKPValue])
+    return zones.filter(z => z.kp_start <= endKPValue && z.kp_end >= startKPValue)
+  }, [startKPValue, endKPValue, zones])
 
   // Compute polyline coordinates for each filtered zone
   const zonePolylines = useMemo(() => {

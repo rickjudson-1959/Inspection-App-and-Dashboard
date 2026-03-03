@@ -53,6 +53,7 @@ import UnitPriceItemsLog from './UnitPriceItemsLog.jsx'
 import TrackableItemsTracker from './TrackableItemsTracker.jsx'
 import ReportWorkflow from './ReportWorkflow.jsx'
 import MiniMapWidget from './MiniMapWidget.jsx'
+import { REGULATORY_ZONES } from './regulatoryZones.js'
 const weatherApiKey = import.meta.env.VITE_WEATHER_API_KEY
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -9363,16 +9364,17 @@ CRITICAL - Individual Entries Required:
       {/* Pipeline Map Section */}
       {showMap && (
         <div style={{ marginBottom: '20px', position: 'relative' }}>
-          <MiniMapWidget 
+          <MiniMapWidget
             startKP={activityBlocks[0]?.startKP || ''}
             endKP={activityBlocks[0]?.endKP || ''}
             pipeline={pipeline || 'south'}
             height="350px"
+            regulatoryZones={REGULATORY_ZONES}
             onKPSync={(gpsData) => {
               // When GPS syncs, could auto-fill KP field
               console.log('GPS synced:', gpsData)
               // Optionally update the first activity block's startKP
-              // setActivityBlocks(blocks => blocks.map((b, i) => 
+              // setActivityBlocks(blocks => blocks.map((b, i) =>
               //   i === 0 ? { ...b, startKP: gpsData.kpFormatted } : b
               // ))
             }}
@@ -9437,11 +9439,12 @@ CRITICAL - Individual Entries Required:
             </button>
           </div>
           <div style={{ flex: 1, padding: '20px' }}>
-            <MiniMapWidget 
+            <MiniMapWidget
               startKP={activityBlocks[0]?.startKP || ''}
               endKP={activityBlocks[0]?.endKP || ''}
               pipeline={pipeline || 'south'}
               height="calc(100vh - 120px)"
+              regulatoryZones={REGULATORY_ZONES}
               onKPSync={(gpsData) => {
                 console.log('GPS synced:', gpsData)
               }}
