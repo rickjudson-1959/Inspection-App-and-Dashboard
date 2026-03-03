@@ -256,46 +256,44 @@ export default function MiniMapWidget({
     })
   }, [filteredZones, route])
 
-  // Determine alert banner for overlapping zones
-  const zoneAlert = useMemo(() => {
-    if (overlappingZones.length === 0) return null
+  // Determine alert banners for all overlapping zones (sorted by severity: red > amber > blue)
+  const zoneAlerts = useMemo(() => {
+    if (overlappingZones.length === 0) return []
 
-    // Priority: red > amber > blue
-    const red = overlappingZones.find(z =>
-      z.status === 'CLOSED' || (z.type === 'safety' && z.status === 'ACTIVE TODAY')
-    )
-    if (red) {
-      const cfg = ZONE_TYPE_CONFIG[red.type]
-      return {
-        color: '#dc3545',
-        bg: '#f8d7da',
-        text: `You are working in: ${red.name} (${cfg.label} \u2014 ${red.status}${red.status_detail ? ' \u2014 ' + red.status_detail : ''})`
-      }
-    }
-    const amber = overlappingZones.find(z =>
-      z.status_detail || z.status === 'PENDING'
-    )
-    if (amber) {
-      const cfg = ZONE_TYPE_CONFIG[amber.type]
-      return {
-        color: '#856404',
-        bg: '#fff3cd',
-        text: `You are working in: ${amber.name} (${cfg.label} \u2014 ${amber.status_detail || amber.status})`
-      }
-    }
-    const blue = overlappingZones.find(z =>
-      ['ACTIVE WORK', 'RESTRICTION ACTIVE', 'MONITORING', 'ACTIVE HAULING'].includes(z.status)
-    )
-    if (blue) {
-      const cfg = ZONE_TYPE_CONFIG[blue.type]
-      return {
-        color: '#004085',
-        bg: '#cce5ff',
-        text: `You are working in: ${blue.name} (${cfg.label} \u2014 ${blue.status})`
+    const alerts = []
+    for (const z of overlappingZones) {
+      const cfg = ZONE_TYPE_CONFIG[z.type]
+      const isRed = z.status === 'CLOSED' || (z.type === 'safety' && z.status === 'ACTIVE TODAY')
+      const isAmber = z.status_detail || z.status === 'PENDING'
+      const isBlue = ['ACTIVE WORK', 'RESTRICTION ACTIVE', 'MONITORING', 'ACTIVE HAULING'].includes(z.status)
+
+      if (isRed) {
+        alerts.push({
+          severity: 0,
+          color: '#dc3545',
+          bg: '#f8d7da',
+          text: `You are working in: ${z.name} (${cfg.label} \u2014 ${z.status}${z.status_detail ? ' \u2014 ' + z.status_detail : ''})`
+        })
+      } else if (isAmber) {
+        alerts.push({
+          severity: 1,
+          color: '#856404',
+          bg: '#fff3cd',
+          text: `You are working in: ${z.name} (${cfg.label} \u2014 ${z.status_detail || z.status})`
+        })
+      } else if (isBlue) {
+        alerts.push({
+          severity: 2,
+          color: '#004085',
+          bg: '#cce5ff',
+          text: `You are working in: ${z.name} (${cfg.label} \u2014 ${z.status})`
+        })
       }
     }
 
-    return null
+    // Sort by severity (red first, then amber, then blue)
+    alerts.sort((a, b) => a.severity - b.severity)
+    return alerts
   }, [overlappingZones])
 
   // Count zones per type for toggle labels
@@ -546,23 +544,23 @@ export default function MiniMapWidget({
             ))}
           </div>
 
-          {/* Zone Alert Banner */}
-          {showZones && zoneAlert && (
-            <div style={{
+          {/* Zone Alert Banners */}
+          {showZones && zoneAlerts.map((alert, idx) => (
+            <div key={`zone-alert-${idx}`} style={{
               padding: '8px 12px',
-              backgroundColor: zoneAlert.bg,
-              color: zoneAlert.color,
+              backgroundColor: alert.bg,
+              color: alert.color,
               fontSize: '12px',
               fontWeight: 'bold',
-              borderBottom: '1px solid ' + zoneAlert.color + '33',
+              borderBottom: '1px solid ' + alert.color + '33',
               display: 'flex',
               alignItems: 'center',
               gap: '6px'
             }}>
-              <span style={{ fontSize: '14px' }}>{zoneAlert.color === '#dc3545' ? '\u26D4' : '\u26A0\uFE0F'}</span>
-              {zoneAlert.text}
+              <span style={{ fontSize: '14px' }}>{alert.color === '#dc3545' ? '\u26D4' : '\u26A0\uFE0F'}</span>
+              {alert.text}
             </div>
-          )}
+          ))}
 
           {/* Map */}
           <MapContainer
