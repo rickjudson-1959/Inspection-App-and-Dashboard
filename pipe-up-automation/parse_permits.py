@@ -9,15 +9,35 @@ Usage:
     python parse_permits.py                    # Parse all PDFs in permits/
     python parse_permits.py --dry-run          # Show what would be extracted, don't write
     python parse_permits.py --keep-existing    # Merge with existing zones (don't overwrite hand-authored ones)
+    python parse_permits.py --ai               # AI-assisted extraction (haiku default)
+    python parse_permits.py --ai --model sonnet  # Use sonnet for higher accuracy
+    python parse_permits.py --ai --dry-run     # Preview AI results without writing
 """
 
 import argparse
 import json
 import re
 import sys
+import time
 from pathlib import Path
 
 import pdfplumber
+
+# Optional AI dependencies — graceful degradation if missing
+try:
+    import anthropic
+    HAS_ANTHROPIC = True
+except ImportError:
+    HAS_ANTHROPIC = False
+
+try:
+    from dotenv import load_dotenv
+    # Load .env from the project root (one level up from pipe-up-automation/)
+    load_dotenv(Path(__file__).parent.parent / ".env")
+except ImportError:
+    pass
+
+import os
 
 
 # ─── Configuration ───────────────────────────────────────────────────────────
@@ -115,6 +135,48 @@ ZONE_TYPE_CONFIG = {
     "water_management": {"label": "Water Management", "color": "#2196F3"},
     "timing_restriction": {"label": "Timing Restrictions", "color": "#9C27B0"},
 }
+
+VALID_ZONE_TYPES = set(ZONE_TYPE_CONFIG.keys())
+
+# ─── AI Configuration ────────────────────────────────────────────────────────
+
+AI_MODEL_MAP = {
+    "haiku": "claude-haiku-4-5-20251001",
+    "sonnet": "claude-sonnet-4-20250514",
+}
+AI_DEFAULT_MODEL = "haiku"
+AI_RATE_LIMIT_DELAY = 0.1  # seconds between requests
+AI_MAX_RETRIES = 3
+AI_BACKOFF_BASE = 2  # exponential backoff: 2s → 4s → 8s
+
+AI_SYSTEM_PROMPT = """You are parsing a BCER (BC Energy Regulator) permit for the Eagle Mountain \
+Woodfibre Gas Pipeline (KP 0 to KP 38.5, Squamish BC). Analyze this single \
+regulatory condition and return a JSON object.
+
+Return ONLY a JSON object with these fields:
+{
+  "name": "Short descriptive name for this zone (e.g. 'Stawamus River Fish Window', 'Hixon Creek Riparian Setback')",
+  "type": "One of: fisheries, environmental, ground_disturbance, invasive_species, safety, timing_restriction, water_management",
+  "kp_start": 0.0,
+  "kp_end": 0.0,
+  "restriction": "One-sentence summary of what is restricted or required",
+  "authority": "Regulatory authority reference",
+  "timing_windows": [{"restricted_start": "MM-DD", "restricted_end": "MM-DD", "description": "brief"}],
+  "needs_kp": true,
+  "is_location_specific": true,
+  "skip": false
+}
+
+Rules:
+- "name": Use proper location names when present (creek, river, lake names). Never use generic names like "Condition #14".
+- "type": Must be one of the 7 listed types. Pick the best single match.
+- "kp_start"/"kp_end": Extract if KP/chainage values are present, otherwise 0.0.
+- "restriction": Concise 1-2 sentence summary of the regulatory requirement. Not the full text.
+- "needs_kp": true if the condition references a specific location by name (creek, river, site) but has no KP chainage data.
+- "is_location_specific": true if the condition applies to a specific geographic location, false if it's a general pipeline-wide rule.
+- "skip": true if this is administrative boilerplate, general notification, or a condition that does not create a zone-mappable restriction (e.g. "notify the regulator", "submit reports", general compliance). Most conditions should NOT be skipped — only skip truly non-spatial administrative items.
+- "timing_windows": Extract date ranges if present, otherwise empty array [].
+- Return ONLY the JSON object, no markdown fences, no explanation."""
 
 
 # ─── PDF Text Extraction ─────────────────────────────────────────────────────
@@ -376,7 +438,9 @@ def classify_condition(text, section_heading):
 def extract_kp_references(text):
     """Extract KP (kilometre post) values from condition text.
 
-    Returns (kp_start, kp_end) or (0.0, 0.0) if none found.
+    Returns (kp_start, kp_end, has_named_location).
+    has_named_location is True when text references a named geographic feature
+    (Creek, River, Lake, etc.) but has no KP chainage data.
     """
     kp_values = []
 
@@ -403,15 +467,23 @@ def extract_kp_references(text):
         if 0 <= kp <= 50:
             kp_values.append(round(kp, 3))
 
+    # Detect named geographic features (proper noun + feature type)
+    named_location_re = re.compile(
+        r'\b[A-Z][a-z]+(?:\s+[A-Z][a-z]+)*\s+'
+        r'(?:Creek|River|Lake|Stream|Wetland|Brook|Springs?|Slough|Channel|'
+        r'Tributary|Pond|Marsh|Estuary|Inlet|Falls)\b'
+    )
+    has_named_location = bool(named_location_re.search(text))
+
     if not kp_values:
-        return (0.0, 0.0)
+        return (0.0, 0.0, has_named_location)
 
     kp_values = sorted(set(kp_values))
     if len(kp_values) >= 2:
-        return (kp_values[0], kp_values[-1])
+        return (kp_values[0], kp_values[-1], has_named_location)
     else:
         # Single KP reference — estimate a small range
-        return (kp_values[0], round(kp_values[0] + 0.5, 3))
+        return (kp_values[0], round(kp_values[0] + 0.5, 3), has_named_location)
 
 
 # ─── Timing Window Extraction ────────────────────────────────────────────────
@@ -530,7 +602,7 @@ def extract_zone_name(text, section_heading, condition_id):
 
 def extract_zone_data(text, zone_type, section_heading, condition_id, permit_meta, page):
     """Assemble a zone entry from a classified condition."""
-    kp_start, kp_end = extract_kp_references(text)
+    kp_start, kp_end, has_named_location = extract_kp_references(text)
     timing_windows = extract_timing_windows(text)
     coordinates = extract_coordinates(text)
 
@@ -566,6 +638,10 @@ def extract_zone_data(text, zone_type, section_heading, condition_id, permit_met
         "source_document": permit_meta["filename"],
         "source_page": page,
     }
+
+    # Flag zones that reference named locations but lack KP data
+    if kp_start == 0.0 and has_named_location:
+        zone["needs_kp"] = True
 
     if timing_windows:
         zone["timing_windows"] = timing_windows
@@ -603,6 +679,228 @@ def parse_single_permit(pdf_path):
     meta["total_conditions_extracted"] = zone_relevant_count
 
     return meta, zones
+
+
+# ─── AI-Assisted Extraction ──────────────────────────────────────────────────
+
+def init_ai_client(model_name):
+    """Initialize the Anthropic API client.
+
+    Returns (client, model_id) or (None, None) with a warning if unavailable.
+    """
+    if not HAS_ANTHROPIC:
+        print("  WARNING: 'anthropic' package not installed — falling back to regex-only")
+        print("           Install with: pip install anthropic")
+        return None, None
+
+    api_key = os.environ.get("VITE_ANTHROPIC_API_KEY") or os.environ.get("ANTHROPIC_API_KEY")
+    if not api_key:
+        print("  WARNING: No API key found (checked VITE_ANTHROPIC_API_KEY and ANTHROPIC_API_KEY)")
+        print("           Set in ../.env or as environment variable — falling back to regex-only")
+        return None, None
+
+    model_id = AI_MODEL_MAP.get(model_name, AI_MODEL_MAP[AI_DEFAULT_MODEL])
+
+    try:
+        client = anthropic.Anthropic(api_key=api_key)
+        return client, model_id
+    except Exception as e:
+        print(f"  WARNING: Failed to initialize Anthropic client: {e}")
+        return None, None
+
+
+def ai_extract_condition(client, model_id, condition_text, section_heading, condition_id, permit_meta):
+    """Send a single condition to Claude for AI-assisted extraction.
+
+    Returns parsed dict or None on failure.
+    """
+    permit_id = permit_meta.get("permit_number", "")
+    permit_type = permit_meta.get("permit_type", "")
+
+    user_prompt = (
+        f"Permit: {permit_id} ({permit_type})\n"
+        f"Section: {section_heading}\n"
+        f"Condition #{condition_id}:\n\n"
+        f"{condition_text}"
+    )
+
+    last_error = None
+    for attempt in range(AI_MAX_RETRIES):
+        try:
+            response = client.messages.create(
+                model=model_id,
+                max_tokens=1024,
+                system=AI_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": user_prompt}],
+            )
+
+            raw = response.content[0].text.strip()
+            # Strip markdown fences if present
+            if raw.startswith("```"):
+                raw = re.sub(r'^```(?:json)?\s*', '', raw)
+                raw = re.sub(r'\s*```$', '', raw)
+
+            result = json.loads(raw)
+
+            # Validate required fields
+            if not isinstance(result, dict) or "name" not in result:
+                last_error = "Invalid response structure"
+                continue
+
+            return result
+
+        except anthropic.RateLimitError:
+            wait = AI_BACKOFF_BASE ** (attempt + 1)
+            time.sleep(wait)
+            last_error = "rate_limit"
+            continue
+
+        except anthropic.AuthenticationError:
+            print("    ERROR: Invalid API key — disabling AI for this run")
+            return "AUTH_FAIL"
+
+        except (json.JSONDecodeError, KeyError, IndexError) as e:
+            last_error = str(e)
+            time.sleep(0.5)
+            continue
+
+        except Exception as e:
+            last_error = str(e)
+            time.sleep(0.5)
+            continue
+
+    return None
+
+
+def parse_single_permit_with_ai(pdf_path, client, model_id):
+    """Parse one permit with AI enrichment on top of regex extraction.
+
+    Returns (metadata, [zone_entries], ai_stats).
+    ai_stats = {"enriched": N, "skipped": N, "fallback": N}
+    """
+    pages = extract_text_by_page(pdf_path)
+    if not pages:
+        return None, [], {"enriched": 0, "skipped": 0, "fallback": 0}
+
+    full_text = "\n".join(text for _, text in pages)
+    meta = extract_permit_metadata(full_text, pdf_path.name)
+    conditions = split_into_conditions(pages)
+
+    zones = []
+    ai_stats = {"enriched": 0, "skipped": 0, "fallback": 0}
+    ai_disabled = False
+
+    for cond_id, section, text, page in conditions:
+        # Always run regex classification first
+        regex_zone_types = classify_condition(text, section)
+
+        # Send every condition to AI (not just regex-classified ones)
+        # AI may find zone-relevant content that regex missed
+        ai_result = None
+        if not ai_disabled:
+            ai_result = ai_extract_condition(client, model_id, text, section, cond_id, meta)
+            time.sleep(AI_RATE_LIMIT_DELAY)
+
+            if ai_result == "AUTH_FAIL":
+                ai_disabled = True
+                ai_result = None
+
+        # If AI says skip, drop this condition entirely
+        if ai_result and isinstance(ai_result, dict) and ai_result.get("skip", False):
+            ai_stats["skipped"] += 1
+            continue
+
+        # If AI returned a valid result, merge with regex
+        if ai_result and isinstance(ai_result, dict):
+            # Validate AI zone type
+            ai_type = ai_result.get("type", "")
+            if ai_type not in VALID_ZONE_TYPES:
+                # Fall back to regex type if AI returned something unknown
+                if regex_zone_types:
+                    ai_type = regex_zone_types[0]
+                else:
+                    ai_stats["fallback"] += 1
+                    continue  # Neither AI nor regex found a valid type
+
+            # Get regex-extracted data for merge
+            kp_start, kp_end, has_named_location = extract_kp_references(text)
+            regex_timing = extract_timing_windows(text)
+            coordinates = extract_coordinates(text)
+
+            # AI wins for: name, type, restriction, needs_kp
+            ai_kp_start = float(ai_result.get("kp_start", 0.0) or 0.0)
+            ai_kp_end = float(ai_result.get("kp_end", 0.0) or 0.0)
+            final_kp_start = ai_kp_start if ai_kp_start > 0 else kp_start
+            final_kp_end = ai_kp_end if ai_kp_end > 0 else kp_end
+
+            # Determine needs_kp: AI detection OR regex detection
+            ai_needs_kp = ai_result.get("needs_kp", False)
+            regex_needs_kp = (kp_start == 0.0 and has_named_location)
+            needs_kp = ai_needs_kp or regex_needs_kp
+
+            # Restriction: use AI's concise summary
+            restriction = ai_result.get("restriction", text.strip())
+            if not restriction or len(restriction) < 5:
+                restriction = text.strip()
+            if len(restriction) > 500:
+                restriction = restriction[:497] + "..."
+
+            # Status from text
+            text_lower = text.lower()
+            if "pending" in text_lower:
+                status = "PENDING"
+            elif any(w in text_lower for w in ["restricted", "restriction", "must not", "prohibited"]):
+                status = "RESTRICTION ACTIVE"
+            else:
+                status = "VALID"
+
+            # Authority
+            permit_id = meta.get("permit_number", meta.get("application_number", ""))
+            if meta["permit_type"] == "EMA":
+                authority = f"BCER {permit_id} — Section {cond_id}"
+            else:
+                authority = f"BCER Permit {permit_id} — Condition #{cond_id}"
+
+            # Timing windows: prefer regex (structural extraction), supplement with AI
+            ai_timing = ai_result.get("timing_windows", [])
+            timing_windows = regex_timing if regex_timing else ai_timing
+
+            zone = {
+                "name": ai_result.get("name", extract_zone_name(text, section, cond_id)),
+                "type": ai_type,
+                "kp_start": final_kp_start,
+                "kp_end": final_kp_end,
+                "restriction": restriction,
+                "status": status,
+                "authority": authority,
+                "source_document": meta["filename"],
+                "source_page": page,
+            }
+
+            if needs_kp:
+                zone["needs_kp"] = True
+
+            if timing_windows:
+                zone["timing_windows"] = timing_windows
+
+            if coordinates:
+                zone["coordinates"] = coordinates
+
+            zones.append(zone)
+            ai_stats["enriched"] += 1
+
+        elif regex_zone_types:
+            # AI failed or unavailable — fall back to regex
+            ai_stats["fallback"] += 1
+            for zt in regex_zone_types:
+                zone = extract_zone_data(text, zt, section, cond_id, meta, page)
+                zones.append(zone)
+        # else: neither AI nor regex found anything — skip condition
+
+    meta["total_conditions"] = len(conditions)
+    meta["total_conditions_extracted"] = ai_stats["enriched"] + ai_stats["fallback"]
+
+    return meta, zones, ai_stats
 
 
 # ─── Zone Merging & Deduplication ─────────────────────────────────────────────
@@ -666,12 +964,30 @@ def main():
                         help="Show what would be extracted without writing")
     parser.add_argument("--keep-existing", action="store_true",
                         help="Merge with existing zones (preserve hand-authored entries)")
+    parser.add_argument("--ai", action="store_true",
+                        help="Enable AI-assisted extraction via Claude API")
+    parser.add_argument("--model", choices=["haiku", "sonnet"], default=AI_DEFAULT_MODEL,
+                        help=f"AI model to use (default: {AI_DEFAULT_MODEL})")
     args = parser.parse_args()
 
     print("═══════════════════════════════════════════")
     print("  BCER Permit Parser")
     print("  Eagle Mountain Woodfibre Gas Pipeline")
     print("═══════════════════════════════════════════")
+
+    # Initialize AI if requested
+    ai_client = None
+    ai_model_id = None
+    use_ai = False
+    if args.ai:
+        ai_client, ai_model_id = init_ai_client(args.model)
+        if ai_client:
+            use_ai = True
+            print(f"  AI Mode: ENABLED (model: {args.model} -> {ai_model_id})")
+        else:
+            print("  AI Mode: DISABLED (see warnings above — using regex-only)")
+    else:
+        print("  AI Mode: off (use --ai to enable)")
 
     # Find PDFs
     pdfs = sorted(PERMITS_DIR.glob("*.pdf"))
@@ -685,10 +1001,17 @@ def main():
 
     all_zones = []
     all_meta = []
+    total_ai_stats = {"enriched": 0, "skipped": 0, "fallback": 0}
 
     for i, pdf_path in enumerate(pdfs, 1):
         print(f"  [{i}/{len(pdfs)}] {pdf_path.name}")
-        meta, zones = parse_single_permit(pdf_path)
+
+        if use_ai:
+            meta, zones, ai_stats = parse_single_permit_with_ai(pdf_path, ai_client, ai_model_id)
+        else:
+            meta, zones = parse_single_permit(pdf_path)
+            ai_stats = None
+
         if meta is None:
             print("         Skipped (could not read)\n")
             continue
@@ -698,6 +1021,14 @@ def main():
         print(f"         Conditions: {meta['total_conditions']} total,"
               f" {meta['total_conditions_extracted']} zone-relevant")
 
+        if ai_stats:
+            print(f"         AI: {ai_stats['enriched']} enriched,"
+                  f" {ai_stats['skipped']} skipped,"
+                  f" {ai_stats['fallback']} fallback-to-regex")
+            total_ai_stats["enriched"] += ai_stats["enriched"]
+            total_ai_stats["skipped"] += ai_stats["skipped"]
+            total_ai_stats["fallback"] += ai_stats["fallback"]
+
         all_zones.extend(zones)
         all_meta.append(meta)
 
@@ -706,7 +1037,8 @@ def main():
 
     # Count statistics
     with_kp = sum(1 for z in merged_zones if z["kp_start"] > 0)
-    need_kp = sum(1 for z in merged_zones if z["kp_start"] == 0.0)
+    needs_kp_named = sum(1 for z in merged_zones if z.get("needs_kp", False))
+    no_kp_generic = sum(1 for z in merged_zones if z["kp_start"] == 0.0 and not z.get("needs_kp", False))
     type_counts = {}
     for z in merged_zones:
         type_counts[z["type"]] = type_counts.get(z["type"], 0) + 1
@@ -716,7 +1048,15 @@ def main():
     print(f"    Permits parsed:     {len(all_meta)}")
     print(f"    Zones extracted:    {len(merged_zones)}")
     print(f"    With KP data:       {with_kp}")
-    print(f"    Need KP assignment: {need_kp}")
+    print(f"    NEEDS KP (named):   {needs_kp_named}")
+    print(f"    No KP (generic):    {no_kp_generic}")
+
+    if use_ai:
+        print(f"\n    AI totals:")
+        print(f"      Enriched:         {total_ai_stats['enriched']}")
+        print(f"      Skipped:          {total_ai_stats['skipped']}")
+        print(f"      Fallback-to-regex:{total_ai_stats['fallback']}")
+
     print(f"\n    By type:")
     for zt in sorted(type_counts.keys()):
         print(f"      {zt + ':':22s}{type_counts[zt]}")
