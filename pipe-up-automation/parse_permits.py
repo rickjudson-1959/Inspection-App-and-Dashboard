@@ -15,6 +15,7 @@ Usage:
 """
 
 import argparse
+from datetime import date, timedelta
 import json
 import re
 import sys
@@ -45,6 +46,7 @@ import os
 BASE_DIR = Path(__file__).parent
 PERMITS_DIR = BASE_DIR / "permits"
 OUTPUT_FILE = BASE_DIR / "data" / "regulatory_zones.json"
+REVIEW_FILE = BASE_DIR / "data" / "zones_needing_review.json"
 
 MONTH_NAMES = [
     "january", "february", "march", "april", "may", "june",
@@ -581,6 +583,70 @@ def extract_coordinates(text):
     return coords
 
 
+# ─── Status Calculation ──────────────────────────────────────────────────────
+
+def calculate_status(text, timing_windows):
+    """Calculate zone status based on timing windows and today's date.
+
+    For zones with timing windows, compares against today:
+      - Inside restricted period → "RESTRICTION ACTIVE"
+      - Within 7 days of a restriction starting → "OPEN" + status_detail
+      - Outside all restricted periods → "OPEN"
+
+    For zones without timing windows, falls back to keyword detection.
+
+    Returns (status, status_detail_or_None).
+    """
+    today = date.today()
+
+    if timing_windows:
+        for tw in timing_windows:
+            try:
+                start_parts = tw["restricted_start"].split("-")
+                end_parts = tw["restricted_end"].split("-")
+                start_month, start_day = int(start_parts[0]), int(start_parts[1])
+                end_month, end_day = int(end_parts[0]), int(end_parts[1])
+
+                restricted_start = date(today.year, start_month, start_day)
+                restricted_end = date(today.year, end_month, end_day)
+
+                # Handle windows that wrap around year-end (e.g. Nov 1 - Feb 28)
+                if restricted_start > restricted_end:
+                    # We're either in the tail (start..Dec31) or head (Jan1..end)
+                    in_window = today >= restricted_start or today <= restricted_end
+                else:
+                    in_window = restricted_start <= today <= restricted_end
+
+                if in_window:
+                    return "RESTRICTION ACTIVE", None
+
+                # Check if within 7 days of restriction starting
+                days_until = (restricted_start - today).days
+                if 0 < days_until <= 7:
+                    return "OPEN", f"CLOSES IN {days_until} DAY{'S' if days_until != 1 else ''}"
+
+                # Also check next year's start for year-end proximity
+                next_year_start = date(today.year + 1, start_month, start_day)
+                days_until_next = (next_year_start - today).days
+                if 0 < days_until_next <= 7:
+                    return "OPEN", f"CLOSES IN {days_until_next} DAY{'S' if days_until_next != 1 else ''}"
+
+            except (ValueError, KeyError):
+                continue
+
+        # Has timing windows but not currently restricted
+        return "OPEN", None
+
+    # No timing windows — fall back to keyword detection
+    text_lower = text.lower()
+    if "pending" in text_lower:
+        return "PENDING", None
+    elif any(w in text_lower for w in ["restricted", "restriction", "must not", "prohibited"]):
+        return "RESTRICTION ACTIVE", None
+    else:
+        return "VALID", None
+
+
 # ─── Zone Data Assembly ───────────────────────────────────────────────────────
 
 def extract_zone_name(text, section_heading, condition_id):
@@ -611,14 +677,8 @@ def extract_zone_data(text, zone_type, section_heading, condition_id, permit_met
     if len(restriction) > 500:
         restriction = restriction[:497] + "..."
 
-    # Determine status
-    text_lower = text.lower()
-    if "pending" in text_lower:
-        status = "PENDING"
-    elif any(w in text_lower for w in ["restricted", "restriction", "must not", "prohibited"]):
-        status = "RESTRICTION ACTIVE"
-    else:
-        status = "VALID"
+    # Calculate status from timing windows or keywords
+    status, status_detail = calculate_status(text, timing_windows)
 
     # Authority string
     permit_id = permit_meta.get("permit_number", permit_meta.get("application_number", ""))
@@ -638,6 +698,9 @@ def extract_zone_data(text, zone_type, section_heading, condition_id, permit_met
         "source_document": permit_meta["filename"],
         "source_page": page,
     }
+
+    if status_detail:
+        zone["status_detail"] = status_detail
 
     # Flag zones that reference named locations but lack KP data
     if kp_start == 0.0 and has_named_location:
@@ -845,15 +908,6 @@ def parse_single_permit_with_ai(pdf_path, client, model_id):
             if len(restriction) > 500:
                 restriction = restriction[:497] + "..."
 
-            # Status from text
-            text_lower = text.lower()
-            if "pending" in text_lower:
-                status = "PENDING"
-            elif any(w in text_lower for w in ["restricted", "restriction", "must not", "prohibited"]):
-                status = "RESTRICTION ACTIVE"
-            else:
-                status = "VALID"
-
             # Authority
             permit_id = meta.get("permit_number", meta.get("application_number", ""))
             if meta["permit_type"] == "EMA":
@@ -864,6 +918,9 @@ def parse_single_permit_with_ai(pdf_path, client, model_id):
             # Timing windows: prefer regex (structural extraction), supplement with AI
             ai_timing = ai_result.get("timing_windows", [])
             timing_windows = regex_timing if regex_timing else ai_timing
+
+            # Calculate status from timing windows or keywords
+            status, status_detail = calculate_status(text, timing_windows)
 
             zone = {
                 "name": ai_result.get("name", extract_zone_name(text, section, cond_id)),
@@ -876,6 +933,9 @@ def parse_single_permit_with_ai(pdf_path, client, model_id):
                 "source_document": meta["filename"],
                 "source_page": page,
             }
+
+            if status_detail:
+                zone["status_detail"] = status_detail
 
             if needs_kp:
                 zone["needs_kp"] = True
@@ -1043,12 +1103,18 @@ def main():
     for z in merged_zones:
         type_counts[z["type"]] = type_counts.get(z["type"], 0) + 1
 
+    # Count statuses
+    status_counts = {}
+    for z in merged_zones:
+        s = z["status"]
+        status_counts[s] = status_counts.get(s, 0) + 1
+
     print(f"\n═══════════════════════════════════════════")
     print(f"  Results:")
     print(f"    Permits parsed:     {len(all_meta)}")
     print(f"    Zones extracted:    {len(merged_zones)}")
     print(f"    With KP data:       {with_kp}")
-    print(f"    NEEDS KP (named):   {needs_kp_named}")
+    print(f"    Needs manual review:{needs_kp_named} (no KP found)")
     print(f"    No KP (generic):    {no_kp_generic}")
 
     if use_ai:
@@ -1060,6 +1126,15 @@ def main():
     print(f"\n    By type:")
     for zt in sorted(type_counts.keys()):
         print(f"      {zt + ':':22s}{type_counts[zt]}")
+
+    print(f"\n    By status:")
+    for st in sorted(status_counts.keys()):
+        detail = ""
+        if st == "OPEN":
+            approaching = sum(1 for z in merged_zones if z.get("status_detail"))
+            if approaching:
+                detail = f"  ({approaching} approaching restriction)"
+        print(f"      {st + ':':22s}{status_counts[st]}{detail}")
 
     if args.dry_run:
         print(f"\n  DRY RUN — no files written")
@@ -1109,7 +1184,27 @@ def main():
     OUTPUT_FILE.parent.mkdir(parents=True, exist_ok=True)
     OUTPUT_FILE.write_text(json.dumps(output, indent=2, ensure_ascii=False) + "\n")
 
-    print(f"\n  Output: {OUTPUT_FILE}")
+    # Write zones_needing_review.json for manual KP entry
+    review_zones = []
+    for z in final_zones:
+        if z.get("needs_kp", False):
+            review_zones.append({
+                "name": z["name"],
+                "type": z["type"],
+                "source_document": z.get("source_document", ""),
+                "source_page": z.get("source_page", 0),
+                "raw_text": z["restriction"],
+                "needs": "KP location",
+                "authority": z.get("authority", ""),
+            })
+
+    if review_zones:
+        REVIEW_FILE.write_text(json.dumps(review_zones, indent=2, ensure_ascii=False) + "\n")
+        print(f"\n  Output: {OUTPUT_FILE}")
+        print(f"  Review: {REVIEW_FILE} ({len(review_zones)} zones need manual KP)")
+    else:
+        print(f"\n  Output: {OUTPUT_FILE}")
+
     print(f"═══════════════════════════════════════════")
 
 
