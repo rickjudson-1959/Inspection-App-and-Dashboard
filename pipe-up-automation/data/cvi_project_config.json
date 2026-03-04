@@ -1,0 +1,100 @@
+{
+  "project_name": "Eagle Mountain Woodfibre Gas Pipeline",
+  "approved_capital": 200000000,
+  "budget_at_completion": 192000000,
+  "planned_duration_days": 365,
+  "project_start_date": "2025-09-01",
+  "planned_end_date": "2026-08-31",
+  "daily_indirect_rate": 650000,
+  "indirect_budget": 58000000,
+  "direct_budget": 134000000,
+  "contingency": 8000000,
+  "alert_thresholds": {
+    "cvi_overall_warning": 0.95,
+    "cvi_trend_7d_warning": -0.01,
+    "schedule_overrun_days_warning": 30,
+    "phase_cvi_warning": 0.85,
+    "cvi_indirect_warning": 0.90
+  },
+  "daily_indirect_breakdown": {
+    "project_management": 120000,
+    "inspection_qc": 95000,
+    "environmental_monitoring": 85000,
+    "safety_security": 75000,
+    "equipment_standby": 110000,
+    "camp_logistics": 90000,
+    "engineering_support": 75000
+  },
+  "phases": [
+    {
+      "name": "Clearing & Grading",
+      "budget": 18000000,
+      "planned_start": "2025-09-01",
+      "planned_end": "2025-12-15",
+      "weight": 0.094
+    },
+    {
+      "name": "Stringing & Bending",
+      "budget": 12000000,
+      "planned_start": "2025-10-15",
+      "planned_end": "2026-02-28",
+      "weight": 0.063
+    },
+    {
+      "name": "Welding",
+      "budget": 28000000,
+      "planned_start": "2025-11-01",
+      "planned_end": "2026-04-30",
+      "weight": 0.146
+    },
+    {
+      "name": "Coating & Inspection",
+      "budget": 8000000,
+      "planned_start": "2025-11-15",
+      "planned_end": "2026-05-15",
+      "weight": 0.042
+    },
+    {
+      "name": "Ditching",
+      "budget": 14000000,
+      "planned_start": "2026-01-01",
+      "planned_end": "2026-05-31",
+      "weight": 0.073
+    },
+    {
+      "name": "Lower-in & Backfill",
+      "budget": 16000000,
+      "planned_start": "2026-02-01",
+      "planned_end": "2026-06-30",
+      "weight": 0.083
+    },
+    {
+      "name": "HDD & Bores",
+      "budget": 22000000,
+      "planned_start": "2025-10-01",
+      "planned_end": "2026-06-30",
+      "weight": 0.115
+    },
+    {
+      "name": "Hydrostatic Testing",
+      "budget": 6000000,
+      "planned_start": "2026-04-01",
+      "planned_end": "2026-07-31",
+      "weight": 0.031
+    },
+    {
+      "name": "Tie-ins",
+      "budget": 5000000,
+      "planned_start": "2026-05-01",
+      "planned_end": "2026-08-15",
+      "weight": 0.026
+    },
+    {
+      "name": "Cleanup & Restoration",
+      "budget": 5000000,
+      "planned_start": "2026-06-01",
+      "planned_end": "2026-08-31",
+      "weight": 0.026
+    }
+  ]
+}

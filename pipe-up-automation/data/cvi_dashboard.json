@@ -1,0 +1,1112 @@
+{
+  "generated_at": "2026-03-03T16:20:48",
+  "project": "Eagle Mountain Woodfibre Gas Pipeline",
+  "as_of_date": "2026-02-27",
+  "summary": {
+    "cvi_overall": 0.9212,
+    "cvi_direct": 0.9397,
+    "cvi_indirect": 0.8193,
+    "eac_adjusted": 217116107.86,
+    "eac_direct": 204322598.91,
+    "capital_exposure": 17116107.86,
+    "approved_capital": 200000000,
+    "budget_at_completion": 192000000,
+    "overrun_days": 20,
+    "projected_end_date": "2026-09-20",
+    "planned_end_date": "2026-08-31",
+    "status": "AMBER"
+  },
+  "evm": {
+    "bcws": 186893377.23,
+    "bcwp": 168921646.68,
+    "acwp": 179763072.2,
+    "bac": 192000000,
+    "cv": -10841425.52,
+    "sv": -17971730.56,
+    "cpi": 0.9397,
+    "spi": 0.9038
+  },
+  "trends": {
+    "delta_7d": -0.0054,
+    "delta_14d": 0.0058,
+    "delta_30d": -0.0128,
+    "direction_7d": "worsening",
+    "direction_14d": "improving",
+    "direction_30d": "worsening"
+  },
+  "schedule": {
+    "planned_duration_days": 365,
+    "elapsed_days": 180,
+    "overrun_days": 20,
+    "projected_end_date": "2026-09-20",
+    "planned_end_date": "2026-08-31",
+    "percent_elapsed": 49.3
+  },
+  "phases": [
+    {
+      "name": "Clearing & Grading",
+      "budget": 18000000,
+      "bcws": 17967820.24,
+      "bcwp": 16171401.19,
+      "acwp": 17490247.06,
+      "cpi": 0.9246,
+      "spi": 0.9,
+      "eac": 19467975.8,
+      "cvi": 0.9246,
+      "exposure": 1467975.8,
+      "percent_complete": 89.8,
+      "status": "AMBER"
+    },
+    {
+      "name": "Stringing & Bending",
+      "budget": 12000000,
+      "bcws": 11593258.03,
+      "bcwp": 10185589.92,
+      "acwp": 10845772.63,
+      "cpi": 0.9391,
+      "spi": 0.8786,
+      "eac": 12777784.36,
+      "cvi": 0.9391,
+      "exposure": 777784.36,
+      "percent_complete": 84.9,
+      "status": "AMBER"
+    },
+    {
+      "name": "Welding",
+      "budget": 28000000,
+      "bcws": 22461148.88,
+      "bcwp": 19248430.52,
+      "acwp": 21286127.8,
+      "cpi": 0.9043,
+      "spi": 0.857,
+      "eac": 30964164.99,
+      "cvi": 0.9043,
+      "exposure": 2964164.99,
+      "percent_complete": 68.7,
+      "status": "AMBER"
+    },
+    {
+      "name": "Coating & Inspection",
+      "budget": 8000000,
+      "bcws": 5300974.7,
+      "bcwp": 4733482.68,
+      "acwp": 4995752.99,
+      "cpi": 0.9475,
+      "spi": 0.8929,
+      "eac": 8443259.78,
+      "cvi": 0.9475,
+      "exposure": 443259.78,
+      "percent_complete": 59.2,
+      "status": "AMBER"
+    },
+    {
+      "name": "Ditching",
+      "budget": 14000000,
+      "bcws": 4046706.96,
+      "bcwp": 3518217.36,
+      "acwp": 3854923.92,
+      "cpi": 0.9127,
+      "spi": 0.8694,
+      "eac": 15339852.36,
+      "cvi": 0.9127,
+      "exposure": 1339852.36,
+      "percent_complete": 25.1,
+      "status": "AMBER"
+    },
+    {
+      "name": "Lower-in & Backfill",
+      "budget": 16000000,
+      "bcws": 1300577.27,
+      "bcwp": 1144905.94,
+      "acwp": 1230770.24,
+      "cpi": 0.9302,
+      "spi": 0.8803,
+      "eac": 17199949.05,
+      "cvi": 0.9302,
+      "exposure": 1199949.05,
+      "percent_complete": 7.2,
+      "status": "AMBER"
+    },
+    {
+      "name": "HDD & Bores",
+      "budget": 22000000,
+      "bcws": 14454230.18,
+      "bcwp": 11794695.06,
+      "acwp": 14319899.72,
+      "cpi": 0.8237,
+      "spi": 0.816,
+      "eac": 26710126.23,
+      "cvi": 0.8237,
+      "exposure": 4710126.23,
+      "percent_complete": 53.6,
+      "status": "RED"
+    },
+    {
+      "name": "Hydrostatic Testing",
+      "budget": 6000000,
+      "bcws": 0,
+      "bcwp": 0,
+      "acwp": 0,
+      "cpi": 1.0,
+      "spi": 1.0,
+      "eac": 6000000.0,
+      "cvi": 1.0,
+      "exposure": 0.0,
+      "percent_complete": 0.0,
+      "status": "GREEN"
+    },
+    {
+      "name": "Tie-ins",
+      "budget": 5000000,
+      "bcws": 0,
+      "bcwp": 0,
+      "acwp": 0,
+      "cpi": 1.0,
+      "spi": 1.0,
+      "eac": 5000000.0,
+      "cvi": 1.0,
+      "exposure": 0.0,
+      "percent_complete": 0.0,
+      "status": "GREEN"
+    },
+    {
+      "name": "Cleanup & Restoration",
+      "budget": 5000000,
+      "bcws": 0,
+      "bcwp": 0,
+      "acwp": 0,
+      "cpi": 1.0,
+      "spi": 1.0,
+      "eac": 5000000.0,
+      "cvi": 1.0,
+      "exposure": 0.0,
+      "percent_complete": 0.0,
+      "status": "GREEN"
+    }
+  ],
+  "alerts": [
+    {
+      "severity": "MEDIUM",
+      "metric": "cvi_overall",
+      "value": 0.9212,
+      "threshold": 0.95,
+      "message": "CVI 0.921 below 0.95 \u2014 capital at risk (exposure: $+17,116,108)"
+    },
+    {
+      "severity": "HIGH",
+      "metric": "phase_cvi",
+      "value": 0.8237,
+      "threshold": 0.85,
+      "message": "Phase 'HDD & Bores' CVI 0.824 \u2014 significantly over budget (exposure: $+4,710,126)"
+    },
+    {
+      "severity": "HIGH",
+      "metric": "cvi_indirect",
+      "value": 0.8193,
+      "threshold": 0.9,
+      "message": "Indirect CVI 0.819 \u2014 indirect cost growth critical"
+    }
+  ],
+  "history": [
+    {
+      "date": "2025-11-30",
+      "cvi": 1.0195,
+      "cvi_direct": 0.9869,
+      "cvi_indirect": 0.9728,
+      "cpi": 0.9869,
+      "spi": 0.991,
+      "capital_exposure": -3828416.86,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-01",
+      "cvi": 1.0172,
+      "cvi_direct": 0.9881,
+      "cvi_indirect": 0.962,
+      "cpi": 0.9881,
+      "spi": 0.9873,
+      "capital_exposure": -3391431.72,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-02",
+      "cvi": 1.001,
+      "cvi_direct": 0.9799,
+      "cvi_indirect": 0.9377,
+      "cpi": 0.9799,
+      "spi": 0.9787,
+      "capital_exposure": -206722.24,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-03",
+      "cvi": 1.0044,
+      "cvi_direct": 0.9807,
+      "cvi_indirect": 0.9454,
+      "cpi": 0.9807,
+      "spi": 0.9813,
+      "capital_exposure": -876795.43,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-04",
+      "cvi": 1.008,
+      "cvi_direct": 0.9779,
+      "cvi_indirect": 0.9656,
+      "cpi": 0.9779,
+      "spi": 0.9884,
+      "capital_exposure": -1593537.84,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-05",
+      "cvi": 0.9943,
+      "cvi_direct": 0.9799,
+      "cvi_indirect": 0.9176,
+      "cpi": 0.9799,
+      "spi": 0.9711,
+      "capital_exposure": 1147207.22,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-06",
+      "cvi": 1.0011,
+      "cvi_direct": 0.9855,
+      "cvi_indirect": 0.9214,
+      "cpi": 0.9855,
+      "spi": 0.9724,
+      "capital_exposure": -221349.06,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-07",
+      "cvi": 0.9929,
+      "cvi_direct": 0.9753,
+      "cvi_indirect": 0.9269,
+      "cpi": 0.9753,
+      "spi": 0.9743,
+      "capital_exposure": 1434005.03,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-08",
+      "cvi": 0.9964,
+      "cvi_direct": 0.9832,
+      "cvi_indirect": 0.9145,
+      "cpi": 0.9832,
+      "spi": 0.9696,
+      "capital_exposure": 713145.06,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-09",
+      "cvi": 1.0089,
+      "cvi_direct": 0.9818,
+      "cvi_indirect": 0.9558,
+      "cpi": 0.9818,
+      "spi": 0.9847,
+      "capital_exposure": -1759771.85,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-10",
+      "cvi": 0.9928,
+      "cvi_direct": 0.9764,
+      "cvi_indirect": 0.9232,
+      "cpi": 0.9764,
+      "spi": 0.9727,
+      "capital_exposure": 1456080.32,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-11",
+      "cvi": 0.9877,
+      "cvi_direct": 0.9774,
+      "cvi_indirect": 0.9055,
+      "cpi": 0.9774,
+      "spi": 0.9658,
+      "capital_exposure": 2497638.27,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-12",
+      "cvi": 1.0064,
+      "cvi_direct": 0.9765,
+      "cvi_indirect": 0.9651,
+      "cpi": 0.9765,
+      "spi": 0.9878,
+      "capital_exposure": -1272383.18,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-13",
+      "cvi": 0.9878,
+      "cvi_direct": 0.9727,
+      "cvi_indirect": 0.9193,
+      "cpi": 0.9727,
+      "spi": 0.9709,
+      "capital_exposure": 2472439.13,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-14",
+      "cvi": 0.9808,
+      "cvi_direct": 0.9762,
+      "cvi_indirect": 0.8889,
+      "cpi": 0.9762,
+      "spi": 0.9589,
+      "capital_exposure": 3921073.05,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-15",
+      "cvi": 0.9887,
+      "cvi_direct": 0.9796,
+      "cvi_indirect": 0.9021,
+      "cpi": 0.9796,
+      "spi": 0.964,
+      "capital_exposure": 2290010.21,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-16",
+      "cvi": 0.9721,
+      "cvi_direct": 0.9694,
+      "cvi_indirect": 0.883,
+      "cpi": 0.9694,
+      "spi": 0.9562,
+      "capital_exposure": 5750375.34,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-17",
+      "cvi": 0.9901,
+      "cvi_direct": 0.9896,
+      "cvi_indirect": 0.879,
+      "cpi": 0.9896,
+      "spi": 0.9544,
+      "capital_exposure": 1999588.24,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-18",
+      "cvi": 0.9905,
+      "cvi_direct": 0.9724,
+      "cvi_indirect": 0.9282,
+      "cpi": 0.9724,
+      "spi": 0.9737,
+      "capital_exposure": 1926983.62,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-19",
+      "cvi": 0.9582,
+      "cvi_direct": 0.9765,
+      "cvi_indirect": 0.8274,
+      "cpi": 0.9765,
+      "spi": 0.932,
+      "capital_exposure": 8714623.73,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-20",
+      "cvi": 0.9388,
+      "cvi_direct": 0.969,
+      "cvi_indirect": 0.7957,
+      "cpi": 0.969,
+      "spi": 0.9173,
+      "capital_exposure": 13026876.58,
+      "status": "AMBER"
+    },
+    {
+      "date": "2025-12-21",
+      "cvi": 0.9512,
+      "cvi_direct": 0.979,
+      "cvi_indirect": 0.804,
+      "cpi": 0.979,
+      "spi": 0.9208,
+      "capital_exposure": 10261535.03,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-22",
+      "cvi": 0.9713,
+      "cvi_direct": 0.9674,
+      "cvi_indirect": 0.8863,
+      "cpi": 0.9674,
+      "spi": 0.9565,
+      "capital_exposure": 5912028.44,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-23",
+      "cvi": 0.9744,
+      "cvi_direct": 0.9643,
+      "cvi_indirect": 0.9043,
+      "cpi": 0.9643,
+      "spi": 0.9637,
+      "capital_exposure": 5256353.52,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-24",
+      "cvi": 0.9728,
+      "cvi_direct": 0.9716,
+      "cvi_indirect": 0.8792,
+      "cpi": 0.9716,
+      "spi": 0.9532,
+      "capital_exposure": 5582710.67,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-25",
+      "cvi": 0.9534,
+      "cvi_direct": 0.9668,
+      "cvi_indirect": 0.8382,
+      "cpi": 0.9668,
+      "spi": 0.9353,
+      "capital_exposure": 9784471.83,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-26",
+      "cvi": 0.9631,
+      "cvi_direct": 0.9737,
+      "cvi_indirect": 0.8472,
+      "cpi": 0.9737,
+      "spi": 0.939,
+      "capital_exposure": 7658329.2,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-27",
+      "cvi": 0.9758,
+      "cvi_direct": 0.9662,
+      "cvi_indirect": 0.9029,
+      "cpi": 0.9662,
+      "spi": 0.9626,
+      "capital_exposure": 4963235.66,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-28",
+      "cvi": 0.9719,
+      "cvi_direct": 0.9721,
+      "cvi_indirect": 0.8752,
+      "cpi": 0.9721,
+      "spi": 0.9508,
+      "capital_exposure": 5784914.61,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-29",
+      "cvi": 0.973,
+      "cvi_direct": 0.9759,
+      "cvi_indirect": 0.868,
+      "cpi": 0.9759,
+      "spi": 0.9475,
+      "capital_exposure": 5557524.51,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-30",
+      "cvi": 0.955,
+      "cvi_direct": 0.9622,
+      "cvi_indirect": 0.8544,
+      "cpi": 0.9622,
+      "spi": 0.9413,
+      "capital_exposure": 9430925.55,
+      "status": "GREEN"
+    },
+    {
+      "date": "2025-12-31",
+      "cvi": 0.9637,
+      "cvi_direct": 0.9684,
+      "cvi_indirect": 0.8624,
+      "cpi": 0.9684,
+      "spi": 0.9446,
+      "capital_exposure": 7526949.65,
+      "status": "GREEN"
+    },
+    {
+      "date": "2026-01-01",
+      "cvi": 0.9732,
+      "cvi_direct": 0.9735,
+      "cvi_indirect": 0.875,
+      "cpi": 0.9735,
+      "spi": 0.9499,
+      "capital_exposure": 5511899.57,
+      "status": "GREEN"
+    },
+    {
+      "date": "2026-01-02",
+      "cvi": 0.9715,
+      "cvi_direct": 0.9687,
+      "cvi_indirect": 0.8834,
+      "cpi": 0.9687,
+      "spi": 0.9534,
+      "capital_exposure": 5858877.88,
+      "status": "GREEN"
+    },
+    {
+      "date": "2026-01-03",
+      "cvi": 0.9611,
+      "cvi_direct": 0.9652,
+      "cvi_indirect": 0.8635,
+      "cpi": 0.9652,
+      "spi": 0.9445,
+      "capital_exposure": 8090397.88,
+      "status": "GREEN"
+    },
+    {
+      "date": "2026-01-04",
+      "cvi": 0.9448,
+      "cvi_direct": 0.96,
+      "cvi_indirect": 0.8323,
+      "cpi": 0.96,
+      "spi": 0.93,
+      "capital_exposure": 11678248.74,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-05",
+      "cvi": 0.9589,
+      "cvi_direct": 0.9604,
+      "cvi_indirect": 0.8702,
+      "cpi": 0.9604,
+      "spi": 0.9471,
+      "capital_exposure": 8572740.52,
+      "status": "GREEN"
+    },
+    {
+      "date": "2026-01-06",
+      "cvi": 0.9601,
+      "cvi_direct": 0.9573,
+      "cvi_indirect": 0.8819,
+      "cpi": 0.9573,
+      "spi": 0.952,
+      "capital_exposure": 8319678.86,
+      "status": "GREEN"
+    },
+    {
+      "date": "2026-01-07",
+      "cvi": 0.9581,
+      "cvi_direct": 0.9556,
+      "cvi_indirect": 0.8811,
+      "cpi": 0.9556,
+      "spi": 0.9514,
+      "capital_exposure": 8756033.22,
+      "status": "GREEN"
+    },
+    {
+      "date": "2026-01-08",
+      "cvi": 0.948,
+      "cvi_direct": 0.9595,
+      "cvi_indirect": 0.8424,
+      "cpi": 0.9595,
+      "spi": 0.9337,
+      "capital_exposure": 10961697.46,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-09",
+      "cvi": 0.9552,
+      "cvi_direct": 0.9547,
+      "cvi_indirect": 0.8751,
+      "cpi": 0.9547,
+      "spi": 0.9484,
+      "capital_exposure": 9379500.42,
+      "status": "GREEN"
+    },
+    {
+      "date": "2026-01-10",
+      "cvi": 0.949,
+      "cvi_direct": 0.9598,
+      "cvi_indirect": 0.8442,
+      "cpi": 0.9598,
+      "spi": 0.934,
+      "capital_exposure": 10753513.02,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-11",
+      "cvi": 0.9562,
+      "cvi_direct": 0.959,
+      "cvi_indirect": 0.8662,
+      "cpi": 0.959,
+      "spi": 0.9439,
+      "capital_exposure": 9166125.2,
+      "status": "GREEN"
+    },
+    {
+      "date": "2026-01-12",
+      "cvi": 0.9519,
+      "cvi_direct": 0.9674,
+      "cvi_indirect": 0.8329,
+      "cpi": 0.9674,
+      "spi": 0.9281,
+      "capital_exposure": 10100936.73,
+      "status": "GREEN"
+    },
+    {
+      "date": "2026-01-13",
+      "cvi": 0.9467,
+      "cvi_direct": 0.9603,
+      "cvi_indirect": 0.8367,
+      "cpi": 0.9603,
+      "spi": 0.9296,
+      "capital_exposure": 11271212.55,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-14",
+      "cvi": 0.9349,
+      "cvi_direct": 0.9564,
+      "cvi_indirect": 0.8151,
+      "cpi": 0.9564,
+      "spi": 0.9188,
+      "capital_exposure": 13915396.28,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-15",
+      "cvi": 0.9405,
+      "cvi_direct": 0.9464,
+      "cvi_indirect": 0.8557,
+      "cpi": 0.9464,
+      "spi": 0.9381,
+      "capital_exposure": 12651831.44,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-16",
+      "cvi": 0.9495,
+      "cvi_direct": 0.9547,
+      "cvi_indirect": 0.859,
+      "cpi": 0.9547,
+      "spi": 0.9394,
+      "capital_exposure": 10626763.2,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-17",
+      "cvi": 0.9385,
+      "cvi_direct": 0.9589,
+      "cvi_indirect": 0.8183,
+      "cpi": 0.9589,
+      "spi": 0.9194,
+      "capital_exposure": 13102053.73,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-18",
+      "cvi": 0.903,
+      "cvi_direct": 0.9102,
+      "cvi_indirect": 0.8462,
+      "cpi": 0.9102,
+      "spi": 0.9328,
+      "capital_exposure": 21491368.69,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-19",
+      "cvi": 0.8957,
+      "cvi_direct": 0.9142,
+      "cvi_indirect": 0.814,
+      "cpi": 0.9142,
+      "spi": 0.9166,
+      "capital_exposure": 23278062.1,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-20",
+      "cvi": 0.9047,
+      "cvi_direct": 0.9086,
+      "cvi_indirect": 0.8561,
+      "cpi": 0.9086,
+      "spi": 0.937,
+      "capital_exposure": 21056439.34,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-21",
+      "cvi": 0.9061,
+      "cvi_direct": 0.92,
+      "cvi_indirect": 0.8283,
+      "cpi": 0.92,
+      "spi": 0.9231,
+      "capital_exposure": 20722107.79,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-22",
+      "cvi": 0.9025,
+      "cvi_direct": 0.912,
+      "cvi_indirect": 0.8396,
+      "cpi": 0.912,
+      "spi": 0.9284,
+      "capital_exposure": 21608349.48,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-23",
+      "cvi": 0.8965,
+      "cvi_direct": 0.9095,
+      "cvi_indirect": 0.8286,
+      "cpi": 0.9095,
+      "spi": 0.9226,
+      "capital_exposure": 23096797.98,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-24",
+      "cvi": 0.8986,
+      "cvi_direct": 0.9142,
+      "cvi_indirect": 0.8221,
+      "cpi": 0.9142,
+      "spi": 0.919,
+      "capital_exposure": 22576159.34,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-25",
+      "cvi": 0.8942,
+      "cvi_direct": 0.9018,
+      "cvi_indirect": 0.8438,
+      "cpi": 0.9018,
+      "spi": 0.9295,
+      "capital_exposure": 23654793.24,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-26",
+      "cvi": 0.8865,
+      "cvi_direct": 0.9074,
+      "cvi_indirect": 0.8056,
+      "cpi": 0.9074,
+      "spi": 0.9097,
+      "capital_exposure": 25596923.98,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-27",
+      "cvi": 0.891,
+      "cvi_direct": 0.9113,
+      "cvi_indirect": 0.8079,
+      "cpi": 0.9113,
+      "spi": 0.9106,
+      "capital_exposure": 24471396.15,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-28",
+      "cvi": 0.938,
+      "cvi_direct": 0.952,
+      "cvi_indirect": 0.8342,
+      "cpi": 0.952,
+      "spi": 0.9238,
+      "capital_exposure": 13211379.71,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-29",
+      "cvi": 0.934,
+      "cvi_direct": 0.9471,
+      "cvi_indirect": 0.8356,
+      "cpi": 0.9471,
+      "spi": 0.9242,
+      "capital_exposure": 14127052.81,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-30",
+      "cvi": 0.9222,
+      "cvi_direct": 0.9424,
+      "cvi_indirect": 0.8154,
+      "cpi": 0.9424,
+      "spi": 0.9134,
+      "capital_exposure": 16870215.45,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-01-31",
+      "cvi": 0.9465,
+      "cvi_direct": 0.9621,
+      "cvi_indirect": 0.8318,
+      "cpi": 0.9621,
+      "spi": 0.9215,
+      "capital_exposure": 11303996.0,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-01",
+      "cvi": 0.9317,
+      "cvi_direct": 0.9568,
+      "cvi_indirect": 0.8056,
+      "cpi": 0.9568,
+      "spi": 0.9074,
+      "capital_exposure": 14658024.06,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-02",
+      "cvi": 0.926,
+      "cvi_direct": 0.946,
+      "cvi_indirect": 0.8168,
+      "cpi": 0.946,
+      "spi": 0.913,
+      "capital_exposure": 15973077.08,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-03",
+      "cvi": 0.9403,
+      "cvi_direct": 0.9562,
+      "cvi_indirect": 0.8295,
+      "cpi": 0.9562,
+      "spi": 0.9193,
+      "capital_exposure": 12707658.25,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-04",
+      "cvi": 0.913,
+      "cvi_direct": 0.9443,
+      "cvi_indirect": 0.7866,
+      "cpi": 0.9443,
+      "spi": 0.8958,
+      "capital_exposure": 19053679.8,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-05",
+      "cvi": 0.921,
+      "cvi_direct": 0.9335,
+      "cvi_indirect": 0.8349,
+      "cpi": 0.9335,
+      "spi": 0.9214,
+      "capital_exposure": 17154134.2,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-06",
+      "cvi": 0.9167,
+      "cvi_direct": 0.9388,
+      "cvi_indirect": 0.8093,
+      "cpi": 0.9388,
+      "spi": 0.9074,
+      "capital_exposure": 18178319.13,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-07",
+      "cvi": 0.9201,
+      "cvi_direct": 0.9422,
+      "cvi_indirect": 0.8103,
+      "cpi": 0.9422,
+      "spi": 0.9075,
+      "capital_exposure": 17358386.96,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-08",
+      "cvi": 0.9215,
+      "cvi_direct": 0.9498,
+      "cvi_indirect": 0.7957,
+      "cpi": 0.9498,
+      "spi": 0.899,
+      "capital_exposure": 17037603.16,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-09",
+      "cvi": 0.9353,
+      "cvi_direct": 0.9482,
+      "cvi_indirect": 0.8365,
+      "cpi": 0.9482,
+      "spi": 0.9209,
+      "capital_exposure": 13832127.42,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-10",
+      "cvi": 0.9288,
+      "cvi_direct": 0.9494,
+      "cvi_indirect": 0.8157,
+      "cpi": 0.9494,
+      "spi": 0.9092,
+      "capital_exposure": 15331566.99,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-11",
+      "cvi": 0.929,
+      "cvi_direct": 0.9493,
+      "cvi_indirect": 0.8166,
+      "cpi": 0.9493,
+      "spi": 0.9093,
+      "capital_exposure": 15287270.8,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-12",
+      "cvi": 0.93,
+      "cvi_direct": 0.947,
+      "cvi_indirect": 0.8247,
+      "cpi": 0.947,
+      "spi": 0.9134,
+      "capital_exposure": 15062927.94,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-13",
+      "cvi": 0.9266,
+      "cvi_direct": 0.9468,
+      "cvi_indirect": 0.8163,
+      "cpi": 0.9468,
+      "spi": 0.9083,
+      "capital_exposure": 15836268.17,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-14",
+      "cvi": 0.9154,
+      "cvi_direct": 0.9458,
+      "cvi_indirect": 0.7892,
+      "cpi": 0.9458,
+      "spi": 0.8926,
+      "capital_exposure": 18491176.48,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-15",
+      "cvi": 0.9216,
+      "cvi_direct": 0.948,
+      "cvi_indirect": 0.8002,
+      "cpi": 0.948,
+      "spi": 0.8984,
+      "capital_exposure": 17005050.63,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-16",
+      "cvi": 0.9461,
+      "cvi_direct": 0.9545,
+      "cvi_indirect": 0.8499,
+      "cpi": 0.9545,
+      "spi": 0.9256,
+      "capital_exposure": 11385349.96,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-17",
+      "cvi": 0.923,
+      "cvi_direct": 0.9459,
+      "cvi_indirect": 0.8088,
+      "cpi": 0.9459,
+      "spi": 0.9024,
+      "capital_exposure": 16687912.0,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-18",
+      "cvi": 0.9255,
+      "cvi_direct": 0.9484,
+      "cvi_indirect": 0.8094,
+      "cpi": 0.9484,
+      "spi": 0.9023,
+      "capital_exposure": 16097013.65,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-19",
+      "cvi": 0.9193,
+      "cvi_direct": 0.9417,
+      "cvi_indirect": 0.8094,
+      "cpi": 0.9417,
+      "spi": 0.9018,
+      "capital_exposure": 17553963.07,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-20",
+      "cvi": 0.9267,
+      "cvi_direct": 0.9446,
+      "cvi_indirect": 0.8221,
+      "cpi": 0.9446,
+      "spi": 0.9086,
+      "capital_exposure": 15821667.67,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-21",
+      "cvi": 0.9266,
+      "cvi_direct": 0.9445,
+      "cvi_indirect": 0.822,
+      "cpi": 0.9445,
+      "spi": 0.9081,
+      "capital_exposure": 15833945.88,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-22",
+      "cvi": 0.9154,
+      "cvi_direct": 0.9384,
+      "cvi_indirect": 0.8069,
+      "cpi": 0.9384,
+      "spi": 0.899,
+      "capital_exposure": 18481414.54,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-23",
+      "cvi": 0.9268,
+      "cvi_direct": 0.9421,
+      "cvi_indirect": 0.8286,
+      "cpi": 0.9421,
+      "spi": 0.911,
+      "capital_exposure": 15795940.41,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-24",
+      "cvi": 0.9284,
+      "cvi_direct": 0.9569,
+      "cvi_indirect": 0.797,
+      "cpi": 0.9569,
+      "spi": 0.8921,
+      "capital_exposure": 15430491.66,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-25",
+      "cvi": 0.9267,
+      "cvi_direct": 0.9472,
+      "cvi_indirect": 0.8157,
+      "cpi": 0.9472,
+      "spi": 0.9027,
+      "capital_exposure": 15818896.7,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-26",
+      "cvi": 0.9261,
+      "cvi_direct": 0.9458,
+      "cvi_indirect": 0.8172,
+      "cpi": 0.9458,
+      "spi": 0.9031,
+      "capital_exposure": 15969036.18,
+      "status": "AMBER"
+    },
+    {
+      "date": "2026-02-27",
+      "cvi": 0.9212,
+      "cvi_direct": 0.9397,
+      "cvi_indirect": 0.8193,
+      "cpi": 0.9397,
+      "spi": 0.9038,
+      "capital_exposure": 17116107.86,
+      "status": "AMBER"
+    }
+  ]
+}
