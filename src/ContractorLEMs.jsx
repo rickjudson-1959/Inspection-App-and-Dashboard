@@ -235,15 +235,27 @@ function ContractorLEMs() {
 
     for (const file of valid) {
       try {
+        // Check file size (max ~30MB for API)
+        if (file.size > 30 * 1024 * 1024) {
+          errors.push(`${file.name}: File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum 30MB.`)
+          continue
+        }
+
+        const isPDF = file.type === 'application/pdf'
         const base64 = await fileToBase64(file)
-        const mediaType = file.type === 'application/pdf' ? 'application/pdf' : (file.type || 'image/jpeg')
+        const mediaType = isPDF ? 'application/pdf' : (file.type || 'image/jpeg')
+
+        // Build the content block - PDFs use 'document' type, images use 'image' type
+        const fileContent = isPDF
+          ? { type: 'document', source: { type: 'base64', media_type: mediaType, data: base64 } }
+          : { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } }
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'x-api-key': anthropicApiKey,
-            'anthropic-version': '2023-06-01',
+            'anthropic-version': '2025-01-01',
             'anthropic-dangerous-direct-browser-access': 'true'
           },
           body: JSON.stringify({
@@ -252,10 +264,7 @@ function ContractorLEMs() {
             messages: [{
               role: 'user',
               content: [
-                {
-                  type: mediaType === 'application/pdf' ? 'document' : 'image',
-                  source: { type: 'base64', media_type: mediaType, data: base64 }
-                },
+                fileContent,
                 {
                   type: 'text',
                   text: `Analyze this contractor LEM (Labour, Equipment, Materials) document. Extract ALL data and return it as a JSON array. Each LEM/ticket in the document should be a separate object.
