@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 4.7 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-03-01
+## Version: 4.8 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-03-06
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -88,7 +88,7 @@ A report contains one or more **Activity Blocks**. Each block represents a singl
 | `endKP` | KP format | End chainage — supports GPS Sync |
 | `workDescription` | Textarea (6 rows) | Free-text description — supports Voice Input. Resizable vertically. |
 | `metersToday` | Number | Auto-calculated from endKP minus startKP, or manual entry |
-| `metersPrevious` | Number | Auto-populated from previous reports for the same activity type |
+| `metersPrevious` | Number | Auto-populated from previous reports for the same activity type and pipeline. Uses metersToday from prior reports when available, falls back to KP calculation. |
 | *(Total Metres)* | Calculated | Sum of metersToday + metersPrevious — shown in PDF alongside today/previous |
 | `ticketNumber` | Text | Contractor ticket number (can auto-fill from OCR) |
 | `ticketPhoto` / `ticketPhotos` | File upload (single or multi) | Photo(s) of contractor daily ticket — triggers OCR scanning. Multi-page tickets show page count in indicator and all pages in modal viewer |
@@ -252,7 +252,7 @@ Each activity type may trigger a specialized log component with activity-specifi
 | **Welding - Mainline** | MainlineWeldData | Weld numbers, joint numbers, heat numbers, WPS reference, preheat temp, interpass temp, voltage, amperage, travel speed, heat input (auto-calculated from defaults and on parameter change), welder IDs, NDE results. Section labeled "Total Weld Time Tracking" for time tracking. |
 | **Welding - Section Crew** | MainlineWeldData | Same as Mainline Welding |
 | **Welding - Poor Boy** | MainlineWeldData | Same as Mainline Welding |
-| **Welding - Tie-in** | CounterboreTransitionLog + MainlineWeldData | Tie-in weld table (weld #, location, US/DS joints, WPS, status) + Counterbore/Transition log (weld info, welder ID/name, WPS, preheat/interpass temps, location type, diagram values, transition records with ovality/wall thickness/taper/bore length, NDT type/result, repair info, comments) |
+| **Welding - Tie-in** | CounterboreTransitionLog + MainlineWeldData | Tie-in weld table (weld #, location, US/DS joints, WPS, status) + **Multi-weld** Counterbore/Transition log: supports multiple welds per activity block via "+ Add Weld" button. Each weld is a collapsible card with: weld info (weld #, welder ID/name, WPS, preheat/interpass temps, location type/description), per-weld counterbore toggle with diagram values (bore length, taper angle, transition WT, bevel angle), transition records table (ovality, wall thickness, taper, bore length, accept/reject), NDT (type/result/report#), repair info. Global comments shared across all welds. Auto-migrates old single-weld data on load. |
 | **Bending** | BendingLog | Dmax, Dmin, ovality calculation, bend angle, bend type, coating type, engineer approval, engineer note (per-bend text when approval is given). Summary: bends today/previous/total. |
 | **Stringing** | StringingLog | Joint numbers, heat numbers, station KP, side of ROW, pipe size, length, wall thickness, coating type, condition (Good/Damaged Bevel/Needs Re-bevel), location type (Ditch/Pup Bank/Inventory), visual check, source (OCR/Manual). Pup joints tracked with pup designation (A/B). Summary: joints today/previous, total length. |
 | **Coating** | CoatingLog | Weld identification (weld #, KP, diameter NPS dropdown, wall thickness mm, grade dropdown, coating company), ambient conditions (up to 3 readings: wet/dry bulb, dew point, humidity, steel temp), surface prep & blasting (per-weld: contaminants, steel condition, abrasive type, blast finish, profile depths, tape test), coating material (system type, sleeve type, batch numbers, expiry, storage temp), preheat & application (method, temps, times, visual appearance), inspection & holiday detection (DFT readings ×6, holiday voltage, detector ID, jeeps, low mils), repairs (patch stick, liquid repair, spec compliance, repair thickness), cure tests (V-cut rating, Shore-D hardness, pass/fail), sign-off (NCR status, inspector notes) |
@@ -405,7 +405,7 @@ Accurately categorize each labour and equipment entry's production status. The s
 
 ### Submit Flow
 1. Inspector fills out the report and clicks Submit Report.
-2. A Trackable Items modal appears asking: "Have you checked ALL trackable items?" — listing Mats, Rock Trench, Extra Depth Ditch, Bedding & Padding, Temporary Fencing, Ramps, Goal Posts (Power Lines), Access Roads, Hydrovac Holes, Erosion Control, Signage & Flagging, Equipment Cleaning, Welding (all 13 types).
+2. A Trackable Items modal appears asking: "Have you checked ALL trackable items?" — listing Mats, Rock Trench, Extra Depth Ditch, Bedding & Padding, Temporary Fencing, Ramps, Goal Posts (Power Lines), Access Roads, Hydrovac Holes, Erosion Control, Signage & Flagging, Equipment Cleaning, Welding, Counterbore/Transition (all 14 types).
 3. If confirmed, the report saves to Supabase and goes to the Chief Inspector for review.
 4. Reports with welding activities (Welding - Mainline, Welding - Section Crew, Welding - Poor Boy, Welding - Tie-in, Welder Testing) also require Welding Chief review.
 
@@ -427,12 +427,12 @@ Click "Download PDF Copy" to generate a comprehensive PDF of the entire report. 
 - **Equipment table**: Equipment type, unit number, hours, qty, production status, productive hours, drag reason
 - **Quality checks**: All activity-specific quality fields with structured labels — flat fields (Access, Bending, Lower-in, Backfill, Frost Packing, HD Bores) and collapsible sections (Topsoil horizon separation, Stringing pipe receiving, etc.). Rendered once per block using the `qualityFieldsByActivity` definitions from constants.
 - **Work photos**: Thumbnail images (30×22 mm) for every uploaded work photo, with KP location and description beside each. Appears for all activity types. If a photo fails to load, a placeholder is shown and the PDF still generates successfully.
-- **Specialized logs**: Full data from all specialized log components including Welding (mainline + tie-in), Bending (bend table + engineer notes per bend), Stringing (joint table with condition/location type columns + pup designation summary), Coating (weld ID, ambient conditions, surface prep, material, application, inspection/holiday detection, repairs, cure tests, sign-off), Counterbore/Transition (weld info, diagram values, transition records table, NDT, repairs), Clearing (ROW boundaries, pre-clearing approvals, environmental, buried facilities, power lines, timber salvage, timber decks table with owner/cut spec/min diameter/destination, grubbing/stripping, watercourse, temp fencing, sign-off with NCR), Ditch (trench specs, pay items, BOT checklist, water management with discharge permit #/notes, soil conditions, depth compliance), Tie-in Backfill (location/KP header, backfill details, crossings with depths/separation/compliance, anodes with material/depth/weight/qty/test lead), HDD (bore info, pilot hole mud/viscosity/pH/angles, reaming passes table, pipe installation, post-installation grout data, drilling progress + waste management with volumes/storage/disposal/additives/vac truck/compliance testing + steering log with guidance setup/design params/station readings table), Grading (ROW width actual+spec, pile separation issues, ponding location, drainage controls, environmental issues, topsoil depth, soft spots, crossings), Hydrovac, Piling (locations with drawing #/piles counts, quality verifications with Pass/Fail color coding), HD Bores (bore details, pipe specs, method-specific fields, alignment/grade, fluid/mud loop, grouting with variance alert, asset link, progress + waste management), Equipment Cleaning, Machine Cleanup, Final Cleanup, Welder Testing (report date + location/times header, expanded table with ABSA #/wall thickness/repair columns), Hydrostatic Testing
+- **Specialized logs**: Full data from all specialized log components including Welding (mainline + tie-in), Bending (bend table + engineer notes per bend), Stringing (joint table with condition/location type columns + pup designation summary), Coating (weld ID, ambient conditions, surface prep, material, application, inspection/holiday detection, repairs, cure tests, sign-off), Counterbore/Transition (multi-weld: per-weld headers, weld info, diagram values, transition records table, NDT, repairs; global comments), Clearing (ROW boundaries, pre-clearing approvals, environmental, buried facilities, power lines, timber salvage, timber decks table with owner/cut spec/min diameter/destination, grubbing/stripping, watercourse, temp fencing, sign-off with NCR), Ditch (trench specs, pay items, BOT checklist, water management with discharge permit #/notes, soil conditions, depth compliance), Tie-in Backfill (location/KP header, backfill details, crossings with depths/separation/compliance, anodes with material/depth/weight/qty/test lead), HDD (bore info, pilot hole mud/viscosity/pH/angles, reaming passes table, pipe installation, post-installation grout data, drilling progress + waste management with volumes/storage/disposal/additives/vac truck/compliance testing + steering log with guidance setup/design params/station readings table), Grading (ROW width actual+spec, pile separation issues, ponding location, drainage controls, environmental issues, topsoil depth, soft spots, crossings), Hydrovac, Piling (locations with drawing #/piles counts, quality verifications with Pass/Fail color coding), HD Bores (bore details, pipe specs, method-specific fields, alignment/grade, fluid/mud loop, grouting with variance alert, asset link, progress + waste management), Equipment Cleaning, Machine Cleanup, Final Cleanup, Welder Testing (report date + location/times header, expanded table with ABSA #/wall thickness/repair columns), Hydrostatic Testing
 - **Hydrovac**: Contractor/foreman, facility details table
 - **Safety**: Safety notes, safety recognition cards, wildlife sightings
 - **Land & environment**: Environmental observations
 - **Site visitors**: Name, company, position
-- **Trackable items**: All 13 categories with type-specific descriptions (goalposts include safety compliance fields, ramps include material/crossing ID, rock trench includes spec depth/equipment, extra depth includes reason/approver, bedding/padding includes material/depth)
+- **Trackable items**: All 14 categories with type-specific descriptions (goalposts include safety compliance fields, ramps include material/crossing ID, rock trench includes spec depth/equipment, extra depth includes reason/approver, bedding/padding includes material/depth)
 - **Trackable items (installed)**: Category, item, qty, unit, KP, installed date, notes
 - **Inspector info**: Mileage, equipment used
 - **Document certification**: Document ID, SHA-256 hash, generation timestamp
@@ -441,7 +441,7 @@ Click "Download PDF Copy" to generate a comprehensive PDF of the entire report. 
 
 ## SECTION 9: TRACKABLE ITEMS
 
-Trackable items are project-wide assets and quantities tracked across reports. Categories include: Mats, Rock Trench, Extra Depth Ditch, Bedding & Padding, Temporary Fencing, Ramps, Goal Posts (Power Lines), Access Roads, Hydrovac Holes, Erosion Control, Signage & Flagging, Equipment Cleaning, Welding.
+Trackable items are project-wide assets and quantities tracked across reports. Categories include: Mats, Rock Trench, Extra Depth Ditch, Bedding & Padding, Temporary Fencing, Ramps, Goal Posts (Power Lines), Access Roads, Hydrovac Holes, Erosion Control, Signage & Flagging, Equipment Cleaning, Welding, Counterbore/Transition.
 
 ### Auto-Save & Data Persistence
 Trackable item entries auto-save to Supabase when the inspector leaves a field (on blur). There is no manual Save button — only a Remove button to delete entries. **All type-specific fields are persisted to the database** — the `saveItem` function dynamically saves every field that has a corresponding DB column. Fields without DB columns (e.g., newly added form fields awaiting a migration) are noted in the code. A race condition guard prevents duplicate database rows when tabbing quickly through fields — the first field blur triggers the INSERT, and subsequent blurs are queued until the INSERT completes.
@@ -492,6 +492,15 @@ The Welding category tracks welding-related trackable items such as cut outs, re
 - **Quantity**: Number of items
 - **Reason**: N/A, NDT Failure, CAP Failure, Visual Defect, Inspector Request, Other
 - **Status**: Completed - Passed, In Progress, Pending Re-test
+- **Notes**: Additional details
+
+### Counterbore/Transition
+Tracks counterbore and transition work on tie-in welds. Fields include:
+- **Weld Number**: The tie-in weld identifier (e.g., TI-001)
+- **Type**: Counterbore, Transition, or Both
+- **KP**: Location chainage
+- **Quantity**: Number of items
+- **Status**: Completed - Accepted, Completed - Rejected, In Progress, Pending
 - **Notes**: Additional details
 
 ### Bedding & Padding
@@ -670,7 +679,7 @@ A: From the Previous Reports list, select the report to edit. If the Chief Inspe
 A: No. Every report is automatically assigned a unique Document ID and SHA-256 Hash. Your job is to log accurate, complete data — the system handles compliance.
 
 **Q: What is the Health Score?**
-A: The Health Score is calculated by the ReportHealthScorer based on completeness and quality of your report data. It's visible to you and reviewers as a quality indicator. Tap the score to expand the issue list — each issue tells you the exact **block number**, **activity type**, and **which section to navigate to** (e.g., `Block #2 "Backfill" (KP 12) — add concealed-work photos in the "Work Photos" section`). Quality field issues are grouped by collapsible section name so you can find them quickly.
+A: The Health Score is calculated by the ReportHealthScorer based on completeness and quality of your report data. It's visible to you and reviewers as a quality indicator. Tap the score to expand the issue list — each issue tells you the exact **block number**, **activity type**, and **which section to navigate to** (e.g., `Block #2 "Backfill" (KP 12) — add concealed-work photos in the "Work Photos" section`). Quality field issues are grouped by collapsible section name so you can find them quickly. **Categories scored (7 total):** Report Completeness (15% — safety notes, land/environment notes, visitors), Photo Completeness (20% — concealed-work photos), Directive 050 (15% — drilling waste volumes/disposal), Field Completeness (20% — quality check fields), Chainage Integrity (15% — KP gaps/overlaps), Labour/Equipment (10%), Mentor Alert Resolution (5%). Leaving Safety Notes, Land/Environment, or Visitors empty will reduce your score.
 
 **Q: Can I download a PDF of my report?**
 A: Yes. Click "Download PDF Copy" at the bottom of the report. The PDF includes all activity blocks, specialized log data, labour/equipment tables, and quality checks.
@@ -724,9 +733,9 @@ A: The PDF only includes trackable items that are saved in the database for the 
 A: The system detected you already have a report for the same date and spread. If you're on the same spread, you likely want to edit your existing report instead of creating a new one — click Cancel and go to Previous Reports to find it. If you intentionally need a second report (rare), click OK to proceed. If you're on a different spread, you'll see a lighter notice reminding you not to log the same trackable items (mats, fencing, ramps, etc.) on both reports, as this causes double-counting in billing reconciliation.
 
 **Q: Where can admins see all trackable items across reports for billing?**
-A: The Reconciliation Dashboard has a "Trackable Items" tab (teal). It shows all 13 trackable item categories with filter chips, summary cards per type (including deploy/retrieve/net counts for inventory items like mats, fencing, ramps, goalposts), a detail table with type-specific columns, and an inventory net position panel. Use the date range dropdown to adjust the time window.
+A: The Reconciliation Dashboard has a "Trackable Items" tab (teal). It shows all 14 trackable item categories with filter chips, summary cards per type (including deploy/retrieve/net counts for inventory items like mats, fencing, ramps, goalposts), a detail table with type-specific columns, and an inventory net position panel. Use the date range dropdown to adjust the time window.
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.6*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.8*
 *Source: InspectorReport.jsx (8,400+ lines) + ActivityBlock.jsx (3,400+ lines)*

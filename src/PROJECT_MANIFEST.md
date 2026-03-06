@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - March 3, 2026
+## Project Manifest - March 6, 2026
 
 ---
 
@@ -120,7 +120,7 @@
 - **Admin Portal** - User/org/project management
 - **Inspector Invoicing** - Timesheet management
 - **NDT Auditor Dashboard** - NDT monitoring
-- **Reconciliation Dashboard** - Three-way match (Contractor LEM vs. Timesheet vs. Inspector), billing status management, invoice batching, disputes, corrections, crossing support reconciliation, crossing variance (bore integrity audit), trackable items reconciliation (13 categories with filter chips, summary cards, detail table with type-specific columns, inventory net position panel)
+- **Reconciliation Dashboard** - Three-way match (Contractor LEM vs. Timesheet vs. Inspector), billing status management, invoice batching, disputes, corrections, crossing support reconciliation, crossing variance (bore integrity audit), trackable items reconciliation (14 categories with filter chips, summary cards, detail table with type-specific columns, inventory net position panel)
 
 ### Reporting & Export
 - PDF report generation with all activity data, quality checks, specialized logs, work photo thumbnails, and document certification
@@ -230,7 +230,7 @@
 
 ### Trackable Items
 
-**trackable_items** table — 13 categories tracked by inspectors via `TrackableItemsTracker.jsx`:
+**trackable_items** table — 14 categories tracked by inspectors via `TrackableItemsTracker.jsx`:
 1. **Mats** — mat_type, mat_size, mat_material, crossing_reason, from_location, to_location, crew (consolidated from MatTracker)
 2. **Rock Trench** — rock_type, depth_achieved, spec_depth
 3. **Extra Depth Ditch** — extra_depth_amount, total_depth, in_drawings, approved_by
@@ -244,6 +244,7 @@
 11. **Signage & Flagging** — sign_type
 12. **Equipment Cleaning** — equipment_type, equipment_id, cleaning_type, cleaning_location, cleaning_station_kp, inspection_status, inspector_name, biosecurity_concerns, weed_wash_cert, photo_taken, contractor
 13. **Welding** — upi_type, weld_number, status
+14. **Counterbore/Transition** — weld_number, upi_type (Counterbore/Transition/Both), kp_location, quantity, status
 
 Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, reason, equipment, notes, report_id, report_date, inspector, organization_id
 
@@ -412,6 +413,33 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–March 2026)
+
+### Metres Previous Fix, Multi-Weld Counterbore, Trackable Item & Stricter Health Score (March 6, 2026)
+
+**Four QA fixes from field testing: metres previous not populating for Tie-in, multi-weld support in counterbore log, new trackable item type, and stricter health score**
+
+1. **Metres Previous fix** — `fetchPreviousMeters()` queried column `activities` but the actual DB column is `activity_blocks`. Also read `report.activities` instead of `report.activity_blocks`. Fixed both. Additionally eliminated double-counting: previously added BOTH KP-calculated metres AND stored `metersToday`. Now uses `metersToday` first, falls back to KP calculation only when metersToday is 0 (matching ActivityBlock.jsx logic).
+
+2. **Multi-weld CounterboreTransitionLog** — Converted from single flat weld fields to a `welds[]` array. Each weld renders as a collapsible card with its own: weld info (number, welder ID/name, WPS, preheat/interpass temps, location), counterbore/transition toggle with diagram and transitions table, NDT section, and repair section. "+ Add Weld" button (blue, matches existing patterns). Remove button on each weld (red, guarded — cannot remove last weld). Global comments field stays at the bottom shared across all welds. **Backward compatibility:** On mount, if `data.welds` doesn't exist but flat fields do, auto-migrates into `welds: [{...existingFields}]`.
+
+3. **Counterbore/Transition trackable item (#14)** — New item type in `TrackableItemsTracker.jsx` with fields: weld_number, upi_type (Counterbore/Transition/Both), kp_location, quantity, status (Completed - Accepted/Rejected, In Progress, Pending), notes. Pre-submit reminder updated to include "Counterbore/Transition" in the trackable items checklist.
+
+4. **Stricter Health Score** — Added new "Report Completeness" category (15% weight) checking: Safety Notes filled, Land/Environment Notes filled, at least 1 visitor logged. Each missing item generates a specific guidance message. Redistributed weights: Photo Completeness 25%→20%, Directive 050 20%→15%, Field Completeness 20% (unchanged), Chainage Integrity 15% (unchanged), Labour/Equipment 10% (unchanged), Mentor Alert Resolution 10%→5%, Report Completeness 15% (NEW). Report-level data (`safetyNotes`, `landEnvironment`, `visitors`) now passed to `computeHealthScore()`.
+
+5. **PDF export updated** — Counterbore/Transition section now iterates over the `welds` array with per-weld headers. Handles both old flat format and new array format for backward compatibility with existing saved reports.
+
+**Field Guide updated to v4.8** — Multi-weld counterbore, new trackable item, stricter health score, metres previous fix.
+
+**Files Modified:**
+```
+src/InspectorReport.jsx           # fetchPreviousMeters fix, health score reportData, PDF multi-weld, trackable items reminder
+src/CounterboreTransitionLog.jsx  # Full rewrite: multi-weld array with collapsible cards, backward compat migration
+src/TrackableItemsTracker.jsx     # counterbore_transition item type (#14)
+src/agents/ReportHealthScorer.js  # scoreReportCompleteness (15%), redistributed weights
+pipe-up-field-guide-agent-kb.md   # v4.7 → v4.8
+```
+
+---
 
 ### Capital Variance Index (CVI) Engine — `pipe-up-automation/cvi_engine.py` (March 3, 2026)
 
