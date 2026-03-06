@@ -788,6 +788,27 @@ export function aggregatePhotosForLegacy(reports) {
           activity: block.activityType
         })
       })
+
+      // Include ticket photo(s) - stored as filenames in ticket-photos bucket
+      const ticketFilenames = block.ticketPhotos && Array.isArray(block.ticketPhotos) && block.ticketPhotos.length > 0
+        ? block.ticketPhotos
+        : block.ticketPhoto ? [block.ticketPhoto] : []
+      ticketFilenames.forEach(filename => {
+        if (typeof filename === 'string' && filename.length > 0) {
+          const { data } = supabase.storage.from('ticket-photos').getPublicUrl(filename)
+          if (data?.publicUrl) {
+            photos.push({
+              id: `${report.id}_ticket_${photos.length}`,
+              url: data.publicUrl,
+              kpLocation: block.startKP || '',
+              description: `Contractor ticket - ${block.contractor || block.activityType || 'Activity'}`,
+              timestamp: report.created_at,
+              inspector: report.inspector_name,
+              activity: block.activityType
+            })
+          }
+        }
+      })
     })
 
     // Also check for report-level photos

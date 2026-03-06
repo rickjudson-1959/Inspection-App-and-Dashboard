@@ -799,18 +799,26 @@ export function aggregatePhotos(reports) {
         })
       }
       
-      // Check for ticket photo
-      if (activity.ticketPhotoUrl) {
-        photos.push({
-          source_report_id: report.id,
-          kp_location: activity.startKP || '',
-          location_description: `Contractor Ticket - ${activity.contractor || 'Unknown'}`,
-          photo_url: activity.ticketPhotoUrl,
-          description: `Contractor ticket for ${activity.activityType}`,
-          latitude: null,
-          longitude: null
-        })
-      }
+      // Check for ticket photo(s) - stored as filenames in ticket-photos bucket
+      const ticketFilenames = activity.ticketPhotos && Array.isArray(activity.ticketPhotos) && activity.ticketPhotos.length > 0
+        ? activity.ticketPhotos
+        : activity.ticketPhoto ? [activity.ticketPhoto] : []
+      ticketFilenames.forEach(filename => {
+        if (typeof filename === 'string' && filename.length > 0) {
+          const { data } = supabase.storage.from('ticket-photos').getPublicUrl(filename)
+          if (data?.publicUrl) {
+            photos.push({
+              source_report_id: report.id,
+              kp_location: activity.startKP || '',
+              location_description: `Contractor Ticket - ${activity.contractor || 'Unknown'}`,
+              photo_url: data.publicUrl,
+              description: `Contractor ticket for ${activity.activityType}`,
+              latitude: null,
+              longitude: null
+            })
+          }
+        }
+      })
     })
   })
 
