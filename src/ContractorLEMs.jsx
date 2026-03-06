@@ -209,6 +209,41 @@ function ContractorLEMs() {
     })
   }
 
+  // Convert a PDF file to an array of page images (JPEG base64) using pdf.js from CDN
+  async function pdfToImages(file) {
+    // Dynamically load pdf.js if not already loaded
+    if (!window.pdfjsLib) {
+      await new Promise((resolve, reject) => {
+        const script = document.createElement('script')
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+        script.onload = resolve
+        script.onerror = () => reject(new Error('Failed to load PDF.js'))
+        document.head.appendChild(script)
+      })
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+    }
+
+    const arrayBuffer = await file.arrayBuffer()
+    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
+    const images = []
+    const maxPages = Math.min(pdf.numPages, 20) // Limit to 20 pages
+
+    for (let i = 1; i <= maxPages; i++) {
+      const page = await pdf.getPage(i)
+      const scale = 2.0 // High quality for OCR
+      const viewport = page.getViewport({ scale })
+      const canvas = document.createElement('canvas')
+      canvas.width = viewport.width
+      canvas.height = viewport.height
+      const ctx = canvas.getContext('2d')
+      await page.render({ canvasContext: ctx, viewport }).promise
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
+      images.push(dataUrl.split(',')[1])
+    }
+
+    return images
+  }
+
   async function handleLEMFileSelect(event) {
     const files = Array.from(event.target.files)
     if (files.length === 0) return
@@ -242,20 +277,29 @@ function ContractorLEMs() {
         }
 
         const isPDF = file.type === 'application/pdf'
-        const base64 = await fileToBase64(file)
-        const mediaType = isPDF ? 'application/pdf' : (file.type || 'image/jpeg')
 
-        // Build the content block - PDFs use 'document' type, images use 'image' type
-        const fileContent = isPDF
-          ? { type: 'document', source: { type: 'base64', media_type: mediaType, data: base64 } }
-          : { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } }
+        // Build image content blocks - for PDFs, convert each page to an image
+        let imageBlocks = []
+        if (isPDF) {
+          const pageImages = await pdfToImages(file)
+          imageBlocks = pageImages.map(base64 => ({
+            type: 'image',
+            source: { type: 'base64', media_type: 'image/jpeg', data: base64 }
+          }))
+        } else {
+          const base64 = await fileToBase64(file)
+          imageBlocks = [{
+            type: 'image',
+            source: { type: 'base64', media_type: file.type || 'image/jpeg', data: base64 }
+          }]
+        }
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             'x-api-key': anthropicApiKey,
-            'anthropic-version': '2024-10-22',
+            'anthropic-version': '2023-06-01',
             'anthropic-dangerous-direct-browser-access': 'true'
           },
           body: JSON.stringify({
@@ -264,7 +308,7 @@ function ContractorLEMs() {
             messages: [{
               role: 'user',
               content: [
-                fileContent,
+                ...imageBlocks,
                 {
                   type: 'text',
                   text: `Analyze this contractor LEM (Labour, Equipment, Materials) document. Extract ALL data and return it as a JSON array. Each LEM/ticket in the document should be a separate object.
