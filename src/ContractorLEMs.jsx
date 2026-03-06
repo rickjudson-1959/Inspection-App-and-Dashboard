@@ -255,7 +255,7 @@ function ContractorLEMs() {
           headers: {
             'Content-Type': 'application/json',
             'x-api-key': anthropicApiKey,
-            'anthropic-version': '2025-01-01',
+            'anthropic-version': '2024-10-22',
             'anthropic-dangerous-direct-browser-access': 'true'
           },
           body: JSON.stringify({
