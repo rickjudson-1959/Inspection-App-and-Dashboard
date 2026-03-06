@@ -279,20 +279,32 @@ function ContractorLEMs() {
         const isPDF = file.type === 'application/pdf'
 
         // Build image content blocks - for PDFs, convert each page to an image
-        let imageBlocks = []
+        let allImageBlocks = []
         if (isPDF) {
           const pageImages = await pdfToImages(file)
-          imageBlocks = pageImages.map(base64 => ({
+          allImageBlocks = pageImages.map(base64 => ({
             type: 'image',
             source: { type: 'base64', media_type: 'image/jpeg', data: base64 }
           }))
         } else {
           const base64 = await fileToBase64(file)
-          imageBlocks = [{
+          allImageBlocks = [{
             type: 'image',
             source: { type: 'base64', media_type: file.type || 'image/jpeg', data: base64 }
           }]
         }
+
+        // Process in batches of 5 pages to avoid token limits
+        const PAGES_PER_BATCH = 5
+        const batches = []
+        for (let b = 0; b < allImageBlocks.length; b += PAGES_PER_BATCH) {
+          batches.push(allImageBlocks.slice(b, b + PAGES_PER_BATCH))
+        }
+
+        for (let batchIdx = 0; batchIdx < batches.length; batchIdx++) {
+          const imageBlocks = batches[batchIdx]
+          const pageStart = batchIdx * PAGES_PER_BATCH + 1
+          const pageEnd = pageStart + imageBlocks.length - 1
 
         const response = await fetch('https://api.anthropic.com/v1/messages', {
           method: 'POST',
@@ -304,16 +316,16 @@ function ContractorLEMs() {
           },
           body: JSON.stringify({
             model: 'claude-sonnet-4-20250514',
-            max_tokens: 4000,
+            max_tokens: 16000,
             messages: [{
               role: 'user',
               content: [
                 ...imageBlocks,
                 {
                   type: 'text',
-                  text: `Analyze this contractor LEM (Labour, Equipment, Materials) document. Extract ALL data and return it as a JSON array. Each LEM/ticket in the document should be a separate object.
+                  text: `You are looking at ${imageBlocks.length} page(s) of a contractor LEM (Labour, Equipment, Materials) document. You MUST extract data from EVERY page. Each page is typically a separate daily LEM/ticket.
 
-Return ONLY a JSON array (no other text):
+Return ONLY a JSON array with one object PER LEM/ticket found across ALL ${imageBlocks.length} pages (no other text):
 [
   {
     "field_log_id": "the ticket/field log number",
@@ -344,12 +356,13 @@ Return ONLY a JSON array (no other text):
 ]
 
 CRITICAL RULES:
+- There are ${imageBlocks.length} pages. Extract a LEM from EVERY page. Do NOT stop after the first page.
 - List EVERY person as a SEPARATE entry with their full name. Do NOT group workers.
 - List EVERY piece of equipment as a SEPARATE entry. Do NOT group equipment.
-- If multiple LEMs/tickets appear in the document, return each as a separate object in the array.
+- Each page that has a different ticket number, date, or foreman is a SEPARATE LEM object.
 - Use YYYY-MM-DD date format.
 - If rates are not visible, use 0.
-- Extract ALL entries you can read.
+- Extract ALL entries you can read from ALL pages.
 - Return ONLY the JSON array.`
                 }
               ]
@@ -359,7 +372,7 @@ CRITICAL RULES:
 
         if (!response.ok) {
           const errText = await response.text()
-          errors.push(`${file.name}: API error ${response.status} - ${errText.substring(0, 200)}`)
+          errors.push(`${file.name} (pages ${pageStart}-${pageEnd}): API error ${response.status} - ${errText.substring(0, 200)}`)
           continue
         }
 
@@ -369,14 +382,14 @@ CRITICAL RULES:
         // Parse JSON array from response
         const jsonMatch = content.match(/\[[\s\S]*\]/)
         if (!jsonMatch) {
-          errors.push(`${file.name}: Could not extract data from this document.`)
+          errors.push(`${file.name} (pages ${pageStart}-${pageEnd}): Could not extract data.`)
           continue
         }
 
         const extracted = JSON.parse(jsonMatch[0])
-        const lemsFromFile = Array.isArray(extracted) ? extracted : [extracted]
+        const lemsFromBatch = Array.isArray(extracted) ? extracted : [extracted]
 
-        lemsFromFile.forEach(lem => {
+        lemsFromBatch.forEach(lem => {
           // Calculate total costs from entries
           const totalLabourCost = (lem.labour_entries || []).reduce((sum, e) => {
             return sum + ((parseFloat(e.rt_hours) || 0) * (parseFloat(e.rt_rate) || 0)) +
@@ -399,6 +412,7 @@ CRITICAL RULES:
             _contractor: lem.contractor || ''
           })
         })
+        } // end batch loop
       } catch (err) {
         errors.push(`${file.name}: ${err.message}`)
       }
