@@ -257,6 +257,19 @@ const ITEM_TYPES = [
       { name: 'status', label: 'Status', type: 'select', options: ['Completed - Passed', 'In Progress', 'Pending Re-test'] },
       { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Details...' }
     ]
+  },
+  {
+    id: 'counterbore_transition',
+    label: '📐 Counterbore/Transition',
+    color: '#5c6bc0',
+    fields: [
+      { name: 'weld_number', label: 'Weld Number', type: 'text', placeholder: 'e.g., TI-001' },
+      { name: 'upi_type', label: 'Type', type: 'select', options: ['Counterbore', 'Transition', 'Both'] },
+      { name: 'kp_location', label: 'KP', type: 'text', placeholder: '0+000' },
+      { name: 'quantity', label: 'Quantity', type: 'number' },
+      { name: 'status', label: 'Status', type: 'select', options: ['Completed - Accepted', 'Completed - Rejected', 'In Progress', 'Pending'] },
+      { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Details...' }
+    ]
   }
 ]
 

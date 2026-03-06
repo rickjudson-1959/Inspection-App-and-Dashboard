@@ -17,7 +17,42 @@ const CONCEALED_WORK_ACTIVITIES = [
 // ─────────────────────────────────────────────────────────────
 
 /**
- * Photo Completeness (25% weight)
+ * Report Completeness (15% weight)
+ * Checks report-level fields: safety notes, land/environment, visitors
+ */
+function scoreReportCompleteness(reportData) {
+  const issues = []
+  let totalChecks = 3
+  let passed = 0
+
+  const safetyNotes = reportData?.safetyNotes || ''
+  const landEnvironment = reportData?.landEnvironment || ''
+  const visitors = reportData?.visitors || []
+
+  if (safetyNotes.trim()) {
+    passed++
+  } else {
+    issues.push('Safety Notes is empty — describe any safety observations, toolbox talks, or hazard assessments in the "Safety" section')
+  }
+
+  if (landEnvironment.trim()) {
+    passed++
+  } else {
+    issues.push('Land/Environment Notes is empty — document land conditions, environmental observations, or mitigation measures in the "Land & Environment" section')
+  }
+
+  if (visitors.length > 0) {
+    passed++
+  } else {
+    issues.push('No visitors logged — add any site visitors (company reps, regulators, landowners) in the "Visitors" section, or note "None" in Safety Notes')
+  }
+
+  const score = Math.round((passed / totalChecks) * 100)
+  return { score, weight: 15, issues }
+}
+
+/**
+ * Photo Completeness (20% weight)
  * Concealed-work activities with photos / total concealed-work blocks
  */
 function scorePhotoCompleteness(activityBlocks) {
@@ -29,7 +64,7 @@ function scorePhotoCompleteness(activityBlocks) {
   })
 
   if (concealedBlocks.length === 0) {
-    return { score: 100, weight: 25, issues: [] }
+    return { score: 100, weight: 20, issues: [] }
   }
 
   const withPhotos = concealedBlocks.filter(
@@ -44,7 +79,7 @@ function scorePhotoCompleteness(activityBlocks) {
     issues.push(`Block #${block._blockNum} "${block.activityType}" (KP ${block.startKP || '?'}) — this work will be buried/hidden. Add photos BEFORE it is covered up in the "Work Photos" section`)
   }
 
-  return { score, weight: 25, issues }
+  return { score, weight: 20, issues }
 }
 
 /**
@@ -62,7 +97,7 @@ function scoreDirective050(activityBlocks) {
 
   if (drillingBlocks.length === 0) {
     // No drilling activities = N/A, give full score
-    return { score: 100, weight: 20, issues: [] }
+    return { score: 100, weight: 15, issues: [] }
   }
 
   let totalChecks = 0
@@ -108,7 +143,7 @@ function scoreDirective050(activityBlocks) {
   }
 
   const score = totalChecks > 0 ? Math.round((passedChecks / totalChecks) * 100) : 100
-  return { score, weight: 20, issues }
+  return { score, weight: 15, issues }
 }
 
 /**
@@ -288,14 +323,14 @@ function scoreLabourEquipment(activityBlocks) {
 }
 
 /**
- * Mentor Alert Resolution (10% weight)
+ * Mentor Alert Resolution (5% weight)
  * Acknowledged alerts / total alerts (100 if no alerts)
  */
 function scoreMentorAlertResolution(mentorAlerts) {
   const allAlerts = mentorAlerts || []
 
   if (allAlerts.length === 0) {
-    return { score: 100, weight: 10, issues: [] }
+    return { score: 100, weight: 5, issues: [] }
   }
 
   const resolved = allAlerts.filter(
@@ -310,7 +345,7 @@ function scoreMentorAlertResolution(mentorAlerts) {
     issues.push(`${unresolved.length} mentor alert${unresolved.length !== 1 ? 's' : ''} unresolved — look for the yellow alert banners within your activity blocks and tap "Acknowledge" or "Override" on each one`)
   }
 
-  return { score, weight: 10, issues }
+  return { score, weight: 5, issues }
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -327,6 +362,7 @@ function scoreMentorAlertResolution(mentorAlerts) {
  */
 function computeHealthScore(activityBlocks, reportData, mentorAlerts) {
   const categories = {
+    reportCompleteness: scoreReportCompleteness(reportData),
     photoCompleteness: scorePhotoCompleteness(activityBlocks),
     directive050: scoreDirective050(activityBlocks),
     fieldCompleteness: scoreFieldCompleteness(activityBlocks),

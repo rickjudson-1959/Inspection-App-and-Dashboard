@@ -1845,7 +1845,7 @@ CRITICAL - Individual Entries Required:
     try {
       const { data, error } = await supabase
         .from('daily_reports')
-        .select('activities, date')
+        .select('activity_blocks, date')
         .eq('pipeline', pipeline)
         .order('date', { ascending: false })
         .neq('date', selectedDate) // Exclude current date
@@ -1860,20 +1860,19 @@ CRITICAL - Individual Entries Required:
       
       // Search through reports for matching activity types
       for (const report of data || []) {
-        const activities = report.activities || []
-        for (const activity of activities) {
+        const blocks = report.activity_blocks || []
+        for (const activity of blocks) {
           if (activity.activityType === activityType) {
-            // Calculate meters from startKP and endKP
-            if (activity.startKP && activity.endKP) {
+            // Use metersToday if available, otherwise fall back to KP calculation
+            const storedMeters = parseFloat(activity.metersToday) || 0
+            if (storedMeters > 0) {
+              totalPreviousMeters += storedMeters
+            } else if (activity.startKP && activity.endKP) {
               const startM = parseKPToMetres(activity.startKP)
               const endM = parseKPToMetres(activity.endKP)
               if (startM !== null && endM !== null) {
                 totalPreviousMeters += Math.abs(endM - startM)
               }
-            }
-            // Also check for stored metersToday value
-            if (activity.metersToday) {
-              totalPreviousMeters += parseFloat(activity.metersToday) || 0
             }
           }
         }
@@ -1945,11 +1944,11 @@ CRITICAL - Individual Entries Required:
   useEffect(() => {
     const timer = setTimeout(() => {
       const flatAlerts = Object.values(mentorAlerts).flat()
-      const result = computeHealthScore(activityBlocks, {}, flatAlerts)
+      const result = computeHealthScore(activityBlocks, { safetyNotes, landEnvironment, visitors }, flatAlerts)
       setHealthScore(result)
     }, 1000)
     return () => clearTimeout(timer)
-  }, [activityBlocks, mentorAlerts])
+  }, [activityBlocks, mentorAlerts, safetyNotes, landEnvironment, visitors])
 
   // Build compact report context for "Ask the Agent" so the AI can answer
   // questions about the inspector's current report data
@@ -6921,162 +6920,179 @@ CRITICAL - Individual Entries Required:
         y += 3
       }
 
-      // Counterbore/Transition Log (Welding - Tie-in)
+      // Counterbore/Transition Log (Welding - Tie-in) — supports multi-weld array and old flat format
       if (block.activityType === 'Welding - Tie-in' && block.counterboreData) {
-        const cb = block.counterboreData
-        const cbFields = [
-          ['Weld Number', cb.weldNumber], ['Welder ID', cb.welderID],
-          ['Welder Name', cb.welderName], ['WPS Number', cb.wpsNumber],
-          ['Preheat Temp (°C)', cb.preheatTemp], ['Interpass Min (°C)', cb.interpassTempMin],
-          ['Interpass Max (°C)', cb.interpassTempMax], ['Location Type', cb.locationType],
-          ['Location Description', cb.locationDescription]
-        ]
-        const hasData = cbFields.some(([, v]) => v) || cb.counterboreRequired
-        if (hasData) {
+        const cbd = block.counterboreData
+        // Normalize: support both new welds array and old flat format
+        const cbWelds = cbd.welds ? cbd.welds : (cbd.weldNumber || cbd.welderID || cbd.counterboreRequired || cbd.ndtType) ? [cbd] : []
+        const cbComments = cbd.comments || ''
+
+        if (cbWelds.length > 0) {
           checkPageBreak(25)
           addSubHeader('Counterbore / Transition', '#e8eaf6')
 
-          // Weld info fields
-          let fc = 0
-          cbFields.forEach(([label, val]) => {
-            if (val) {
-              if (fc > 0 && fc % 2 === 0) y += 5
-              checkPageBreak(6)
-              const col = fc % 2 === 0 ? leftCol : rightCol
-              addField(label, val, col, 45)
-              fc++
-            }
-          })
-          if (fc > 0) y += 6
-
-          // Counterbore required flag
-          if (cb.counterboreRequired) {
-            addField('Counterbore Required', cb.counterboreRequired, leftCol, 45)
-            y += 6
-          }
-
-          // Diagram values
-          if (cb.counterboreRequired === 'Yes' && cb.diagramValues) {
-            const dv = cb.diagramValues
-            const dvFields = [
-              ['Bore Length (mm)', dv.boreLength], ['Taper Angle (°)', dv.taperAngle],
-              ['Transition WT (mm)', dv.transitionWT], ['Bevel Angle (°)', dv.bevelAngle]
-            ]
-            if (dvFields.some(([, v]) => v)) {
-              checkPageBreak(10)
-              setColor('#e8eaf6', 'fill')
-              doc.rect(margin + 2, y, contentWidth - 4, 4.5, 'F')
-              setColor(BRAND.navy, 'text')
-              doc.setFont('helvetica', 'bold')
-              doc.setFontSize(7)
-              doc.text('Diagram Values', margin + 4, y + 3.2)
-              y += 6
-              let dfc = 0
-              dvFields.forEach(([label, val]) => {
-                if (val) {
-                  if (dfc > 0 && dfc % 2 === 0) y += 5
-                  checkPageBreak(6)
-                  const col = dfc % 2 === 0 ? leftCol : rightCol
-                  addField(label, val, col, 45)
-                  dfc++
-                }
-              })
-              if (dfc > 0) y += 6
-            }
-          }
-
-          // Transition records table
-          if (cb.counterboreRequired === 'Yes' && cb.transitions?.length > 0) {
-            const trans = cb.transitions.filter(t => t.transitionNo || t.heatPipeNo || t.acceptable)
-            if (trans.length > 0) {
-              checkPageBreak(15)
-              setColor('#e8eaf6', 'fill')
-              doc.rect(margin + 2, y, contentWidth - 4, 4.5, 'F')
-              setColor(BRAND.navy, 'text')
-              doc.setFont('helvetica', 'bold')
-              doc.setFontSize(7)
-              doc.text(`Transition Records (${trans.length})`, margin + 4, y + 3.2)
-              y += 6
-
-              // Table header
+          cbWelds.forEach((cb, wIdx) => {
+            // Weld header for multi-weld
+            if (cbWelds.length > 1) {
+              checkPageBreak(8)
               setColor('#5c6bc0', 'fill')
-              doc.rect(margin, y, contentWidth, 5, 'F')
+              doc.rect(margin + 2, y, contentWidth - 4, 4.5, 'F')
               setColor(BRAND.white, 'text')
               doc.setFont('helvetica', 'bold')
-              doc.setFontSize(5)
-              doc.text('TRANS #', margin + 2, y + 3.5)
-              doc.text('HEAT/PIPE #', margin + 22, y + 3.5)
-              doc.text('OVALITY Q1-Q3', margin + 52, y + 3.5)
-              doc.text('Q2-Q4', margin + 75, y + 3.5)
-              doc.text('WT Q1-Q4', margin + 92, y + 3.5)
-              doc.text('TAPER', margin + 120, y + 3.5)
-              doc.text('BORE LEN', margin + 138, y + 3.5)
-              doc.text('ACCEPT', margin + 162, y + 3.5)
+              doc.setFontSize(7)
+              doc.text(`Weld #${wIdx + 1}${cb.weldNumber ? ' — ' + cb.weldNumber : ''}`, margin + 4, y + 3.2)
               y += 6
-
-              trans.forEach((t, i) => {
-                checkPageBreak(5)
-                if (i % 2 === 0) { setColor(BRAND.grayLight, 'fill'); doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F') }
-                setColor(BRAND.black, 'text')
-                doc.setFont('helvetica', 'normal')
-                doc.setFontSize(5)
-                doc.text(String(t.transitionNo || '-'), margin + 2, y + 2.5)
-                doc.text(String(t.heatPipeNo || '-').substring(0, 12), margin + 22, y + 2.5)
-                doc.text(String(t.ovalityQ1Q3 || '-'), margin + 52, y + 2.5)
-                doc.text(String(t.ovalityQ2Q4 || '-'), margin + 75, y + 2.5)
-                const wt = [t.wallThicknessQ1, t.wallThicknessQ2, t.wallThicknessQ3, t.wallThicknessQ4].filter(Boolean).join('/')
-                doc.text(wt || '-', margin + 92, y + 2.5)
-                doc.text(String(t.taperAngle || '-'), margin + 120, y + 2.5)
-                doc.text(String(t.counterBoreLength || '-'), margin + 138, y + 2.5)
-                doc.text(String(t.acceptable || '-'), margin + 162, y + 2.5)
-                y += 4.5
-              })
-              y += 3
             }
-          }
 
-          // NDT
-          if (cb.ndtType || cb.ndtResult || cb.ndtReportNo) {
-            checkPageBreak(10)
-            let nfc = 0
-            const ndtFields = [
-              ['NDT Type', cb.ndtType], ['NDT Result', cb.ndtResult], ['NDT Report No.', cb.ndtReportNo]
+            // Weld info fields
+            const cbFields = [
+              ['Weld Number', cb.weldNumber], ['Welder ID', cb.welderID],
+              ['Welder Name', cb.welderName], ['WPS Number', cb.wpsNumber],
+              ['Preheat Temp', cb.preheatTemp], ['Interpass Min', cb.interpassTempMin],
+              ['Interpass Max', cb.interpassTempMax], ['Location Type', cb.locationType],
+              ['Location Description', cb.locationDescription]
             ]
-            ndtFields.forEach(([label, val]) => {
+            let fc = 0
+            cbFields.forEach(([label, val]) => {
               if (val) {
-                if (nfc > 0 && nfc % 2 === 0) y += 5
+                if (fc > 0 && fc % 2 === 0) y += 5
                 checkPageBreak(6)
-                const col = nfc % 2 === 0 ? leftCol : rightCol
-                addField(label, val, col, 35)
-                nfc++
+                const col = fc % 2 === 0 ? leftCol : rightCol
+                addField(label, val, col, 45)
+                fc++
               }
             })
-            if (nfc > 0) y += 6
-          }
+            if (fc > 0) y += 6
 
-          // Repair info
-          if (cb.repairRequired) {
-            checkPageBreak(8)
-            addField('Repair Required', cb.repairRequired, leftCol, 35)
-            if (cb.repairRequired === 'Yes') {
-              let rfc = 0
-              y += 5
-              const repFields = [['Repair Type', cb.repairType], ['Repair WPS', cb.repairWPS], ['Repair Welder', cb.repairWelder]]
-              repFields.forEach(([label, val]) => {
+            if (cb.counterboreRequired) {
+              addField('Counterbore Required', cb.counterboreRequired, leftCol, 45)
+              y += 6
+            }
+
+            // Diagram values
+            if (cb.counterboreRequired === 'Yes' && cb.diagramValues) {
+              const dv = cb.diagramValues
+              const dvFields = [
+                ['Bore Length (mm)', dv.boreLength], ['Taper Angle', dv.taperAngle],
+                ['Transition WT (mm)', dv.transitionWT], ['Bevel Angle', dv.bevelAngle]
+              ]
+              if (dvFields.some(([, v]) => v)) {
+                checkPageBreak(10)
+                setColor('#e8eaf6', 'fill')
+                doc.rect(margin + 2, y, contentWidth - 4, 4.5, 'F')
+                setColor(BRAND.navy, 'text')
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(7)
+                doc.text('Diagram Values', margin + 4, y + 3.2)
+                y += 6
+                let dfc = 0
+                dvFields.forEach(([label, val]) => {
+                  if (val) {
+                    if (dfc > 0 && dfc % 2 === 0) y += 5
+                    checkPageBreak(6)
+                    const col = dfc % 2 === 0 ? leftCol : rightCol
+                    addField(label, val, col, 45)
+                    dfc++
+                  }
+                })
+                if (dfc > 0) y += 6
+              }
+            }
+
+            // Transition records table
+            if (cb.counterboreRequired === 'Yes' && cb.transitions?.length > 0) {
+              const trans = cb.transitions.filter(t => t.transitionNo || t.heatPipeNo || t.acceptable)
+              if (trans.length > 0) {
+                checkPageBreak(15)
+                setColor('#e8eaf6', 'fill')
+                doc.rect(margin + 2, y, contentWidth - 4, 4.5, 'F')
+                setColor(BRAND.navy, 'text')
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(7)
+                doc.text(`Transition Records (${trans.length})`, margin + 4, y + 3.2)
+                y += 6
+
+                setColor('#5c6bc0', 'fill')
+                doc.rect(margin, y, contentWidth, 5, 'F')
+                setColor(BRAND.white, 'text')
+                doc.setFont('helvetica', 'bold')
+                doc.setFontSize(5)
+                doc.text('TRANS #', margin + 2, y + 3.5)
+                doc.text('HEAT/PIPE #', margin + 22, y + 3.5)
+                doc.text('OVALITY Q1-Q3', margin + 52, y + 3.5)
+                doc.text('Q2-Q4', margin + 75, y + 3.5)
+                doc.text('WT Q1-Q4', margin + 92, y + 3.5)
+                doc.text('TAPER', margin + 120, y + 3.5)
+                doc.text('BORE LEN', margin + 138, y + 3.5)
+                doc.text('ACCEPT', margin + 162, y + 3.5)
+                y += 6
+
+                trans.forEach((t, i) => {
+                  checkPageBreak(5)
+                  if (i % 2 === 0) { setColor(BRAND.grayLight, 'fill'); doc.rect(margin, y - 0.5, contentWidth, 4.5, 'F') }
+                  setColor(BRAND.black, 'text')
+                  doc.setFont('helvetica', 'normal')
+                  doc.setFontSize(5)
+                  doc.text(String(t.transitionNo || '-'), margin + 2, y + 2.5)
+                  doc.text(String(t.heatPipeNo || '-').substring(0, 12), margin + 22, y + 2.5)
+                  doc.text(String(t.ovalityQ1Q3 || '-'), margin + 52, y + 2.5)
+                  doc.text(String(t.ovalityQ2Q4 || '-'), margin + 75, y + 2.5)
+                  const wt = [t.wallThicknessQ1, t.wallThicknessQ2, t.wallThicknessQ3, t.wallThicknessQ4].filter(Boolean).join('/')
+                  doc.text(wt || '-', margin + 92, y + 2.5)
+                  doc.text(String(t.taperAngle || '-'), margin + 120, y + 2.5)
+                  doc.text(String(t.counterBoreLength || '-'), margin + 138, y + 2.5)
+                  doc.text(String(t.acceptable || '-'), margin + 162, y + 2.5)
+                  y += 4.5
+                })
+                y += 3
+              }
+            }
+
+            // NDT
+            if (cb.ndtType || cb.ndtResult || cb.ndtReportNo) {
+              checkPageBreak(10)
+              let nfc = 0
+              const ndtFields = [
+                ['NDT Type', cb.ndtType], ['NDT Result', cb.ndtResult], ['NDT Report No.', cb.ndtReportNo]
+              ]
+              ndtFields.forEach(([label, val]) => {
                 if (val) {
-                  if (rfc > 0 && rfc % 2 === 0) y += 5
+                  if (nfc > 0 && nfc % 2 === 0) y += 5
                   checkPageBreak(6)
-                  const col = rfc % 2 === 0 ? leftCol : rightCol
+                  const col = nfc % 2 === 0 ? leftCol : rightCol
                   addField(label, val, col, 35)
-                  rfc++
+                  nfc++
                 }
               })
+              if (nfc > 0) y += 6
             }
-            y += 6
-          }
 
-          // Comments
-          if (cb.comments) {
+            // Repair info
+            if (cb.repairRequired) {
+              checkPageBreak(8)
+              addField('Repair Required', cb.repairRequired, leftCol, 35)
+              if (cb.repairRequired === 'Yes') {
+                let rfc = 0
+                y += 5
+                const repFields = [['Repair Type', cb.repairType], ['Repair WPS', cb.repairWPS], ['Repair Welder', cb.repairWelder]]
+                repFields.forEach(([label, val]) => {
+                  if (val) {
+                    if (rfc > 0 && rfc % 2 === 0) y += 5
+                    checkPageBreak(6)
+                    const col = rfc % 2 === 0 ? leftCol : rightCol
+                    addField(label, val, col, 35)
+                    rfc++
+                  }
+                })
+              }
+              y += 6
+            }
+
+            if (cbWelds.length > 1 && wIdx < cbWelds.length - 1) y += 3
+          })
+
+          // Global comments
+          if (cbComments) {
             checkPageBreak(10)
             setColor(BRAND.gray, 'text')
             doc.setFont('helvetica', 'normal')
@@ -7084,7 +7100,7 @@ CRITICAL - Individual Entries Required:
             doc.text('Comments:', margin + 2, y)
             y += 4
             setColor(BRAND.black, 'text')
-            const cbLines = doc.splitTextToSize(cb.comments, contentWidth - 6)
+            const cbLines = doc.splitTextToSize(cbComments, contentWidth - 6)
             cbLines.forEach(line => {
               checkPageBreak(4)
               doc.text(line, margin + 2, y)
@@ -9804,7 +9820,7 @@ CRITICAL - Individual Entries Required:
               </div>
               <div style={{ fontSize: '13px', color: '#856404' }}>
                 Before submitting, check each category below to ensure nothing is missed:
-                <strong> Mats, Rock Trench, Extra Depth, Fencing, Ramps, Goal Posts, Access Roads, Hydrovac, Erosion Control, Signage, Equipment Cleaning, Welding</strong>
+                <strong> Mats, Rock Trench, Extra Depth, Fencing, Ramps, Goal Posts, Access Roads, Hydrovac, Erosion Control, Signage, Equipment Cleaning, Welding, Counterbore/Transition</strong>
               </div>
             </div>
             
