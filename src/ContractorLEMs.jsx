@@ -232,13 +232,28 @@ function ContractorLEMs() {
       const page = await pdf.getPage(i)
       const scale = 2.0 // High quality for OCR
       const viewport = page.getViewport({ scale })
+
+      // Render the page as-is first
       const canvas = document.createElement('canvas')
       canvas.width = viewport.width
       canvas.height = viewport.height
       const ctx = canvas.getContext('2d')
       await page.render({ canvasContext: ctx, viewport }).promise
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.9)
-      images.push(dataUrl.split(',')[1])
+
+      // If page is landscape (wider than tall), rotate it 90° clockwise to portrait
+      // This handles sideways-scanned LEMs
+      if (viewport.width > viewport.height * 1.2) {
+        const rotatedCanvas = document.createElement('canvas')
+        rotatedCanvas.width = viewport.height
+        rotatedCanvas.height = viewport.width
+        const rCtx = rotatedCanvas.getContext('2d')
+        rCtx.translate(rotatedCanvas.width, 0)
+        rCtx.rotate(Math.PI / 2)
+        rCtx.drawImage(canvas, 0, 0)
+        images.push(rotatedCanvas.toDataURL('image/jpeg', 0.9).split(',')[1])
+      } else {
+        images.push(canvas.toDataURL('image/jpeg', 0.9).split(',')[1])
+      }
     }
 
     return images
