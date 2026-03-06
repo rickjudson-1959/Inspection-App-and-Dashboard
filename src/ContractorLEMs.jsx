@@ -1,15 +1,18 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
+import { useOrgQuery } from './utils/queryHelpers.js'
 import { supabase } from './supabase'
 
 const MAX_DAILY_HOURS = 16
+const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
 function ContractorLEMs() {
   const navigate = useNavigate()
   const { signOut, userProfile } = useAuth()
   const { orgPath } = useOrgPath()
+  const { getOrgId } = useOrgQuery()
   const [lems, setLems] = useState([])
   const [loading, setLoading] = useState(true)
   const [selectedLem, setSelectedLem] = useState(null)
@@ -18,6 +21,11 @@ function ContractorLEMs() {
   const [expandedCrew, setExpandedCrew] = useState(null)
   const [validationAlerts, setValidationAlerts] = useState([])
   const [showAlerts, setShowAlerts] = useState(false)
+  const [showUpload, setShowUpload] = useState(false)
+  const [uploading, setUploading] = useState(false)
+  const [uploadPreview, setUploadPreview] = useState(null)
+  const [uploadErrors, setUploadErrors] = useState([])
+  const fileInputRef = useRef(null)
 
   useEffect(() => {
     fetchLems()
@@ -191,6 +199,218 @@ function ContractorLEMs() {
     })
   }
 
+  // PDF/Image upload with OCR
+  function fileToBase64(file) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => resolve(reader.result.split(',')[1])
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function handleLEMFileSelect(event) {
+    const files = Array.from(event.target.files)
+    if (files.length === 0) return
+    setUploadErrors([])
+    setUploadPreview(null)
+
+    const valid = files.filter(f =>
+      f.type === 'application/pdf' ||
+      f.type.startsWith('image/')
+    )
+    if (valid.length !== files.length) {
+      setUploadErrors(['Only PDF and image files (JPG, PNG) are accepted.'])
+      return
+    }
+
+    if (!anthropicApiKey) {
+      setUploadErrors(['Claude API key not configured. Add VITE_ANTHROPIC_API_KEY to your .env file.'])
+      return
+    }
+
+    setUploading(true)
+    const allExtracted = []
+    const errors = []
+
+    for (const file of valid) {
+      try {
+        const base64 = await fileToBase64(file)
+        const mediaType = file.type === 'application/pdf' ? 'application/pdf' : (file.type || 'image/jpeg')
+
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': anthropicApiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 4000,
+            messages: [{
+              role: 'user',
+              content: [
+                {
+                  type: mediaType === 'application/pdf' ? 'document' : 'image',
+                  source: { type: 'base64', media_type: mediaType, data: base64 }
+                },
+                {
+                  type: 'text',
+                  text: `Analyze this contractor LEM (Labour, Equipment, Materials) document. Extract ALL data and return it as a JSON array. Each LEM/ticket in the document should be a separate object.
+
+Return ONLY a JSON array (no other text):
+[
+  {
+    "field_log_id": "the ticket/field log number",
+    "date": "YYYY-MM-DD format",
+    "foreman": "foreman name",
+    "contractor": "contractor company name if visible",
+    "account_number": "account or cost code if visible",
+    "labour_entries": [
+      {
+        "name": "employee full name",
+        "employee_id": "employee ID if visible",
+        "type": "classification (e.g. Welder, Labourer, Operator)",
+        "rt_hours": number of regular hours,
+        "rt_rate": hourly rate if visible (0 if not),
+        "ot_hours": number of overtime hours (0 if none),
+        "ot_rate": overtime rate if visible (0 if not)
+      }
+    ],
+    "equipment_entries": [
+      {
+        "equipment_id": "equipment ID/unit number if visible",
+        "type": "equipment type (e.g. Excavator, Side Boom)",
+        "hours": number of hours,
+        "rate": hourly rate if visible (0 if not)
+      }
+    ]
+  }
+]
+
+CRITICAL RULES:
+- List EVERY person as a SEPARATE entry with their full name. Do NOT group workers.
+- List EVERY piece of equipment as a SEPARATE entry. Do NOT group equipment.
+- If multiple LEMs/tickets appear in the document, return each as a separate object in the array.
+- Use YYYY-MM-DD date format.
+- If rates are not visible, use 0.
+- Extract ALL entries you can read.
+- Return ONLY the JSON array.`
+                }
+              ]
+            }]
+          })
+        })
+
+        if (!response.ok) {
+          const errText = await response.text()
+          errors.push(`${file.name}: API error ${response.status} - ${errText.substring(0, 200)}`)
+          continue
+        }
+
+        const data = await response.json()
+        const content = data.content[0]?.text || ''
+
+        // Parse JSON array from response
+        const jsonMatch = content.match(/\[[\s\S]*\]/)
+        if (!jsonMatch) {
+          errors.push(`${file.name}: Could not extract data from this document.`)
+          continue
+        }
+
+        const extracted = JSON.parse(jsonMatch[0])
+        const lemsFromFile = Array.isArray(extracted) ? extracted : [extracted]
+
+        lemsFromFile.forEach(lem => {
+          // Calculate total costs from entries
+          const totalLabourCost = (lem.labour_entries || []).reduce((sum, e) => {
+            return sum + ((parseFloat(e.rt_hours) || 0) * (parseFloat(e.rt_rate) || 0)) +
+                         ((parseFloat(e.ot_hours) || 0) * (parseFloat(e.ot_rate) || 0))
+          }, 0)
+          const totalEquipmentCost = (lem.equipment_entries || []).reduce((sum, e) => {
+            return sum + ((parseFloat(e.hours) || 0) * (parseFloat(e.rate) || 0))
+          }, 0)
+
+          allExtracted.push({
+            field_log_id: lem.field_log_id || `LEM-${Date.now()}`,
+            date: lem.date || '',
+            foreman: lem.foreman || '',
+            account_number: lem.account_number || '',
+            labour_entries: lem.labour_entries || [],
+            equipment_entries: lem.equipment_entries || [],
+            total_labour_cost: totalLabourCost,
+            total_equipment_cost: totalEquipmentCost,
+            _source_file: file.name,
+            _contractor: lem.contractor || ''
+          })
+        })
+      } catch (err) {
+        errors.push(`${file.name}: ${err.message}`)
+      }
+    }
+
+    setUploadErrors(errors)
+    setUploadPreview(allExtracted.length > 0 ? allExtracted : null)
+    setUploading(false)
+  }
+
+  async function saveLEMs() {
+    if (!uploadPreview || uploadPreview.length === 0) return
+    setUploading(true)
+
+    try {
+      const orgId = getOrgId()
+      const toInsert = uploadPreview.map(lem => ({
+        field_log_id: lem.field_log_id,
+        date: lem.date,
+        foreman: lem.foreman,
+        account_number: lem.account_number,
+        labour_entries: lem.labour_entries,
+        equipment_entries: lem.equipment_entries,
+        total_labour_cost: lem.total_labour_cost,
+        total_equipment_cost: lem.total_equipment_cost,
+        organization_id: orgId
+      }))
+
+      // Check for duplicates
+      const fieldLogIds = toInsert.map(l => l.field_log_id)
+      const { data: existing } = await supabase
+        .from('contractor_lems')
+        .select('field_log_id')
+        .in('field_log_id', fieldLogIds)
+
+      const existingIds = new Set((existing || []).map(e => e.field_log_id))
+      const newLems = toInsert.filter(l => !existingIds.has(l.field_log_id))
+      const skipped = toInsert.length - newLems.length
+
+      if (newLems.length === 0) {
+        alert(`All ${toInsert.length} LEMs already exist in the system.`)
+        setUploading(false)
+        return
+      }
+
+      const { error } = await supabase.from('contractor_lems').insert(newLems)
+      if (error) throw error
+
+      const msg = skipped > 0
+        ? `Saved ${newLems.length} LEMs. Skipped ${skipped} duplicates.`
+        : `Saved ${newLems.length} LEMs successfully.`
+      alert(msg)
+
+      setShowUpload(false)
+      setUploadPreview(null)
+      setUploadErrors([])
+      if (fileInputRef.current) fileInputRef.current.value = ''
+      fetchLems()
+    } catch (err) {
+      alert('Save failed: ' + err.message)
+    } finally {
+      setUploading(false)
+    }
+  }
+
   function applyFilters() {
     let filtered = [...lems]
     if (filter.dateFrom) {
@@ -293,6 +513,7 @@ function ContractorLEMs() {
           <p style={{ margin: '5px 0 0 0', fontSize: '14px', opacity: 0.8 }}>{filteredLems.length} field logs</p>
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
+          <button onClick={() => setShowUpload(true)} style={{ padding: '10px 20px', backgroundColor: '#27ae60', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>Upload LEMs</button>
           <button onClick={() => navigate(orgPath('/admin'))} style={{ padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Admin Portal</button>
           <button onClick={() => navigate(orgPath('/reconciliation'))} style={{ padding: '10px 20px', backgroundColor: '#f39c12', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Reconciliation</button>
           <button onClick={signOut} style={{ padding: '10px 20px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Sign Out</button>
@@ -545,6 +766,142 @@ function ContractorLEMs() {
           </div>
         )}
       </div>
+
+      {/* Upload LEMs Modal */}
+      {showUpload && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 1000 }}>
+          <div style={{ backgroundColor: 'white', borderRadius: '8px', width: '90%', maxWidth: '1000px', maxHeight: '90vh', overflow: 'auto' }}>
+            <div style={{ backgroundColor: '#27ae60', color: 'white', padding: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 1 }}>
+              <div>
+                <h2 style={{ margin: 0 }}>Upload Contractor LEMs</h2>
+                <p style={{ margin: '5px 0 0 0', opacity: 0.9 }}>Upload PDF or photo of contractor LEMs — data is extracted automatically</p>
+              </div>
+              <button onClick={() => { setShowUpload(false); setUploadPreview(null); setUploadErrors([]); if (fileInputRef.current) fileInputRef.current.value = '' }} style={{ padding: '8px 16px', backgroundColor: 'rgba(255,255,255,0.2)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>Close</button>
+            </div>
+            <div style={{ padding: '20px' }}>
+              {/* Instructions */}
+              <div style={{ backgroundColor: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: '8px', padding: '16px', marginBottom: '20px' }}>
+                <h4 style={{ margin: '0 0 8px 0', color: '#0369a1' }}>How it works</h4>
+                <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#334155' }}>
+                  1. Upload PDF or photo files of the contractor's LEMs
+                </p>
+                <p style={{ margin: '0 0 4px 0', fontSize: '13px', color: '#334155' }}>
+                  2. Claude Vision reads the documents and extracts all labour and equipment entries
+                </p>
+                <p style={{ margin: '0', fontSize: '13px', color: '#334155' }}>
+                  3. Review the extracted data, then save to the system for reconciliation
+                </p>
+              </div>
+
+              {/* File Input */}
+              <div style={{ marginBottom: '20px' }}>
+                <label style={{ display: 'block', fontSize: '14px', fontWeight: '600', marginBottom: '8px' }}>Select LEM files</label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".pdf,image/*"
+                  multiple
+                  onChange={handleLEMFileSelect}
+                  disabled={uploading}
+                  style={{ padding: '12px', border: '2px dashed #d1d5db', borderRadius: '8px', width: '100%', cursor: uploading ? 'not-allowed' : 'pointer', backgroundColor: '#f9fafb' }}
+                />
+                <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: '#6b7280' }}>Accepts PDF, JPG, PNG. You can select multiple files.</p>
+              </div>
+
+              {/* Scanning indicator */}
+              {uploading && !uploadPreview && (
+                <div style={{ textAlign: 'center', padding: '40px', backgroundColor: '#f0fdf4', borderRadius: '8px', marginBottom: '20px' }}>
+                  <div style={{ fontSize: '32px', marginBottom: '12px', animation: 'pulse 2s infinite' }}>Scanning documents...</div>
+                  <p style={{ color: '#166534', fontWeight: '500' }}>Claude is reading the LEM documents and extracting data.</p>
+                  <p style={{ color: '#6b7280', fontSize: '13px' }}>This may take a moment per file.</p>
+                </div>
+              )}
+
+              {/* Errors */}
+              {uploadErrors.length > 0 && (
+                <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', padding: '16px', marginBottom: '20px' }}>
+                  <h4 style={{ margin: '0 0 8px 0', color: '#991b1b' }}>Issues ({uploadErrors.length})</h4>
+                  <div style={{ maxHeight: '150px', overflow: 'auto' }}>
+                    {uploadErrors.map((err, i) => (
+                      <p key={i} style={{ margin: '4px 0', fontSize: '13px', color: '#991b1b' }}>{err}</p>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Preview */}
+              {uploadPreview && uploadPreview.length > 0 && (
+                <div>
+                  <h4 style={{ margin: '0 0 12px 0', color: '#166534' }}>Extracted: {uploadPreview.length} LEMs — review before saving</h4>
+                  <div style={{ maxHeight: '400px', overflow: 'auto', border: '1px solid #e5e7eb', borderRadius: '8px' }}>
+                    {uploadPreview.map((lem, idx) => (
+                      <div key={idx} style={{ borderBottom: '2px solid #e5e7eb', padding: '16px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                          <div>
+                            <span style={{ fontWeight: 'bold', fontSize: '16px', marginRight: '12px' }}>{lem.field_log_id}</span>
+                            <span style={{ color: '#6b7280', fontSize: '13px' }}>{lem.date} | {lem.foreman}</span>
+                            {lem._contractor && <span style={{ marginLeft: '12px', backgroundColor: '#e0e7ff', color: '#3730a3', padding: '2px 8px', borderRadius: '4px', fontSize: '11px' }}>{lem._contractor}</span>}
+                            {lem.account_number && <span style={{ marginLeft: '8px', color: '#6b7280', fontSize: '12px' }}>Acct: {lem.account_number}</span>}
+                          </div>
+                          <span style={{ fontSize: '12px', color: '#9ca3af' }}>{lem._source_file}</span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                          {/* Labour */}
+                          <div style={{ backgroundColor: '#f9fafb', borderRadius: '6px', padding: '10px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: '600', color: '#27ae60', textTransform: 'uppercase', marginBottom: '6px' }}>
+                              Labour ({lem.labour_entries.length})
+                            </div>
+                            {lem.labour_entries.length === 0 ? (
+                              <div style={{ fontSize: '12px', color: '#9ca3af' }}>No labour entries</div>
+                            ) : lem.labour_entries.map((e, i) => (
+                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '3px 0', borderBottom: '1px solid #e5e7eb' }}>
+                                <span>{e.name || e.employee_id} <span style={{ color: '#6b7280' }}>({e.type})</span></span>
+                                <span style={{ fontFamily: 'monospace' }}>{(parseFloat(e.rt_hours) || 0) + (parseFloat(e.ot_hours) || 0)}hrs</span>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Equipment */}
+                          <div style={{ backgroundColor: '#f9fafb', borderRadius: '6px', padding: '10px' }}>
+                            <div style={{ fontSize: '11px', fontWeight: '600', color: '#3498db', textTransform: 'uppercase', marginBottom: '6px' }}>
+                              Equipment ({lem.equipment_entries.length})
+                            </div>
+                            {lem.equipment_entries.length === 0 ? (
+                              <div style={{ fontSize: '12px', color: '#9ca3af' }}>No equipment entries</div>
+                            ) : lem.equipment_entries.map((e, i) => (
+                              <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', padding: '3px 0', borderBottom: '1px solid #e5e7eb' }}>
+                                <span>{e.equipment_id ? `${e.equipment_id} - ` : ''}{e.type}</span>
+                                <span style={{ fontFamily: 'monospace' }}>{e.hours}hrs</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '20px' }}>
+                    <button
+                      onClick={() => { setUploadPreview(null); setUploadErrors([]); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                      style={{ padding: '10px 24px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                    >
+                      Clear
+                    </button>
+                    <button
+                      onClick={saveLEMs}
+                      disabled={uploading}
+                      style={{ padding: '10px 24px', backgroundColor: uploading ? '#9ca3af' : '#27ae60', color: 'white', border: 'none', borderRadius: '6px', cursor: uploading ? 'not-allowed' : 'pointer', fontWeight: 'bold', fontSize: '15px' }}
+                    >
+                      {uploading ? 'Saving...' : `Save ${uploadPreview.length} LEMs`}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Validation Alerts Modal */}
       {showAlerts && (
