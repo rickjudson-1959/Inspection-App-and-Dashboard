@@ -20,6 +20,7 @@ export default function LEMReconciliation() {
   const [resolution, setResolution] = useState('accept_inspector')
   const [resolutionNotes, setResolutionNotes] = useState('')
   const [saving, setSaving] = useState(false)
+  const [loadingReview, setLoadingReview] = useState(false)
 
   useEffect(() => { loadLemUploads() }, [])
 
@@ -85,6 +86,21 @@ export default function LEMReconciliation() {
     setSelectedLem({ ...selectedLem, status: 'approved' })
     setLemUploads(prev => prev.map(l => l.id === selectedLem.id ? { ...l, status: 'approved' } : l))
     setSaving(false)
+  }
+
+  async function openReview(item) {
+    setResolution('accept_inspector')
+    setResolutionNotes('')
+    if (item.matched_report_id != null) {
+      setLoadingReview(true)
+      const { data: report } = await supabase.from('daily_reports').select('activity_blocks').eq('id', item.matched_report_id).single()
+      const blocks = report?.activity_blocks || []
+      const block = item.matched_block_index != null ? blocks[item.matched_block_index] : blocks[0]
+      setReviewItem({ ...item, _matched_block: block || {} })
+      setLoadingReview(false)
+    } else {
+      setReviewItem({ ...item, _matched_block: {} })
+    }
   }
 
   async function saveResolution() {
@@ -495,13 +511,12 @@ export default function LEMReconciliation() {
                     <td style={{ padding: '8px', textAlign: 'center' }}>{item.contractor_ticket_url ? <span style={{ color: '#059669' }}>✅</span> : <span style={{ color: '#9ca3af' }}>—</span>}</td>
                     <td style={{ padding: '8px', textAlign: 'center' }}>{statusBadge(item.match_status)}</td>
                     <td style={{ padding: '8px', textAlign: 'center' }}>
-                      {(item.match_status === 'variance' || item.match_status === 'clean' || item.match_status === 'disputed') && (
-                        <button onClick={() => { setReviewItem(item); setResolution('accept_inspector'); setResolutionNotes('') }}
-                          style={{ padding: '4px 10px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>
-                          Review
+                      {item.match_status !== 'resolved' && (
+                        <button onClick={() => openReview(item)} disabled={loadingReview}
+                          style={{ padding: '4px 10px', backgroundColor: item.match_status === 'unmatched' ? '#d97706' : '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}>
+                          {loadingReview ? '...' : 'Review'}
                         </button>
                       )}
-                      {item.match_status === 'unmatched' && <span style={{ fontSize: '11px', color: '#dc2626' }}>No match</span>}
                       {item.match_status === 'resolved' && <span style={{ fontSize: '11px', color: '#059669' }}>✓ Resolved</span>}
                     </td>
                   </tr>
