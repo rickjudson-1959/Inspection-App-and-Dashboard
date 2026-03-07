@@ -28,18 +28,39 @@ export default function LEMUpload({ onUploadComplete }) {
     setPreview(null)
     setTicketPages([])
 
-    const { lineItems, ticketPages: tp, documentInfo, errors: parseErrors } = await parseLEMFile(file, setProgress)
-    setErrors(parseErrors)
-    if (lineItems.length > 0) {
-      setPreview(lineItems)
-    }
-    setTicketPages(tp || [])
-    // Auto-fill fields from parsed document info
-    if (documentInfo) {
-      if (documentInfo.contractor_name && !contractorName.trim()) setContractorName(documentInfo.contractor_name)
-      if (documentInfo.period_start && !periodStart) setPeriodStart(documentInfo.period_start)
-      if (documentInfo.period_end && !periodEnd) setPeriodEnd(documentInfo.period_end)
-      if (documentInfo.lem_number && !lemNumber.trim()) setLemNumber(documentInfo.lem_number)
+    try {
+      const files = Array.isArray(file) ? file : [file]
+      let allLineItems = []
+      let allTicketPages = []
+      let allErrors = []
+      let firstDocInfo = null
+
+      for (let i = 0; i < files.length; i++) {
+        const f = files[i]
+        if (files.length > 1) setProgress(`Processing file ${i + 1} of ${files.length}: ${f.name}...`)
+        const { lineItems, ticketPages: tp, documentInfo, errors: parseErrors } = await parseLEMFile(f, setProgress)
+        allLineItems = allLineItems.concat(lineItems)
+        allTicketPages = allTicketPages.concat(tp || [])
+        allErrors = allErrors.concat(parseErrors.map(e => files.length > 1 ? `${f.name}: ${e}` : e))
+        if (!firstDocInfo && documentInfo?.contractor_name) firstDocInfo = documentInfo
+      }
+
+      setErrors(allErrors)
+      if (allLineItems.length > 0) {
+        setPreview(allLineItems)
+      } else if (allErrors.length === 0) {
+        setErrors(['No line items extracted. The file(s) may not contain recognizable LEM data.'])
+      }
+      setTicketPages(allTicketPages)
+      // Auto-fill fields from parsed document info
+      if (firstDocInfo) {
+        if (firstDocInfo.contractor_name && !contractorName.trim()) setContractorName(firstDocInfo.contractor_name)
+        if (firstDocInfo.period_start && !periodStart) setPeriodStart(firstDocInfo.period_start)
+        if (firstDocInfo.period_end && !periodEnd) setPeriodEnd(firstDocInfo.period_end)
+        if (firstDocInfo.lem_number && !lemNumber.trim()) setLemNumber(firstDocInfo.lem_number)
+      }
+    } catch (err) {
+      setErrors([`Parse failed: ${err.message}`])
     }
     setProgress('')
     setUploading(false)
@@ -56,14 +77,16 @@ export default function LEMUpload({ onUploadComplete }) {
     try {
       const orgId = getOrgId()
 
-      // Upload original PDF to storage
+      // Upload original PDF(s) to storage
       let sourceFileUrl = null
-      if (file) {
-        const filePath = `lem-uploads/${orgId}/${Date.now()}-${file.name}`
+      const files = Array.isArray(file) ? file : file ? [file] : []
+      const sourceFilename = files.map(f => f.name).join(', ')
+      for (const f of files) {
+        const filePath = `lem-uploads/${orgId}/${Date.now()}-${f.name}`
         const { error: storageErr } = await supabase.storage
           .from('lem-uploads')
-          .upload(filePath, file)
-        if (!storageErr) {
+          .upload(filePath, f)
+        if (!storageErr && !sourceFileUrl) {
           const { data: urlData } = supabase.storage.from('lem-uploads').getPublicUrl(filePath)
           sourceFileUrl = urlData?.publicUrl || null
         }
@@ -85,7 +108,7 @@ export default function LEMUpload({ onUploadComplete }) {
           lem_period_start: periodStart || null,
           lem_period_end: periodEnd || null,
           lem_number: lemNumber.trim() || null,
-          source_filename: file.name,
+          source_filename: sourceFilename,
           source_file_url: sourceFileUrl,
           total_labour_hours: totalLabourHours,
           total_equipment_hours: totalEquipHours,
@@ -185,7 +208,12 @@ export default function LEMUpload({ onUploadComplete }) {
           ref={fileInputRef}
           type="file"
           accept=".pdf,image/*"
-          onChange={e => { setFile(e.target.files[0] || null); setPreview(null); setTicketPages([]); setErrors([]) }}
+          multiple
+          onChange={e => {
+            const files = Array.from(e.target.files || [])
+            setFile(files.length === 1 ? files[0] : files.length > 1 ? files : null)
+            setPreview(null); setTicketPages([]); setErrors([])
+          }}
           style={{ flex: 1 }}
         />
         <button
@@ -193,11 +221,24 @@ export default function LEMUpload({ onUploadComplete }) {
           disabled={!file || uploading}
           style={{ padding: '8px 20px', backgroundColor: uploading ? '#9ca3af' : '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: uploading ? 'not-allowed' : 'pointer', fontWeight: '500', whiteSpace: 'nowrap' }}
         >
-          {uploading ? 'Processing...' : 'Parse LEM'}
+          {uploading ? 'Processing...' : Array.isArray(file) ? `Parse ${file.length} LEMs` : 'Parse LEM'}
         </button>
       </div>
 
-      {progress && <p style={{ color: '#2563eb', fontSize: '13px', margin: '8px 0' }}>{progress}</p>}
+      {/* Progress bar for large files */}
+      {uploading && (
+        <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <div style={{ width: '20px', height: '20px', border: '3px solid #2563eb', borderTop: '3px solid transparent', borderRadius: '50%', animation: 'spin 1s linear infinite' }} />
+            <div>
+              <p style={{ margin: 0, fontWeight: '600', color: '#1e40af', fontSize: '14px' }}>{progress || 'Starting...'}</p>
+              <p style={{ margin: '4px 0 0 0', fontSize: '12px', color: '#6b7280' }}>Large files may take several minutes. Do not close this tab.</p>
+            </div>
+          </div>
+          <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
+        </div>
+      )}
+
       {errors.length > 0 && (
         <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '4px', padding: '8px 12px', marginBottom: '12px' }}>
           {errors.map((e, i) => <p key={i} style={{ margin: '4px 0', fontSize: '13px', color: '#b91c1c' }}>{e}</p>)}
