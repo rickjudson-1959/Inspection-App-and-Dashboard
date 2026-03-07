@@ -32,16 +32,19 @@ async function ensurePdfJs() {
  * Convert a PDF file to an array of base64 JPEG page images.
  * Landscape pages are auto-rotated 90 deg clockwise.
  */
-export async function pdfToImages(file, maxPages = 20) {
+export async function pdfToImages(file, maxPages = 500, onProgress) {
   await ensurePdfJs()
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
   const images = []
   const limit = Math.min(pdf.numPages, maxPages)
+  // Use lower scale for large documents to avoid memory issues
+  const scale = limit > 50 ? 1.5 : 2.0
+  const jpegQuality = limit > 50 ? 0.8 : 0.9
 
   for (let i = 1; i <= limit; i++) {
+    if (onProgress && i % 10 === 0) onProgress(`Rendering page ${i} of ${limit}...`)
     const page = await pdf.getPage(i)
-    const scale = 2.0
     const viewport = page.getViewport({ scale })
 
     const canvas = document.createElement('canvas')
@@ -58,9 +61,9 @@ export async function pdfToImages(file, maxPages = 20) {
       rCtx.translate(rot.width, 0)
       rCtx.rotate(Math.PI / 2)
       rCtx.drawImage(canvas, 0, 0)
-      images.push(rot.toDataURL('image/jpeg', 0.9).split(',')[1])
+      images.push(rot.toDataURL('image/jpeg', jpegQuality).split(',')[1])
     } else {
-      images.push(canvas.toDataURL('image/jpeg', 0.9).split(',')[1])
+      images.push(canvas.toDataURL('image/jpeg', jpegQuality).split(',')[1])
     }
   }
   return images
@@ -133,8 +136,8 @@ export async function parseLEMFile(file, onProgress, lemId) {
   if (!anthropicApiKey) {
     return { lineItems: [], ticketPages: [], documentInfo: {}, errors: ['Claude API key not configured. Add VITE_ANTHROPIC_API_KEY to your .env file.'] }
   }
-  if (file.size > 30 * 1024 * 1024) {
-    return { lineItems: [], ticketPages: [], documentInfo: {}, errors: [`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum 30MB.`] }
+  if (file.size > 100 * 1024 * 1024) {
+    return { lineItems: [], ticketPages: [], documentInfo: {}, errors: [`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum 100MB.`] }
   }
 
   const isPDF = file.type === 'application/pdf'
@@ -146,8 +149,9 @@ export async function parseLEMFile(file, onProgress, lemId) {
   let allPageImages = [] // Keep raw base64 for ticket page storage
   let imageBlocks = []
   if (isPDF) {
-    onProgress?.('Converting PDF pages to images...')
-    allPageImages = await pdfToImages(file)
+    onProgress?.('Converting PDF pages to images (this may take a minute for large files)...')
+    allPageImages = await pdfToImages(file, 500, onProgress)
+    onProgress?.(`Converted ${allPageImages.length} pages. Starting AI extraction...`)
     imageBlocks = allPageImages.map(base64 => ({
       type: 'image',
       source: { type: 'base64', media_type: 'image/jpeg', data: base64 }
