@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import { useOrgQuery } from '../utils/queryHelpers.js'
 import { useAuth } from '../AuthContext.jsx'
 import { parseLEMFile } from '../utils/lemParser.js'
+import { normalizeTicketNumber } from '../utils/ticketNormalizer.js'
 
 export default function LEMUpload({ onUploadComplete }) {
   const { userProfile } = useAuth()
@@ -18,6 +19,7 @@ export default function LEMUpload({ onUploadComplete }) {
   const [progress, setProgress] = useState('')
   const [errors, setErrors] = useState([])
   const [preview, setPreview] = useState(null)
+  const [ticketPages, setTicketPages] = useState([])
 
   async function handleParse() {
     if (!file) return
@@ -28,12 +30,14 @@ export default function LEMUpload({ onUploadComplete }) {
     setUploading(true)
     setErrors([])
     setPreview(null)
+    setTicketPages([])
 
-    const { lineItems, errors: parseErrors } = await parseLEMFile(file, setProgress)
+    const { lineItems, ticketPages: tp, errors: parseErrors } = await parseLEMFile(file, setProgress)
     setErrors(parseErrors)
     if (lineItems.length > 0) {
       setPreview(lineItems)
     }
+    setTicketPages(tp || [])
     setProgress('')
     setUploading(false)
   }
@@ -88,37 +92,74 @@ export default function LEMUpload({ onUploadComplete }) {
 
       if (lemErr) throw lemErr
 
-      // Insert line items
-      const lineItemRows = preview.map(item => ({
-        lem_id: lemRecord.id,
-        organization_id: orgId,
-        ticket_number: item.ticket_number,
-        work_date: item.work_date,
-        crew_name: item.crew_name,
-        foreman: item.foreman,
-        activity_description: item.activity_description,
-        labour_entries: item.labour_entries,
-        total_labour_hours: item.total_labour_hours,
-        total_labour_cost: item.total_labour_cost,
-        equipment_entries: item.equipment_entries,
-        total_equipment_hours: item.total_equipment_hours,
-        total_equipment_cost: item.total_equipment_cost,
-        line_total: item.line_total,
-        match_status: 'unmatched',
-        match_confidence: 'none'
-      }))
+      // Upload ticket page images to storage and build URL map
+      const ticketUrlMap = {} // normalized ticket# -> url
+      if (ticketPages.length > 0) {
+        setProgress(`Uploading ${ticketPages.length} ticket page images...`)
+        for (const tp of ticketPages) {
+          if (!tp.base64 || !tp.ticket_number) continue
+          try {
+            const bytes = atob(tp.base64)
+            const arr = new Uint8Array(bytes.length)
+            for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
+            const blob = new Blob([arr], { type: 'image/jpeg' })
+            const safeName = tp.ticket_number.replace(/[^a-zA-Z0-9-_]/g, '_')
+            const path = `lem-uploads/${lemRecord.id}/tickets/${safeName}_p${tp.pageIndex + 1}.jpg`
+            const { error: upErr } = await supabase.storage.from('lem-uploads').upload(path, blob, { contentType: 'image/jpeg' })
+            if (!upErr) {
+              const { data: urlData } = supabase.storage.from('lem-uploads').getPublicUrl(path)
+              if (urlData?.publicUrl) {
+                const norm = normalizeTicketNumber(tp.ticket_number)
+                if (norm) ticketUrlMap[norm] = urlData.publicUrl
+              }
+            }
+          } catch (e) {
+            // Non-fatal
+          }
+        }
+      }
+
+      // Insert line items with contractor_ticket_url where available
+      const lineItemRows = preview.map(item => {
+        const norm = normalizeTicketNumber(item.ticket_number)
+        return {
+          lem_id: lemRecord.id,
+          organization_id: orgId,
+          ticket_number: item.ticket_number,
+          work_date: item.work_date,
+          crew_name: item.crew_name,
+          foreman: item.foreman,
+          activity_description: item.activity_description,
+          labour_entries: item.labour_entries,
+          total_labour_hours: item.total_labour_hours,
+          total_labour_cost: item.total_labour_cost,
+          equipment_entries: item.equipment_entries,
+          total_equipment_hours: item.total_equipment_hours,
+          total_equipment_cost: item.total_equipment_cost,
+          line_total: item.line_total,
+          match_status: 'unmatched',
+          match_confidence: 'none',
+          contractor_ticket_url: (norm && ticketUrlMap[norm]) || null
+        }
+      })
 
       const { error: itemErr } = await supabase.from('lem_line_items').insert(lineItemRows)
       if (itemErr) throw itemErr
 
-      alert(`Saved LEM with ${preview.length} line items.`)
+      const ticketCount = Object.keys(ticketUrlMap).length
+      const msg = ticketCount > 0
+        ? `Saved LEM with ${preview.length} line items and ${ticketCount} ticket page images.`
+        : `Saved LEM with ${preview.length} line items.`
+      alert(msg)
       setFile(null)
       setPreview(null)
+      setTicketPages([])
       setContractorName('')
       setPeriodStart('')
       setPeriodEnd('')
       setLemNumber('')
       setErrors([])
+      setProgress('')
       if (fileInputRef.current) fileInputRef.current.value = ''
       onUploadComplete?.()
     } catch (err) {
@@ -156,7 +197,7 @@ export default function LEMUpload({ onUploadComplete }) {
           ref={fileInputRef}
           type="file"
           accept=".pdf,image/*"
-          onChange={e => { setFile(e.target.files[0] || null); setPreview(null); setErrors([]) }}
+          onChange={e => { setFile(e.target.files[0] || null); setPreview(null); setTicketPages([]); setErrors([]) }}
           style={{ flex: 1 }}
         />
         <button
@@ -177,7 +218,10 @@ export default function LEMUpload({ onUploadComplete }) {
 
       {preview && (
         <div>
-          <h4 style={{ margin: '16px 0 8px 0' }}>Extracted {preview.length} Line Items</h4>
+          <h4 style={{ margin: '16px 0 8px 0' }}>
+            Extracted {preview.length} Line Items
+            {ticketPages.length > 0 && <span style={{ color: '#059669', fontWeight: '400', fontSize: '13px' }}> + {ticketPages.length} ticket page images</span>}
+          </h4>
           <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
               <thead>
@@ -210,7 +254,7 @@ export default function LEMUpload({ onUploadComplete }) {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
-            <button onClick={() => { setPreview(null); setFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+            <button onClick={() => { setPreview(null); setTicketPages([]); setFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
               style={{ padding: '8px 16px', backgroundColor: '#6b7280', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
               Cancel
             </button>
