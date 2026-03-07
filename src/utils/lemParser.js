@@ -73,39 +73,44 @@ B) DAILY TICKET PAGES — individual daily ticket or timesheet copies for a sing
 
 For EACH page, classify it and extract data accordingly.
 
-Return ONLY a valid JSON array with one entry per page:
-[
-  {
-    "page_type": "lem_summary" or "daily_ticket",
-    "ticket_number": "extracted ticket number (for daily_ticket pages, this is critical)",
+Return ONLY a valid JSON object with this structure:
+{
+  "document_info": {
+    "contractor_name": "the contractor/company name shown on the LEM",
+    "lem_number": "LEM reference number if shown",
+    "period_start": "YYYY-MM-DD earliest date covered",
+    "period_end": "YYYY-MM-DD latest date covered"
+  },
+  "pages": [
+    {
+      "page_type": "lem_summary" or "daily_ticket",
+      "ticket_number": "extracted ticket number (for daily_ticket pages, this is critical)",
 
-    // ONLY for lem_summary pages — extract line items:
-    "line_items": [
-      {
-        "ticket_number": "string",
-        "work_date": "YYYY-MM-DD",
-        "crew_name": "string",
-        "foreman": "string or null",
-        "activity_description": "string",
-        "labour_entries": [{ "employee_name": "", "classification": "", "rt_hours": 0, "ot_hours": 0, "jh_hours": 0, "count": 1, "rate": 0, "line_total": 0 }],
-        "equipment_entries": [{ "equipment_type": "", "unit_number": "", "hours": 0, "count": 1, "rate": 0, "line_total": 0 }]
-      }
-    ],
-
-    // ONLY for daily_ticket pages — just the ticket number:
-    "line_items": []
-  }
-]
+      "line_items": [
+        {
+          "ticket_number": "string",
+          "work_date": "YYYY-MM-DD",
+          "crew_name": "string",
+          "foreman": "string or null",
+          "activity_description": "string",
+          "labour_entries": [{ "employee_name": "", "classification": "", "rt_hours": 0, "ot_hours": 0, "jh_hours": 0, "count": 1, "rate": 0, "line_total": 0 }],
+          "equipment_entries": [{ "equipment_type": "", "unit_number": "", "hours": 0, "count": 1, "rate": 0, "line_total": 0 }]
+        }
+      ]
+    }
+  ]
+}
 
 CRITICAL RULES:
+- Extract "document_info" from headers, titles, or any visible metadata on the pages
 - Classify EVERY page as either "lem_summary" or "daily_ticket"
 - For lem_summary pages: extract ALL line items with full labour and equipment detail
-- For daily_ticket pages: extract the ticket number from the page. The ticket number is THE most important field.
+- For daily_ticket pages: extract the ticket number from the page. The ticket number is THE most important field. Set line_items to []
 - List EVERY person as a SEPARATE labour entry with their full name
 - List EVERY piece of equipment as a SEPARATE equipment entry
 - Each page with a different ticket number, date, or foreman is a SEPARATE line item
 - If a page contains only headers, subtotals, or cover pages, classify as "lem_summary" with empty line_items
-- Return ONLY the JSON array, no other text`
+- Return ONLY the JSON object, no other text`
 
 /**
  * Convert base64 image data to a Blob for storage upload
@@ -122,19 +127,20 @@ function base64ToBlob(base64, mimeType = 'image/jpeg') {
  * @param {File} file - The PDF or image file
  * @param {function} onProgress - Optional callback: (message) => void
  * @param {string} lemId - Optional: if provided, ticket page images are uploaded and linked
- * @returns {{ lineItems: Array, ticketPages: Array<{ticket_number, pageIndex, base64}>, errors: string[] }}
+ * @returns {{ lineItems: Array, ticketPages: Array<{ticket_number, pageIndex, base64}>, documentInfo: object, errors: string[] }}
  */
 export async function parseLEMFile(file, onProgress, lemId) {
   if (!anthropicApiKey) {
-    return { lineItems: [], ticketPages: [], errors: ['Claude API key not configured. Add VITE_ANTHROPIC_API_KEY to your .env file.'] }
+    return { lineItems: [], ticketPages: [], documentInfo: {}, errors: ['Claude API key not configured. Add VITE_ANTHROPIC_API_KEY to your .env file.'] }
   }
   if (file.size > 30 * 1024 * 1024) {
-    return { lineItems: [], ticketPages: [], errors: [`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum 30MB.`] }
+    return { lineItems: [], ticketPages: [], documentInfo: {}, errors: [`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum 30MB.`] }
   }
 
   const isPDF = file.type === 'application/pdf'
   const errors = []
   const allLineItems = []
+  let documentInfo = {}
   const ticketPages = []
 
   let allPageImages = [] // Keep raw base64 for ticket page storage
@@ -209,14 +215,32 @@ export async function parseLEMFile(file, onProgress, lemId) {
 
       const data = await response.json()
       const content = data.content[0]?.text || ''
-      const jsonMatch = content.match(/\[[\s\S]*\]/)
-      if (!jsonMatch) {
+      // Try to parse as JSON object first (new format), then as array (old format)
+      const jsonObjMatch = content.match(/\{[\s\S]*\}/)
+      const jsonArrMatch = content.match(/\[[\s\S]*\]/)
+      if (!jsonObjMatch && !jsonArrMatch) {
         errors.push(`Pages ${pageStart}-${pageEnd}: Could not extract structured data.`)
         continue
       }
 
-      const extracted = JSON.parse(jsonMatch[0])
-      const pages = Array.isArray(extracted) ? extracted : [extracted]
+      let pages
+      try {
+        const parsed = JSON.parse(jsonObjMatch ? jsonObjMatch[0] : jsonArrMatch[0])
+        if (parsed.document_info) {
+          // New format: { document_info, pages }
+          if (!documentInfo.contractor_name && parsed.document_info.contractor_name) {
+            documentInfo = { ...documentInfo, ...parsed.document_info }
+          }
+          pages = parsed.pages || []
+        } else if (Array.isArray(parsed)) {
+          pages = parsed
+        } else {
+          pages = [parsed]
+        }
+      } catch (parseErr) {
+        errors.push(`Pages ${pageStart}-${pageEnd}: JSON parse error.`)
+        continue
+      }
 
       pages.forEach((page, pageOffset) => {
         const globalPageIdx = startIdx + pageOffset
@@ -287,5 +311,5 @@ export async function parseLEMFile(file, onProgress, lemId) {
     }
   }
 
-  return { lineItems: allLineItems, ticketPages, errors }
+  return { lineItems: allLineItems, ticketPages, documentInfo, errors }
 }

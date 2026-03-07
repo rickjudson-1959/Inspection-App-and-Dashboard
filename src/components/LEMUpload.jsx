@@ -23,27 +23,34 @@ export default function LEMUpload({ onUploadComplete }) {
 
   async function handleParse() {
     if (!file) return
-    if (!contractorName.trim()) {
-      setErrors(['Contractor name is required.'])
-      return
-    }
     setUploading(true)
     setErrors([])
     setPreview(null)
     setTicketPages([])
 
-    const { lineItems, ticketPages: tp, errors: parseErrors } = await parseLEMFile(file, setProgress)
+    const { lineItems, ticketPages: tp, documentInfo, errors: parseErrors } = await parseLEMFile(file, setProgress)
     setErrors(parseErrors)
     if (lineItems.length > 0) {
       setPreview(lineItems)
     }
     setTicketPages(tp || [])
+    // Auto-fill fields from parsed document info
+    if (documentInfo) {
+      if (documentInfo.contractor_name && !contractorName.trim()) setContractorName(documentInfo.contractor_name)
+      if (documentInfo.period_start && !periodStart) setPeriodStart(documentInfo.period_start)
+      if (documentInfo.period_end && !periodEnd) setPeriodEnd(documentInfo.period_end)
+      if (documentInfo.lem_number && !lemNumber.trim()) setLemNumber(documentInfo.lem_number)
+    }
     setProgress('')
     setUploading(false)
   }
 
   async function handleSave() {
     if (!preview || preview.length === 0) return
+    if (!contractorName.trim()) {
+      setErrors(['Contractor name is required before saving. Edit the field above.'])
+      return
+    }
     setUploading(true)
 
     try {
@@ -173,25 +180,6 @@ export default function LEMUpload({ onUploadComplete }) {
     <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '24px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)' }}>
       <h3 style={{ margin: '0 0 16px 0' }}>Upload Contractor LEM</h3>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Contractor Name *</label>
-          <input value={contractorName} onChange={e => setContractorName(e.target.value)} placeholder="e.g. ClearStream" style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', boxSizing: 'border-box' }} />
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Period Start</label>
-          <input type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', boxSizing: 'border-box' }} />
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Period End</label>
-          <input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', boxSizing: 'border-box' }} />
-        </div>
-        <div>
-          <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>LEM Reference #</label>
-          <input value={lemNumber} onChange={e => setLemNumber(e.target.value)} placeholder="Optional" style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', boxSizing: 'border-box' }} />
-        </div>
-      </div>
-
       <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginBottom: '16px' }}>
         <input
           ref={fileInputRef}
@@ -222,6 +210,26 @@ export default function LEMUpload({ onUploadComplete }) {
             Extracted {preview.length} Line Items
             {ticketPages.length > 0 && <span style={{ color: '#059669', fontWeight: '400', fontSize: '13px' }}> + {ticketPages.length} ticket page images</span>}
           </h4>
+
+          {/* Auto-filled document info — editable before save */}
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '16px', padding: '12px', backgroundColor: '#f9fafb', borderRadius: '6px', border: '1px solid #e5e7eb' }}>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Contractor Name *</label>
+              <input value={contractorName} onChange={e => setContractorName(e.target.value)} placeholder="Auto-filled from LEM" style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Period Start</label>
+              <input type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>Period End</label>
+              <input type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', boxSizing: 'border-box' }} />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontSize: '12px', color: '#6b7280', marginBottom: '4px' }}>LEM Reference #</label>
+              <input value={lemNumber} onChange={e => setLemNumber(e.target.value)} placeholder="Auto-filled from LEM" style={{ width: '100%', padding: '8px', border: '1px solid #d1d5db', borderRadius: '4px', boxSizing: 'border-box' }} />
+            </div>
+          </div>
           <div style={{ maxHeight: '400px', overflowY: 'auto', border: '1px solid #e5e7eb', borderRadius: '4px' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
               <thead>
