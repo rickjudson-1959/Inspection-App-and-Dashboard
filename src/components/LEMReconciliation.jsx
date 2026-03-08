@@ -55,10 +55,38 @@ export default function LEMReconciliation() {
     } catch (e) { /* rate cards optional */ }
   }
 
+  // Fuzzy match: find best matching rate card entry for a classification string
+  function findBestMatch(search, candidates, keyFn) {
+    if (!search) return null
+    const s = search.toLowerCase().trim()
+    // 1. Exact match
+    let match = candidates.find(c => keyFn(c).toLowerCase().trim() === s)
+    if (match) return match
+    // 2. One contains the other
+    match = candidates.find(c => {
+      const k = keyFn(c).toLowerCase().trim()
+      return k.includes(s) || s.includes(k)
+    })
+    if (match) return match
+    // 3. Word overlap scoring — pick candidate with most shared words
+    const sWords = s.replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter(Boolean)
+    let bestScore = 0, bestCandidate = null
+    for (const c of candidates) {
+      const k = keyFn(c).toLowerCase().trim()
+      const kWords = k.replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter(Boolean)
+      const shared = sWords.filter(w => kWords.some(kw => kw.includes(w) || w.includes(kw))).length
+      const score = shared / Math.max(sWords.length, kWords.length, 1)
+      if (score > bestScore && score >= 0.5) {
+        bestScore = score
+        bestCandidate = c
+      }
+    }
+    return bestCandidate
+  }
+
   // Calculate cost for a labour entry using rate cards
   function calcLabourCost(entry) {
-    const classification = (entry.classification || '').toLowerCase().trim()
-    const rate = labourRates.find(r => r.classification.toLowerCase().trim() === classification)
+    const rate = findBestMatch(entry.classification, labourRates, r => r.classification || '')
     const rt = parseFloat(entry.rt || entry.hours || 0)
     const ot = parseFloat(entry.ot || 0)
     if (rate) {
@@ -69,8 +97,8 @@ export default function LEMReconciliation() {
 
   // Calculate cost for an equipment entry using rate cards
   function calcEquipCost(entry) {
-    const eqType = (entry.type || entry.equipmentType || '').toLowerCase().trim()
-    const rate = equipmentRates.find(r => r.equipment_type.toLowerCase().trim() === eqType)
+    const eqType = entry.type || entry.equipmentType || ''
+    const rate = findBestMatch(eqType, equipmentRates, r => r.equipment_type || '')
     const hrs = parseFloat(entry.hours || 0)
     if (rate) {
       return hrs * (rate.rate_hourly || 0)
