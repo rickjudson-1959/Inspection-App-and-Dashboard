@@ -1,25 +1,23 @@
 /**
- * LEM PDF Parser
+ * LEM PDF Parser — Visual Reconciliation
  *
- * Converts contractor LEM PDFs to structured line items using:
- *   1. pdf.js to render pages as images
- *   2. Claude Vision API for classification + structured extraction
- *   3. State-machine grouping: consecutive same-type pages are grouped
- *   4. Multi-page support: LEMs and tickets can span multiple pages
+ * Splits contractor LEM PDFs into LEM/ticket pairs for side-by-side visual comparison.
+ * The admin compares the documents — the app just organizes and presents.
  *
- * Processing pipeline:
- *   Phase 1 — Classify every page as "lem_summary" or "daily_ticket"
- *   Phase 2 — Group consecutive same-type pages via state machine
- *   Phase 3 — Send each group's pages together for full extraction
+ * Pipeline:
+ *   Phase 1 — Classify every page as "lem" or "daily_ticket" (+ extract date/crew)
+ *   Phase 2 — Group consecutive same-type pages via state machine into pairs
+ *   Phase 3 — Store page images in Supabase storage, create reconciliation pairs
+ *
+ * NO detailed field extraction — classification only.
  */
 
 import { supabase } from '../supabase'
 
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
-/**
- * Load pdf.js from CDN if not already loaded
- */
+// ── PDF to images ──────────────────────────────────────────────────────────
+
 async function ensurePdfJs() {
   if (window.pdfjsLib) return
   await new Promise((resolve, reject) => {
@@ -33,10 +31,6 @@ async function ensurePdfJs() {
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
 }
 
-/**
- * Convert a PDF file to an array of base64 JPEG page images.
- * Landscape pages are auto-rotated 90 deg clockwise.
- */
 export async function pdfToImages(file, maxPages = 500, onProgress) {
   await ensurePdfJs()
   const arrayBuffer = await file.arrayBuffer()
@@ -50,7 +44,6 @@ export async function pdfToImages(file, maxPages = 500, onProgress) {
     if (onProgress && i % 10 === 0) onProgress(`Rendering page ${i} of ${limit}...`)
     const page = await pdf.getPage(i)
     const viewport = page.getViewport({ scale })
-
     const canvas = document.createElement('canvas')
     canvas.width = viewport.width
     canvas.height = viewport.height
@@ -73,105 +66,8 @@ export async function pdfToImages(file, maxPages = 500, onProgress) {
   return images
 }
 
-// ---------------------------------------------------------------------------
-// PHASE 1 — Classification prompt (classify only, no extraction)
-// ---------------------------------------------------------------------------
+// ── Helpers ─────────────────────────────────────────────────────────────────
 
-const CLASSIFY_PROMPT = `You are classifying pages from a contractor LEM (Labour and Equipment Manifest) PDF bundle for a pipeline construction project.
-
-For EACH page image provided, determine whether it is:
-A) "lem_summary" — A LEM billing page. Key indicators:
-   - Billing/tabular format with columns like Description, Hours, Rate, Amount
-   - Subtotals, totals, or summary rows
-   - Contractor letterhead or LEM reference number
-   - May cover a date range
-   - Lists multiple workers/equipment in a billing format
-
-B) "daily_ticket" — A daily field ticket page. Key indicators:
-   - A single date prominently displayed
-   - Individual worker names with hours worked
-   - Equipment listed with hours
-   - Foreman signature line and/or inspector signature line
-   - A field ticket number (e.g., "Ticket #1234" or "Daily Ticket")
-
-Return ONLY a valid JSON object:
-{
-  "classifications": [
-    {
-      "page_type": "lem_summary" or "daily_ticket",
-      "confidence": "high" or "medium" or "low",
-      "ticket_number": "string or null (extract if visible on daily_ticket pages)",
-      "lem_number": "string or null (extract if visible on lem_summary pages)",
-      "notes": "brief reason for classification"
-    }
-  ]
-}
-
-CRITICAL:
-- Return exactly one classification per page image, in order
-- If you are unsure, set confidence to "low"
-- Extract ticket_number from daily tickets and lem_number from LEM pages when visible
-- Return ONLY the JSON object, no other text`
-
-// ---------------------------------------------------------------------------
-// PHASE 3 — Extraction prompts (sent with grouped multi-page images)
-// ---------------------------------------------------------------------------
-
-const LEM_EXTRACT_PROMPT = `You are extracting data from LEM (Labour and Equipment Manifest) billing pages from a pipeline construction project. These pages may span multiple pages — all images shown belong to the SAME LEM document. Combine data across all pages.
-
-Return ONLY a valid JSON object:
-{
-  "document_info": {
-    "contractor_name": "the contractor/company name",
-    "lem_number": "LEM reference number if shown",
-    "period_start": "YYYY-MM-DD earliest date",
-    "period_end": "YYYY-MM-DD latest date"
-  },
-  "line_items": [
-    {
-      "ticket_number": "string",
-      "work_date": "YYYY-MM-DD",
-      "crew_name": "string",
-      "foreman": "string or null",
-      "activity_description": "string",
-      "labour_entries": [{ "employee_name": "", "classification": "", "rt_hours": 0, "ot_hours": 0, "jh_hours": 0, "count": 1, "rate": 0, "line_total": 0 }],
-      "equipment_entries": [{ "equipment_type": "", "unit_number": "", "hours": 0, "count": 1, "rate": 0, "line_total": 0 }]
-    }
-  ]
-}
-
-CRITICAL RULES:
-- These pages are ALL part of the SAME LEM — combine data across pages
-- List EVERY person as a SEPARATE labour entry with their full name
-- List EVERY piece of equipment as a SEPARATE equipment entry
-- Each different ticket number, date, or foreman is a SEPARATE line item
-- Extract rates and line totals when shown
-- If a page is a cover page, header, or subtotal page with no new line items, that's OK — just extract what's there
-- Return ONLY the JSON object, no other text`
-
-const TICKET_EXTRACT_PROMPT = `You are extracting data from daily field ticket pages from a pipeline construction project. These pages may span multiple pages — all images shown belong to the SAME daily ticket. Combine data across all pages.
-
-Return ONLY a valid JSON object:
-{
-  "ticket_number": "the field ticket number (CRITICAL — extract this)",
-  "work_date": "YYYY-MM-DD",
-  "crew_name": "string or null",
-  "foreman": "string or null",
-  "activity_description": "string",
-  "labour_entries": [{ "employee_name": "", "classification": "", "rt_hours": 0, "ot_hours": 0, "jh_hours": 0, "count": 1, "rate": 0, "line_total": 0 }],
-  "equipment_entries": [{ "equipment_type": "", "unit_number": "", "hours": 0, "count": 1, "rate": 0, "line_total": 0 }]
-}
-
-CRITICAL RULES:
-- These pages are ALL part of the SAME ticket — combine data across pages
-- The ticket number is THE most important field
-- List EVERY person as a SEPARATE labour entry with their full name
-- List EVERY piece of equipment as a SEPARATE equipment entry
-- Return ONLY the JSON object, no other text`
-
-/**
- * Convert base64 image data to a Blob for storage upload
- */
 function base64ToBlob(base64, mimeType = 'image/jpeg') {
   const bytes = atob(base64)
   const arr = new Uint8Array(bytes.length)
@@ -179,10 +75,7 @@ function base64ToBlob(base64, mimeType = 'image/jpeg') {
   return new Blob([arr], { type: mimeType })
 }
 
-/**
- * Call Claude Vision API with image blocks + text prompt
- */
-async function callClaude(imageBlocks, textPrompt, maxTokens = 16000) {
+async function callClaude(imageBlocks, textPrompt, maxTokens = 4000) {
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -194,21 +87,13 @@ async function callClaude(imageBlocks, textPrompt, maxTokens = 16000) {
     body: JSON.stringify({
       model: 'claude-sonnet-4-20250514',
       max_tokens: maxTokens,
-      messages: [{
-        role: 'user',
-        content: [
-          ...imageBlocks,
-          { type: 'text', text: textPrompt }
-        ]
-      }]
+      messages: [{ role: 'user', content: [...imageBlocks, { type: 'text', text: textPrompt }] }]
     })
   })
-
   if (!response.ok) {
     const errText = await response.text()
-    throw new Error(`API error ${response.status}: ${errText.substring(0, 200)}`)
+    throw new Error(`API ${response.status}: ${errText.substring(0, 200)}`)
   }
-
   const data = await response.json()
   const content = data.content[0]?.text || ''
   const jsonMatch = content.match(/\{[\s\S]*\}/)
@@ -216,12 +101,32 @@ async function callClaude(imageBlocks, textPrompt, maxTokens = 16000) {
   return JSON.parse(jsonMatch[0])
 }
 
-/**
- * Phase 1: Classify all pages in batches
- * Returns array of { page_type, confidence, ticket_number, lem_number } per page
- */
-async function classifyPages(allPageImages, imageBlocks, onProgress, errors) {
-  const BATCH_SIZE = 10 // classify more per batch since no extraction
+// ── Phase 1: Classify pages ────────────────────────────────────────────────
+
+const CLASSIFY_PROMPT = `Classify each page image from a contractor LEM (Labour and Equipment Manifest) PDF bundle.
+
+For EACH page, determine:
+- "lem" — A LEM billing page. Indicators: billing/tabular format, columns like Hours/Rate/Amount, subtotals, contractor letterhead, LEM reference number, may cover a date range.
+- "daily_ticket" — A daily field ticket. Indicators: single date, individual worker names with hours, equipment list, foreman/inspector signature lines, field ticket number.
+
+Return ONLY valid JSON:
+{
+  "classifications": [
+    {
+      "page_type": "lem" or "daily_ticket",
+      "confidence": "high" or "medium" or "low",
+      "date": "YYYY-MM-DD or null — date visible on page",
+      "crew": "crew name, discipline, or contractor name visible, or null",
+      "ticket_number": "field ticket number if visible, or null",
+      "lem_number": "LEM reference number if visible, or null"
+    }
+  ]
+}
+
+Return exactly one entry per page image, in order. If unsure, set confidence to "low".`
+
+async function classifyPages(imageBlocks, onProgress, errors) {
+  const BATCH_SIZE = 10
   const classifications = []
 
   for (let b = 0; b < imageBlocks.length; b += BATCH_SIZE) {
@@ -233,232 +138,133 @@ async function classifyPages(allPageImages, imageBlocks, onProgress, errors) {
     try {
       const result = await callClaude(
         batch,
-        `There are ${batch.length} page images (pages ${pageStart}-${pageEnd}). ${CLASSIFY_PROMPT}`,
-        4000
+        `There are ${batch.length} page images (pages ${pageStart}-${pageEnd}). ${CLASSIFY_PROMPT}`
       )
       const classList = result.classifications || []
       for (let i = 0; i < batch.length; i++) {
-        classifications.push(classList[i] || { page_type: 'lem_summary', confidence: 'low', notes: 'Missing classification' })
+        classifications.push(classList[i] || { page_type: 'lem', confidence: 'low', notes: 'Missing' })
       }
     } catch (err) {
       errors.push(`Classification pages ${pageStart}-${pageEnd}: ${err.message}`)
-      // Default to lem_summary for failed batches
       for (let i = 0; i < batch.length; i++) {
-        classifications.push({ page_type: 'lem_summary', confidence: 'low', notes: 'Classification failed' })
+        classifications.push({ page_type: 'lem', confidence: 'low', notes: 'Classification failed' })
       }
     }
   }
-
   return classifications
 }
 
+// ── Phase 2: Group pages via state machine ─────────────────────────────────
+
 /**
- * Phase 2: Group consecutive same-type pages using state machine
- *
- * State: READING_LEM
- *   → Next page is LEM?    → Append to current LEM group (multi-page)
- *   → Next page is ticket? → LEM complete, switch to READING_TICKET
- *
- * State: READING_TICKET
- *   → Next page is ticket? → Append to current ticket group (multi-page)
- *   → Next page is LEM?    → Ticket complete, save pair, start new LEM, switch to READING_LEM
- *
- * Returns array of groups: { type: 'lem_summary'|'daily_ticket', pageIndices: number[], classifications: object[] }
+ * Groups consecutive same-type pages. Each type-switch creates a new group.
+ * Returns: [{ type: 'lem'|'daily_ticket', pageIndices: number[], classifications: object[] }]
  */
 function groupPages(classifications) {
   if (classifications.length === 0) return []
-
   const groups = []
-  let currentGroup = {
-    type: classifications[0].page_type,
-    pageIndices: [0],
-    classifications: [classifications[0]]
-  }
+  let cur = { type: classifications[0].page_type, pageIndices: [0], classifications: [classifications[0]] }
 
   for (let i = 1; i < classifications.length; i++) {
     const cls = classifications[i]
-    if (cls.page_type === currentGroup.type) {
-      // Same type — append to current group (multi-page document)
-      currentGroup.pageIndices.push(i)
-      currentGroup.classifications.push(cls)
+    if (cls.page_type === cur.type) {
+      cur.pageIndices.push(i)
+      cur.classifications.push(cls)
     } else {
-      // Type changed — finalize current group, start new one
-      groups.push(currentGroup)
-      currentGroup = {
-        type: cls.page_type,
-        pageIndices: [i],
-        classifications: [cls]
-      }
+      groups.push(cur)
+      cur = { type: cls.page_type, pageIndices: [i], classifications: [cls] }
     }
   }
-  // Push final group
-  groups.push(currentGroup)
-
+  groups.push(cur)
   return groups
 }
 
 /**
- * Phase 3: Extract data from each group by sending all its pages together
+ * Pair consecutive LEM + ticket groups.
+ * Pattern: LEM group followed by ticket group = one pair.
+ * A LEM without a following ticket = pair with empty ticket.
+ * A ticket without a preceding LEM = standalone ticket pair.
  */
-async function extractGroups(groups, allPageImages, imageBlocks, onProgress, errors) {
-  let documentInfo = {}
-  const allLineItems = []
-  const ticketPages = []
-
-  for (let g = 0; g < groups.length; g++) {
-    const group = groups[g]
-    const pageNums = group.pageIndices.map(i => i + 1).join(', ')
-    const pageCount = group.pageIndices.length
-    onProgress?.(`Extracting ${group.type} (${pageCount} page${pageCount > 1 ? 's' : ''}: p${pageNums}) [${g + 1}/${groups.length}]...`)
-
-    // Build image blocks for this group
-    const groupImageBlocks = group.pageIndices.map(idx => imageBlocks[idx])
-
-    // Check for low-confidence classifications
-    const lowConfidence = group.classifications.filter(c => c.confidence === 'low')
-    if (lowConfidence.length > 0) {
-      const warning = `Pages ${pageNums}: ${lowConfidence.length} page(s) with low classification confidence — review may be needed`
-      errors.push(warning)
-    }
-
-    try {
-      if (group.type === 'lem_summary') {
-        // Extract LEM data — all pages sent together
-        const prompt = `These ${pageCount} page(s) are ALL part of the same LEM billing document. ${LEM_EXTRACT_PROMPT}`
-        const result = await callClaude(groupImageBlocks, prompt)
-
-        // Capture document info from first LEM
-        if (result.document_info) {
-          if (!documentInfo.contractor_name && result.document_info.contractor_name) {
-            documentInfo = { ...documentInfo, ...result.document_info }
-          }
-        }
-
-        // Extract line items
-        const items = result.line_items || []
-        items.forEach(item => {
-          const labourEntries = item.labour_entries || []
-          const equipEntries = item.equipment_entries || []
-
-          const totalLabourHours = labourEntries.reduce((sum, e) =>
-            sum + (parseFloat(e.rt_hours) || 0) + (parseFloat(e.ot_hours) || 0) + (parseFloat(e.jh_hours) || 0), 0)
-          const totalLabourCost = labourEntries.reduce((sum, e) =>
-            sum + ((parseFloat(e.rt_hours) || 0) * (parseFloat(e.rate) || 0)) +
-                  ((parseFloat(e.ot_hours) || 0) * (parseFloat(e.rate) || 0) * 1.5) +
-                  ((parseFloat(e.jh_hours) || 0) * (parseFloat(e.rate) || 0)), 0)
-          const totalEquipHours = equipEntries.reduce((sum, e) =>
-            sum + (parseFloat(e.hours) || 0) * (parseInt(e.count) || 1), 0)
-          const totalEquipCost = equipEntries.reduce((sum, e) =>
-            sum + (parseFloat(e.hours) || 0) * (parseFloat(e.rate) || 0) * (parseInt(e.count) || 1), 0)
-
-          allLineItems.push({
-            ticket_number: item.ticket_number || null,
-            work_date: item.work_date || null,
-            crew_name: item.crew_name || null,
-            foreman: item.foreman || null,
-            activity_description: item.activity_description || '',
-            labour_entries: labourEntries,
-            equipment_entries: equipEntries,
-            total_labour_hours: Math.round(totalLabourHours * 10) / 10,
-            total_labour_cost: Math.round(totalLabourCost * 100) / 100,
-            total_equipment_hours: Math.round(totalEquipHours * 10) / 10,
-            total_equipment_cost: Math.round(totalEquipCost * 100) / 100,
-            line_total: Math.round((totalLabourCost + totalEquipCost) * 100) / 100
-          })
-        })
-
+function buildPairs(groups) {
+  const pairs = []
+  let i = 0
+  while (i < groups.length) {
+    const g = groups[i]
+    if (g.type === 'lem') {
+      // Check if next group is a ticket
+      if (i + 1 < groups.length && groups[i + 1].type === 'daily_ticket') {
+        pairs.push({ lem: g, ticket: groups[i + 1] })
+        i += 2
       } else {
-        // Extract ticket data — all pages sent together
-        const prompt = `These ${pageCount} page(s) are ALL part of the same daily field ticket. ${TICKET_EXTRACT_PROMPT}`
-        const result = await callClaude(groupImageBlocks, prompt)
-
-        const ticketNumber = result.ticket_number || group.classifications[0]?.ticket_number || null
-
-        // Store ALL pages of this ticket for four-way comparison
-        group.pageIndices.forEach(idx => {
-          ticketPages.push({
-            ticket_number: ticketNumber,
-            pageIndex: idx,
-            base64: allPageImages[idx] || null
-          })
-        })
-
-        // If the ticket extraction returned labour/equipment data, create a line item
-        const labourEntries = result.labour_entries || []
-        const equipEntries = result.equipment_entries || []
-        if (labourEntries.length > 0 || equipEntries.length > 0) {
-          const totalLabourHours = labourEntries.reduce((sum, e) =>
-            sum + (parseFloat(e.rt_hours) || 0) + (parseFloat(e.ot_hours) || 0) + (parseFloat(e.jh_hours) || 0), 0)
-          const totalLabourCost = labourEntries.reduce((sum, e) =>
-            sum + ((parseFloat(e.rt_hours) || 0) * (parseFloat(e.rate) || 0)) +
-                  ((parseFloat(e.ot_hours) || 0) * (parseFloat(e.rate) || 0) * 1.5) +
-                  ((parseFloat(e.jh_hours) || 0) * (parseFloat(e.rate) || 0)), 0)
-          const totalEquipHours = equipEntries.reduce((sum, e) =>
-            sum + (parseFloat(e.hours) || 0) * (parseInt(e.count) || 1), 0)
-          const totalEquipCost = equipEntries.reduce((sum, e) =>
-            sum + (parseFloat(e.hours) || 0) * (parseFloat(e.rate) || 0) * (parseInt(e.count) || 1), 0)
-
-          allLineItems.push({
-            ticket_number: ticketNumber,
-            work_date: result.work_date || null,
-            crew_name: result.crew_name || null,
-            foreman: result.foreman || null,
-            activity_description: result.activity_description || '',
-            labour_entries: labourEntries,
-            equipment_entries: equipEntries,
-            total_labour_hours: Math.round(totalLabourHours * 10) / 10,
-            total_labour_cost: Math.round(totalLabourCost * 100) / 100,
-            total_equipment_hours: Math.round(totalEquipHours * 10) / 10,
-            total_equipment_cost: Math.round(totalEquipCost * 100) / 100,
-            line_total: Math.round((totalLabourCost + totalEquipCost) * 100) / 100,
-            source: 'daily_ticket'
-          })
-        }
+        // LEM without ticket
+        pairs.push({ lem: g, ticket: null })
+        i += 1
       }
-    } catch (err) {
-      errors.push(`Group ${g + 1} (${group.type}, pages ${pageNums}): ${err.message}`)
+    } else {
+      // Ticket without preceding LEM (shouldn't happen normally but handle gracefully)
+      pairs.push({ lem: null, ticket: g })
+      i += 1
     }
   }
-
-  return { documentInfo, allLineItems, ticketPages }
+  return pairs
 }
 
+// ── Phase 3: Store images and create pairs ─────────────────────────────────
+
+async function uploadPageImages(lemId, groupType, pairIndex, pageIndices, allPageImages, errors) {
+  const urls = []
+  for (const idx of pageIndices) {
+    const base64 = allPageImages[idx]
+    if (!base64) continue
+    try {
+      const blob = base64ToBlob(base64)
+      const folder = groupType === 'lem' ? 'lem_pages' : 'ticket_pages'
+      const filePath = `lem-uploads/${lemId}/${folder}/pair${pairIndex}_p${idx + 1}.jpg`
+      const { error: upErr } = await supabase.storage
+        .from('lem-uploads')
+        .upload(filePath, blob, { contentType: 'image/jpeg', upsert: true })
+      if (!upErr) {
+        const { data: urlData } = supabase.storage.from('lem-uploads').getPublicUrl(filePath)
+        urls.push(urlData?.publicUrl || null)
+      }
+    } catch (e) {
+      errors.push(`Upload pair ${pairIndex} ${groupType} page ${idx + 1}: ${e.message}`)
+    }
+  }
+  return urls.filter(Boolean)
+}
+
+// ── Main entry point ────────────────────────────────────────────────────────
+
 /**
- * Parse a LEM PDF file into structured line items + ticket page images.
+ * Parse a LEM PDF into visual reconciliation pairs.
  *
- * Pipeline:
- *   1. Convert PDF to page images
- *   2. Classify every page (LEM vs daily ticket) in batches
- *   3. Group consecutive same-type pages (state machine)
- *   4. Extract data from each group (all pages sent together)
- *   5. Upload ticket page images if lemId provided
- *
- * @param {File} file - The PDF or image file
- * @param {function} onProgress - Optional callback: (message) => void
- * @param {string} lemId - Optional: if provided, ticket page images are uploaded and linked
- * @returns {{ lineItems: Array, ticketPages: Array, documentInfo: object, pageGroups: Array, errors: string[] }}
+ * @param {File} file - PDF file
+ * @param {function} onProgress - (message) => void
+ * @param {string} lemId - LEM upload ID for storage paths
+ * @param {string} orgId - Organization ID for pair records
+ * @returns {{ pairs: Array, documentInfo: object, errors: string[] }}
  */
-export async function parseLEMFile(file, onProgress, lemId) {
+export async function parseLEMFile(file, onProgress, lemId, orgId) {
   if (!anthropicApiKey) {
-    return { lineItems: [], ticketPages: [], documentInfo: {}, pageGroups: [], errors: ['Claude API key not configured. Add VITE_ANTHROPIC_API_KEY to your .env file.'] }
+    return { pairs: [], documentInfo: {}, errors: ['Claude API key not configured.'] }
   }
   if (file.size > 100 * 1024 * 1024) {
-    return { lineItems: [], ticketPages: [], documentInfo: {}, pageGroups: [], errors: [`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Maximum 100MB.`] }
+    return { pairs: [], documentInfo: {}, errors: [`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 100MB.`] }
   }
 
-  const isPDF = file.type === 'application/pdf'
   const errors = []
+  const isPDF = file.type === 'application/pdf'
 
-  // --- Step 1: Convert to images ---
+  // ── Convert to images ──
   let allPageImages = []
   let imageBlocks = []
   if (isPDF) {
-    onProgress?.('Converting PDF pages to images (this may take a minute for large files)...')
+    onProgress?.('Converting PDF pages to images...')
     allPageImages = await pdfToImages(file, 500, onProgress)
-    onProgress?.(`Converted ${allPageImages.length} pages.`)
-    imageBlocks = allPageImages.map(base64 => ({
-      type: 'image',
-      source: { type: 'base64', media_type: 'image/jpeg', data: base64 }
+    onProgress?.(`${allPageImages.length} pages rendered.`)
+    imageBlocks = allPageImages.map(b64 => ({
+      type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 }
     }))
   } else {
     const base64 = await new Promise((resolve, reject) => {
@@ -468,49 +274,112 @@ export async function parseLEMFile(file, onProgress, lemId) {
       reader.readAsDataURL(file)
     })
     allPageImages = [base64]
-    imageBlocks = [{
-      type: 'image',
-      source: { type: 'base64', media_type: file.type || 'image/jpeg', data: base64 }
-    }]
+    imageBlocks = [{ type: 'image', source: { type: 'base64', media_type: file.type || 'image/jpeg', data: base64 } }]
   }
 
-  // --- Step 2: Classify all pages ---
+  // ── Phase 1: Classify ──
   onProgress?.('Phase 1: Classifying pages...')
-  const classifications = await classifyPages(allPageImages, imageBlocks, onProgress, errors)
-  const lemCount = classifications.filter(c => c.page_type === 'lem_summary').length
+  const classifications = await classifyPages(imageBlocks, onProgress, errors)
+  const lemCount = classifications.filter(c => c.page_type === 'lem').length
   const ticketCount = classifications.filter(c => c.page_type === 'daily_ticket').length
-  onProgress?.(`Classified ${allPageImages.length} pages: ${lemCount} LEM, ${ticketCount} ticket.`)
+  onProgress?.(`${lemCount} LEM pages, ${ticketCount} ticket pages.`)
 
-  // --- Step 3: Group pages via state machine ---
+  // Extract document info from first LEM classification
+  const firstLem = classifications.find(c => c.page_type === 'lem')
+  const documentInfo = {
+    contractor_name: firstLem?.crew || null,
+    lem_number: firstLem?.lem_number || null,
+    period_start: null,
+    period_end: null
+  }
+  // Find date range from all classifications
+  const dates = classifications.map(c => c.date).filter(Boolean).sort()
+  if (dates.length > 0) {
+    documentInfo.period_start = dates[0]
+    documentInfo.period_end = dates[dates.length - 1]
+  }
+
+  // ── Phase 2: Group + pair ──
   const groups = groupPages(classifications)
-  onProgress?.(`Phase 2: Grouped into ${groups.length} document groups.`)
+  const pairs = buildPairs(groups)
+  onProgress?.(`${pairs.length} LEM/ticket pairs found.`)
 
-  // --- Step 4: Extract data from each group ---
-  onProgress?.('Phase 3: Extracting data from each group...')
-  const { documentInfo, allLineItems, ticketPages } = await extractGroups(
-    groups, allPageImages, imageBlocks, onProgress, errors
-  )
+  // Check for low-confidence classifications
+  const lowConf = classifications.filter(c => c.confidence === 'low')
+  if (lowConf.length > 0) {
+    errors.push(`${lowConf.length} page(s) classified with low confidence — review recommended.`)
+  }
 
-  onProgress?.(`Extraction complete: ${allLineItems.length} line items, ${ticketPages.length} ticket pages.`)
+  // ── Phase 3: Upload images + create pair records ──
+  if (lemId) {
+    onProgress?.('Uploading page images...')
+    const pairRecords = []
 
-  // --- Step 5: Upload ticket page images ---
-  if (lemId && ticketPages.length > 0) {
-    onProgress?.(`Uploading ${ticketPages.length} ticket page images...`)
-    for (const tp of ticketPages) {
-      if (!tp.base64 || !tp.ticket_number) continue
-      try {
-        const blob = base64ToBlob(tp.base64)
-        const filePath = `lem-uploads/${lemId}/tickets/${tp.ticket_number.replace(/[^a-zA-Z0-9-_]/g, '_')}_p${tp.pageIndex + 1}.jpg`
-        const { error: upErr } = await supabase.storage.from('lem-uploads').upload(filePath, blob, { contentType: 'image/jpeg' })
-        if (!upErr) {
-          const { data: urlData } = supabase.storage.from('lem-uploads').getPublicUrl(filePath)
-          tp.url = urlData?.publicUrl || null
-        }
-      } catch (e) {
-        // Non-fatal — continue without image
+    for (let p = 0; p < pairs.length; p++) {
+      const pair = pairs[p]
+      onProgress?.(`Uploading pair ${p + 1} of ${pairs.length}...`)
+
+      // Upload LEM pages
+      let lemUrls = []
+      let lemIndices = []
+      if (pair.lem) {
+        lemIndices = pair.lem.pageIndices
+        lemUrls = await uploadPageImages(lemId, 'lem', p, lemIndices, allPageImages, errors)
+      }
+
+      // Upload ticket pages
+      let ticketUrls = []
+      let ticketIndices = []
+      if (pair.ticket) {
+        ticketIndices = pair.ticket.pageIndices
+        ticketUrls = await uploadPageImages(lemId, 'ticket', p, ticketIndices, allPageImages, errors)
+      }
+
+      // Determine date and crew from classifications
+      const allCls = [...(pair.lem?.classifications || []), ...(pair.ticket?.classifications || [])]
+      const pairDate = allCls.find(c => c.date)?.date || null
+      const pairCrew = allCls.find(c => c.crew)?.crew || null
+
+      pairRecords.push({
+        lem_upload_id: lemId,
+        organization_id: orgId,
+        pair_index: p,
+        work_date: pairDate,
+        crew_name: pairCrew,
+        lem_page_urls: lemUrls,
+        lem_page_indices: lemIndices,
+        contractor_ticket_urls: ticketUrls,
+        contractor_ticket_indices: ticketIndices,
+        status: 'pending'
+      })
+    }
+
+    // Insert pair records
+    if (pairRecords.length > 0) {
+      onProgress?.(`Saving ${pairRecords.length} pair records...`)
+      const { error: insertErr } = await supabase
+        .from('lem_reconciliation_pairs')
+        .insert(pairRecords)
+      if (insertErr) {
+        errors.push(`Failed to save pairs: ${insertErr.message}`)
       }
     }
+
+    onProgress?.(`Done: ${pairRecords.length} pairs saved.`)
+    return { pairs: pairRecords, documentInfo, errors }
   }
 
-  return { lineItems: allLineItems, ticketPages, documentInfo, pageGroups: groups, errors }
+  // If no lemId, just return the pair structure without uploading
+  const pairSummaries = pairs.map((pair, p) => {
+    const allCls = [...(pair.lem?.classifications || []), ...(pair.ticket?.classifications || [])]
+    return {
+      pair_index: p,
+      work_date: allCls.find(c => c.date)?.date || null,
+      crew_name: allCls.find(c => c.crew)?.crew || null,
+      lem_pages: pair.lem?.pageIndices?.length || 0,
+      ticket_pages: pair.ticket?.pageIndices?.length || 0
+    }
+  })
+
+  return { pairs: pairSummaries, documentInfo, errors }
 }
