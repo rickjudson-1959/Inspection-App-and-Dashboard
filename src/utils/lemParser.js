@@ -1,22 +1,19 @@
 /**
- * LEM PDF Parser — Visual Reconciliation
+ * LEM PDF Parser — Visual Reconciliation (Zero API Calls)
  *
  * Splits contractor LEM PDFs into LEM/ticket pairs for side-by-side visual comparison.
- * The admin compares the documents — the app just organizes and presents.
  *
  * Pipeline:
- *   Phase 1 — Classify every page as "lem" or "daily_ticket" (+ extract date/crew)
+ *   Phase 1 — Extract text from each page via pdf.js, classify using regex/keyword matching
  *   Phase 2 — Group consecutive same-type pages via state machine into pairs
- *   Phase 3 — Store page images in Supabase storage, create reconciliation pairs
+ *   Phase 3 — Convert pages to images, store in Supabase storage, create pair records
  *
- * NO detailed field extraction — classification only.
+ * NO API calls for classification. Text pattern matching only.
  */
 
 import { supabase } from '../supabase'
 
-const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
-
-// ── PDF to images ──────────────────────────────────────────────────────────
+// ── PDF.js setup ────────────────────────────────────────────────────────────
 
 async function ensurePdfJs() {
   if (window.pdfjsLib) return
@@ -31,6 +28,8 @@ async function ensurePdfJs() {
     'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
 }
 
+// ── PDF to images (exported for InvoiceUpload) ─────────────────────────────
+
 export async function pdfToImages(file, maxPages = 500, onProgress) {
   await ensurePdfJs()
   const arrayBuffer = await file.arrayBuffer()
@@ -43,123 +42,191 @@ export async function pdfToImages(file, maxPages = 500, onProgress) {
   for (let i = 1; i <= limit; i++) {
     if (onProgress && i % 10 === 0) onProgress(`Rendering page ${i} of ${limit}...`)
     const page = await pdf.getPage(i)
-    const viewport = page.getViewport({ scale })
-    const canvas = document.createElement('canvas')
-    canvas.width = viewport.width
-    canvas.height = viewport.height
-    const ctx = canvas.getContext('2d')
-    await page.render({ canvasContext: ctx, viewport }).promise
-
-    if (viewport.width > viewport.height * 1.2) {
-      const rot = document.createElement('canvas')
-      rot.width = viewport.height
-      rot.height = viewport.width
-      const rCtx = rot.getContext('2d')
-      rCtx.translate(rot.width, 0)
-      rCtx.rotate(Math.PI / 2)
-      rCtx.drawImage(canvas, 0, 0)
-      images.push(rot.toDataURL('image/jpeg', jpegQuality).split(',')[1])
-    } else {
-      images.push(canvas.toDataURL('image/jpeg', jpegQuality).split(',')[1])
-    }
+    images.push(await renderPageToImage(page, scale, jpegQuality))
   }
   return images
 }
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+// ── Extract text from a single PDF page ─────────────────────────────────────
 
-function base64ToBlob(base64, mimeType = 'image/jpeg') {
-  const bytes = atob(base64)
-  const arr = new Uint8Array(bytes.length)
-  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
-  return new Blob([arr], { type: mimeType })
+async function extractPageText(page) {
+  const textContent = await page.getTextContent()
+  return textContent.items.map(item => item.str).join(' ')
 }
 
-async function callClaude(imageBlocks, textPrompt, maxTokens = 4000) {
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': anthropicApiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    },
-    body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: maxTokens,
-      messages: [{ role: 'user', content: [...imageBlocks, { type: 'text', text: textPrompt }] }]
-    })
-  })
-  if (!response.ok) {
-    const errText = await response.text()
-    throw new Error(`API ${response.status}: ${errText.substring(0, 200)}`)
+// ── Phase 1: Text-based page classification ─────────────────────────────────
+
+// LEM indicators — billing/summary format
+const LEM_PATTERNS = [
+  /labour\s*(and|&)\s*equipment/i,
+  /\bL\.?E\.?M\.?\b/i,
+  /\bmanifest\b/i,
+  /\brate\b.*\bamount\b/i,
+  /\bamount\b.*\brate\b/i,
+  /\bsubtotal\b/i,
+  /\bgrand\s*total\b/i,
+  /\btotal\s*(labour|labor|equipment|amount)\b/i,
+  /\bbilling\b/i,
+  /\binvoice\b/i,
+  /\bsummary\s*(of|for)\b/i,
+  /\bperiod\b.*\bending\b/i,
+  /\bdate\s*range\b/i,
+  /\bcost\s*code\b/i,
+  /\bwork\s*order\b/i,
+  /\bproject\s*no/i,
+  /\bcontract\s*no/i,
+  /\bpurchase\s*order\b/i,
+  /\bP\.?O\.?\s*#/i,
+  /\bunit\s*price\b/i,
+  /\brate\s*\$\s*\d/i,
+  /\$\s*\d[\d,]*\.\d{2}/,  // dollar amounts like $1,234.56
+]
+
+// Daily ticket indicators — field-level detail
+const TICKET_PATTERNS = [
+  /\bdaily\b.*\b(ticket|report|time\s*sheet)\b/i,
+  /\b(field|time)\s*ticket\b/i,
+  /\btime\s*sheet\b/i,
+  /\bforeman\b/i,
+  /\bsupervisor\b/i,
+  /\binspector\b.*\bsignature\b/i,
+  /\bsignature\b.*\binspector\b/i,
+  /\bsigned\s*by\b/i,
+  /\bapproved\s*by\b/i,
+  /\bstart\s*time\b/i,
+  /\bend\s*time\b/i,
+  /\btime\s*in\b/i,
+  /\btime\s*out\b/i,
+  /\bweather\b/i,
+  /\btemperature\b/i,
+  /\bticket\s*#\b/i,
+  /\bticket\s*no/i,
+  /\bticket\s*number\b/i,
+  /\bcrew\s*size\b/i,
+  /\bwork\s*description\b/i,
+  /\bjob\s*description\b/i,
+  /\bequipment\s*list\b/i,
+  /\bunit\s*#\b/i,
+  /\bunit\s*number\b/i,
+]
+
+// Date patterns
+const DATE_PATTERNS = [
+  /(\d{4})-(\d{2})-(\d{2})/,                          // 2026-02-15
+  /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/,          // 02/15/2026 or 2/15/26
+  /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+(\d{1,2}),?\s*(\d{4})/i,  // February 15, 2026
+  /(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s*,?\s*(\d{4})/i, // 15 February 2026
+]
+
+const MONTH_MAP = {
+  jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
+  jul: '07', aug: '08', sep: '09', oct: '10', nov: '11', dec: '12'
+}
+
+function extractDate(text) {
+  // Try YYYY-MM-DD first
+  let m = text.match(/(\d{4})-(\d{2})-(\d{2})/)
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`
+
+  // Try Month DD, YYYY
+  m = text.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+(\d{1,2}),?\s*(\d{4})/i)
+  if (m) {
+    const month = MONTH_MAP[m[1].toLowerCase().slice(0, 3)]
+    return `${m[3]}-${month}-${m[2].padStart(2, '0')}`
   }
-  const data = await response.json()
-  const content = data.content[0]?.text || ''
-  const jsonMatch = content.match(/\{[\s\S]*\}/)
-  if (!jsonMatch) throw new Error('No JSON in response')
-  return JSON.parse(jsonMatch[0])
-}
 
-// ── Phase 1: Classify pages ────────────────────────────────────────────────
-
-const CLASSIFY_PROMPT = `Classify each page image from a contractor LEM (Labour and Equipment Manifest) PDF bundle.
-
-For EACH page, determine:
-- "lem" — A LEM billing page. Indicators: billing/tabular format, columns like Hours/Rate/Amount, subtotals, contractor letterhead, LEM reference number, may cover a date range.
-- "daily_ticket" — A daily field ticket. Indicators: single date, individual worker names with hours, equipment list, foreman/inspector signature lines, field ticket number.
-
-Return ONLY valid JSON:
-{
-  "classifications": [
-    {
-      "page_type": "lem" or "daily_ticket",
-      "confidence": "high" or "medium" or "low",
-      "date": "YYYY-MM-DD or null — date visible on page",
-      "crew": "crew name, discipline, or contractor name visible, or null",
-      "ticket_number": "field ticket number if visible, or null",
-      "lem_number": "LEM reference number if visible, or null"
-    }
-  ]
-}
-
-Return exactly one entry per page image, in order. If unsure, set confidence to "low".`
-
-async function classifyPages(imageBlocks, onProgress, errors) {
-  const BATCH_SIZE = 10
-  const classifications = []
-
-  for (let b = 0; b < imageBlocks.length; b += BATCH_SIZE) {
-    const batch = imageBlocks.slice(b, b + BATCH_SIZE)
-    const pageStart = b + 1
-    const pageEnd = b + batch.length
-    onProgress?.(`Classifying pages ${pageStart}-${pageEnd} of ${imageBlocks.length}...`)
-
-    try {
-      const result = await callClaude(
-        batch,
-        `There are ${batch.length} page images (pages ${pageStart}-${pageEnd}). ${CLASSIFY_PROMPT}`
-      )
-      const classList = result.classifications || []
-      for (let i = 0; i < batch.length; i++) {
-        classifications.push(classList[i] || { page_type: 'lem', confidence: 'low', notes: 'Missing' })
-      }
-    } catch (err) {
-      errors.push(`Classification pages ${pageStart}-${pageEnd}: ${err.message}`)
-      for (let i = 0; i < batch.length; i++) {
-        classifications.push({ page_type: 'lem', confidence: 'low', notes: 'Classification failed' })
-      }
-    }
+  // Try DD Month YYYY
+  m = text.match(/(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s*,?\s*(\d{4})/i)
+  if (m) {
+    const month = MONTH_MAP[m[2].toLowerCase().slice(0, 3)]
+    return `${m[3]}-${month}-${m[1].padStart(2, '0')}`
   }
-  return classifications
+
+  // Try MM/DD/YYYY or DD/MM/YYYY (assume MM/DD for North American context)
+  m = text.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/)
+  if (m) {
+    const a = parseInt(m[1]), b = parseInt(m[2])
+    // If first number > 12, it's DD/MM/YYYY
+    if (a > 12) return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`
+    return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`
+  }
+
+  return null
+}
+
+function extractCrewName(text) {
+  // Look for patterns like "Crew: ..." or "Contractor: ..."
+  let m = text.match(/(?:crew|contractor|company)\s*[:]\s*([^\n,;]{3,40})/i)
+  if (m) return m[1].trim()
+
+  // Look for "Foreman: Name"
+  m = text.match(/foreman\s*[:]\s*([^\n,;]{3,30})/i)
+  if (m) return m[1].trim()
+
+  return null
+}
+
+function extractTicketNumber(text) {
+  // "Ticket #1234" or "Ticket No. 1234" or "Field Ticket 1234"
+  let m = text.match(/(?:ticket|field\s*ticket)\s*(?:#|no\.?|number)?\s*[:.]?\s*(\S{3,20})/i)
+  if (m) return m[1].replace(/[,;.]$/, '')
+  return null
+}
+
+function extractLemNumber(text) {
+  let m = text.match(/(?:L\.?E\.?M\.?|manifest)\s*(?:#|no\.?|number|ref)?\s*[:.]?\s*(\S{3,20})/i)
+  if (m) return m[1].replace(/[,;.]$/, '')
+  return null
+}
+
+/**
+ * Classify a single page based on its extracted text.
+ * Returns: { page_type, confidence, date, crew, ticket_number, lem_number }
+ */
+function classifyPageText(text) {
+  const lowerText = text.toLowerCase()
+  let lemScore = 0
+  let ticketScore = 0
+
+  for (const pattern of LEM_PATTERNS) {
+    if (pattern.test(text)) lemScore++
+  }
+
+  for (const pattern of TICKET_PATTERNS) {
+    if (pattern.test(text)) ticketScore++
+  }
+
+  // Determine type
+  let page_type, confidence
+  if (lemScore > ticketScore && lemScore >= 2) {
+    page_type = 'lem'
+    confidence = lemScore >= 4 ? 'high' : lemScore >= 2 ? 'medium' : 'low'
+  } else if (ticketScore > lemScore && ticketScore >= 2) {
+    page_type = 'daily_ticket'
+    confidence = ticketScore >= 4 ? 'high' : ticketScore >= 2 ? 'medium' : 'low'
+  } else if (lemScore > 0 || ticketScore > 0) {
+    page_type = lemScore >= ticketScore ? 'lem' : 'daily_ticket'
+    confidence = 'low'
+  } else {
+    // No matches — check for dollar amounts (more likely LEM) vs signature lines (more likely ticket)
+    const hasDollar = /\$\s*\d/.test(text)
+    const hasSignature = /signature|signed/i.test(text)
+    page_type = hasDollar && !hasSignature ? 'lem' : hasSignature ? 'daily_ticket' : 'lem'
+    confidence = 'low'
+  }
+
+  return {
+    page_type,
+    confidence,
+    date: extractDate(text),
+    crew: extractCrewName(text),
+    ticket_number: page_type === 'daily_ticket' ? extractTicketNumber(text) : null,
+    lem_number: page_type === 'lem' ? extractLemNumber(text) : null
+  }
 }
 
 // ── Phase 2: Group pages via state machine ─────────────────────────────────
 
-/**
- * Groups consecutive same-type pages. Each type-switch creates a new group.
- * Returns: [{ type: 'lem'|'daily_ticket', pageIndices: number[], classifications: object[] }]
- */
 function groupPages(classifications) {
   if (classifications.length === 0) return []
   const groups = []
@@ -179,29 +246,20 @@ function groupPages(classifications) {
   return groups
 }
 
-/**
- * Pair consecutive LEM + ticket groups.
- * Pattern: LEM group followed by ticket group = one pair.
- * A LEM without a following ticket = pair with empty ticket.
- * A ticket without a preceding LEM = standalone ticket pair.
- */
 function buildPairs(groups) {
   const pairs = []
   let i = 0
   while (i < groups.length) {
     const g = groups[i]
     if (g.type === 'lem') {
-      // Check if next group is a ticket
       if (i + 1 < groups.length && groups[i + 1].type === 'daily_ticket') {
         pairs.push({ lem: g, ticket: groups[i + 1] })
         i += 2
       } else {
-        // LEM without ticket
         pairs.push({ lem: g, ticket: null })
         i += 1
       }
     } else {
-      // Ticket without preceding LEM (shouldn't happen normally but handle gracefully)
       pairs.push({ lem: null, ticket: g })
       i += 1
     }
@@ -209,7 +267,36 @@ function buildPairs(groups) {
   return pairs
 }
 
-// ── Phase 3: Store images and create pairs ─────────────────────────────────
+// ── Phase 3: Convert to images + upload ─────────────────────────────────────
+
+function base64ToBlob(base64, mimeType = 'image/jpeg') {
+  const bytes = atob(base64)
+  const arr = new Uint8Array(bytes.length)
+  for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
+  return new Blob([arr], { type: mimeType })
+}
+
+async function renderPageToImage(page, scale, jpegQuality) {
+  const viewport = page.getViewport({ scale })
+  const canvas = document.createElement('canvas')
+  canvas.width = viewport.width
+  canvas.height = viewport.height
+  const ctx = canvas.getContext('2d')
+  await page.render({ canvasContext: ctx, viewport }).promise
+
+  // Rotate landscape pages to portrait
+  if (viewport.width > viewport.height * 1.2) {
+    const rot = document.createElement('canvas')
+    rot.width = viewport.height
+    rot.height = viewport.width
+    const rCtx = rot.getContext('2d')
+    rCtx.translate(rot.width, 0)
+    rCtx.rotate(Math.PI / 2)
+    rCtx.drawImage(canvas, 0, 0)
+    return rot.toDataURL('image/jpeg', jpegQuality).split(',')[1]
+  }
+  return canvas.toDataURL('image/jpeg', jpegQuality).split(',')[1]
+}
 
 async function uploadPageImages(lemId, groupType, pairIndex, pageIndices, allPageImages, errors) {
   const urls = []
@@ -238,17 +325,15 @@ async function uploadPageImages(lemId, groupType, pairIndex, pageIndices, allPag
 
 /**
  * Parse a LEM PDF into visual reconciliation pairs.
+ * Uses text extraction + regex for classification — ZERO API calls.
  *
  * @param {File} file - PDF file
  * @param {function} onProgress - (message) => void
- * @param {string} lemId - LEM upload ID for storage paths
+ * @param {string} lemId - LEM upload ID for storage paths (omit for preview)
  * @param {string} orgId - Organization ID for pair records
  * @returns {{ pairs: Array, documentInfo: object, errors: string[] }}
  */
 export async function parseLEMFile(file, onProgress, lemId, orgId) {
-  if (!anthropicApiKey) {
-    return { pairs: [], documentInfo: {}, errors: ['Claude API key not configured.'] }
-  }
   if (file.size > 100 * 1024 * 1024) {
     return { pairs: [], documentInfo: {}, errors: [`File too large (${(file.size / 1024 / 1024).toFixed(1)}MB). Max 100MB.`] }
   }
@@ -256,43 +341,48 @@ export async function parseLEMFile(file, onProgress, lemId, orgId) {
   const errors = []
   const isPDF = file.type === 'application/pdf'
 
-  // ── Convert to images ──
-  let allPageImages = []
-  let imageBlocks = []
-  if (isPDF) {
-    onProgress?.('Converting PDF pages to images...')
-    allPageImages = await pdfToImages(file, 500, onProgress)
-    onProgress?.(`${allPageImages.length} pages rendered.`)
-    imageBlocks = allPageImages.map(b64 => ({
-      type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 }
-    }))
-  } else {
+  if (!isPDF) {
+    // Single image file — treat as one ticket page
     const base64 = await new Promise((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = () => resolve(reader.result.split(',')[1])
       reader.onerror = reject
       reader.readAsDataURL(file)
     })
-    allPageImages = [base64]
-    imageBlocks = [{ type: 'image', source: { type: 'base64', media_type: file.type || 'image/jpeg', data: base64 } }]
+    const pairs = [{ pair_index: 0, work_date: null, crew_name: null, lem_pages: 0, ticket_pages: 1 }]
+    return { pairs, documentInfo: {}, errors }
   }
 
-  // ── Phase 1: Classify ──
-  onProgress?.('Phase 1: Classifying pages...')
-  const classifications = await classifyPages(imageBlocks, onProgress, errors)
+  await ensurePdfJs()
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
+  const numPages = pdf.numPages
+  onProgress?.(`PDF loaded: ${numPages} pages.`)
+
+  // ── Phase 1: Extract text + classify (no API calls) ──
+  onProgress?.('Classifying pages (text analysis)...')
+  const classifications = []
+
+  for (let i = 1; i <= numPages; i++) {
+    if (i % 50 === 0 || i === 1) onProgress?.(`Classifying page ${i} of ${numPages}...`)
+    const page = await pdf.getPage(i)
+    const text = await extractPageText(page)
+    const cls = classifyPageText(text)
+    classifications.push(cls)
+  }
+
   const lemCount = classifications.filter(c => c.page_type === 'lem').length
   const ticketCount = classifications.filter(c => c.page_type === 'daily_ticket').length
-  onProgress?.(`${lemCount} LEM pages, ${ticketCount} ticket pages.`)
+  onProgress?.(`Classification done: ${lemCount} LEM pages, ${ticketCount} ticket pages.`)
 
   // Extract document info from first LEM classification
   const firstLem = classifications.find(c => c.page_type === 'lem')
   const documentInfo = {
-    contractor_name: firstLem?.crew || null,
+    contractor_name: firstLem?.crew || classifications.find(c => c.crew)?.crew || null,
     lem_number: firstLem?.lem_number || null,
     period_start: null,
     period_end: null
   }
-  // Find date range from all classifications
   const dates = classifications.map(c => c.date).filter(Boolean).sort()
   if (dates.length > 0) {
     documentInfo.period_start = dates[0]
@@ -304,48 +394,60 @@ export async function parseLEMFile(file, onProgress, lemId, orgId) {
   const pairs = buildPairs(groups)
   onProgress?.(`${pairs.length} LEM/ticket pairs found.`)
 
-  // Check for low-confidence classifications
   const lowConf = classifications.filter(c => c.confidence === 'low')
   if (lowConf.length > 0) {
     errors.push(`${lowConf.length} page(s) classified with low confidence — review recommended.`)
   }
 
-  // ── Phase 3: Upload images + create pair records ──
+  // ── Phase 3: Convert to images + upload ──
   if (lemId) {
-    onProgress?.('Uploading page images...')
-    const pairRecords = []
+    onProgress?.('Rendering page images...')
+    const scale = numPages > 50 ? 1.5 : 2.0
+    const jpegQuality = numPages > 50 ? 0.8 : 0.9
 
+    // Collect all page indices that need images
+    const neededIndices = new Set()
+    for (const pair of pairs) {
+      if (pair.lem) pair.lem.pageIndices.forEach(i => neededIndices.add(i))
+      if (pair.ticket) pair.ticket.pageIndices.forEach(i => neededIndices.add(i))
+    }
+
+    // Render only needed pages to images
+    const allPageImages = new Array(numPages).fill(null)
+    let rendered = 0
+    for (const idx of neededIndices) {
+      rendered++
+      if (rendered % 20 === 0) onProgress?.(`Rendering page ${rendered} of ${neededIndices.size}...`)
+      const page = await pdf.getPage(idx + 1) // pdf.js is 1-indexed
+      allPageImages[idx] = await renderPageToImage(page, scale, jpegQuality)
+    }
+    onProgress?.(`${rendered} pages rendered.`)
+
+    // Upload images and create pair records
+    const pairRecords = []
     for (let p = 0; p < pairs.length; p++) {
       const pair = pairs[p]
       onProgress?.(`Uploading pair ${p + 1} of ${pairs.length}...`)
 
-      // Upload LEM pages
-      let lemUrls = []
-      let lemIndices = []
+      let lemUrls = [], lemIndices = []
       if (pair.lem) {
         lemIndices = pair.lem.pageIndices
         lemUrls = await uploadPageImages(lemId, 'lem', p, lemIndices, allPageImages, errors)
       }
 
-      // Upload ticket pages
-      let ticketUrls = []
-      let ticketIndices = []
+      let ticketUrls = [], ticketIndices = []
       if (pair.ticket) {
         ticketIndices = pair.ticket.pageIndices
         ticketUrls = await uploadPageImages(lemId, 'ticket', p, ticketIndices, allPageImages, errors)
       }
 
-      // Determine date and crew from classifications
       const allCls = [...(pair.lem?.classifications || []), ...(pair.ticket?.classifications || [])]
-      const pairDate = allCls.find(c => c.date)?.date || null
-      const pairCrew = allCls.find(c => c.crew)?.crew || null
-
       pairRecords.push({
         lem_upload_id: lemId,
         organization_id: orgId,
         pair_index: p,
-        work_date: pairDate,
-        crew_name: pairCrew,
+        work_date: allCls.find(c => c.date)?.date || null,
+        crew_name: allCls.find(c => c.crew)?.crew || null,
         lem_page_urls: lemUrls,
         lem_page_indices: lemIndices,
         contractor_ticket_urls: ticketUrls,
@@ -354,22 +456,19 @@ export async function parseLEMFile(file, onProgress, lemId, orgId) {
       })
     }
 
-    // Insert pair records
     if (pairRecords.length > 0) {
       onProgress?.(`Saving ${pairRecords.length} pair records...`)
       const { error: insertErr } = await supabase
         .from('lem_reconciliation_pairs')
         .insert(pairRecords)
-      if (insertErr) {
-        errors.push(`Failed to save pairs: ${insertErr.message}`)
-      }
+      if (insertErr) errors.push(`Failed to save pairs: ${insertErr.message}`)
     }
 
     onProgress?.(`Done: ${pairRecords.length} pairs saved.`)
     return { pairs: pairRecords, documentInfo, errors }
   }
 
-  // If no lemId, just return the pair structure without uploading
+  // Preview mode — no upload, just return pair structure
   const pairSummaries = pairs.map((pair, p) => {
     const allCls = [...(pair.lem?.classifications || []), ...(pair.ticket?.classifications || [])]
     return {
