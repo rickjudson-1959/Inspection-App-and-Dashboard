@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 4.9 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-03-07
+## Version: 4.10 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-03-08
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -736,18 +736,29 @@ A: The system detected you already have a report for the same date and spread. I
 A: The Reconciliation Dashboard has a "Trackable Items" tab (teal). It shows all 14 trackable item categories with filter chips, summary cards per type (including deploy/retrieve/net counts for inventory items like mats, fencing, ramps, goalposts), a detail table with type-specific columns, and an inventory net position panel. Use the date range dropdown to adjust the time window.
 
 **Q: What is LEM reconciliation and how does my daily report fit in?**
-A: LEM (Labour and Equipment Manifest) reconciliation is the process of verifying that a contractor's billing claims match the actual work performed. Your daily report is one of four documents compared side-by-side: (1) your photo of the contractor's daily ticket, (2) your independent labour/equipment entries from OCR and manual input, (3) the contractor's own copy of that ticket from their LEM bundle, and (4) the contractor's billing line item from their LEM summary. This four-way comparison catches discrepancies — extra workers claimed, inflated hours, equipment not on-site, or altered ticket copies. Your accurate reporting is the foundation of the entire reconciliation process.
+A: LEM (Labour and Equipment Manifest) reconciliation is the process of verifying that a contractor's billing claims match the actual work performed. Admins use a **visual four-panel comparison** to review each ticket side-by-side:
+
+- **Panel 1 — Contractor LEM**: Zoomable page images from the contractor's uploaded LEM PDF showing their billing claim.
+- **Panel 2 — Contractor Daily Ticket**: Zoomable page images from the contractor's own copy of the daily ticket (extracted from their LEM bundle).
+- **Panel 3 — Our Ticket Photo**: Your original field photo of the contractor's daily ticket (from `ticketPhotos`). This is the ground truth captured before the contractor could alter anything.
+- **Panel 4 — Inspector Report Data**: Your structured labour and equipment entries with rate card costs calculated automatically.
+
+This four-panel layout catches discrepancies — extra workers claimed, inflated hours, equipment not on-site, or altered ticket copies. Your accurate reporting is the foundation of the entire reconciliation process.
+
+The system uses **zero-API classification** (pdf.js text extraction + regex/keyword pattern matching instead of AI vision) to sort uploaded LEM pages, processing 600+ pages in seconds. Matched pairs are stored in the `lem_reconciliation_pairs` table and presented in a left sidebar organized by date with status filters and progress tracking.
+
+Admins resolve each pair with one of four actions: **Accept**, **Dispute-Variance** (numbers don't match), **Dispute-Ticket Altered** (contractor's copy differs from your photo), or **Skip**. Keyboard shortcuts speed up review (A=Accept, N/Arrow Right=Next, Arrow Left=Previous). The "Approve Reconciliation" button only becomes available once all pairs have been reviewed.
 
 **Q: Why is the ticket number so important?**
 A: The ticket number is the key that links all four documents together in reconciliation. If the ticket number on your report doesn't match the contractor's daily ticket, the system can't automatically match your data to their billing claim. Always double-check that the ticket number in your report matches exactly what's printed on the contractor's ticket. The system normalizes common variations (prefixes like "Ticket-", "TKT-", "DT-", "#") but it can't fix completely wrong numbers.
 
 **Q: What should I do if the contractor's daily ticket looks different from what I observed?**
-A: Record what you actually observed — your independent labour count, equipment, and hours are the ground truth. If the ticket the contractor hands you at the end of the day shows different numbers than what you witnessed, note the discrepancy in your work description. Take a clear photo of the ticket regardless. During reconciliation, the admin will see both your data and the contractor's claim side-by-side and can flag it as "Ticket Altered" if the contractor's copy in their LEM differs from the original photo you captured.
+A: Record what you actually observed — your independent labour count, equipment, and hours are the ground truth. If the ticket the contractor hands you at the end of the day shows different numbers than what you witnessed, note the discrepancy in your work description. Take a clear photo of the ticket regardless. During reconciliation, the admin will see your original ticket photo (Panel 3) next to the contractor's copy from their LEM bundle (Panel 2). If the two don't match, the admin can flag it as "Dispute-Ticket Altered."
 
 **Q: Do I need to do anything for LEM reconciliation or invoicing?**
-A: No. Your job is to submit accurate daily reports with: (1) a clear photo of the contractor's daily ticket, (2) the correct ticket number, (3) accurate labour entries (names, classifications, hours), and (4) accurate equipment entries (types, unit numbers, hours). The reconciliation and invoice verification is handled by admins through the Reconciliation Dashboard. The better your data, the faster reconciliation goes.
+A: No. Your job is to submit accurate daily reports with: (1) a clear photo of the contractor's daily ticket, (2) the correct ticket number, (3) accurate labour entries (names, classifications, hours), and (4) accurate equipment entries (types, unit numbers, hours). The reconciliation and invoice verification is handled by admins through the Reconciliation Dashboard's four-panel comparison view. The better your data, the faster reconciliation goes.
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.9*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.10*
 *Source: InspectorReport.jsx (8,400+ lines) + ActivityBlock.jsx (3,400+ lines)*

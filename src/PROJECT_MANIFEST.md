@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - March 7, 2026
+## Project Manifest - March 8, 2026
 
 ---
 
@@ -120,7 +120,7 @@
 - **Admin Portal** - User/org/project management
 - **Inspector Invoicing** - Timesheet management
 - **NDT Auditor Dashboard** - NDT monitoring
-- **Reconciliation Dashboard** - Four-way match (Our Ticket Photo vs. Inspector Report vs. Contractor's Ticket Copy vs. LEM Billing Claim), billing status management, invoice batching, disputes, corrections, crossing support reconciliation, crossing variance (bore integrity audit), trackable items reconciliation (14 categories with filter chips, summary cards, detail table with type-specific columns, inventory net position panel), contractor LEM upload/reconciliation, two-stage invoice verification with reconciliation gate
+- **Reconciliation Dashboard** - Visual four-panel LEM reconciliation (Contractor LEM image | Contractor Ticket image | Our Ticket Photo | Inspector Report Data), text-based PDF classification (zero API calls), left sidebar pair list with status filters and progress tracking, keyboard navigation (A=Accept, N=Next), resolution workflow (Accept/Dispute-Variance/Dispute-Ticket Altered/Skip), billing status management, invoice batching, crossing support reconciliation, crossing variance (bore integrity audit), trackable items reconciliation (14 categories with filter chips, summary cards, detail table with type-specific columns, inventory net position panel), inspector reports sub-view with rate card cost calculations
 
 ### Reporting & Export
 - PDF report generation with all activity data, quality checks, specialized logs, work photo thumbnails, and document certification
@@ -280,22 +280,18 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 - Contractor name, LEM period (start/end), LEM reference number
 - Source file URL (PDF stored in `lem-uploads` bucket)
 - Aggregated totals: labour hours/cost, equipment hours/cost, total claimed
-- Status workflow: uploaded → parsing → parsed → reconciling → reconciled → disputed → approved
+- Status workflow: uploaded → parsed → approved
 - Uploaded by user FK
 
-**lem_line_items**
-- Per-ticket line items extracted from LEM PDFs
+**lem_reconciliation_pairs** (NEW — replaces lem_line_items for visual approach)
+- Visual reconciliation pairs extracted from LEM PDFs
 - FK to `contractor_lem_uploads` (cascade delete)
-- Ticket number, work date, crew name, foreman, activity description
-- Labour entries (JSONB array: employee name, classification, RT/OT/JH hours, rate, line total)
-- Equipment entries (JSONB array: equipment type, unit number, hours, count, rate, line total)
-- Calculated totals: labour hours/cost, equipment hours/cost, line total
-- Match status: unmatched → matched → clean → variance → disputed → resolved
-- Match confidence: none, low, medium, high
-- Matched report ID (FK to daily_reports), matched block index
-- Variance data (JSONB: per-person/per-equipment hour/headcount/cost comparisons)
-- Resolution fields: resolution type (accept_lem, accept_inspector, split, dispute, ticket_altered), notes, resolved by/at
-- `contractor_ticket_url`: URL to contractor's ticket copy image (for four-way comparison)
+- pair_index, work_date, crew_name
+- lem_page_urls (JSONB array of image URLs), lem_page_indices (JSONB)
+- contractor_ticket_urls (JSONB array of image URLs), contractor_ticket_indices (JSONB)
+- Matched report: matched_report_id (FK), matched_block_index, match_method
+- Resolution: status (pending/accepted/disputed/skipped), resolution type, notes, resolved_by/at
+- RLS policy via memberships table
 
 **contractor_invoices**
 - Invoice records linked to approved LEMs (reconciliation gate)
@@ -313,7 +309,7 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ### Supabase Storage Buckets (LEM/Invoice)
 
-- **`lem-uploads`** — Stores original LEM PDFs and extracted ticket page images (`lem-uploads/{orgId}/`, `lem-uploads/{lemId}/tickets/`)
+- **`lem-uploads`** — Stores original LEM PDFs and page images for visual reconciliation (`lem-uploads/{orgId}/`, `lem-uploads/{lemId}/lem_pages/`, `lem-uploads/{lemId}/ticket_pages/`)
 - **`contractor-invoices`** — Stores original invoice PDFs (`contractor-invoices/{orgId}/`)
 
 ---
@@ -334,7 +330,7 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 │
 ├── utils/
 │   ├── queryHelpers.js         # Org-scoped query helpers (useOrgQuery)
-│   ├── lemParser.js            # LEM PDF parser: pdf.js page rendering, Claude Vision OCR, page classification (lem_summary/daily_ticket), batch processing (NEW - Mar 2026)
+│   ├── lemParser.js            # LEM PDF parser: pdf.js text extraction, regex/keyword classification (zero API calls), state machine page grouping, image rendering for display only (Updated Mar 8, 2026)
 │   ├── lemMatcher.js           # Three-strategy matching engine: exact ticket → normalized ticket → date+crew fallback, variance calculation (NEW - Mar 2026)
 │   └── ticketNormalizer.js     # Ticket number normalization: strips prefixes, handles format variations (NEW - Mar 2026)
 │
@@ -410,7 +406,8 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
     ├── TenantSwitcher.jsx       # Organization switcher dropdown
     ├── AIAgentStatusIcon.jsx    # AI Watcher status indicator (NEW - Feb 2026)
     ├── LEMUpload.jsx            # Contractor LEM PDF upload, parse, preview, save (NEW - Mar 2026)
-    ├── LEMReconciliation.jsx    # Four-way reconciliation dashboard: LEM list, detail, review, invoice integration (NEW - Mar 2026)
+    ├── LEMReconciliation.jsx    # Visual four-panel reconciliation: pair list sidebar, LEMFourPanelView integration, resolution workflow, invoice integration (Updated Mar 8, 2026)
+    ├── LEMFourPanelView.jsx     # Four-panel visual comparison: zoomable image panels, inspector data panel with rate card costs, keyboard nav, resolution bar (NEW - Mar 8, 2026)
     ├── InvoiceUpload.jsx        # Invoice upload with reconciliation gate, Claude Vision parsing, variance comparison (NEW - Mar 2026)
     ├── InvoiceComparison.jsx    # Invoice vs reconciliation comparison, approve/reject/mark-paid workflow (NEW - Mar 2026)
     ├── MapDashboard.jsx
@@ -460,6 +457,7 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ├── 20260202_create_wps_material_specs.sql    # WPS material validation
 ├── 20260307_create_lem_reconciliation_tables.sql  # contractor_lem_uploads + lem_line_items (NEW - Mar 2026)
 ├── 20260307_lem_four_way_and_invoices.sql         # contractor_ticket_url column + contractor_invoices table (NEW - Mar 2026)
+├── 20260308_lem_visual_reconciliation.sql           # lem_reconciliation_pairs table (NEW - Mar 8, 2026)
 └── [other migrations]
 ```
 
@@ -535,6 +533,54 @@ supabase/migrations/20260307_lem_four_way_and_invoices.sql
 **Files Modified:**
 ```
 src/ReconciliationDashboard.jsx   # Added "Contractor LEMs" tab + LEMReconciliation component
+```
+
+---
+
+### Visual Four-Panel LEM Reconciliation — Zero API Classification (March 8, 2026)
+
+**Replaced Claude Vision classification with text-based regex matching and implemented visual four-panel reconciliation UI**
+
+1. **Zero API classification** (`lemParser.js` rewrite) — Eliminated all Claude API calls for page classification:
+   - Uses pdf.js `getTextContent()` to extract text from each PDF page
+   - 22 LEM regex patterns (L.E.M., rate/amount, subtotals, $amounts, billing, cost codes, PO numbers)
+   - 23 ticket regex patterns (daily ticket, foreman, inspector signature, start/end time, weather, unit numbers)
+   - Date extraction (4 format patterns), crew name, ticket number, LEM number via regex
+   - Processes 600 pages in seconds with zero rate limits
+   - Images rendered only for the four-panel viewer, not for classification
+
+2. **Visual four-panel comparison** (`LEMFourPanelView.jsx` — NEW):
+   - Left sidebar: pair list grouped by date, status filters (all/pending/accepted/disputed/skipped), progress bar
+   - Panel 1: Contractor LEM page images (zoomable, multi-page scroll, click-to-fullscreen)
+   - Panel 2: Contractor Daily Ticket images (same zoom/scroll behavior)
+   - Panel 3: Our Ticket Photo (from inspector's `ticketPhotos` in matched activity block)
+   - Panel 4: Inspector Report Data (structured — labour/equipment tables with rate card cost calculations)
+   - Resolution bar: Accept, Dispute-Variance, Dispute-Ticket Altered, Skip, with inline notes
+   - Keyboard navigation: A=Accept, N/Arrow=Next, Arrow Left=Previous
+   - Auto-advance to next pending pair after resolution
+   - Undo support for resolved pairs
+
+3. **LEMReconciliation.jsx rewrite** — Replaced old field-extraction-based line items view:
+   - Loads `lem_reconciliation_pairs` instead of `lem_line_items`
+   - Clicking a LEM upload opens the four-panel visual reconciliation view
+   - "Approve Reconciliation" requires all pairs reviewed (none pending)
+   - Inspector Reports sub-view with rate card costs preserved
+
+4. **LEMUpload.jsx update** — Preview shows pair summary table (date, crew, LEM pages, ticket pages) instead of extracted line items
+
+5. **Database** — New `lem_reconciliation_pairs` table with pair_index, work_date, crew_name, lem_page_urls/contractor_ticket_urls (JSONB), matched_report_id, resolution status/notes
+
+**Files Created:**
+```
+src/components/LEMFourPanelView.jsx           # Four-panel visual comparison
+supabase/migrations/20260308_lem_visual_reconciliation.sql  # lem_reconciliation_pairs table
+```
+
+**Files Modified:**
+```
+src/utils/lemParser.js              # Rewritten: text extraction + regex classification (zero API calls)
+src/components/LEMReconciliation.jsx # Rewritten: visual four-panel approach with pair-based workflow
+src/components/LEMUpload.jsx         # Updated: pair preview instead of line items
 ```
 
 ---
