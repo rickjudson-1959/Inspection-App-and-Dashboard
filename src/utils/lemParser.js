@@ -13,6 +13,8 @@
 
 import { supabase } from '../supabase'
 
+const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || ''
+
 // ── PDF.js setup ────────────────────────────────────────────────────────────
 
 async function ensurePdfJs() {
@@ -310,6 +312,45 @@ export async function parseLEMFile(file, onProgress, lemId, orgId) {
     console.log(`  Page ${d + 1}: ${c.page_type.padEnd(12)} | words: ${String(c.word_count).padStart(4)} | date: ${c.date || '-'} | crew: ${c.crew || '-'}`)
   }
   console.log(`=== TOTALS: ${lemCount} LEM, ${ticketCount} ticket out of ${classifications.length} pages ===\n`)
+
+  // ── DIAGNOSTIC: Send page 1 to Claude Vision to see what we're dealing with ──
+  if (ANTHROPIC_API_KEY) {
+    try {
+      onProgress?.('Sending page 1 to Claude Vision for diagnostic...')
+      const page1 = await pdf.getPage(1)
+      const page1Image = await renderPageToImage(page1, 2.0, 0.9)
+      const diagResponse = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-5-20250929',
+          max_tokens: 1000,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: page1Image } },
+              { type: 'text', text: 'Describe what you see on this page. Is it a LEM (billing summary with rates, hours, totals in a table format) or a daily ticket (single day, crew names, individual hours, signature lines)? Describe the layout, headers, and any distinguishing features.' }
+            ]
+          }]
+        })
+      })
+      const diagData = await diagResponse.json()
+      const diagText = diagData?.content?.[0]?.text || JSON.stringify(diagData)
+      console.log('\n=== CLAUDE VISION DIAGNOSTIC — PAGE 1 ===')
+      console.log(diagText)
+      console.log('=== END DIAGNOSTIC ===\n')
+      onProgress?.('Diagnostic complete — check browser console for Claude Vision response.')
+    } catch (diagErr) {
+      console.error('Diagnostic Vision call failed:', diagErr.message)
+    }
+  } else {
+    console.warn('No ANTHROPIC_API_KEY — skipping Vision diagnostic')
+  }
 
   // Extract document info from first LEM classification
   const firstLem = classifications.find(c => c.page_type === 'lem')
