@@ -22,7 +22,100 @@ export default function LEMReconciliation() {
   const [saving, setSaving] = useState(false)
   const [loadingReview, setLoadingReview] = useState(false)
 
-  useEffect(() => { loadLemUploads() }, [])
+  // Inspector reports + rate cards
+  const [subView, setSubView] = useState('inspectorReports') // 'inspectorReports' or 'contractorLems'
+  const [reports, setReports] = useState([])
+  const [labourRates, setLabourRates] = useState([])
+  const [equipmentRates, setEquipmentRates] = useState([])
+  const [dateRange, setDateRange] = useState('60')
+
+  useEffect(() => { loadLemUploads(); loadReportsAndRates() }, [])
+  useEffect(() => { loadReportsAndRates() }, [dateRange])
+
+  async function loadReportsAndRates() {
+    const orgId = getOrgId()
+    const endDate = new Date()
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - parseInt(dateRange))
+
+    let rq = supabase.from('daily_reports').select('id, date, inspector_name, activity_blocks')
+      .gte('date', startDate.toISOString().split('T')[0])
+      .lte('date', endDate.toISOString().split('T')[0])
+      .order('date', { ascending: false })
+    rq = addOrgFilter(rq)
+    const { data: reportData } = await rq
+    setReports(reportData || [])
+
+    // Load rate cards via server-side API (RLS blocks direct reads)
+    try {
+      const lr = await fetch(`/api/rates?table=labour_rates&organization_id=${orgId}`)
+      if (lr.ok) setLabourRates(await lr.json())
+      const er = await fetch(`/api/rates?table=equipment_rates&organization_id=${orgId}`)
+      if (er.ok) setEquipmentRates(await er.json())
+    } catch (e) { /* rate cards optional */ }
+  }
+
+  // Calculate cost for a labour entry using rate cards
+  function calcLabourCost(entry) {
+    const classification = (entry.classification || '').toLowerCase().trim()
+    const rate = labourRates.find(r => r.classification.toLowerCase().trim() === classification)
+    const rt = parseFloat(entry.rt || entry.hours || 0)
+    const ot = parseFloat(entry.ot || 0)
+    if (rate) {
+      return (rt * (rate.rate_st || 0)) + (ot * (rate.rate_ot || 0))
+    }
+    return 0
+  }
+
+  // Calculate cost for an equipment entry using rate cards
+  function calcEquipCost(entry) {
+    const eqType = (entry.type || entry.equipmentType || '').toLowerCase().trim()
+    const rate = equipmentRates.find(r => r.equipment_type.toLowerCase().trim() === eqType)
+    const hrs = parseFloat(entry.hours || 0)
+    if (rate) {
+      return hrs * (rate.rate_hourly || 0)
+    }
+    return 0
+  }
+
+  // Build ticket-level summary from all reports
+  function getTicketSummaries() {
+    const tickets = []
+    for (const report of reports) {
+      const blocks = report.activity_blocks || []
+      blocks.forEach((block, blockIdx) => {
+        const labour = block.labourEntries || []
+        const equip = block.equipmentEntries || []
+        const totalLabourHrs = labour.reduce((s, e) => s + (parseFloat(e.rt || e.hours || 0)) + (parseFloat(e.ot || 0)), 0)
+        const totalEquipHrs = equip.reduce((s, e) => s + (parseFloat(e.hours || 0)) * (parseInt(e.count || 1)), 0)
+        const totalLabourCost = labour.reduce((s, e) => s + calcLabourCost(e) * (parseInt(e.count || 1)), 0)
+        const totalEquipCost = equip.reduce((s, e) => s + calcEquipCost(e) * (parseInt(e.count || 1)), 0)
+        const unmatchedLabour = labour.filter(e => calcLabourCost(e) === 0).length
+        const unmatchedEquip = equip.filter(e => calcEquipCost(e) === 0).length
+
+        tickets.push({
+          reportId: report.id,
+          date: report.date,
+          inspector: report.inspector_name,
+          ticketNumber: block.ticketNumber || '-',
+          activityType: block.activityType || '-',
+          contractor: block.contractor || '-',
+          foreman: block.foreman || '-',
+          labourCount: labour.length,
+          equipCount: equip.length,
+          totalLabourHrs: Math.round(totalLabourHrs * 10) / 10,
+          totalEquipHrs: Math.round(totalEquipHrs * 10) / 10,
+          totalLabourCost: Math.round(totalLabourCost * 100) / 100,
+          totalEquipCost: Math.round(totalEquipCost * 100) / 100,
+          totalCost: Math.round((totalLabourCost + totalEquipCost) * 100) / 100,
+          unmatchedRates: unmatchedLabour + unmatchedEquip,
+          blockIdx,
+          hasPhoto: !!(block.ticketPhotos?.length > 0 || block.ticketPhoto)
+        })
+      })
+    }
+    return tickets
+  }
 
   async function loadLemUploads() {
     setLoading(true)
@@ -380,32 +473,147 @@ export default function LEMReconciliation() {
     )
   }
 
+  const ticketSummaries = subView === 'inspectorReports' ? getTicketSummaries() : []
+  const grandLabourCost = ticketSummaries.reduce((s, t) => s + t.totalLabourCost, 0)
+  const grandEquipCost = ticketSummaries.reduce((s, t) => s + t.totalEquipCost, 0)
+  const grandTotal = grandLabourCost + grandEquipCost
+  const rateWarnings = ticketSummaries.filter(t => t.unmatchedRates > 0).length
+
   return (
-    <div style={{ padding: '20px', maxWidth: '1400px', margin: '0 auto' }}>
-      {/* Upload sections */}
-      <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-        {showUpload ? (
-          <div style={{ flex: 1 }}>
-            <LEMUpload onUploadComplete={() => { setShowUpload(false); loadLemUploads() }} />
-            <button onClick={() => setShowUpload(false)} style={{ marginTop: '8px', padding: '6px 12px', backgroundColor: '#6b7280', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Cancel Upload</button>
+    <div style={{ padding: '20px', maxWidth: '1600px', margin: '0 auto' }}>
+      {/* Sub-view toggle + actions */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={() => setSubView('inspectorReports')}
+            style={{ padding: '10px 20px', backgroundColor: subView === 'inspectorReports' ? '#2563eb' : '#e5e7eb', color: subView === 'inspectorReports' ? 'white' : '#374151', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>
+            Inspector Reports ({reports.length})
+          </button>
+          <button onClick={() => setSubView('contractorLems')}
+            style={{ padding: '10px 20px', backgroundColor: subView === 'contractorLems' ? '#b45309' : '#e5e7eb', color: subView === 'contractorLems' ? 'white' : '#374151', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600' }}>
+            Contractor LEMs ({lemUploads.length})
+          </button>
+        </div>
+        <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: '12px', color: '#6b7280', marginRight: '6px' }}>Date Range:</span>
+            <select value={dateRange} onChange={e => setDateRange(e.target.value)} style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: '4px' }}>
+              <option value="30">Last 30 days</option>
+              <option value="60">Last 60 days</option>
+              <option value="90">Last 90 days</option>
+              <option value="180">Last 180 days</option>
+              <option value="365">Last year</option>
+            </select>
           </div>
-        ) : showInvoiceUpload ? (
-          <div style={{ flex: 1 }}>
-            <InvoiceUpload approvedLems={approvedLems} onUploadComplete={() => { setShowInvoiceUpload(false); loadLemUploads() }} />
-            <button onClick={() => setShowInvoiceUpload(false)} style={{ marginTop: '8px', padding: '6px 12px', backgroundColor: '#6b7280', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Cancel</button>
-          </div>
-        ) : (
-          <>
-            <button onClick={() => setShowUpload(true)} style={{ padding: '10px 20px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' }}>
-              Upload Contractor LEM
-            </button>
-            <button onClick={() => setShowInvoiceUpload(true)} disabled={approvedLems.length === 0}
-              style={{ padding: '10px 20px', backgroundColor: approvedLems.length > 0 ? '#059669' : '#9ca3af', color: 'white', border: 'none', borderRadius: '6px', cursor: approvedLems.length > 0 ? 'pointer' : 'not-allowed', fontWeight: '500' }}>
-              Upload Invoice {approvedLems.length === 0 && '(requires approved LEM)'}
-            </button>
-          </>
-        )}
+          {subView === 'contractorLems' && !showUpload && !showInvoiceUpload && (
+            <>
+              <button onClick={() => setShowUpload(true)} style={{ padding: '8px 16px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' }}>
+                Upload LEM
+              </button>
+              <button onClick={() => setShowInvoiceUpload(true)} disabled={approvedLems.length === 0}
+                style={{ padding: '8px 16px', backgroundColor: approvedLems.length > 0 ? '#059669' : '#9ca3af', color: 'white', border: 'none', borderRadius: '6px', cursor: approvedLems.length > 0 ? 'pointer' : 'not-allowed', fontWeight: '500' }}>
+                Upload Invoice
+              </button>
+            </>
+          )}
+        </div>
       </div>
+
+      {/* Upload forms */}
+      {showUpload && (
+        <div style={{ marginBottom: '16px' }}>
+          <LEMUpload onUploadComplete={() => { setShowUpload(false); loadLemUploads() }} />
+          <button onClick={() => setShowUpload(false)} style={{ marginTop: '8px', padding: '6px 12px', backgroundColor: '#6b7280', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Cancel Upload</button>
+        </div>
+      )}
+      {showInvoiceUpload && (
+        <div style={{ marginBottom: '16px' }}>
+          <InvoiceUpload approvedLems={approvedLems} onUploadComplete={() => { setShowInvoiceUpload(false); loadLemUploads() }} />
+          <button onClick={() => setShowInvoiceUpload(false)} style={{ marginTop: '8px', padding: '6px 12px', backgroundColor: '#6b7280', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Cancel</button>
+        </div>
+      )}
+
+      {/* INSPECTOR REPORTS VIEW */}
+      {subView === 'inspectorReports' && (
+        <div>
+          {/* Summary cards */}
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '16px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderTop: '3px solid #2563eb' }}>
+              <div style={{ fontSize: '28px', fontWeight: '700', color: '#2563eb' }}>{ticketSummaries.length}</div>
+              <div style={{ fontSize: '12px', color: '#6b7280' }}>Tickets</div>
+            </div>
+            <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '16px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderTop: '3px solid #059669' }}>
+              <div style={{ fontSize: '28px', fontWeight: '700', color: '#059669' }}>${grandLabourCost.toLocaleString()}</div>
+              <div style={{ fontSize: '12px', color: '#6b7280' }}>Labour Cost</div>
+            </div>
+            <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '16px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderTop: '3px solid #d97706' }}>
+              <div style={{ fontSize: '28px', fontWeight: '700', color: '#d97706' }}>${grandEquipCost.toLocaleString()}</div>
+              <div style={{ fontSize: '12px', color: '#6b7280' }}>Equipment Cost</div>
+            </div>
+            <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '16px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderTop: '3px solid #374151' }}>
+              <div style={{ fontSize: '28px', fontWeight: '700', color: '#374151' }}>${grandTotal.toLocaleString()}</div>
+              <div style={{ fontSize: '12px', color: '#6b7280' }}>Total Cost</div>
+            </div>
+            <div style={{ backgroundColor: 'white', borderRadius: '8px', padding: '16px', textAlign: 'center', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', borderTop: `3px solid ${rateWarnings > 0 ? '#dc2626' : '#059669'}` }}>
+              <div style={{ fontSize: '28px', fontWeight: '700', color: rateWarnings > 0 ? '#dc2626' : '#059669' }}>{rateWarnings}</div>
+              <div style={{ fontSize: '12px', color: '#6b7280' }}>Missing Rates</div>
+            </div>
+          </div>
+
+          {labourRates.length === 0 && equipmentRates.length === 0 && (
+            <div style={{ backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', padding: '12px 16px', marginBottom: '16px', fontSize: '13px', color: '#854d0e' }}>
+              No rate cards loaded. Import labour and equipment rate sheets in Admin Portal to see calculated costs.
+            </div>
+          )}
+
+          {/* Tickets table */}
+          <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 1px 3px rgba(0,0,0,0.1)', overflow: 'hidden' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#1e3a5f' }}>
+                  <th style={{ color: 'white', padding: '10px 8px', textAlign: 'left' }}>Date</th>
+                  <th style={{ color: 'white', padding: '10px 8px', textAlign: 'left' }}>Ticket #</th>
+                  <th style={{ color: 'white', padding: '10px 8px', textAlign: 'left' }}>Activity</th>
+                  <th style={{ color: 'white', padding: '10px 8px', textAlign: 'left' }}>Contractor</th>
+                  <th style={{ color: 'white', padding: '10px 8px', textAlign: 'left' }}>Foreman</th>
+                  <th style={{ color: 'white', padding: '10px 8px', textAlign: 'center' }}>Workers</th>
+                  <th style={{ color: 'white', padding: '10px 8px', textAlign: 'center' }}>Labour Hrs</th>
+                  <th style={{ color: 'white', padding: '10px 8px', textAlign: 'right' }}>Labour $</th>
+                  <th style={{ color: 'white', padding: '10px 8px', textAlign: 'center' }}>Equip</th>
+                  <th style={{ color: 'white', padding: '10px 8px', textAlign: 'center' }}>Equip Hrs</th>
+                  <th style={{ color: 'white', padding: '10px 8px', textAlign: 'right' }}>Equip $</th>
+                  <th style={{ color: 'white', padding: '10px 8px', textAlign: 'right' }}>Total</th>
+                  <th style={{ color: 'white', padding: '10px 8px', textAlign: 'center' }}>Photo</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ticketSummaries.length === 0 ? (
+                  <tr><td colSpan="13" style={{ padding: '40px', textAlign: 'center', color: '#9ca3af' }}>No inspector reports found for this date range.</td></tr>
+                ) : ticketSummaries.map((t, idx) => (
+                  <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6', backgroundColor: t.unmatchedRates > 0 ? '#fffbeb' : 'transparent' }}>
+                    <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{t.date}</td>
+                    <td style={{ padding: '8px', fontWeight: '600' }}>{t.ticketNumber}</td>
+                    <td style={{ padding: '8px' }}>{t.activityType}</td>
+                    <td style={{ padding: '8px' }}>{t.contractor}</td>
+                    <td style={{ padding: '8px' }}>{t.foreman}</td>
+                    <td style={{ padding: '8px', textAlign: 'center' }}>{t.labourCount}</td>
+                    <td style={{ padding: '8px', textAlign: 'center' }}>{t.totalLabourHrs}</td>
+                    <td style={{ padding: '8px', textAlign: 'right', color: t.totalLabourCost > 0 ? '#059669' : '#9ca3af' }}>{t.totalLabourCost > 0 ? `$${t.totalLabourCost.toLocaleString()}` : '-'}</td>
+                    <td style={{ padding: '8px', textAlign: 'center' }}>{t.equipCount}</td>
+                    <td style={{ padding: '8px', textAlign: 'center' }}>{t.totalEquipHrs}</td>
+                    <td style={{ padding: '8px', textAlign: 'right', color: t.totalEquipCost > 0 ? '#d97706' : '#9ca3af' }}>{t.totalEquipCost > 0 ? `$${t.totalEquipCost.toLocaleString()}` : '-'}</td>
+                    <td style={{ padding: '8px', textAlign: 'right', fontWeight: '600' }}>{t.totalCost > 0 ? `$${t.totalCost.toLocaleString()}` : '-'}</td>
+                    <td style={{ padding: '8px', textAlign: 'center' }}>{t.hasPhoto ? '📷' : '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* CONTRACTOR LEMS VIEW */}
+      {subView === 'contractorLems' && !showUpload && !showInvoiceUpload && (
+        <div>
 
       {/* LEM detail or list view */}
       {selectedLem ? (
@@ -609,6 +817,8 @@ export default function LEMReconciliation() {
             </div>
           )}
         </>
+      )}
+        </div>
       )}
     </div>
   )
