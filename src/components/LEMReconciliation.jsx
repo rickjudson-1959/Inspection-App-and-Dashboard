@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
 import { useOrgQuery } from '../utils/queryHelpers.js'
+import { useOrgPath } from '../contexts/OrgContext.jsx'
 import { reconcileLEM } from '../utils/lemMatcher.js'
 import LEMUpload from './LEMUpload.jsx'
 import InvoiceUpload from './InvoiceUpload.jsx'
@@ -8,6 +10,8 @@ import InvoiceComparison from './InvoiceComparison.jsx'
 
 export default function LEMReconciliation() {
   const { addOrgFilter, getOrgId, organizationId } = useOrgQuery()
+  const navigate = useNavigate()
+  const { orgPath } = useOrgPath()
   const [lemUploads, setLemUploads] = useState([])
   const [selectedLem, setSelectedLem] = useState(null)
   const [lineItems, setLineItems] = useState([])
@@ -180,6 +184,27 @@ export default function LEMReconciliation() {
     }
     return tickets
     } catch (err) { console.error('getTicketSummaries error:', err); return [] }
+  }
+
+  async function openReportForEdit(ticket) {
+    // Log to audit trail that admin opened this report from reconciliation
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      await supabase.from('report_audit_log').insert({
+        report_id: ticket.reportId,
+        report_date: ticket.date,
+        changed_by_name: user?.email || 'Admin',
+        changed_by_role: 'admin',
+        change_type: 'reconciliation_edit',
+        section: 'Reconciliation',
+        field_name: `Ticket #${ticket.ticketNumber}`,
+        old_value: null,
+        new_value: 'Opened for editing from Reconciliation tab',
+        change_reason: `Admin opened report for editing via reconciliation review (Ticket #${ticket.ticketNumber}, ${ticket.activityType})`,
+        organization_id: getOrgId()
+      })
+    } catch (e) { /* audit log is non-blocking */ }
+    navigate(orgPath(`/field-entry?edit=${ticket.reportId}`))
   }
 
   async function loadLemUploads() {
@@ -746,13 +771,16 @@ export default function LEMReconciliation() {
                   <th style={{ color: 'white', padding: '10px 8px', textAlign: 'right' }}>Equip $</th>
                   <th style={{ color: 'white', padding: '10px 8px', textAlign: 'right' }}>Total</th>
                   <th style={{ color: 'white', padding: '10px 8px', textAlign: 'center' }}>Photo</th>
+                  <th style={{ color: 'white', padding: '10px 8px', textAlign: 'center' }}>Edit</th>
                 </tr>
               </thead>
               <tbody>
                 {ticketSummaries.length === 0 ? (
-                  <tr><td colSpan="13" style={{ padding: '40px', textAlign: 'center', color: '#9ca3af' }}>No inspector reports found for this date range.</td></tr>
+                  <tr><td colSpan="14" style={{ padding: '40px', textAlign: 'center', color: '#9ca3af' }}>No inspector reports found for this date range.</td></tr>
                 ) : ticketSummaries.map((t, idx) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #f3f4f6', backgroundColor: t.unmatchedRates > 0 ? '#fffbeb' : 'transparent' }}>
+                  <tr key={idx} onClick={() => openReportForEdit(t)} style={{ borderBottom: '1px solid #f3f4f6', backgroundColor: t.unmatchedRates > 0 ? '#fffbeb' : 'transparent', cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0f9ff'}
+                    onMouseLeave={e => e.currentTarget.style.backgroundColor = t.unmatchedRates > 0 ? '#fffbeb' : 'transparent'}>
                     <td style={{ padding: '8px', whiteSpace: 'nowrap' }}>{t.date}</td>
                     <td style={{ padding: '8px', fontWeight: '600' }}>{t.ticketNumber}</td>
                     <td style={{ padding: '8px' }}>{t.activityType}</td>
@@ -765,7 +793,7 @@ export default function LEMReconciliation() {
                     <td style={{ padding: '8px', textAlign: 'center' }}>{t.totalEquipHrs}</td>
                     <td style={{ padding: '8px', textAlign: 'right', color: t.totalEquipCost > 0 ? '#d97706' : '#9ca3af' }}>{t.totalEquipCost > 0 ? `$${t.totalEquipCost.toLocaleString()}` : '-'}</td>
                     <td style={{ padding: '8px', textAlign: 'right', fontWeight: '600' }}>{t.totalCost > 0 ? `$${t.totalCost.toLocaleString()}` : '-'}</td>
-                    <td style={{ padding: '8px', textAlign: 'center' }}>
+                    <td style={{ padding: '8px', textAlign: 'center' }} onClick={e => e.stopPropagation()}>
                       {t.photoUrls.length > 0 ? (
                         <button onClick={() => window.open(t.photoUrls[0], '_blank')}
                           style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '2px' }}
@@ -773,6 +801,13 @@ export default function LEMReconciliation() {
                           📷{t.photoUrls.length > 1 ? ` (${t.photoUrls.length})` : ''}
                         </button>
                       ) : '-'}
+                    </td>
+                    <td style={{ padding: '8px', textAlign: 'center' }}>
+                      <button onClick={(e) => { e.stopPropagation(); openReportForEdit(t) }}
+                        style={{ padding: '4px 10px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px', fontWeight: '500' }}
+                        title="Edit this inspector report">
+                        Edit
+                      </button>
                     </td>
                   </tr>
                 ))}
