@@ -203,7 +203,7 @@ export default function LEMReconciliation() {
     const { data: reports } = await q
     if (!reports) { setSaving(false); return }
 
-    const reconciled = reconcileLEM(lineItems, reports)
+    const reconciled = reconcileLEM(lineItems, reports, { labourRates, equipmentRates })
 
     for (const item of reconciled) {
       await supabase.from('lem_line_items').update({
@@ -355,16 +355,21 @@ export default function LEMReconciliation() {
                       <th style={{ textAlign: 'left', padding: '3px' }}>Class</th>
                       <th style={{ textAlign: 'center', padding: '3px' }}>RT</th>
                       <th style={{ textAlign: 'center', padding: '3px' }}>OT</th>
+                      <th style={{ textAlign: 'right', padding: '3px' }}>Cost</th>
                     </tr></thead>
                     <tbody>
-                      {inspLabour.map((e, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                          <td style={{ padding: '2px 3px' }}>{e.name || e.employeeName || '-'}</td>
-                          <td style={{ padding: '2px 3px' }}>{e.classification || e.trade || '-'}</td>
-                          <td style={{ padding: '2px 3px', textAlign: 'center' }}>{e.rt || e.hours || 0}</td>
-                          <td style={{ padding: '2px 3px', textAlign: 'center' }}>{e.ot || 0}</td>
-                        </tr>
-                      ))}
+                      {inspLabour.map((e, i) => {
+                        const cost = calcLabourCost(e)
+                        return (
+                          <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                            <td style={{ padding: '2px 3px' }}>{e.name || e.employeeName || '-'}</td>
+                            <td style={{ padding: '2px 3px' }}>{e.classification || e.trade || '-'}</td>
+                            <td style={{ padding: '2px 3px', textAlign: 'center' }}>{e.rt || e.hours || 0}</td>
+                            <td style={{ padding: '2px 3px', textAlign: 'center' }}>{e.ot || 0}</td>
+                            <td style={{ padding: '2px 3px', textAlign: 'right', color: cost > 0 ? '#059669' : '#9ca3af' }}>{cost > 0 ? `$${cost.toLocaleString()}` : '-'}</td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 ) : <p style={{ fontSize: '11px', color: '#9ca3af' }}>No labour</p>}
@@ -375,15 +380,20 @@ export default function LEMReconciliation() {
                       <th style={{ textAlign: 'left', padding: '3px' }}>Type</th>
                       <th style={{ textAlign: 'left', padding: '3px' }}>Unit</th>
                       <th style={{ textAlign: 'center', padding: '3px' }}>Hrs</th>
+                      <th style={{ textAlign: 'right', padding: '3px' }}>Cost</th>
                     </tr></thead>
                     <tbody>
-                      {inspEquip.map((e, i) => (
-                        <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                          <td style={{ padding: '2px 3px' }}>{e.type || e.equipmentType || '-'}</td>
-                          <td style={{ padding: '2px 3px' }}>{e.unitNumber || e.unit_number || '-'}</td>
-                          <td style={{ padding: '2px 3px', textAlign: 'center' }}>{e.hours || 0}</td>
-                        </tr>
-                      ))}
+                      {inspEquip.map((e, i) => {
+                        const cost = calcEquipCost(e)
+                        return (
+                          <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
+                            <td style={{ padding: '2px 3px' }}>{e.type || e.equipmentType || '-'}</td>
+                            <td style={{ padding: '2px 3px' }}>{e.unitNumber || e.unit_number || '-'}</td>
+                            <td style={{ padding: '2px 3px', textAlign: 'center' }}>{e.hours || 0}</td>
+                            <td style={{ padding: '2px 3px', textAlign: 'right', color: cost > 0 ? '#059669' : '#9ca3af' }}>{cost > 0 ? `$${cost.toLocaleString()}` : '-'}</td>
+                          </tr>
+                        )
+                      })}
                     </tbody>
                   </table>
                 ) : <p style={{ fontSize: '11px', color: '#9ca3af' }}>No equipment</p>}
@@ -414,18 +424,27 @@ export default function LEMReconciliation() {
                   <th style={{ textAlign: 'left', padding: '3px' }}>Class</th>
                   <th style={{ textAlign: 'center', padding: '3px' }}>RT</th>
                   <th style={{ textAlign: 'center', padding: '3px' }}>OT</th>
+                  <th style={{ textAlign: 'right', padding: '3px' }}>Rate</th>
+                  <th style={{ textAlign: 'right', padding: '3px' }}>Cost</th>
                 </tr></thead>
                 <tbody>
                   {lemLabour.map((e, i) => {
                     const notInInsp = reviewItem.matched_report_id && !inspLabour.some(il =>
                       (il.name || il.employeeName || '').toLowerCase() === (e.employee_name || '').toLowerCase()
                     )
+                    const rateIssue = vd.labour_rate_issues?.find(ri => ri.classification?.toLowerCase() === (e.classification || '').toLowerCase())
+                    const lineCost = parseFloat(e.line_total) || ((parseFloat(e.rt_hours) || 0) + (parseFloat(e.ot_hours) || 0) * 1.5) * (parseFloat(e.rate) || 0)
                     return (
-                      <tr key={i} style={{ borderBottom: '1px solid #f3f4f6', backgroundColor: notInInsp ? '#fef2f2' : 'transparent' }}>
+                      <tr key={i} style={{ borderBottom: '1px solid #f3f4f6', backgroundColor: notInInsp ? '#fef2f2' : rateIssue ? '#faf5ff' : 'transparent' }}>
                         <td style={{ padding: '2px 3px' }}>{e.employee_name || '-'} {notInInsp && <span style={{ color: '#dc2626', fontSize: '9px', fontWeight: '700' }}>NOT IN INSPECTOR</span>}</td>
                         <td style={{ padding: '2px 3px' }}>{e.classification || '-'}</td>
                         <td style={{ padding: '2px 3px', textAlign: 'center' }}>{e.rt_hours || 0}</td>
                         <td style={{ padding: '2px 3px', textAlign: 'center' }}>{e.ot_hours || 0}</td>
+                        <td style={{ padding: '2px 3px', textAlign: 'right', color: rateIssue ? '#7c3aed' : '#6b7280' }}>
+                          {e.rate ? `$${e.rate}` : '-'}
+                          {rateIssue && <span style={{ color: '#dc2626', fontSize: '8px', display: 'block' }}>Agreed: ${rateIssue.agreed_rate}</span>}
+                        </td>
+                        <td style={{ padding: '2px 3px', textAlign: 'right' }}>{lineCost > 0 ? `$${Math.round(lineCost).toLocaleString()}` : '-'}</td>
                       </tr>
                     )
                   })}
@@ -439,35 +458,114 @@ export default function LEMReconciliation() {
                   <th style={{ textAlign: 'left', padding: '3px' }}>Type</th>
                   <th style={{ textAlign: 'left', padding: '3px' }}>Unit</th>
                   <th style={{ textAlign: 'center', padding: '3px' }}>Hrs</th>
+                  <th style={{ textAlign: 'right', padding: '3px' }}>Rate</th>
+                  <th style={{ textAlign: 'right', padding: '3px' }}>Cost</th>
                 </tr></thead>
                 <tbody>
-                  {lemEquip.map((e, i) => (
-                    <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                      <td style={{ padding: '2px 3px' }}>{e.equipment_type || '-'}</td>
-                      <td style={{ padding: '2px 3px' }}>{e.unit_number || '-'}</td>
-                      <td style={{ padding: '2px 3px', textAlign: 'center' }}>{e.hours || 0}</td>
-                    </tr>
-                  ))}
+                  {lemEquip.map((e, i) => {
+                    const rateIssue = vd.equipment_rate_issues?.find(ri => ri.equipment_type?.toLowerCase() === (e.equipment_type || '').toLowerCase())
+                    const lineCost = parseFloat(e.line_total) || (parseFloat(e.hours) || 0) * (parseFloat(e.rate) || 0) * (parseInt(e.count) || 1)
+                    return (
+                      <tr key={i} style={{ borderBottom: '1px solid #f3f4f6', backgroundColor: rateIssue ? '#faf5ff' : 'transparent' }}>
+                        <td style={{ padding: '2px 3px' }}>{e.equipment_type || '-'}</td>
+                        <td style={{ padding: '2px 3px' }}>{e.unit_number || '-'}</td>
+                        <td style={{ padding: '2px 3px', textAlign: 'center' }}>{e.hours || 0}</td>
+                        <td style={{ padding: '2px 3px', textAlign: 'right', color: rateIssue ? '#7c3aed' : '#6b7280' }}>
+                          {e.rate ? `$${e.rate}` : '-'}
+                          {rateIssue && <span style={{ color: '#dc2626', fontSize: '8px', display: 'block' }}>Agreed: ${rateIssue.agreed_rate}</span>}
+                        </td>
+                        <td style={{ padding: '2px 3px', textAlign: 'right' }}>{lineCost > 0 ? `$${Math.round(lineCost).toLocaleString()}` : '-'}</td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             ) : <p style={{ fontSize: '11px', color: '#9ca3af' }}>No equipment</p>}
           </div>
         </div>
 
-        {/* Variance Summary */}
-        {vd.has_variance && (
-          <div style={{ backgroundColor: vd.details?.some(d => d.severity === 'high') ? '#fef2f2' : '#fffbeb', borderRadius: '8px', padding: '14px', border: `1px solid ${vd.details?.some(d => d.severity === 'high') ? '#fca5a5' : '#fde68a'}`, marginBottom: '16px' }}>
-            <h4 style={{ margin: '0 0 8px 0', fontSize: '14px' }}>Variance Summary</h4>
-            <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-              {vd.details?.map((d, i) => (
-                <div key={i} style={{ padding: '6px 10px', backgroundColor: d.severity === 'high' ? '#fee2e2' : '#fef3c7', borderRadius: '4px' }}>
-                  <span style={{ fontSize: '10px', color: '#6b7280', textTransform: 'uppercase' }}>{d.field.replace(/_/g, ' ')}</span>
-                  <div style={{ fontWeight: '600', fontSize: '13px' }}>
-                    LEM: {d.lem_value} | Insp: {d.inspector_value} | <span style={{ color: d.difference > 0 ? '#dc2626' : '#059669' }}>{d.difference > 0 ? '+' : ''}{d.difference}</span>
-                  </div>
-                </div>
-              ))}
+        {/* Cost Comparison — Three Numbers */}
+        {(vd.independent_total_cost > 0 || vd.contractor_total_cost > 0) && (
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '16px' }}>
+            <div style={{ backgroundColor: '#f0fdf4', borderRadius: '8px', padding: '14px', border: '2px solid #059669', textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', color: '#166534', textTransform: 'uppercase', fontWeight: '600', marginBottom: '4px' }}>Should Cost (Inspector Hrs × Rate Card)</div>
+              <div style={{ fontSize: '24px', fontWeight: '700', color: '#059669' }}>${(vd.independent_total_cost || 0).toLocaleString()}</div>
+              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>Labour: ${(vd.independent_labour_cost || 0).toLocaleString()} | Equip: ${(vd.independent_equipment_cost || 0).toLocaleString()}</div>
             </div>
+            <div style={{ backgroundColor: '#fefce8', borderRadius: '8px', padding: '14px', border: '2px solid #d97706', textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', color: '#854d0e', textTransform: 'uppercase', fontWeight: '600', marginBottom: '4px' }}>Contractor Claims</div>
+              <div style={{ fontSize: '24px', fontWeight: '700', color: '#d97706' }}>${(vd.contractor_total_cost || 0).toLocaleString()}</div>
+              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>Labour: ${(vd.contractor_labour_cost || 0).toLocaleString()} | Equip: ${(vd.contractor_equipment_cost || 0).toLocaleString()}</div>
+            </div>
+            <div style={{ backgroundColor: Math.abs(vd.cost_variance || 0) > 1 ? '#fef2f2' : '#f0fdf4', borderRadius: '8px', padding: '14px', border: `2px solid ${Math.abs(vd.cost_variance || 0) > 1 ? '#dc2626' : '#059669'}`, textAlign: 'center' }}>
+              <div style={{ fontSize: '11px', color: Math.abs(vd.cost_variance || 0) > 1 ? '#991b1b' : '#166534', textTransform: 'uppercase', fontWeight: '600', marginBottom: '4px' }}>Variance</div>
+              <div style={{ fontSize: '24px', fontWeight: '700', color: (vd.cost_variance || 0) > 1 ? '#dc2626' : (vd.cost_variance || 0) < -1 ? '#059669' : '#374151' }}>
+                {(vd.cost_variance || 0) > 0 ? '+' : ''}${(vd.cost_variance || 0).toLocaleString()}
+              </div>
+              <div style={{ fontSize: '11px', color: '#6b7280', marginTop: '4px' }}>
+                {(vd.cost_variance || 0) > 1 ? 'Contractor overbilling' : (vd.cost_variance || 0) < -1 ? 'Contractor underbilling' : 'Within tolerance'}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Variance Details — Hour Variances and Rate Variances */}
+        {vd.has_variance && (
+          <div style={{ marginBottom: '16px' }}>
+            {/* Hour Variances */}
+            {vd.details?.filter(d => d.category === 'hours').length > 0 && (
+              <div style={{ backgroundColor: '#fffbeb', borderRadius: '8px', padding: '14px', border: '1px solid #fde68a', marginBottom: '8px' }}>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#854d0e' }}>Hour Variances (Padded Hours?)</h4>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  {vd.details.filter(d => d.category === 'hours').map((d, i) => (
+                    <div key={i} style={{ padding: '6px 10px', backgroundColor: d.severity === 'high' ? '#fee2e2' : '#fef3c7', borderRadius: '4px' }}>
+                      <span style={{ fontSize: '10px', color: '#6b7280', textTransform: 'uppercase' }}>{d.field.replace(/_/g, ' ')}</span>
+                      <div style={{ fontWeight: '600', fontSize: '13px' }}>
+                        LEM: {d.lem_value} | Insp: {d.inspector_value} | <span style={{ color: d.difference > 0 ? '#dc2626' : '#059669' }}>{d.difference > 0 ? '+' : ''}{d.difference}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Cost Variances */}
+            {vd.details?.filter(d => d.category === 'cost').length > 0 && (
+              <div style={{ backgroundColor: '#fef2f2', borderRadius: '8px', padding: '14px', border: '1px solid #fca5a5', marginBottom: '8px' }}>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#991b1b' }}>Cost Variances</h4>
+                <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+                  {vd.details.filter(d => d.category === 'cost').map((d, i) => (
+                    <div key={i} style={{ padding: '6px 10px', backgroundColor: '#fee2e2', borderRadius: '4px' }}>
+                      <span style={{ fontSize: '10px', color: '#6b7280', textTransform: 'uppercase' }}>{d.field.replace(/_/g, ' ')}</span>
+                      <div style={{ fontWeight: '600', fontSize: '13px' }}>
+                        {d.lem_value != null && d.inspector_value != null
+                          ? <>Claimed: ${d.lem_value.toLocaleString()} | Should be: ${d.inspector_value.toLocaleString()} | </>
+                          : null}
+                        <span style={{ color: d.difference > 0 ? '#dc2626' : '#059669' }}>{d.difference > 0 ? '+' : ''}${d.difference.toLocaleString()}</span>
+                        {d.description && <span style={{ fontSize: '10px', color: '#6b7280', marginLeft: '6px' }}>({d.description})</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Rate Card Mismatches */}
+            {vd.details?.filter(d => d.category === 'rates').length > 0 && (
+              <div style={{ backgroundColor: '#faf5ff', borderRadius: '8px', padding: '14px', border: '1px solid #d8b4fe', marginBottom: '8px' }}>
+                <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#6b21a8' }}>Rate Card Mismatches (Inflated Rates?)</h4>
+                {vd.details.filter(d => d.category === 'rates').map((d, i) => (
+                  <div key={i}>
+                    {d.rate_issues?.map((ri, j) => (
+                      <div key={j} style={{ padding: '4px 10px', backgroundColor: '#f5f3ff', borderRadius: '4px', marginBottom: '4px', fontSize: '12px' }}>
+                        <strong>{ri.classification || ri.equipment_type}</strong>: Agreed ${ri.agreed_rate}/hr → Claiming ${ri.claimed_rate}/hr
+                        <span style={{ color: '#dc2626', fontWeight: '600', marginLeft: '8px' }}>+${ri.difference}/hr</span>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
