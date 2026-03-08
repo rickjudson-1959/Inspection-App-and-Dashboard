@@ -450,19 +450,28 @@ async function uploadPageImages(lemId, groupType, pairIndex, pageIndices, allPag
   const urls = []
   for (const idx of pageIndices) {
     const base64 = allPageImages[idx]
-    if (!base64) continue
+    if (!base64) {
+      console.warn(`[LEM Upload] No image data for page ${idx + 1} — skipping`)
+      continue
+    }
     try {
       const blob = base64ToBlob(base64)
       const folder = groupType === 'lem' ? 'lem_pages' : 'ticket_pages'
-      const filePath = `lem-uploads/${lemId}/${folder}/pair${pairIndex}_p${idx + 1}.jpg`
+      const filePath = `${lemId}/${folder}/pair${pairIndex}_p${idx + 1}.jpg`
       const { error: upErr } = await supabase.storage
         .from('lem-uploads')
         .upload(filePath, blob, { contentType: 'image/jpeg', upsert: true })
-      if (!upErr) {
+      if (upErr) {
+        console.error(`[LEM Upload] Storage upload failed for ${filePath}:`, upErr.message)
+        errors.push(`Upload ${groupType} page ${idx + 1}: ${upErr.message}`)
+      } else {
         const { data: urlData } = supabase.storage.from('lem-uploads').getPublicUrl(filePath)
-        urls.push(urlData?.publicUrl || null)
+        if (urlData?.publicUrl) {
+          urls.push(urlData.publicUrl)
+        }
       }
     } catch (e) {
+      console.error(`[LEM Upload] Exception uploading pair ${pairIndex} ${groupType} page ${idx + 1}:`, e)
       errors.push(`Upload pair ${pairIndex} ${groupType} page ${idx + 1}: ${e.message}`)
     }
   }
@@ -671,6 +680,14 @@ export async function parseLEMFile(file, onProgress, lemId, orgId, profile = nul
 export async function saveParsedPairs(file, onProgress, lemId, orgId, rawPairs, poNumber) {
   const errors = []
 
+  console.log(`[LEM Save] Starting saveParsedPairs: ${rawPairs?.length || 0} pairs, lemId=${lemId}`)
+
+  if (!rawPairs || rawPairs.length === 0) {
+    console.error('[LEM Save] No rawPairs provided — nothing to save')
+    errors.push('No classified pairs to save. Please re-parse the file.')
+    return { pairs: [], errors }
+  }
+
   await ensurePdfJs()
   const arrayBuffer = await file.arrayBuffer()
   const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
@@ -685,6 +702,8 @@ export async function saveParsedPairs(file, onProgress, lemId, orgId, rawPairs, 
     if (pair.ticket) pair.ticket.pageIndices.forEach(i => neededIndices.add(i))
   }
 
+  console.log(`[LEM Save] PDF has ${numPages} pages, need to render ${neededIndices.size} pages for ${rawPairs.length} pairs`)
+
   // Render pages to images
   onProgress?.(`Rendering ${neededIndices.size} pages...`)
   const allPageImages = new Array(numPages).fill(null)
@@ -692,10 +711,17 @@ export async function saveParsedPairs(file, onProgress, lemId, orgId, rawPairs, 
   for (const idx of neededIndices) {
     rendered++
     if (rendered % 20 === 0) onProgress?.(`Rendering page ${rendered} of ${neededIndices.size}...`)
-    const page = await pdf.getPage(idx + 1)
-    allPageImages[idx] = await renderPageToImage(page, scale, jpegQuality)
+    try {
+      const page = await pdf.getPage(idx + 1)
+      allPageImages[idx] = await renderPageToImage(page, scale, jpegQuality)
+    } catch (renderErr) {
+      console.error(`[LEM Save] Failed to render page ${idx + 1}:`, renderErr)
+      errors.push(`Failed to render page ${idx + 1}: ${renderErr.message}`)
+    }
   }
-  onProgress?.(`${rendered} pages rendered. Uploading...`)
+  const renderedCount = allPageImages.filter(Boolean).length
+  console.log(`[LEM Save] Rendered ${renderedCount} of ${neededIndices.size} pages successfully`)
+  onProgress?.(`${renderedCount} pages rendered. Uploading...`)
 
   // Upload images and create pair records
   const pairRecords = []
@@ -716,6 +742,12 @@ export async function saveParsedPairs(file, onProgress, lemId, orgId, rawPairs, 
     }
 
     const allCls = [...(pair.lem?.classifications || []), ...(pair.ticket?.classifications || [])]
+
+    if (p === 0) {
+      console.log(`[LEM Save] Pair 0 sample: lemUrls=${lemUrls.length}, ticketUrls=${ticketUrls.length}, lemIndices=${JSON.stringify(lemIndices)}, ticketIndices=${JSON.stringify(ticketIndices)}`)
+      if (lemUrls.length > 0) console.log(`[LEM Save] First LEM URL: ${lemUrls[0]}`)
+    }
+
     pairRecords.push({
       lem_upload_id: lemId,
       organization_id: orgId,
@@ -732,12 +764,18 @@ export async function saveParsedPairs(file, onProgress, lemId, orgId, rawPairs, 
     })
   }
 
+  console.log(`[LEM Save] Built ${pairRecords.length} pair records. Total errors so far: ${errors.length}`)
+  if (errors.length > 0) console.warn('[LEM Save] Errors:', errors)
+
   if (pairRecords.length > 0) {
     onProgress?.(`Saving ${pairRecords.length} pair records...`)
     const { error: insertErr } = await supabase
       .from('lem_reconciliation_pairs')
       .insert(pairRecords)
-    if (insertErr) errors.push(`Failed to save pairs: ${insertErr.message}`)
+    if (insertErr) {
+      console.error('[LEM Save] DB insert failed:', insertErr)
+      errors.push(`Failed to save pairs: ${insertErr.message}`)
+    }
   }
 
   onProgress?.(`Done: ${pairRecords.length} pairs saved.`)

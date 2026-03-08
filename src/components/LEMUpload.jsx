@@ -222,7 +222,9 @@ export default function LEMUpload({ onUploadComplete }) {
         f, setProgress, lemRecord.id, orgId, rawPairs, profile?.po_number
       )
       totalPairs = savedPairs.length
+      console.log(`[LEM Save] saveParsedPairs returned: ${totalPairs} pairs, ${uploadErrors.length} errors`)
       if (uploadErrors.length > 0) {
+        console.warn('[LEM Save] Upload errors:', uploadErrors)
         setErrors(prev => [...prev, ...uploadErrors])
       }
 
@@ -244,6 +246,7 @@ export default function LEMUpload({ onUploadComplete }) {
   function resetForm() {
     setFile(null)
     setPreview(null)
+    setRawPairs([])
     setContractorName('')
     setPeriodStart('')
     setPeriodEnd('')
