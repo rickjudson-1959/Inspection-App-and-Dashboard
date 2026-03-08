@@ -55,68 +55,15 @@ async function extractPageText(page) {
 }
 
 // ── Phase 1: Text-based page classification ─────────────────────────────────
+//
+// LEMs are typed/digital PDFs → pdf.js extracts full text (20+ words).
+// Daily tickets are scanned images → pdf.js gets little or no text (<20 words).
+// The presence or absence of extractable text IS the classifier. Zero API calls.
+//
 
-// LEM indicators — billing/summary format
-const LEM_PATTERNS = [
-  /labour\s*(and|&)\s*equipment/i,
-  /\bL\.?E\.?M\.?\b/i,
-  /\bmanifest\b/i,
-  /\brate\b.*\bamount\b/i,
-  /\bamount\b.*\brate\b/i,
-  /\bsubtotal\b/i,
-  /\bgrand\s*total\b/i,
-  /\btotal\s*(labour|labor|equipment|amount)\b/i,
-  /\bbilling\b/i,
-  /\binvoice\b/i,
-  /\bsummary\s*(of|for)\b/i,
-  /\bperiod\b.*\bending\b/i,
-  /\bdate\s*range\b/i,
-  /\bcost\s*code\b/i,
-  /\bwork\s*order\b/i,
-  /\bproject\s*no/i,
-  /\bcontract\s*no/i,
-  /\bpurchase\s*order\b/i,
-  /\bP\.?O\.?\s*#/i,
-  /\bunit\s*price\b/i,
-  /\brate\s*\$\s*\d/i,
-  /\$\s*\d[\d,]*\.\d{2}/,  // dollar amounts like $1,234.56
-]
+const TEXT_WORD_THRESHOLD = 20  // pages with fewer words than this = scanned ticket
 
-// Daily ticket indicators — field-level detail
-const TICKET_PATTERNS = [
-  /\bdaily\b.*\b(ticket|report|time\s*sheet)\b/i,
-  /\b(field|time)\s*ticket\b/i,
-  /\btime\s*sheet\b/i,
-  /\bforeman\b/i,
-  /\bsupervisor\b/i,
-  /\binspector\b.*\bsignature\b/i,
-  /\bsignature\b.*\binspector\b/i,
-  /\bsigned\s*by\b/i,
-  /\bapproved\s*by\b/i,
-  /\bstart\s*time\b/i,
-  /\bend\s*time\b/i,
-  /\btime\s*in\b/i,
-  /\btime\s*out\b/i,
-  /\bweather\b/i,
-  /\btemperature\b/i,
-  /\bticket\s*#\b/i,
-  /\bticket\s*no/i,
-  /\bticket\s*number\b/i,
-  /\bcrew\s*size\b/i,
-  /\bwork\s*description\b/i,
-  /\bjob\s*description\b/i,
-  /\bequipment\s*list\b/i,
-  /\bunit\s*#\b/i,
-  /\bunit\s*number\b/i,
-]
-
-// Date patterns
-const DATE_PATTERNS = [
-  /(\d{4})-(\d{2})-(\d{2})/,                          // 2026-02-15
-  /(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/,          // 02/15/2026 or 2/15/26
-  /(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+(\d{1,2}),?\s*(\d{4})/i,  // February 15, 2026
-  /(\d{1,2})\s+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s*,?\s*(\d{4})/i, // 15 February 2026
-]
+// Date patterns (for extracting dates from LEM text)
 
 const MONTH_MAP = {
   jan: '01', feb: '02', mar: '03', apr: '04', may: '05', jun: '06',
@@ -180,40 +127,19 @@ function extractLemNumber(text) {
 }
 
 /**
- * Classify a single page based on its extracted text.
- * Returns: { page_type, confidence, date, crew, ticket_number, lem_number }
+ * Classify a single page based on extractable text word count.
+ *
+ * LEMs are typed/digital → 20+ words of extractable text.
+ * Daily tickets are scanned images → <20 words (little or no text layer).
+ *
+ * Returns: { page_type, confidence, date, crew, ticket_number, lem_number, word_count }
  */
 function classifyPageText(text) {
-  const lowerText = text.toLowerCase()
-  let lemScore = 0
-  let ticketScore = 0
+  const words = text.trim().split(/\s+/).filter(w => w.length > 0)
+  const wordCount = words.length
 
-  for (const pattern of LEM_PATTERNS) {
-    if (pattern.test(text)) lemScore++
-  }
-
-  for (const pattern of TICKET_PATTERNS) {
-    if (pattern.test(text)) ticketScore++
-  }
-
-  // Determine type
-  let page_type, confidence
-  if (lemScore > ticketScore && lemScore >= 2) {
-    page_type = 'lem'
-    confidence = lemScore >= 4 ? 'high' : lemScore >= 2 ? 'medium' : 'low'
-  } else if (ticketScore > lemScore && ticketScore >= 2) {
-    page_type = 'daily_ticket'
-    confidence = ticketScore >= 4 ? 'high' : ticketScore >= 2 ? 'medium' : 'low'
-  } else if (lemScore > 0 || ticketScore > 0) {
-    page_type = lemScore >= ticketScore ? 'lem' : 'daily_ticket'
-    confidence = 'low'
-  } else {
-    // No matches — check for dollar amounts (more likely LEM) vs signature lines (more likely ticket)
-    const hasDollar = /\$\s*\d/.test(text)
-    const hasSignature = /signature|signed/i.test(text)
-    page_type = hasDollar && !hasSignature ? 'lem' : hasSignature ? 'daily_ticket' : 'lem'
-    confidence = 'low'
-  }
+  const page_type = wordCount >= TEXT_WORD_THRESHOLD ? 'lem' : 'daily_ticket'
+  const confidence = 'high' // text presence/absence is a reliable signal
 
   return {
     page_type,
@@ -221,7 +147,8 @@ function classifyPageText(text) {
     date: extractDate(text),
     crew: extractCrewName(text),
     ticket_number: page_type === 'daily_ticket' ? extractTicketNumber(text) : null,
-    lem_number: page_type === 'lem' ? extractLemNumber(text) : null
+    lem_number: page_type === 'lem' ? extractLemNumber(text) : null,
+    word_count: wordCount
   }
 }
 
