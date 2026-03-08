@@ -302,6 +302,15 @@ export async function parseLEMFile(file, onProgress, lemId, orgId) {
   const ticketCount = classifications.filter(c => c.page_type === 'daily_ticket').length
   onProgress?.(`Classification done: ${lemCount} LEM pages, ${ticketCount} ticket pages.`)
 
+  // ── DEBUG: Show first 30 pages classification detail ──
+  const debugLimit = Math.min(30, classifications.length)
+  console.log(`\n=== PAGE CLASSIFICATION DEBUG (first ${debugLimit} of ${classifications.length} pages) ===`)
+  for (let d = 0; d < debugLimit; d++) {
+    const c = classifications[d]
+    console.log(`  Page ${d + 1}: ${c.page_type.padEnd(12)} | words: ${String(c.word_count).padStart(4)} | date: ${c.date || '-'} | crew: ${c.crew || '-'}`)
+  }
+  console.log(`=== TOTALS: ${lemCount} LEM, ${ticketCount} ticket out of ${classifications.length} pages ===\n`)
+
   // Extract document info from first LEM classification
   const firstLem = classifications.find(c => c.page_type === 'lem')
   const documentInfo = {
