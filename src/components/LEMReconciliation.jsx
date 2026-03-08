@@ -33,6 +33,8 @@ export default function LEMReconciliation() {
 
   useEffect(() => { loadLemUploads(); loadReportsAndRates() }, [organizationId])
   useEffect(() => { loadReportsAndRates() }, [dateRange])
+  // When a LEM is selected, also load reports matching its date range
+  useEffect(() => { if (selectedLem) loadReportsForLem(selectedLem) }, [selectedLem])
 
   async function loadReportsAndRates() {
     const orgId = getOrgId()
@@ -55,6 +57,60 @@ export default function LEMReconciliation() {
         const er = await fetch(`/api/rates?table=equipment_rates&organization_id=${orgId}`)
         if (er.ok) { const d = await er.json(); if (Array.isArray(d)) setEquipmentRates(d) }
       } catch (e) { /* rate cards optional */ }
+    }
+  }
+
+  // Load reports that match the selected LEM's date range (for older LEMs outside the default window)
+  async function loadReportsForLem(lem) {
+    if (!lem?.lem_period_start && !lem?.lem_period_end) {
+      // No date range on LEM — try loading reports matching pair dates instead
+      const { data: pairData } = await supabase
+        .from('lem_reconciliation_pairs')
+        .select('work_date')
+        .eq('lem_upload_id', lem.id)
+        .not('work_date', 'is', null)
+      if (!pairData || pairData.length === 0) return
+      const dates = [...new Set(pairData.map(p => p.work_date))].sort()
+      if (dates.length === 0) return
+      const minDate = dates[0]
+      const maxDate = dates[dates.length - 1]
+      // Skip if dates are within the current range
+      const cutoff = new Date()
+      cutoff.setDate(cutoff.getDate() - parseInt(dateRange))
+      if (new Date(minDate) >= cutoff) return
+      let rq = supabase.from('daily_reports').select('id, date, inspector_name, activity_blocks')
+        .gte('date', minDate)
+        .lte('date', maxDate)
+        .order('date', { ascending: false })
+      rq = addOrgFilter(rq)
+      const { data: extraReports } = await rq
+      if (extraReports && extraReports.length > 0) {
+        setReports(prev => {
+          const existingIds = new Set(prev.map(r => r.id))
+          const newReports = extraReports.filter(r => !existingIds.has(r.id))
+          return newReports.length > 0 ? [...prev, ...newReports] : prev
+        })
+      }
+      return
+    }
+    // Use the LEM's period dates
+    const start = lem.lem_period_start
+    const end = lem.lem_period_end || start
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - parseInt(dateRange))
+    if (new Date(start) >= cutoff) return // already covered
+    let rq = supabase.from('daily_reports').select('id, date, inspector_name, activity_blocks')
+      .gte('date', start)
+      .lte('date', end)
+      .order('date', { ascending: false })
+    rq = addOrgFilter(rq)
+    const { data: extraReports } = await rq
+    if (extraReports && extraReports.length > 0) {
+      setReports(prev => {
+        const existingIds = new Set(prev.map(r => r.id))
+        const newReports = extraReports.filter(r => !existingIds.has(r.id))
+        return newReports.length > 0 ? [...prev, ...newReports] : prev
+      })
     }
   }
 
