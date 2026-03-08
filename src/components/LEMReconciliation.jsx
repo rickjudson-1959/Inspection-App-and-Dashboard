@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { supabase } from '../supabase'
 import { useOrgQuery } from '../utils/queryHelpers.js'
 import { reconcileLEM } from '../utils/lemMatcher.js'
@@ -49,20 +49,28 @@ export default function LEMReconciliation() {
     // Load rate cards via server-side API (RLS blocks direct reads)
     try {
       const lr = await fetch(`/api/rates?table=labour_rates&organization_id=${orgId}`)
-      if (lr.ok) setLabourRates(await lr.json())
+      if (lr.ok) { const d = await lr.json(); if (Array.isArray(d)) setLabourRates(d) }
       const er = await fetch(`/api/rates?table=equipment_rates&organization_id=${orgId}`)
-      if (er.ok) setEquipmentRates(await er.json())
+      if (er.ok) { const d = await er.json(); if (Array.isArray(d)) setEquipmentRates(d) }
     } catch (e) { /* rate cards optional */ }
   }
 
+  // Cache for fuzzy match results to avoid recomputing during render
+  const matchCache = useMemo(() => new Map(), [labourRates, equipmentRates])
+
   // Fuzzy match: find best matching rate card entry for a classification string
   function findBestMatch(search, candidates, keyFn) {
-    if (!search || !candidates || candidates.length === 0) return null
+    const cacheKey = (search || '') + '|' + candidates.length
+    if (matchCache.has(cacheKey)) return matchCache.get(cacheKey)
+
+    function cache(result) { matchCache.set(cacheKey, result); return result }
+
+    if (!search || !candidates || candidates.length === 0) return cache(null)
     const s = (typeof search === 'string' ? search : String(search)).toLowerCase().trim()
-    if (!s) return null
+    if (!s) return cache(null)
     // 1. Exact match
     let match = candidates.find(c => { try { return (keyFn(c) || '').toLowerCase().trim() === s } catch { return false } })
-    if (match) return match
+    if (match) return cache(match)
     // 2. One contains the other
     match = candidates.find(c => {
       try {
@@ -70,10 +78,10 @@ export default function LEMReconciliation() {
         return k && (k.includes(s) || s.includes(k))
       } catch { return false }
     })
-    if (match) return match
+    if (match) return cache(match)
     // 3. Word overlap scoring — pick candidate with most shared words
     const sWords = s.replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter(Boolean)
-    if (sWords.length === 0) return null
+    if (sWords.length === 0) return cache(null)
     let bestScore = 0, bestCandidate = null
     for (const c of candidates) {
       try {
@@ -88,7 +96,7 @@ export default function LEMReconciliation() {
         }
       } catch { continue }
     }
-    return bestCandidate
+    return cache(bestCandidate)
   }
 
   // Calculate cost for a labour entry using rate cards
@@ -118,6 +126,7 @@ export default function LEMReconciliation() {
 
   // Build ticket-level summary from all reports — only blocks with ticket numbers
   function getTicketSummaries() {
+    try {
     const tickets = []
     for (const report of reports) {
       const blocks = report.activity_blocks || []
@@ -164,6 +173,7 @@ export default function LEMReconciliation() {
       })
     }
     return tickets
+    } catch (err) { console.error('getTicketSummaries error:', err); return [] }
   }
 
   async function loadLemUploads() {
@@ -620,7 +630,7 @@ export default function LEMReconciliation() {
     )
   }
 
-  const ticketSummaries = subView === 'inspectorReports' ? getTicketSummaries() : []
+  const ticketSummaries = useMemo(() => subView === 'inspectorReports' ? getTicketSummaries() : [], [subView, reports, labourRates, equipmentRates])
   const grandLabourCost = ticketSummaries.reduce((s, t) => s + t.totalLabourCost, 0)
   const grandEquipCost = ticketSummaries.reduce((s, t) => s + t.totalEquipCost, 0)
   const grandTotal = grandLabourCost + grandEquipCost
