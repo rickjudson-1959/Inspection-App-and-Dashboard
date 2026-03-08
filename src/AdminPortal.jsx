@@ -27,6 +27,7 @@ import jsPDF from 'jspdf'
 import { saveAs } from 'file-saver'
 import MeetingAgendaGenerator from './components/MeetingAgendaGenerator.jsx'
 import ProjectCalendar from './components/ProjectCalendar.jsx'
+import ContractorProfileWizard from './components/ContractorProfileWizard.jsx'
 
 function AdminPortal() {
   const navigate = useNavigate()
@@ -95,6 +96,12 @@ function AdminPortal() {
 
   // Setup tab state
   const [selectedOrgForSetup, setSelectedOrgForSetup] = useState('')
+
+  // Contractor LEM Profiles state
+  const [contractorProfiles, setContractorProfiles] = useState([])
+  const [showProfileWizard, setShowProfileWizard] = useState(false)
+  const [editingProfile, setEditingProfile] = useState(null)
+  const [loadingProfiles, setLoadingProfiles] = useState(false)
 
   // Project Governance state (uses contract_config table)
   const [governanceData, setGovernanceData] = useState({
@@ -259,7 +266,10 @@ function AdminPortal() {
     if (activeTab === 'reports') fetchAllReports()
     if (activeTab === 'timesheets') fetchPendingTimesheets()
     if (activeTab === 'stats' && isSuperAdmin) fetchUsageStats()
-    if (activeTab === 'setup' && selectedOrgForSetup) fetchGovernanceData(selectedOrgForSetup)
+    if (activeTab === 'setup' && selectedOrgForSetup) {
+      fetchGovernanceData(selectedOrgForSetup)
+      fetchContractorProfiles(selectedOrgForSetup)
+    }
   }, [activeTab, organizationId, selectedOrgForSetup])
 
   // Fetch document sync stats for Overview tab
@@ -840,6 +850,35 @@ function AdminPortal() {
   }
 
   // Fetch Project Governance data from contract_config table
+  async function fetchContractorProfiles(orgId) {
+    if (!orgId) return
+    setLoadingProfiles(true)
+    try {
+      const { data, error } = await supabase
+        .from('contractor_lem_profiles')
+        .select('*')
+        .eq('organization_id', orgId)
+        .order('contractor_name')
+      if (!error) setContractorProfiles(data || [])
+    } catch (err) {
+      console.error('Error fetching contractor profiles:', err)
+    }
+    setLoadingProfiles(false)
+  }
+
+  async function deleteContractorProfile(profileId) {
+    if (!window.confirm('Delete this contractor profile? This cannot be undone.')) return
+    const { error } = await supabase
+      .from('contractor_lem_profiles')
+      .delete()
+      .eq('id', profileId)
+    if (error) {
+      alert('Failed to delete profile: ' + error.message)
+    } else {
+      fetchContractorProfiles(selectedOrgForSetup)
+    }
+  }
+
   async function fetchGovernanceData(orgId) {
     if (!orgId) return
 
@@ -4194,6 +4233,106 @@ function AdminPortal() {
                 alert(`Successfully imported ${count} rates!`)
               }}
             />
+
+            {/* Contractor LEM Profiles Section */}
+            {selectedOrgForSetup && (
+              <div style={{
+                backgroundColor: 'white',
+                padding: '20px',
+                borderRadius: '8px',
+                marginTop: '20px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                border: '2px solid #2563eb'
+              }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                  <h3 style={{ margin: 0, color: '#2563eb' }}>Contractor LEM Profiles</h3>
+                  {!showProfileWizard && (
+                    <button
+                      onClick={() => { setEditingProfile(null); setShowProfileWizard(true) }}
+                      style={{ padding: '8px 16px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
+                    >
+                      + New Contractor Profile
+                    </button>
+                  )}
+                </div>
+
+                {showProfileWizard ? (
+                  <ContractorProfileWizard
+                    organizationId={selectedOrgForSetup}
+                    existingProfile={editingProfile}
+                    onComplete={() => {
+                      setShowProfileWizard(false)
+                      setEditingProfile(null)
+                      fetchContractorProfiles(selectedOrgForSetup)
+                      alert('Contractor profile saved successfully!')
+                    }}
+                    onCancel={() => { setShowProfileWizard(false); setEditingProfile(null) }}
+                  />
+                ) : (
+                  <>
+                    <p style={{ color: '#6b7280', fontSize: '13px', marginBottom: '16px' }}>
+                      Each contractor formats their LEMs differently. Set up a profile once per contractor — the app learns their document layout and auto-classifies every upload after that.
+                    </p>
+
+                    {loadingProfiles ? (
+                      <p style={{ color: '#9ca3af', fontSize: '13px' }}>Loading profiles...</p>
+                    ) : contractorProfiles.length === 0 ? (
+                      <div style={{ textAlign: 'center', padding: '30px', backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px dashed #d1d5db' }}>
+                        <p style={{ color: '#6b7280', fontSize: '14px', margin: '0 0 8px 0' }}>No contractor profiles yet</p>
+                        <p style={{ color: '#9ca3af', fontSize: '12px', margin: 0 }}>
+                          Click "New Contractor Profile" to teach the app a contractor's LEM format
+                        </p>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {contractorProfiles.map(profile => {
+                          const guide = profile.classification_guide || {}
+                          const lemCount = (profile.sample_tags || []).filter(t => t === 'lem').length
+                          const ticketCount = (profile.sample_tags || []).filter(t => t === 'daily_ticket').length
+                          const corrCount = profile.corrections_count || 0
+
+                          return (
+                            <div key={profile.id} style={{
+                              display: 'flex', alignItems: 'center', gap: '16px', padding: '14px',
+                              backgroundColor: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb'
+                            }}>
+                              <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: '600', fontSize: '15px', marginBottom: '4px' }}>
+                                  {profile.contractor_name}
+                                </div>
+                                <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                                  Trained on {lemCount} LEM + {ticketCount} ticket samples
+                                  {corrCount > 0 && ` | ${corrCount} corrections applied`}
+                                  {guide.grouping_pattern && ` | ${guide.grouping_pattern}`}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#9ca3af', marginTop: '2px' }}>
+                                  Created {new Date(profile.created_at).toLocaleDateString()}
+                                  {profile.updated_at !== profile.created_at && ` | Updated ${new Date(profile.updated_at).toLocaleDateString()}`}
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '6px' }}>
+                                <button
+                                  onClick={() => { setEditingProfile(profile); setShowProfileWizard(true) }}
+                                  style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '4px', cursor: 'pointer', backgroundColor: 'white' }}
+                                >
+                                  Retrain
+                                </button>
+                                <button
+                                  onClick={() => deleteContractorProfile(profile.id)}
+                                  style={{ padding: '6px 12px', fontSize: '12px', border: '1px solid #fca5a5', borderRadius: '4px', cursor: 'pointer', backgroundColor: '#fef2f2', color: '#dc2626' }}
+                                >
+                                  Delete
+                                </button>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
 
             {/* Project Governance Section - Below Rate Import */}
             {selectedOrgForSetup && (
