@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from '../supabase'
 import { useOrgQuery } from '../utils/queryHelpers.js'
 import { reconcileLEM } from '../utils/lemMatcher.js'
@@ -7,7 +7,7 @@ import InvoiceUpload from './InvoiceUpload.jsx'
 import InvoiceComparison from './InvoiceComparison.jsx'
 
 export default function LEMReconciliation() {
-  const { addOrgFilter, getOrgId } = useOrgQuery()
+  const { addOrgFilter, getOrgId, organizationId } = useOrgQuery()
   const [lemUploads, setLemUploads] = useState([])
   const [selectedLem, setSelectedLem] = useState(null)
   const [lineItems, setLineItems] = useState([])
@@ -29,7 +29,7 @@ export default function LEMReconciliation() {
   const [equipmentRates, setEquipmentRates] = useState([])
   const [dateRange, setDateRange] = useState('60')
 
-  useEffect(() => { loadLemUploads(); loadReportsAndRates() }, [])
+  useEffect(() => { loadLemUploads(); loadReportsAndRates() }, [organizationId])
   useEffect(() => { loadReportsAndRates() }, [dateRange])
 
   async function loadReportsAndRates() {
@@ -47,16 +47,22 @@ export default function LEMReconciliation() {
     setReports(reportData || [])
 
     // Load rate cards via server-side API (RLS blocks direct reads)
-    try {
-      const lr = await fetch(`/api/rates?table=labour_rates&organization_id=${orgId}`)
-      if (lr.ok) { const d = await lr.json(); if (Array.isArray(d)) setLabourRates(d) }
-      const er = await fetch(`/api/rates?table=equipment_rates&organization_id=${orgId}`)
-      if (er.ok) { const d = await er.json(); if (Array.isArray(d)) setEquipmentRates(d) }
-    } catch (e) { /* rate cards optional */ }
+    if (orgId) {
+      try {
+        const lr = await fetch(`/api/rates?table=labour_rates&organization_id=${orgId}`)
+        if (lr.ok) { const d = await lr.json(); if (Array.isArray(d)) setLabourRates(d) }
+        const er = await fetch(`/api/rates?table=equipment_rates&organization_id=${orgId}`)
+        if (er.ok) { const d = await er.json(); if (Array.isArray(d)) setEquipmentRates(d) }
+      } catch (e) { /* rate cards optional */ }
+    }
   }
 
-  // Cache for fuzzy match results to avoid recomputing during render
-  const matchCache = useMemo(() => new Map(), [labourRates, equipmentRates])
+  // Cache for fuzzy match results — reset when rate cards change
+  const matchCacheRef = useRef(new Map())
+  const rateKeyRef = useRef('')
+  const rateKey = `${labourRates.length}-${equipmentRates.length}`
+  if (rateKey !== rateKeyRef.current) { matchCacheRef.current = new Map(); rateKeyRef.current = rateKey }
+  const matchCache = matchCacheRef.current
 
   // Fuzzy match: find best matching rate card entry for a classification string
   function findBestMatch(search, candidates, keyFn) {
@@ -630,7 +636,7 @@ export default function LEMReconciliation() {
     )
   }
 
-  const ticketSummaries = useMemo(() => subView === 'inspectorReports' ? getTicketSummaries() : [], [subView, reports, labourRates, equipmentRates])
+  const ticketSummaries = subView === 'inspectorReports' ? getTicketSummaries() : []
   const grandLabourCost = ticketSummaries.reduce((s, t) => s + t.totalLabourCost, 0)
   const grandEquipCost = ticketSummaries.reduce((s, t) => s + t.totalEquipCost, 0)
   const grandTotal = grandLabourCost + grandEquipCost
