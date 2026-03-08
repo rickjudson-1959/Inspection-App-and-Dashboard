@@ -78,12 +78,15 @@ export default function LEMReconciliation() {
     return 0
   }
 
-  // Build ticket-level summary from all reports
+  // Build ticket-level summary from all reports — only blocks with ticket numbers
   function getTicketSummaries() {
     const tickets = []
     for (const report of reports) {
       const blocks = report.activity_blocks || []
       blocks.forEach((block, blockIdx) => {
+        // Only include blocks that have a ticket number
+        if (!block.ticketNumber || !block.ticketNumber.trim()) return
+
         const labour = block.labourEntries || []
         const equip = block.equipmentEntries || []
         const totalLabourHrs = labour.reduce((s, e) => s + (parseFloat(e.rt || e.hours || 0)) + (parseFloat(e.ot || 0)), 0)
@@ -93,11 +96,19 @@ export default function LEMReconciliation() {
         const unmatchedLabour = labour.filter(e => calcLabourCost(e) === 0).length
         const unmatchedEquip = equip.filter(e => calcEquipCost(e) === 0).length
 
+        // Get ticket photo URL(s)
+        const photoEntries = block.ticketPhotos?.length > 0 ? block.ticketPhotos : block.ticketPhoto ? [block.ticketPhoto] : []
+        const photoUrls = photoEntries.filter(Boolean).map(p => {
+          if (typeof p === 'string' && p.startsWith('http')) return p
+          if (typeof p === 'string') return supabase.storage.from('ticket-photos').getPublicUrl(p).data?.publicUrl
+          return null
+        }).filter(Boolean)
+
         tickets.push({
           reportId: report.id,
           date: report.date,
           inspector: report.inspector_name,
-          ticketNumber: block.ticketNumber || '-',
+          ticketNumber: block.ticketNumber,
           activityType: block.activityType || '-',
           contractor: block.contractor || '-',
           foreman: block.foreman || '-',
@@ -110,7 +121,7 @@ export default function LEMReconciliation() {
           totalCost: Math.round((totalLabourCost + totalEquipCost) * 100) / 100,
           unmatchedRates: unmatchedLabour + unmatchedEquip,
           blockIdx,
-          hasPhoto: !!(block.ticketPhotos?.length > 0 || block.ticketPhoto)
+          photoUrls
         })
       })
     }
@@ -602,7 +613,15 @@ export default function LEMReconciliation() {
                     <td style={{ padding: '8px', textAlign: 'center' }}>{t.totalEquipHrs}</td>
                     <td style={{ padding: '8px', textAlign: 'right', color: t.totalEquipCost > 0 ? '#d97706' : '#9ca3af' }}>{t.totalEquipCost > 0 ? `$${t.totalEquipCost.toLocaleString()}` : '-'}</td>
                     <td style={{ padding: '8px', textAlign: 'right', fontWeight: '600' }}>{t.totalCost > 0 ? `$${t.totalCost.toLocaleString()}` : '-'}</td>
-                    <td style={{ padding: '8px', textAlign: 'center' }}>{t.hasPhoto ? '📷' : '-'}</td>
+                    <td style={{ padding: '8px', textAlign: 'center' }}>
+                      {t.photoUrls.length > 0 ? (
+                        <button onClick={() => window.open(t.photoUrls[0], '_blank')}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', padding: '2px' }}
+                          title="View ticket photo">
+                          📷{t.photoUrls.length > 1 ? ` (${t.photoUrls.length})` : ''}
+                        </button>
+                      ) : '-'}
+                    </td>
                   </tr>
                 ))}
               </tbody>
