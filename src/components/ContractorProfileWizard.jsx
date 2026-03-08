@@ -23,6 +23,7 @@ export default function ContractorProfileWizard({ organizationId, existingProfil
   const { getOrgId } = useOrgQuery()
   const [step, setStep] = useState(1)
   const [contractorName, setContractorName] = useState(existingProfile?.contractor_name || '')
+  const [poNumber, setPoNumber] = useState(existingProfile?.po_number || '')
   const [file, setFile] = useState(null)
   const [pageImages, setPageImages] = useState([])
   const [tags, setTags] = useState({}) // { [pageIndex]: 'lem' | 'daily_ticket' | 'cover_sheet' }
@@ -47,8 +48,8 @@ export default function ContractorProfileWizard({ organizationId, existingProfil
 
   // Step 1: Upload and render sample PDF
   async function handleUpload() {
-    if (!file || !contractorName.trim()) {
-      setError('Please enter a contractor name and select a PDF file.')
+    if (!file || !contractorName.trim() || !poNumber.trim()) {
+      setError('Please enter a contractor name, PO number, and select a PDF file.')
       return
     }
     setLoading(true)
@@ -250,6 +251,7 @@ Return ONLY a JSON classification guide (no markdown, no code fences):
       const profileData = {
         organization_id: orgId,
         contractor_name: contractorName.trim(),
+        po_number: poNumber.trim(),
         classification_guide: classificationGuide,
         sample_page_urls: sampleUrls,
         sample_tags: sampleTags,
@@ -331,14 +333,25 @@ Return ONLY a JSON classification guide (no markdown, no code fences):
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>Contractor Name *</label>
-              <input
-                value={contractorName}
-                onChange={e => setContractorName(e.target.value)}
-                placeholder="e.g., Somerville Aecon"
-                style={{ width: '100%', maxWidth: '400px', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
-              />
+            <div style={{ display: 'flex', gap: '14px' }}>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>Contractor Name *</label>
+                <input
+                  value={contractorName}
+                  onChange={e => setContractorName(e.target.value)}
+                  placeholder="e.g., Somerville Aecon"
+                  style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>PO Number *</label>
+                <input
+                  value={poNumber}
+                  onChange={e => setPoNumber(e.target.value)}
+                  placeholder="e.g., PO-4410"
+                  style={{ width: '100%', padding: '10px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px', boxSizing: 'border-box' }}
+                />
+              </div>
             </div>
             <div>
               <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>Sample PDF *</label>
@@ -360,7 +373,7 @@ Return ONLY a JSON classification guide (no markdown, no code fences):
             </button>
             <button
               onClick={handleUpload}
-              disabled={loading || !file || !contractorName.trim()}
+              disabled={loading || !file || !contractorName.trim() || !poNumber.trim()}
               style={{ padding: '10px 24px', fontSize: '14px', border: 'none', borderRadius: '6px', cursor: loading ? 'not-allowed' : 'pointer', backgroundColor: '#2563eb', color: 'white', fontWeight: '600' }}
             >
               {loading ? 'Rendering...' : 'Next: Tag Pages'}

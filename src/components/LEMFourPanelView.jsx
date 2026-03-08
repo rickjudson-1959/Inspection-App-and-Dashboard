@@ -206,7 +206,9 @@ export default function LEMFourPanelView({
   reports,
   calcLabourCost,
   calcEquipCost,
-  saving
+  saving,
+  poNumber,
+  contractorName
 }) {
   const [resolution, setResolution] = useState('')
   const [resolutionNotes, setResolutionNotes] = useState('')
@@ -402,8 +404,13 @@ export default function LEMFourPanelView({
             {/* Header */}
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <div>
+                {poNumber && (
+                  <span style={{ fontSize: '12px', fontWeight: '600', color: '#2563eb', marginRight: '8px', padding: '2px 8px', backgroundColor: '#dbeafe', borderRadius: '4px' }}>
+                    {poNumber}
+                  </span>
+                )}
                 <span style={{ fontSize: '14px', fontWeight: '600', color: '#374151' }}>
-                  {pair.work_date || 'Unknown Date'} — {pair.crew_name || `Pair #${pair.pair_index + 1}`}
+                  {pair.work_date || 'Unknown Date'} — {pair.crew_name || contractorName || `Pair #${pair.pair_index + 1}`}
                 </span>
                 <span style={{ marginLeft: '12px', fontSize: '11px', color: '#6b7280' }}>
                   Pair {selectedPairIndex + 1} of {pairs.length}

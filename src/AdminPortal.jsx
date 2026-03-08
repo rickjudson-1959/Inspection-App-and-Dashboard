@@ -4298,6 +4298,7 @@ function AdminPortal() {
                             }}>
                               <div style={{ flex: 1 }}>
                                 <div style={{ fontWeight: '600', fontSize: '15px', marginBottom: '4px' }}>
+                                  {profile.po_number && <span style={{ color: '#2563eb', marginRight: '6px' }}>{profile.po_number}</span>}
                                   {profile.contractor_name}
                                 </div>
                                 <div style={{ fontSize: '12px', color: '#6b7280' }}>

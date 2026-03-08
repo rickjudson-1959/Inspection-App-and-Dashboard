@@ -22,6 +22,7 @@ export default function LEMReconciliation() {
   const [showInvoiceUpload, setShowInvoiceUpload] = useState(false)
   const [selectedInvoice, setSelectedInvoice] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [poFilter, setPoFilter] = useState('') // PO number filter
 
   // Inspector reports + rate cards
   const [subView, setSubView] = useState('inspectorReports')
@@ -93,10 +94,23 @@ export default function LEMReconciliation() {
     return cache(bestCandidate)
   }
 
-  function calcLabourCost(entry) {
+  // Get rates filtered by PO — prefer PO-specific rates, fall back to rates with no PO
+  function getLabourRatesForPo(po) {
+    if (!po) return labourRates
+    const poRates = labourRates.filter(r => r.po_number === po)
+    return poRates.length > 0 ? poRates : labourRates.filter(r => !r.po_number)
+  }
+  function getEquipRatesForPo(po) {
+    if (!po) return equipmentRates
+    const poRates = equipmentRates.filter(r => r.po_number === po)
+    return poRates.length > 0 ? poRates : equipmentRates.filter(r => !r.po_number)
+  }
+
+  function calcLabourCost(entry, po) {
     try {
       if (!entry || !entry.classification || labourRates.length === 0) return 0
-      const rate = findBestMatch(entry.classification, labourRates, r => r.classification || '')
+      const rates = getLabourRatesForPo(po)
+      const rate = findBestMatch(entry.classification, rates, r => r.classification || '')
       if (!rate) return 0
       const rt = parseFloat(entry.rt || entry.hours || 0) || 0
       const ot = parseFloat(entry.ot || 0) || 0
@@ -104,12 +118,13 @@ export default function LEMReconciliation() {
     } catch { return 0 }
   }
 
-  function calcEquipCost(entry) {
+  function calcEquipCost(entry, po) {
     try {
       if (!entry || equipmentRates.length === 0) return 0
       const eqType = entry.type || entry.equipmentType || ''
       if (!eqType) return 0
-      const rate = findBestMatch(eqType, equipmentRates, r => r.equipment_type || '')
+      const rates = getEquipRatesForPo(po)
+      const rate = findBestMatch(eqType, rates, r => r.equipment_type || '')
       if (!rate) return 0
       const hrs = parseFloat(entry.hours || 0) || 0
       return hrs * (parseFloat(rate.rate_hourly) || 0)
@@ -287,7 +302,10 @@ export default function LEMReconciliation() {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
           <div>
             <button onClick={() => { setSelectedLem(null); setPairs([]) }} style={{ padding: '6px 12px', backgroundColor: '#6b7280', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', marginBottom: '8px' }}>&larr; Back to LEMs</button>
-            <h3 style={{ margin: 0 }}>{selectedLem.contractor_name} — {selectedLem.lem_number || selectedLem.source_filename}</h3>
+            <h3 style={{ margin: 0 }}>
+              {selectedLem.po_number && <span style={{ color: '#2563eb' }}>{selectedLem.po_number} — </span>}
+              {selectedLem.contractor_name} — {selectedLem.lem_number || selectedLem.source_filename}
+            </h3>
             <p style={{ margin: '4px 0 0 0', color: '#6b7280', fontSize: '13px' }}>
               {selectedLem.lem_period_start} to {selectedLem.lem_period_end} | {pairs.length} pairs | {accepted} accepted, {disputed} disputed, {pending} pending | Status: {statusBadge(selectedLem.status)}
             </p>
@@ -318,9 +336,11 @@ export default function LEMReconciliation() {
             onSelectPair={setSelectedPairIndex}
             onResolve={handleResolve}
             reports={reports}
-            calcLabourCost={calcLabourCost}
-            calcEquipCost={calcEquipCost}
+            calcLabourCost={(entry) => calcLabourCost(entry, selectedLem?.po_number)}
+            calcEquipCost={(entry) => calcEquipCost(entry, selectedLem?.po_number)}
             saving={saving}
+            poNumber={selectedLem?.po_number}
+            contractorName={selectedLem?.contractor_name}
           />
         )}
       </div>
@@ -361,6 +381,19 @@ export default function LEMReconciliation() {
           </div>
           {subView === 'contractorLems' && !showUpload && !showInvoiceUpload && (
             <>
+              {/* PO Filter */}
+              {(() => {
+                const pos = [...new Set(lemUploads.map(l => l.po_number).filter(Boolean))]
+                return pos.length > 0 ? (
+                  <div>
+                    <span style={{ fontSize: '12px', color: '#6b7280', marginRight: '6px' }}>PO:</span>
+                    <select value={poFilter} onChange={e => setPoFilter(e.target.value)} style={{ padding: '6px 12px', border: '1px solid #d1d5db', borderRadius: '4px' }}>
+                      <option value="">All POs</option>
+                      {pos.sort().map(po => <option key={po} value={po}>{po}</option>)}
+                    </select>
+                  </div>
+                ) : null
+              })()}
               <button onClick={() => setShowUpload(true)} style={{ padding: '8px 16px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontWeight: '500' }}>
                 Upload LEM
               </button>
@@ -491,6 +524,7 @@ export default function LEMReconciliation() {
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ backgroundColor: '#1e3a5f' }}>
+                  <th style={{ color: 'white', padding: '10px 12px', textAlign: 'left' }}>PO</th>
                   <th style={{ color: 'white', padding: '10px 12px', textAlign: 'left' }}>Contractor</th>
                   <th style={{ color: 'white', padding: '10px 12px', textAlign: 'left' }}>LEM #</th>
                   <th style={{ color: 'white', padding: '10px 12px', textAlign: 'left' }}>Period</th>
@@ -502,14 +536,15 @@ export default function LEMReconciliation() {
               </thead>
               <tbody>
                 {lemUploads.length === 0 ? (
-                  <tr><td colSpan="7" style={{ padding: '40px', textAlign: 'center', color: '#9ca3af' }}>No LEM uploads yet. Click "Upload LEM" to get started.</td></tr>
-                ) : lemUploads.map(lem => {
+                  <tr><td colSpan="8" style={{ padding: '40px', textAlign: 'center', color: '#9ca3af' }}>No LEM uploads yet. Click "Upload LEM" to get started.</td></tr>
+                ) : lemUploads.filter(lem => !poFilter || lem.po_number === poFilter).map(lem => {
                   const invStatus = getInvoiceStatus(lem.id, lem.status)
                   return (
                     <tr key={lem.id} style={{ borderBottom: '1px solid #f3f4f6', cursor: 'pointer' }}
                       onClick={() => selectLem(lem)}
                       onMouseEnter={e => e.currentTarget.style.backgroundColor = '#f0f9ff'}
                       onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+                      <td style={{ padding: '10px 12px', fontWeight: '600', color: '#2563eb' }}>{lem.po_number || '-'}</td>
                       <td style={{ padding: '10px 12px', fontWeight: '500' }}>{lem.contractor_name}</td>
                       <td style={{ padding: '10px 12px' }}>{lem.lem_number || lem.source_filename}</td>
                       <td style={{ padding: '10px 12px' }}>{lem.lem_period_start || '-'} to {lem.lem_period_end || '-'}</td>

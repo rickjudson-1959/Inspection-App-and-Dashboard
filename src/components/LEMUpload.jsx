@@ -46,7 +46,7 @@ export default function LEMUpload({ onUploadComplete }) {
       if (!orgId) return
       const { data } = await supabase
         .from('contractor_lem_profiles')
-        .select('id, contractor_name, classification_guide, corrections_count')
+        .select('id, contractor_name, po_number, classification_guide, corrections_count')
         .eq('organization_id', orgId)
         .order('contractor_name')
       setProfiles(data || [])
@@ -199,6 +199,7 @@ export default function LEMUpload({ onUploadComplete }) {
           source_filename: sourceFilename,
           source_file_url: sourceFileUrl,
           profile_id: profile?.id || null,
+          po_number: profile?.po_number || null,
           total_claimed: 0,
           status: 'pending'
         })
@@ -283,7 +284,7 @@ export default function LEMUpload({ onUploadComplete }) {
           >
             <option value="">-- No profile (text-based classification) --</option>
             {profiles.map(p => (
-              <option key={p.id} value={p.id}>{p.contractor_name}</option>
+              <option key={p.id} value={p.id}>{p.po_number ? `${p.po_number} — ` : ''}{p.contractor_name}</option>
             ))}
           </select>
         </div>

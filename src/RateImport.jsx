@@ -11,6 +11,7 @@ export default function RateImport({ organizationId, organizationName, onComplet
   const [loadingMessage, setLoadingMessage] = useState('')
   const [error, setError] = useState('')
   const [effectiveDate, setEffectiveDate] = useState(new Date().toISOString().split('T')[0])
+  const [poNumber, setPoNumber] = useState('')
   const [importSuccess, setImportSuccess] = useState(false)
   const [existingRates, setExistingRates] = useState([])
   const [loadingRates, setLoadingRates] = useState(false)
@@ -364,7 +365,8 @@ Return ONLY the JSON array.`
       const records = previewData.map(row => {
         const record = {
           organization_id: organizationId,
-          effective_date: effectiveDate
+          effective_date: effectiveDate,
+          po_number: poNumber.trim() || null
         }
         if (activeTab === 'labour') {
           record.classification = row.classification
@@ -527,6 +529,7 @@ Return ONLY the JSON array.`
                       <th style={{ padding: '8px', textAlign: 'right' }}>Daily Rate</th>
                     </>
                   )}
+                  <th style={{ padding: '8px', textAlign: 'left' }}>PO</th>
                   <th style={{ padding: '8px', textAlign: 'right' }}>Effective</th>
                 </tr>
               </thead>
@@ -547,6 +550,7 @@ Return ONLY the JSON array.`
                         <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_daily?.toFixed(2)}</td>
                       </>
                     )}
+                    <td style={{ padding: '6px 8px', fontSize: '12px', color: '#2563eb', fontWeight: '500' }}>{r.po_number || '-'}</td>
                     <td style={{ padding: '6px 8px', textAlign: 'right', fontSize: '12px', color: '#666' }}>{r.effective_date}</td>
                   </tr>
                 ))}
@@ -843,6 +847,16 @@ Return ONLY the JSON array.`
                 flexWrap: 'wrap',
                 gap: '12px'
               }}>
+                <div>
+                  <label style={{ marginRight: '10px', fontWeight: '600' }}>PO Number:</label>
+                  <input
+                    type="text"
+                    value={poNumber}
+                    onChange={(e) => setPoNumber(e.target.value)}
+                    placeholder="e.g., PO-4410"
+                    style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '150px' }}
+                  />
+                </div>
                 <div>
                   <label style={{ marginRight: '10px', fontWeight: '600' }}>Effective Date:</label>
                   <input
