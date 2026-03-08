@@ -201,7 +201,7 @@ export default function LEMUpload({ onUploadComplete }) {
           profile_id: profile?.id || null,
           po_number: profile?.po_number || null,
           total_claimed: 0,
-          status: 'pending'
+          status: 'uploaded'
         })
         .select()
         .single()
