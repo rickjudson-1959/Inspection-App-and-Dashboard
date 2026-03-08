@@ -641,7 +641,7 @@ export async function parseLEMFile(file, onProgress, lemId, orgId, profile = nul
     return { pairs: pairRecords, classifications, documentInfo, errors, flaggedPages }
   }
 
-  // Preview mode
+  // Preview mode — return full pair structures so save can use them without re-classifying
   const pairSummaries = pairs.map((pair, p) => {
     const allCls = [...(pair.lem?.classifications || []), ...(pair.ticket?.classifications || [])]
     return {
@@ -653,5 +653,93 @@ export async function parseLEMFile(file, onProgress, lemId, orgId, profile = nul
     }
   })
 
-  return { pairs: pairSummaries, classifications, documentInfo, errors, flaggedPages }
+  return { pairs: pairSummaries, rawPairs: pairs, classifications, documentInfo, errors, flaggedPages }
+}
+
+/**
+ * Save pre-classified pairs: render page images, upload to storage, create DB records.
+ * Skips classification entirely — uses the rawPairs from a previous parseLEMFile() call.
+ *
+ * @param {File} file - PDF file
+ * @param {function} onProgress
+ * @param {string} lemId - LEM upload ID
+ * @param {string} orgId - Organization ID
+ * @param {Array} rawPairs - pair objects from parseLEMFile().rawPairs
+ * @param {string} poNumber - PO number for pair records
+ * @returns {{ pairs: Array, errors: string[] }}
+ */
+export async function saveParsedPairs(file, onProgress, lemId, orgId, rawPairs, poNumber) {
+  const errors = []
+
+  await ensurePdfJs()
+  const arrayBuffer = await file.arrayBuffer()
+  const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
+  const numPages = pdf.numPages
+  const scale = numPages > 50 ? 1.5 : 2.0
+  const jpegQuality = numPages > 50 ? 0.8 : 0.9
+
+  // Collect all page indices that need images
+  const neededIndices = new Set()
+  for (const pair of rawPairs) {
+    if (pair.lem) pair.lem.pageIndices.forEach(i => neededIndices.add(i))
+    if (pair.ticket) pair.ticket.pageIndices.forEach(i => neededIndices.add(i))
+  }
+
+  // Render pages to images
+  onProgress?.(`Rendering ${neededIndices.size} pages...`)
+  const allPageImages = new Array(numPages).fill(null)
+  let rendered = 0
+  for (const idx of neededIndices) {
+    rendered++
+    if (rendered % 20 === 0) onProgress?.(`Rendering page ${rendered} of ${neededIndices.size}...`)
+    const page = await pdf.getPage(idx + 1)
+    allPageImages[idx] = await renderPageToImage(page, scale, jpegQuality)
+  }
+  onProgress?.(`${rendered} pages rendered. Uploading...`)
+
+  // Upload images and create pair records
+  const pairRecords = []
+  for (let p = 0; p < rawPairs.length; p++) {
+    const pair = rawPairs[p]
+    if (p % 10 === 0) onProgress?.(`Uploading pair ${p + 1} of ${rawPairs.length}...`)
+
+    let lemUrls = [], lemIndices = []
+    if (pair.lem) {
+      lemIndices = pair.lem.pageIndices
+      lemUrls = await uploadPageImages(lemId, 'lem', p, lemIndices, allPageImages, errors)
+    }
+
+    let ticketUrls = [], ticketIndices = []
+    if (pair.ticket) {
+      ticketIndices = pair.ticket.pageIndices
+      ticketUrls = await uploadPageImages(lemId, 'ticket', p, ticketIndices, allPageImages, errors)
+    }
+
+    const allCls = [...(pair.lem?.classifications || []), ...(pair.ticket?.classifications || [])]
+    pairRecords.push({
+      lem_upload_id: lemId,
+      organization_id: orgId,
+      pair_index: p,
+      work_date: allCls.find(c => c.date)?.date || null,
+      crew_name: allCls.find(c => c.crew)?.crew || null,
+      lem_page_urls: lemUrls,
+      lem_page_indices: lemIndices,
+      contractor_ticket_urls: ticketUrls,
+      contractor_ticket_indices: ticketIndices,
+      po_number: poNumber || null,
+      page_classifications: allCls,
+      status: 'pending'
+    })
+  }
+
+  if (pairRecords.length > 0) {
+    onProgress?.(`Saving ${pairRecords.length} pair records...`)
+    const { error: insertErr } = await supabase
+      .from('lem_reconciliation_pairs')
+      .insert(pairRecords)
+    if (insertErr) errors.push(`Failed to save pairs: ${insertErr.message}`)
+  }
+
+  onProgress?.(`Done: ${pairRecords.length} pairs saved.`)
+  return { pairs: pairRecords, errors }
 }

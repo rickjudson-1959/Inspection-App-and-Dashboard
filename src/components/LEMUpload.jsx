@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { useOrgQuery } from '../utils/queryHelpers.js'
 import { useAuth } from '../AuthContext.jsx'
-import { parseLEMFile, pdfToImages } from '../utils/lemParser.js'
+import { parseLEMFile, saveParsedPairs, pdfToImages } from '../utils/lemParser.js'
 import LEMClassificationReview from './LEMClassificationReview.jsx'
 import ContractorProfileWizard from './ContractorProfileWizard.jsx'
 
@@ -28,6 +28,7 @@ export default function LEMUpload({ onUploadComplete }) {
   const [progress, setProgress] = useState('')
   const [errors, setErrors] = useState([])
   const [preview, setPreview] = useState(null)
+  const [rawPairs, setRawPairs] = useState([]) // full pair structures from classification
 
   // Classification review state
   const [flaggedPages, setFlaggedPages] = useState([])
@@ -74,6 +75,7 @@ export default function LEMUpload({ onUploadComplete }) {
     setUploading(true)
     setErrors([])
     setPreview(null)
+    setRawPairs([])
     setFlaggedPages([])
     setClassifications([])
     setShowReview(false)
@@ -81,6 +83,7 @@ export default function LEMUpload({ onUploadComplete }) {
     try {
       const files = Array.isArray(file) ? file : [file]
       let allPairs = []
+      let allRawPairs = []
       let allErrors = []
       let allClassifications = []
       let allFlagged = []
@@ -93,11 +96,14 @@ export default function LEMUpload({ onUploadComplete }) {
 
         const result = await parseLEMFile(f, setProgress, null, null, profile)
         allPairs = allPairs.concat(result.pairs)
+        allRawPairs = allRawPairs.concat(result.rawPairs || [])
         allErrors = allErrors.concat(result.errors.map(e => files.length > 1 ? `${f.name}: ${e}` : e))
         allClassifications = allClassifications.concat(result.classifications || [])
         allFlagged = allFlagged.concat(result.flaggedPages || [])
         if (!firstDocInfo && result.documentInfo?.contractor_name) firstDocInfo = result.documentInfo
       }
+
+      setRawPairs(allRawPairs)
 
       setErrors(allErrors)
       setClassifications(allClassifications)
@@ -208,15 +214,16 @@ export default function LEMUpload({ onUploadComplete }) {
 
       if (lemErr) throw lemErr
 
-      // Re-parse with lemId to upload images and create pair records
+      // Upload images and create pair records using already-classified pairs
       setProgress('Uploading page images and creating pairs...')
       let totalPairs = 0
-      for (const f of files) {
-        const { pairs, errors: uploadErrors } = await parseLEMFile(f, setProgress, lemRecord.id, orgId, profile)
-        totalPairs += pairs.length
-        if (uploadErrors.length > 0) {
-          setErrors(prev => [...prev, ...uploadErrors])
-        }
+      const f = Array.isArray(file) ? file[0] : file
+      const { pairs: savedPairs, errors: uploadErrors } = await saveParsedPairs(
+        f, setProgress, lemRecord.id, orgId, rawPairs, profile?.po_number
+      )
+      totalPairs = savedPairs.length
+      if (uploadErrors.length > 0) {
+        setErrors(prev => [...prev, ...uploadErrors])
       }
 
       // Update the LEM record status
