@@ -71,17 +71,6 @@ async function renderPageToImage(page, scale, jpegQuality) {
   canvas.height = viewport.height
   const ctx = canvas.getContext('2d')
   await page.render({ canvasContext: ctx, viewport }).promise
-
-  if (viewport.width > viewport.height * 1.2) {
-    const rot = document.createElement('canvas')
-    rot.width = viewport.height
-    rot.height = viewport.width
-    const rCtx = rot.getContext('2d')
-    rCtx.translate(rot.width, 0)
-    rCtx.rotate(Math.PI / 2)
-    rCtx.drawImage(canvas, 0, 0)
-    return rot.toDataURL('image/jpeg', jpegQuality).split(',')[1]
-  }
   return canvas.toDataURL('image/jpeg', jpegQuality).split(',')[1]
 }
 

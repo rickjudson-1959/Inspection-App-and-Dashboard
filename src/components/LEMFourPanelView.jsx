@@ -47,7 +47,7 @@ function ImagePanel({ title, titleColor, borderColor, bgColor, urls, emptyText }
               <img
                 src={url}
                 alt={`${title} page ${idx + 1}`}
-                style={{ width: `${zoom * 100}%`, maxWidth: 'none', borderRadius: '4px', cursor: 'pointer', transition: 'width 0.15s' }}
+                style={{ maxWidth: `${zoom * 100}%`, height: 'auto', borderRadius: '4px', cursor: 'pointer', transition: 'max-width 0.15s' }}
                 onClick={() => setFullscreen(idx)}
               />
             </div>
