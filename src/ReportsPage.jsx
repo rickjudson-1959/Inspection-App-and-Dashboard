@@ -9,15 +9,17 @@ function ReportsPage() {
   const navigate = useNavigate()
   const { signOut, userProfile } = useAuth()
   const { orgPath } = useOrgPath()
-  const { addOrgFilter } = useOrgQuery()
+  const { addOrgFilter, organizationId, isSuperAdmin } = useOrgQuery()
   const [reports, setReports] = useState([])
   const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState({ dateFrom: '', dateTo: '', inspector: '', spread: '' })
   const [selectedReport, setSelectedReport] = useState(null)
 
   useEffect(() => {
+    // Wait for org context to resolve before fetching
+    if (!organizationId && !isSuperAdmin) return
     fetchReports()
-  }, [])
+  }, [organizationId, isSuperAdmin])
 
   async function fetchReports() {
     setLoading(true)
