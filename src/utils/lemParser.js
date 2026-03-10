@@ -611,7 +611,26 @@ export async function parseLEMFile(file, onProgress, lemId, orgId, profile = nul
     ? groupPagesWithProfile(classifications)
     : groupSequential(classifications.map((c, i) => ({ ...c, originalIndex: i })).filter(c => c.page_type === 'lem' || c.page_type === 'daily_ticket'))
 
+  // Debug: show groups
+  console.log(`[LEM Group] ===== GROUPING RESULTS =====`)
+  groups.forEach((g, i) => {
+    const pages = g.pageIndices.map(p => p + 1).join(', ')
+    const date = g.classifications.find(c => c.date)?.date || '-'
+    console.log(`[LEM Group] Group ${i + 1}: ${g.type.padEnd(14)} pages=[${pages}] (${g.pageIndices.length} pg) date=${date}`)
+  })
+
   const pairs = buildPairsFromGroups(groups)
+
+  // Debug: show pairs
+  console.log(`[LEM Pair] ===== PAIRING RESULTS: ${pairs.length} pairs =====`)
+  pairs.forEach((p, i) => {
+    const lemPages = p.lem ? p.lem.pageIndices.map(x => x + 1).join(',') : 'none'
+    const ticketPages = p.ticket ? p.ticket.pageIndices.map(x => x + 1).join(',') : 'none'
+    const date = [...(p.lem?.classifications || []), ...(p.ticket?.classifications || [])].find(c => c.date)?.date || '-'
+    console.log(`[LEM Pair] Pair ${i + 1}: LEM=[${lemPages}] Ticket=[${ticketPages}] date=${date}`)
+  })
+  console.log(`[LEM Pair] ========================================`)
+
   onProgress?.(`${pairs.length} LEM/ticket pairs found.`)
 
   if (flaggedCount > 0) {
