@@ -157,68 +157,82 @@ export default function LEMFourPanelView({
       return
     }
 
-    // Try auto-match by date + crew, then contractor-only fallback
+    // Score-based matching: find the BEST report+block, not just the first
     const pairCrew = (pair.crew_name || '').toLowerCase().trim()
     const pairContractor = (contractorName || '').toLowerCase().trim()
 
-    // Helper: check if block.contractor fuzzy-matches the pair's crew or the LEM contractor
-    function crewMatches(blockContractor) {
-      if (!blockContractor) return false
+    // Score how well a block's contractor matches the pair's crew/contractor
+    function crewScore(blockContractor) {
+      if (!blockContractor) return 0
       const bc = blockContractor.toLowerCase().trim()
-      if (pairCrew) {
-        const firstWord = pairCrew.split(/\s+/)[0]
-        if (firstWord && (bc.includes(firstWord) || pairCrew.includes(bc.split(/\s+/)[0]))) return true
-      }
-      if (pairContractor) {
-        const firstWord = pairContractor.split(/\s+/)[0]
-        if (firstWord && firstWord.length > 2 && (bc.includes(firstWord) || pairContractor.includes(bc.split(/\s+/)[0]))) return true
-      }
-      return false
-    }
-
-    // Pass 1: date + crew match
-    let dateOnlyReport = null, dateOnlyBlock = null
-    if (pair.work_date) {
-      const dateMatches = reports.filter(r => r.date === pair.work_date)
-      console.log(`[LEM Match] Pass 1: ${dateMatches.length} reports match date ${pair.work_date}`)
-      for (const report of dateMatches) {
-        const blocks = report.activity_blocks || []
-        for (const block of blocks) {
-          if (crewMatches(block.contractor)) {
-            console.log(`[LEM Match] ✓ Date+crew match: report ${report.id} (${report.date}) block contractor="${block.contractor}"`)
-            setMatchedReport(report)
-            setMatchedBlock(block)
-            return
-          }
-        }
-        if (!dateOnlyReport && blocks.length > 0) {
-          dateOnlyReport = report
-          dateOnlyBlock = blocks[0]
+      // Check against both pair crew_name and LEM contractor_name
+      let best = 0
+      for (const search of [pairCrew, pairContractor]) {
+        if (!search) continue
+        if (bc === search) { best = Math.max(best, 10); continue } // exact
+        // Multi-word overlap
+        const sWords = search.split(/\s+/).filter(w => w.length > 2)
+        const bWords = bc.split(/\s+/).filter(w => w.length > 2)
+        const shared = sWords.filter(sw => bWords.some(bw => bw.includes(sw) || sw.includes(bw))).length
+        if (shared >= 2) { best = Math.max(best, 5 + shared); continue } // strong multi-word match
+        if (shared === 1) { best = Math.max(best, 3); continue } // single word match
+        // First-word fallback
+        const firstWord = search.split(/\s+/)[0]
+        if (firstWord && firstWord.length > 2 && (bc.includes(firstWord) || search.includes(bc.split(/\s+/)[0]))) {
+          best = Math.max(best, 1)
         }
       }
+      return best
     }
 
-    // Pass 2: date-only match
-    if (dateOnlyReport) {
-      console.log(`[LEM Match] ✓ Date-only match: report ${dateOnlyReport.id} (${dateOnlyReport.date}) pdf_url=${dateOnlyReport.pdf_storage_url ? 'yes' : 'NO'}`)
-      setMatchedReport(dateOnlyReport)
-      setMatchedBlock(dateOnlyBlock)
-      return
+    // Collect all candidates: { report, block, blockIdx, score }
+    const candidates = []
+    const dateMatches = pair.work_date ? reports.filter(r => r.date === pair.work_date) : []
+    console.log(`[LEM Match] ${dateMatches.length} reports match date ${pair.work_date}`)
+
+    // Date-matching candidates (score boosted)
+    for (const report of dateMatches) {
+      const blocks = report.activity_blocks || []
+      for (let bi = 0; bi < blocks.length; bi++) {
+        const cs = crewScore(blocks[bi].contractor)
+        const photos = blocks[bi].ticketPhotos?.length > 0 ? blocks[bi].ticketPhotos : blocks[bi].ticketPhoto ? [blocks[bi].ticketPhoto] : []
+        // Score: crew match quality + bonus for having PDF + bonus for having photos
+        let score = cs + (report.pdf_storage_url ? 2 : 0) + (photos.filter(Boolean).length > 0 ? 1 : 0)
+        if (cs > 0) score += 10 // date + crew match bonus
+        candidates.push({ report, block: blocks[bi], blockIdx: bi, score, reason: `date+crew(${cs})` })
+      }
+      // Even if no crew match, a date-match report with a PDF is useful
+      if (blocks.length > 0) {
+        const photos = blocks[0].ticketPhotos?.length > 0 ? blocks[0].ticketPhotos : blocks[0].ticketPhoto ? [blocks[0].ticketPhoto] : []
+        candidates.push({ report, block: blocks[0], blockIdx: 0, score: (report.pdf_storage_url ? 4 : 1) + (photos.filter(Boolean).length > 0 ? 1 : 0), reason: 'date-only' })
+      }
     }
 
-    // Pass 3: contractor-name-only match (ignore date) — for cross-era testing
-    if (pairCrew || pairContractor) {
+    // If no date-match candidates, try crew-only across all reports
+    if (candidates.length === 0 && (pairCrew || pairContractor)) {
       for (const report of reports) {
         const blocks = report.activity_blocks || []
-        for (const block of blocks) {
-          if (crewMatches(block.contractor)) {
-            console.log(`[LEM Match] ✓ Crew-only match: report ${report.id} (${report.date}) block contractor="${block.contractor}"`)
-            setMatchedReport(report)
-            setMatchedBlock(block)
-            return
+        for (let bi = 0; bi < blocks.length; bi++) {
+          const cs = crewScore(blocks[bi].contractor)
+          if (cs > 0) {
+            const photos = blocks[bi].ticketPhotos?.length > 0 ? blocks[bi].ticketPhotos : blocks[bi].ticketPhoto ? [blocks[bi].ticketPhoto] : []
+            candidates.push({ report, block: blocks[bi], blockIdx: bi, score: cs + (report.pdf_storage_url ? 2 : 0) + (photos.filter(Boolean).length > 0 ? 1 : 0), reason: `crew-only(${cs})` })
           }
         }
       }
+    }
+
+    // Pick the best candidate
+    candidates.sort((a, b) => b.score - a.score)
+    if (candidates.length > 0) {
+      const best = candidates[0]
+      console.log(`[LEM Match] ✓ Best match: report ${best.report.id} (${best.report.date}) block[${best.blockIdx}] contractor="${best.block.contractor}" score=${best.score} reason=${best.reason} pdf=${best.report.pdf_storage_url ? 'YES' : 'NO'}`)
+      if (candidates.length > 1) {
+        console.log(`[LEM Match]   Runner-up: report ${candidates[1].report.id} block[${candidates[1].blockIdx}] contractor="${candidates[1].block.contractor}" score=${candidates[1].score} reason=${candidates[1].reason}`)
+      }
+      setMatchedReport(best.report)
+      setMatchedBlock(best.block)
+      return
     }
 
     console.log(`[LEM Match] ✗ No match found for pair ${pair.pair_index} (date=${pair.work_date}, crew=${pairCrew}, contractor=${pairContractor})`)

@@ -141,10 +141,15 @@ function extractDateFromText(text) {
 }
 
 function extractCrewFromText(text) {
+  // Match contractor/crew name but stop at Date:, digits-dash-digits, or triple-space runs
   let m = text.match(/(?:crew|contractor|company)\s*[:]\s*([^\n,;]{3,40})/i)
-  if (m) return m[1].trim()
+  if (m) {
+    // Trim at common boundary patterns: "Date:", "2026-", large whitespace gaps
+    let name = m[1].replace(/\s{2,}.*$/, '').replace(/\s*date\s*:.*/i, '').replace(/\s*\d{4}[\-\/].*/i, '').trim()
+    if (name.length >= 3) return name
+  }
   m = text.match(/foreman\s*[:]\s*([^\n,;]{3,30})/i)
-  if (m) return m[1].trim()
+  if (m) return m[1].replace(/\s{2,}.*$/, '').trim()
   return null
 }
 
