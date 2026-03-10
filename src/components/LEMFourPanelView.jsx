@@ -233,38 +233,66 @@ export default function LEMFourPanelView({
       return
     }
 
-    // Try auto-match by date + crew
-    if (!pair.work_date) { setMatchedBlock(null); setMatchedReport(null); return }
+    // Try auto-match by date + crew, then contractor-only fallback
+    const pairCrew = (pair.crew_name || '').toLowerCase().trim()
+    const pairContractor = (contractorName || '').toLowerCase().trim()
 
-    // First pass: find exact crew+date match
-    let dateOnlyReport = null
-    let dateOnlyBlock = null
-    for (const report of reports) {
-      if (report.date !== pair.work_date) continue
-      const blocks = report.activity_blocks || []
-      for (let i = 0; i < blocks.length; i++) {
-        const block = blocks[i]
-        const crewMatch = pair.crew_name && block.contractor &&
-          (block.contractor.toLowerCase().includes((pair.crew_name || '').toLowerCase().split(' ')[0]) ||
-           (pair.crew_name || '').toLowerCase().includes(block.contractor.toLowerCase().split(' ')[0]))
-        if (crewMatch) {
-          setMatchedReport(report)
-          setMatchedBlock(block)
-          return
+    // Helper: check if block.contractor fuzzy-matches the pair's crew or the LEM contractor
+    function crewMatches(blockContractor) {
+      if (!blockContractor) return false
+      const bc = blockContractor.toLowerCase().trim()
+      if (pairCrew) {
+        const firstWord = pairCrew.split(/\s+/)[0]
+        if (firstWord && (bc.includes(firstWord) || pairCrew.includes(bc.split(/\s+/)[0]))) return true
+      }
+      if (pairContractor) {
+        const firstWord = pairContractor.split(/\s+/)[0]
+        if (firstWord && firstWord.length > 2 && (bc.includes(firstWord) || pairContractor.includes(bc.split(/\s+/)[0]))) return true
+      }
+      return false
+    }
+
+    // Pass 1: date + crew match
+    let dateOnlyReport = null, dateOnlyBlock = null
+    if (pair.work_date) {
+      for (const report of reports) {
+        if (report.date !== pair.work_date) continue
+        const blocks = report.activity_blocks || []
+        for (const block of blocks) {
+          if (crewMatches(block.contractor)) {
+            setMatchedReport(report)
+            setMatchedBlock(block)
+            return
+          }
+        }
+        if (!dateOnlyReport && blocks.length > 0) {
+          dateOnlyReport = report
+          dateOnlyBlock = blocks[0]
         }
       }
-      // Remember first date-only match as fallback
-      if (!dateOnlyReport && blocks.length > 0) {
-        dateOnlyReport = report
-        dateOnlyBlock = blocks[0]
-      }
     }
-    // Fallback: use first date-matching report if no crew match found
+
+    // Pass 2: date-only match
     if (dateOnlyReport) {
       setMatchedReport(dateOnlyReport)
       setMatchedBlock(dateOnlyBlock)
       return
     }
+
+    // Pass 3: contractor-name-only match (ignore date) — for cross-era testing
+    if (pairCrew || pairContractor) {
+      for (const report of reports) {
+        const blocks = report.activity_blocks || []
+        for (const block of blocks) {
+          if (crewMatches(block.contractor)) {
+            setMatchedReport(report)
+            setMatchedBlock(block)
+            return
+          }
+        }
+      }
+    }
+
     setMatchedBlock(null)
     setMatchedReport(null)
   }, [pair, reports])
