@@ -99,13 +99,38 @@ const TEXT_WORD_THRESHOLD = 20
 function classifyPageText(text) {
   const words = text.trim().split(/\s+/).filter(w => w.length > 0)
   const wordCount = words.length
+  const lower = text.toLowerCase()
+
+  // Content-based classification: look for definitive markers
+  const lemMarkers = ['labour & equipment', 'labour and equipment', 'manifest', 'billing', 'rate/hr', 'line total', 'grand total', 'rt rate', 'ot rate', 'rt hrs', 'ot hrs']
+  const ticketMarkers = ['daily field ticket', 'daily ticket', 'field ticket', 'foreman:', 'inspector:', 'signature', 'print name']
+
+  const lemScore = lemMarkers.reduce((s, m) => s + (lower.includes(m) ? 1 : 0), 0)
+  const ticketScore = ticketMarkers.reduce((s, m) => s + (lower.includes(m) ? 1 : 0), 0)
+
+  let page_type
+  let confidence
+  if (lemScore > ticketScore) {
+    page_type = 'lem'
+    confidence = Math.min(0.95, 0.7 + lemScore * 0.08)
+  } else if (ticketScore > lemScore) {
+    page_type = 'daily_ticket'
+    confidence = Math.min(0.95, 0.7 + ticketScore * 0.08)
+  } else {
+    // Fallback to word count heuristic
+    page_type = wordCount >= TEXT_WORD_THRESHOLD ? 'lem' : 'daily_ticket'
+    confidence = 0.5
+  }
+
   return {
-    page_type: wordCount >= TEXT_WORD_THRESHOLD ? 'lem' : 'daily_ticket',
-    confidence: 0.9,
+    page_type,
+    confidence,
     date: extractDateFromText(text),
     crew: extractCrewFromText(text),
     page_number: null,
-    word_count: wordCount
+    word_count: wordCount,
+    lem_score: lemScore,
+    ticket_score: ticketScore
   }
 }
 
@@ -551,6 +576,16 @@ export async function parseLEMFile(file, onProgress, lemId, orgId, profile = nul
   const coverCount = classifications.filter(c => c.page_type === 'cover_sheet').length
   const unknownCount = classifications.filter(c => c.page_type === 'unknown').length
   onProgress?.(`Classification done: ${lemCount} LEM, ${ticketCount} ticket${coverCount ? `, ${coverCount} cover` : ''}${unknownCount ? `, ${unknownCount} unknown` : ''}. ${flaggedCount} flagged for review.`)
+
+  // ── Classification dump for debugging ──
+  console.log(`[LEM Classify] ===== PAGE CLASSIFICATION RESULTS =====`)
+  console.log(`[LEM Classify] ${numPages} pages: ${lemCount} LEM, ${ticketCount} ticket, ${coverCount} cover, ${unknownCount} unknown`)
+  classifications.forEach((c, i) => {
+    const extra = c.word_count != null ? ` | words=${c.word_count}` : ''
+    const scores = c.lem_score != null ? ` | lem_score=${c.lem_score} ticket_score=${c.ticket_score}` : ''
+    console.log(`[LEM Classify] Page ${i + 1}: ${c.page_type.padEnd(14)} conf=${c.confidence.toFixed(2)} date=${c.date || '-'}${extra}${scores}`)
+  })
+  console.log(`[LEM Classify] ========================================`)
 
   // Build flagged pages list
   const flaggedPages = classifications

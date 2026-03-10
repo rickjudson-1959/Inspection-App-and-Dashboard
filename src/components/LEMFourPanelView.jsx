@@ -78,117 +78,41 @@ function ImagePanel({ title, titleColor, borderColor, bgColor, urls, emptyText }
 }
 
 /**
- * Inspector data panel (Panel 4) — structured data from matched report
+ * Inspector report PDF panel (Panel 4) — embeds the stored PDF
  */
-function InspectorDataPanel({ block, reportDate, inspector, calcLabourCost, calcEquipCost }) {
-  if (!block) {
+function InspectorReportPanel({ pdfUrl, reportDate, inspector }) {
+  if (!pdfUrl) {
     return (
-      <div style={{ backgroundColor: '#f0fdf4', borderRadius: '8px', border: '2px solid #059669', padding: '14px', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <h4 style={{ margin: '0 0 10px 0', color: '#166534', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase' }}>Inspector Report Data</h4>
-        <p style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: '12px', textAlign: 'center', marginTop: '40px' }}>No matching inspector report found</p>
+      <div style={{ backgroundColor: '#f0fdf4', borderRadius: '8px', border: '2px solid #059669', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <div style={{ padding: '10px 14px 6px', borderBottom: '1px solid #059669' }}>
+          <h4 style={{ margin: 0, color: '#166534', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase' }}>Inspector Report</h4>
+        </div>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '200px' }}>
+          <p style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: '12px', textAlign: 'center' }}>No matching inspector report found</p>
+        </div>
       </div>
     )
   }
 
-  const labour = block.labourEntries || []
-  const equip = block.equipmentEntries || []
-  const totalLabourCost = labour.reduce((s, e) => s + (calcLabourCost?.(e) || 0), 0)
-  const totalEquipCost = equip.reduce((s, e) => s + (calcEquipCost?.(e) || 0), 0)
-  const totalLabourHrs = labour.reduce((s, e) => s + (parseFloat(e.rt || e.hours || 0) || 0) + (parseFloat(e.ot || 0) || 0), 0)
-  const totalEquipHrs = equip.reduce((s, e) => s + (parseFloat(e.hours || 0) || 0), 0)
-
   return (
     <div style={{ backgroundColor: '#f0fdf4', borderRadius: '8px', border: '2px solid #059669', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <div style={{ padding: '10px 14px 6px', borderBottom: '1px solid #059669' }}>
-        <h4 style={{ margin: 0, color: '#166534', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase' }}>Inspector Report Data</h4>
+      <div style={{ padding: '10px 14px 6px', borderBottom: '1px solid #059669', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h4 style={{ margin: 0, color: '#166534', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase' }}>Inspector Report</h4>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {reportDate && <span style={{ fontSize: '10px', color: '#6b7280' }}>{reportDate}</span>}
+          {inspector && <span style={{ fontSize: '10px', color: '#6b7280' }}>| {inspector}</span>}
+          <a href={pdfUrl} target="_blank" rel="noopener noreferrer"
+            style={{ fontSize: '10px', color: '#2563eb', textDecoration: 'none' }}>
+            Open PDF
+          </a>
+        </div>
       </div>
-      <div style={{ flex: 1, overflow: 'auto', padding: '10px 14px', maxHeight: '70vh' }}>
-        {/* Header info */}
-        <div style={{ fontSize: '12px', color: '#374151', marginBottom: '10px', lineHeight: '1.6' }}>
-          <div><strong>Crew:</strong> {block.contractor || '-'}</div>
-          <div><strong>Date:</strong> {reportDate || '-'}</div>
-          <div><strong>Inspector:</strong> {inspector || '-'}</div>
-          <div><strong>Activity:</strong> {block.activityType || '-'}</div>
-          {block.foreman && <div><strong>Foreman:</strong> {block.foreman}</div>}
-          {block.ticketNumber && <div><strong>Ticket:</strong> {block.ticketNumber}</div>}
-        </div>
-
-        {/* Labour */}
-        <h5 style={{ margin: '12px 0 4px 0', fontSize: '11px', textTransform: 'uppercase', color: '#166534', borderBottom: '1px solid #bbf7d0', paddingBottom: '4px' }}>
-          Labour ({labour.length} workers, {Math.round(totalLabourHrs * 10) / 10} hrs)
-        </h5>
-        {labour.length > 0 ? (
-          <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse' }}>
-            <thead><tr style={{ borderBottom: '1px solid #d1d5db' }}>
-              <th style={{ textAlign: 'left', padding: '3px' }}>Name</th>
-              <th style={{ textAlign: 'left', padding: '3px' }}>Class</th>
-              <th style={{ textAlign: 'center', padding: '3px' }}>RT</th>
-              <th style={{ textAlign: 'center', padding: '3px' }}>OT</th>
-              <th style={{ textAlign: 'right', padding: '3px' }}>Cost</th>
-            </tr></thead>
-            <tbody>
-              {labour.map((e, i) => {
-                const cost = calcLabourCost?.(e) || 0
-                return (
-                  <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '2px 3px' }}>{e.name || e.employeeName || '-'}</td>
-                    <td style={{ padding: '2px 3px' }}>{e.classification || e.trade || '-'}</td>
-                    <td style={{ padding: '2px 3px', textAlign: 'center' }}>{e.rt || e.hours || 0}</td>
-                    <td style={{ padding: '2px 3px', textAlign: 'center' }}>{e.ot || 0}</td>
-                    <td style={{ padding: '2px 3px', textAlign: 'right', color: cost > 0 ? '#059669' : '#9ca3af' }}>{cost > 0 ? `$${Math.round(cost).toLocaleString()}` : '-'}</td>
-                  </tr>
-                )
-              })}
-              <tr style={{ borderTop: '2px solid #bbf7d0', fontWeight: '600' }}>
-                <td colSpan={4} style={{ padding: '4px 3px', textAlign: 'right' }}>Labour Total:</td>
-                <td style={{ padding: '4px 3px', textAlign: 'right', color: '#059669' }}>${Math.round(totalLabourCost).toLocaleString()}</td>
-              </tr>
-            </tbody>
-          </table>
-        ) : <p style={{ fontSize: '11px', color: '#9ca3af' }}>No labour entries</p>}
-
-        {/* Equipment */}
-        <h5 style={{ margin: '12px 0 4px 0', fontSize: '11px', textTransform: 'uppercase', color: '#166534', borderBottom: '1px solid #bbf7d0', paddingBottom: '4px' }}>
-          Equipment ({equip.length} units, {Math.round(totalEquipHrs * 10) / 10} hrs)
-        </h5>
-        {equip.length > 0 ? (
-          <table style={{ width: '100%', fontSize: '10px', borderCollapse: 'collapse' }}>
-            <thead><tr style={{ borderBottom: '1px solid #d1d5db' }}>
-              <th style={{ textAlign: 'left', padding: '3px' }}>Type</th>
-              <th style={{ textAlign: 'left', padding: '3px' }}>Unit</th>
-              <th style={{ textAlign: 'center', padding: '3px' }}>Hrs</th>
-              <th style={{ textAlign: 'right', padding: '3px' }}>Cost</th>
-            </tr></thead>
-            <tbody>
-              {equip.map((e, i) => {
-                const cost = calcEquipCost?.(e) || 0
-                return (
-                  <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
-                    <td style={{ padding: '2px 3px' }}>{e.type || e.equipmentType || '-'}</td>
-                    <td style={{ padding: '2px 3px' }}>{e.unitNumber || e.unit_number || '-'}</td>
-                    <td style={{ padding: '2px 3px', textAlign: 'center' }}>{e.hours || 0}</td>
-                    <td style={{ padding: '2px 3px', textAlign: 'right', color: cost > 0 ? '#d97706' : '#9ca3af' }}>{cost > 0 ? `$${Math.round(cost).toLocaleString()}` : '-'}</td>
-                  </tr>
-                )
-              })}
-              <tr style={{ borderTop: '2px solid #bbf7d0', fontWeight: '600' }}>
-                <td colSpan={3} style={{ padding: '4px 3px', textAlign: 'right' }}>Equipment Total:</td>
-                <td style={{ padding: '4px 3px', textAlign: 'right', color: '#d97706' }}>${Math.round(totalEquipCost).toLocaleString()}</td>
-              </tr>
-            </tbody>
-          </table>
-        ) : <p style={{ fontSize: '11px', color: '#9ca3af' }}>No equipment entries</p>}
-
-        {/* Cost summary */}
-        <div style={{ marginTop: '12px', padding: '10px', backgroundColor: '#dcfce7', borderRadius: '6px', textAlign: 'center' }}>
-          <div style={{ fontSize: '10px', color: '#166534', textTransform: 'uppercase', fontWeight: '600', marginBottom: '2px' }}>Total Cost (Rate Card)</div>
-          <div style={{ fontSize: '20px', fontWeight: '700', color: '#059669' }}>
-            ${Math.round(totalLabourCost + totalEquipCost).toLocaleString()}
-          </div>
-          <div style={{ fontSize: '10px', color: '#6b7280' }}>
-            Labour: ${Math.round(totalLabourCost).toLocaleString()} | Equip: ${Math.round(totalEquipCost).toLocaleString()}
-          </div>
-        </div>
+      <div style={{ flex: 1, minHeight: '200px', maxHeight: '70vh' }}>
+        <iframe
+          src={pdfUrl}
+          title="Inspector Report PDF"
+          style={{ width: '100%', height: '100%', border: 'none', borderRadius: '0 0 6px 6px', minHeight: '400px' }}
+        />
       </div>
     </div>
   )
@@ -204,8 +128,6 @@ export default function LEMFourPanelView({
   onSelectPair,
   onResolve,
   reports,
-  calcLabourCost,
-  calcEquipCost,
   saving,
   poNumber,
   contractorName
@@ -485,12 +407,10 @@ export default function LEMFourPanelView({
                 urls={ticketPhotoUrls}
                 emptyText="No ticket photo from inspector"
               />
-              <InspectorDataPanel
-                block={matchedBlock}
+              <InspectorReportPanel
+                pdfUrl={matchedReport?.pdf_storage_url}
                 reportDate={matchedReport?.date}
                 inspector={matchedReport?.inspector_name}
-                calcLabourCost={calcLabourCost}
-                calcEquipCost={calcEquipCost}
               />
             </div>
 

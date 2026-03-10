@@ -42,7 +42,7 @@ export default function LEMReconciliation() {
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - parseInt(dateRange))
 
-    let rq = supabase.from('daily_reports').select('id, date, inspector_name, activity_blocks')
+    let rq = supabase.from('daily_reports').select('id, date, inspector_name, activity_blocks, pdf_storage_url')
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0])
       .order('date', { ascending: false })
@@ -78,7 +78,7 @@ export default function LEMReconciliation() {
       const cutoff = new Date()
       cutoff.setDate(cutoff.getDate() - parseInt(dateRange))
       if (new Date(minDate) >= cutoff) return
-      let rq = supabase.from('daily_reports').select('id, date, inspector_name, activity_blocks')
+      let rq = supabase.from('daily_reports').select('id, date, inspector_name, activity_blocks, pdf_storage_url')
         .gte('date', minDate)
         .lte('date', maxDate)
         .order('date', { ascending: false })
@@ -99,7 +99,7 @@ export default function LEMReconciliation() {
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() - parseInt(dateRange))
     if (new Date(start) >= cutoff) return // already covered
-    let rq = supabase.from('daily_reports').select('id, date, inspector_name, activity_blocks')
+    let rq = supabase.from('daily_reports').select('id, date, inspector_name, activity_blocks, pdf_storage_url')
       .gte('date', start)
       .lte('date', end)
       .order('date', { ascending: false })
@@ -392,8 +392,6 @@ export default function LEMReconciliation() {
             onSelectPair={setSelectedPairIndex}
             onResolve={handleResolve}
             reports={reports}
-            calcLabourCost={(entry) => calcLabourCost(entry, selectedLem?.po_number)}
-            calcEquipCost={(entry) => calcEquipCost(entry, selectedLem?.po_number)}
             saving={saving}
             poNumber={selectedLem?.po_number}
             contractorName={selectedLem?.contractor_name}
