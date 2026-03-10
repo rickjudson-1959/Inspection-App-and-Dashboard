@@ -145,10 +145,12 @@ export default function LEMFourPanelView({
   useEffect(() => {
     if (!pair) { setMatchedBlock(null); setMatchedReport(null); return }
 
+    console.log(`[LEM Match] Pair ${pair.pair_index}: date=${pair.work_date} crew=${pair.crew_name} | ${reports.length} reports available`)
+
     if (pair.matched_report_id) {
-      // Already matched — fetch the block
       const report = reports.find(r => r.id === pair.matched_report_id)
       if (report) {
+        console.log(`[LEM Match] Using pre-matched report ${report.id} (${report.date})`)
         setMatchedReport(report)
         setMatchedBlock(report.activity_blocks?.[pair.matched_block_index] || null)
       }
@@ -177,11 +179,13 @@ export default function LEMFourPanelView({
     // Pass 1: date + crew match
     let dateOnlyReport = null, dateOnlyBlock = null
     if (pair.work_date) {
-      for (const report of reports) {
-        if (report.date !== pair.work_date) continue
+      const dateMatches = reports.filter(r => r.date === pair.work_date)
+      console.log(`[LEM Match] Pass 1: ${dateMatches.length} reports match date ${pair.work_date}`)
+      for (const report of dateMatches) {
         const blocks = report.activity_blocks || []
         for (const block of blocks) {
           if (crewMatches(block.contractor)) {
+            console.log(`[LEM Match] ✓ Date+crew match: report ${report.id} (${report.date}) block contractor="${block.contractor}"`)
             setMatchedReport(report)
             setMatchedBlock(block)
             return
@@ -196,6 +200,7 @@ export default function LEMFourPanelView({
 
     // Pass 2: date-only match
     if (dateOnlyReport) {
+      console.log(`[LEM Match] ✓ Date-only match: report ${dateOnlyReport.id} (${dateOnlyReport.date}) pdf_url=${dateOnlyReport.pdf_storage_url ? 'yes' : 'NO'}`)
       setMatchedReport(dateOnlyReport)
       setMatchedBlock(dateOnlyBlock)
       return
@@ -207,6 +212,7 @@ export default function LEMFourPanelView({
         const blocks = report.activity_blocks || []
         for (const block of blocks) {
           if (crewMatches(block.contractor)) {
+            console.log(`[LEM Match] ✓ Crew-only match: report ${report.id} (${report.date}) block contractor="${block.contractor}"`)
             setMatchedReport(report)
             setMatchedBlock(block)
             return
@@ -215,6 +221,7 @@ export default function LEMFourPanelView({
       }
     }
 
+    console.log(`[LEM Match] ✗ No match found for pair ${pair.pair_index} (date=${pair.work_date}, crew=${pairCrew}, contractor=${pairContractor})`)
     setMatchedBlock(null)
     setMatchedReport(null)
   }, [pair, reports])

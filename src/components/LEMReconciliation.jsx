@@ -62,6 +62,7 @@ export default function LEMReconciliation() {
 
   // Load reports that match the selected LEM's date range (for older LEMs outside the default window)
   async function loadReportsForLem(lem) {
+    console.log(`[LEM Reports] loadReportsForLem: lem_period_start=${lem?.lem_period_start}, lem_period_end=${lem?.lem_period_end}`)
     if (!lem?.lem_period_start && !lem?.lem_period_end) {
       // No date range on LEM — try loading reports matching pair dates instead
       const { data: pairData } = await supabase
@@ -69,25 +70,35 @@ export default function LEMReconciliation() {
         .select('work_date')
         .eq('lem_upload_id', lem.id)
         .not('work_date', 'is', null)
-      if (!pairData || pairData.length === 0) return
+      if (!pairData || pairData.length === 0) {
+        console.log(`[LEM Reports] No pair dates found for lem ${lem.id}`)
+        return
+      }
       const dates = [...new Set(pairData.map(p => p.work_date))].sort()
       if (dates.length === 0) return
       const minDate = dates[0]
       const maxDate = dates[dates.length - 1]
+      console.log(`[LEM Reports] Pair date range: ${minDate} to ${maxDate}`)
       // Skip if dates are within the current range
       const cutoff = new Date()
       cutoff.setDate(cutoff.getDate() - parseInt(dateRange))
-      if (new Date(minDate) >= cutoff) return
+      if (new Date(minDate) >= cutoff) {
+        console.log(`[LEM Reports] Dates within current range (cutoff=${cutoff.toISOString().split('T')[0]}), skipping extra load`)
+        return
+      }
+      console.log(`[LEM Reports] Dates BEFORE cutoff — loading extra reports ${minDate} to ${maxDate}`)
       let rq = supabase.from('daily_reports').select('id, date, inspector_name, activity_blocks, pdf_storage_url')
         .gte('date', minDate)
         .lte('date', maxDate)
         .order('date', { ascending: false })
       rq = addOrgFilter(rq)
       const { data: extraReports } = await rq
+      console.log(`[LEM Reports] Found ${extraReports?.length || 0} extra reports`)
       if (extraReports && extraReports.length > 0) {
         setReports(prev => {
           const existingIds = new Set(prev.map(r => r.id))
           const newReports = extraReports.filter(r => !existingIds.has(r.id))
+          console.log(`[LEM Reports] Adding ${newReports.length} new reports (${existingIds.size} already loaded)`)
           return newReports.length > 0 ? [...prev, ...newReports] : prev
         })
       }

@@ -393,20 +393,40 @@ function groupSequential(entries) {
 
 /**
  * Build LEM/ticket pairs from groups.
- * Strategy: pair adjacent LEM group + ticket group.
- * If dates are available, also try date-based matching.
+ * Strategy:
+ *   1. If groups alternate LEM→ticket cleanly, use adjacency pairing (most reliable).
+ *   2. If there are blocks of same-type groups, try date-based matching.
+ *   3. Fallback: sequential adjacency with orphans.
  */
 function buildPairsFromGroups(groups) {
   const pairs = []
 
-  // Try date-based pairing first if we have dates
+  // Check if groups alternate: lem, ticket, lem, ticket...
+  // This is the common case for LEM packages where pages interleave.
+  const alternatesCleanly = groups.length >= 2 && groups.every((g, i) => {
+    if (i % 2 === 0) return g.type === 'lem'
+    return g.type === 'daily_ticket'
+  })
+
+  if (alternatesCleanly) {
+    console.log(`[LEM Pair] Using adjacency pairing (groups alternate LEM/ticket cleanly)`)
+    for (let i = 0; i < groups.length; i += 2) {
+      pairs.push({
+        lem: groups[i],
+        ticket: i + 1 < groups.length ? groups[i + 1] : null
+      })
+    }
+    return pairs
+  }
+
+  // Not alternating — try date-based pairing if we have dates on both sides
   const lemGroups = groups.filter(g => g.type === 'lem')
   const ticketGroups = groups.filter(g => g.type === 'daily_ticket')
   const lemDates = lemGroups.map(g => g.classifications.find(c => c.date)?.date).filter(Boolean)
   const ticketDates = ticketGroups.map(g => g.classifications.find(c => c.date)?.date).filter(Boolean)
 
-  // If we have dates on both sides, use date matching
   if (lemDates.length > 0 && ticketDates.length > 0) {
+    console.log(`[LEM Pair] Using date-based pairing (${lemDates.length} LEM dates, ${ticketDates.length} ticket dates)`)
     const usedTickets = new Set()
 
     for (const lg of lemGroups) {
@@ -414,7 +434,6 @@ function buildPairsFromGroups(groups) {
       let matchedTicket = null
 
       if (lemDate) {
-        // Find ticket group with matching date
         const ticketIdx = ticketGroups.findIndex((tg, idx) => {
           if (usedTickets.has(idx)) return false
           return tg.classifications.some(c => c.date === lemDate)
@@ -428,7 +447,6 @@ function buildPairsFromGroups(groups) {
       pairs.push({ lem: lg, ticket: matchedTicket })
     }
 
-    // Add unmatched tickets
     ticketGroups.forEach((tg, idx) => {
       if (!usedTickets.has(idx)) {
         pairs.push({ lem: null, ticket: tg })
@@ -439,6 +457,7 @@ function buildPairsFromGroups(groups) {
   }
 
   // Fallback: sequential adjacency pairing
+  console.log(`[LEM Pair] Using sequential adjacency pairing (fallback)`)
   let i = 0
   while (i < groups.length) {
     const g = groups[i]
@@ -556,6 +575,23 @@ export async function parseLEMFile(file, onProgress, lemId, orgId, profile = nul
       const page = await pdf.getPage(i)
       const text = await extractPageText(page)
       classifications.push(classifyPageText(text))
+    }
+  }
+
+  // Post-processing: inherit type for ambiguous continuation pages
+  // If a page has equal lem/ticket scores (or confidence <= 0.5), it's likely a
+  // continuation of the previous page (equipment overflow, extra rows, etc.)
+  for (let i = 1; i < classifications.length; i++) {
+    const c = classifications[i]
+    const prev = classifications[i - 1]
+    const isAmbiguous = c.confidence <= 0.5 || (c.lem_score != null && c.lem_score === c.ticket_score)
+    if (isAmbiguous && prev && (prev.page_type === 'lem' || prev.page_type === 'daily_ticket')) {
+      console.log(`[LEM Classify] Page ${i + 1}: ambiguous (conf=${c.confidence.toFixed(2)}) → inheriting '${prev.page_type}' from page ${i}`)
+      c.page_type = prev.page_type
+      c.confidence = 0.6 // mark as inherited
+      c._inherited = true
+      // Also inherit date if missing
+      if (!c.date && prev.date) c.date = prev.date
     }
   }
 
