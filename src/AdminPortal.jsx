@@ -64,6 +64,7 @@ function AdminPortal() {
 
   // All Reports state
   const [allReports, setAllReports] = useState([])
+  const [reportSearch, setReportSearch] = useState('')
   const [loadingReports, setLoadingReports] = useState(false)
 
   // Timesheet Review Queue state (Phase 4)
@@ -5912,6 +5913,34 @@ function AdminPortal() {
             ) : allReports.length === 0 ? (
               <p style={{ color: '#666' }}>No reports found</p>
             ) : (
+              <div>
+                {/* Search bar */}
+                <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <input
+                    type="text"
+                    value={reportSearch}
+                    onChange={e => setReportSearch(e.target.value)}
+                    placeholder="Search by name, date, spread, or activity..."
+                    style={{ flex: 1, maxWidth: '500px', padding: '10px 14px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
+                  />
+                  {reportSearch && (
+                    <button onClick={() => setReportSearch('')} style={{ padding: '8px 14px', backgroundColor: '#6b7280', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '13px' }}>Clear</button>
+                  )}
+                  <span style={{ fontSize: '13px', color: '#6b7280' }}>
+                    {(() => {
+                      const s = reportSearch.toLowerCase().trim()
+                      if (!s) return `${allReports.length} reports`
+                      const count = allReports.filter(r => {
+                        const name = (r.inspector_name || '').toLowerCase()
+                        const date = (r.date || '').toLowerCase()
+                        const spread = (r.spread || '').toLowerCase()
+                        const activities = (r.activity_blocks || []).map(b => (b.activityType || '') + ' ' + (b.contractor || '')).join(' ').toLowerCase()
+                        return name.includes(s) || date.includes(s) || spread.includes(s) || activities.includes(s)
+                      }).length
+                      return `${count} of ${allReports.length} reports`
+                    })()}
+                  </span>
+                </div>
               <div style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
                   <thead>
@@ -5926,7 +5955,28 @@ function AdminPortal() {
                     </tr>
                   </thead>
                   <tbody>
-                    {allReports.map(report => (
+                    {(() => {
+                      const s = reportSearch.toLowerCase().trim()
+                      let filtered = allReports
+                      if (s) {
+                        // Score each report: name match ranked highest, then date, then spread/activity
+                        filtered = allReports.filter(r => {
+                          const name = (r.inspector_name || '').toLowerCase()
+                          const date = (r.date || '').toLowerCase()
+                          const spread = (r.spread || '').toLowerCase()
+                          const activities = (r.activity_blocks || []).map(b => (b.activityType || '') + ' ' + (b.contractor || '')).join(' ').toLowerCase()
+                          return name.includes(s) || date.includes(s) || spread.includes(s) || activities.includes(s)
+                        })
+                        // Sort: name matches first, then by date descending
+                        filtered.sort((a, b) => {
+                          const aName = (a.inspector_name || '').toLowerCase().includes(s) ? 1 : 0
+                          const bName = (b.inspector_name || '').toLowerCase().includes(s) ? 1 : 0
+                          if (aName !== bName) return bName - aName // name matches first
+                          return (b.date || '').localeCompare(a.date || '') // then by date desc
+                        })
+                      }
+                      return filtered
+                    })().map(report => (
                       <tr key={report.id}>
                         <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{report.date}</td>
                         <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{report.inspector_name}</td>
@@ -6003,6 +6053,7 @@ function AdminPortal() {
                     ))}
                   </tbody>
                 </table>
+              </div>
               </div>
             )}
 
