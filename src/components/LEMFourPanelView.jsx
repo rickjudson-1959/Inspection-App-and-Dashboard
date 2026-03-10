@@ -236,6 +236,9 @@ export default function LEMFourPanelView({
     // Try auto-match by date + crew
     if (!pair.work_date) { setMatchedBlock(null); setMatchedReport(null); return }
 
+    // First pass: find exact crew+date match
+    let dateOnlyReport = null
+    let dateOnlyBlock = null
     for (const report of reports) {
       if (report.date !== pair.work_date) continue
       const blocks = report.activity_blocks || []
@@ -250,12 +253,17 @@ export default function LEMFourPanelView({
           return
         }
       }
-      // If date matches but no crew match, use first block
-      if (blocks.length > 0) {
-        setMatchedReport(report)
-        setMatchedBlock(blocks[0])
-        return
+      // Remember first date-only match as fallback
+      if (!dateOnlyReport && blocks.length > 0) {
+        dateOnlyReport = report
+        dateOnlyBlock = blocks[0]
       }
+    }
+    // Fallback: use first date-matching report if no crew match found
+    if (dateOnlyReport) {
+      setMatchedReport(dateOnlyReport)
+      setMatchedBlock(dateOnlyBlock)
+      return
     }
     setMatchedBlock(null)
     setMatchedReport(null)
