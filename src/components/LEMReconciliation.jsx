@@ -465,7 +465,11 @@ export default function LEMReconciliation() {
       {/* Upload forms */}
       {showUpload && (
         <div style={{ marginBottom: '16px' }}>
-          <LEMUpload onUploadComplete={() => { setShowUpload(false); loadLemUploads() }} />
+          <LEMUpload onUploadComplete={async (lemRecord) => {
+            setShowUpload(false)
+            await loadLemUploads()
+            if (lemRecord) selectLem(lemRecord)
+          }} />
           <button onClick={() => setShowUpload(false)} style={{ marginTop: '8px', padding: '6px 12px', backgroundColor: '#6b7280', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>Cancel Upload</button>
         </div>
       )}

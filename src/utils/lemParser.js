@@ -688,65 +688,13 @@ export async function saveParsedPairs(file, onProgress, lemId, orgId, rawPairs, 
     return { pairs: [], errors }
   }
 
-  await ensurePdfJs()
-  const arrayBuffer = await file.arrayBuffer()
-  const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
-  const numPages = pdf.numPages
-  const scale = numPages > 50 ? 1.5 : 2.0
-  const jpegQuality = numPages > 50 ? 0.8 : 0.9
-
-  // Collect all page indices that need images
-  const neededIndices = new Set()
-  for (const pair of rawPairs) {
-    if (pair.lem) pair.lem.pageIndices.forEach(i => neededIndices.add(i))
-    if (pair.ticket) pair.ticket.pageIndices.forEach(i => neededIndices.add(i))
-  }
-
-  console.log(`[LEM Save] PDF has ${numPages} pages, need to render ${neededIndices.size} pages for ${rawPairs.length} pairs`)
-
-  // Render pages to images
-  onProgress?.(`Rendering ${neededIndices.size} pages...`)
-  const allPageImages = new Array(numPages).fill(null)
-  let rendered = 0
-  for (const idx of neededIndices) {
-    rendered++
-    if (rendered % 20 === 0) onProgress?.(`Rendering page ${rendered} of ${neededIndices.size}...`)
-    try {
-      const page = await pdf.getPage(idx + 1)
-      allPageImages[idx] = await renderPageToImage(page, scale, jpegQuality)
-    } catch (renderErr) {
-      console.error(`[LEM Save] Failed to render page ${idx + 1}:`, renderErr)
-      errors.push(`Failed to render page ${idx + 1}: ${renderErr.message}`)
-    }
-  }
-  const renderedCount = allPageImages.filter(Boolean).length
-  console.log(`[LEM Save] Rendered ${renderedCount} of ${neededIndices.size} pages successfully`)
-  onProgress?.(`${renderedCount} pages rendered. Uploading...`)
-
-  // Upload images and create pair records
+  // Step 1: Build pair records WITHOUT images (fast — just metadata)
   const pairRecords = []
   for (let p = 0; p < rawPairs.length; p++) {
     const pair = rawPairs[p]
-    if (p % 10 === 0) onProgress?.(`Uploading pair ${p + 1} of ${rawPairs.length}...`)
-
-    let lemUrls = [], lemIndices = []
-    if (pair.lem) {
-      lemIndices = pair.lem.pageIndices
-      lemUrls = await uploadPageImages(lemId, 'lem', p, lemIndices, allPageImages, errors)
-    }
-
-    let ticketUrls = [], ticketIndices = []
-    if (pair.ticket) {
-      ticketIndices = pair.ticket.pageIndices
-      ticketUrls = await uploadPageImages(lemId, 'ticket', p, ticketIndices, allPageImages, errors)
-    }
-
+    const lemIndices = pair.lem ? pair.lem.pageIndices : []
+    const ticketIndices = pair.ticket ? pair.ticket.pageIndices : []
     const allCls = [...(pair.lem?.classifications || []), ...(pair.ticket?.classifications || [])]
-
-    if (p === 0) {
-      console.log(`[LEM Save] Pair 0 sample: lemUrls=${lemUrls.length}, ticketUrls=${ticketUrls.length}, lemIndices=${JSON.stringify(lemIndices)}, ticketIndices=${JSON.stringify(ticketIndices)}`)
-      if (lemUrls.length > 0) console.log(`[LEM Save] First LEM URL: ${lemUrls[0]}`)
-    }
 
     pairRecords.push({
       lem_upload_id: lemId,
@@ -754,9 +702,9 @@ export async function saveParsedPairs(file, onProgress, lemId, orgId, rawPairs, 
       pair_index: p,
       work_date: allCls.find(c => c.date)?.date || null,
       crew_name: allCls.find(c => c.crew)?.crew || null,
-      lem_page_urls: lemUrls,
+      lem_page_urls: [],
       lem_page_indices: lemIndices,
-      contractor_ticket_urls: ticketUrls,
+      contractor_ticket_urls: [],
       contractor_ticket_indices: ticketIndices,
       po_number: poNumber || null,
       page_classifications: allCls,
@@ -764,20 +712,99 @@ export async function saveParsedPairs(file, onProgress, lemId, orgId, rawPairs, 
     })
   }
 
-  console.log(`[LEM Save] Built ${pairRecords.length} pair records. Total errors so far: ${errors.length}`)
-  if (errors.length > 0) console.warn('[LEM Save] Errors:', errors)
+  // Step 2: Insert pair records to DB immediately
+  console.log(`[LEM Save] Inserting ${pairRecords.length} pair records (no images yet)...`)
+  onProgress?.(`Saving ${pairRecords.length} pairs...`)
+  const { data: insertedPairs, error: insertErr } = await supabase
+    .from('lem_reconciliation_pairs')
+    .insert(pairRecords)
+    .select('id, pair_index')
 
-  if (pairRecords.length > 0) {
-    onProgress?.(`Saving ${pairRecords.length} pair records...`)
-    const { error: insertErr } = await supabase
-      .from('lem_reconciliation_pairs')
-      .insert(pairRecords)
-    if (insertErr) {
-      console.error('[LEM Save] DB insert failed:', insertErr)
-      errors.push(`Failed to save pairs: ${insertErr.message}`)
-    }
+  if (insertErr) {
+    console.error('[LEM Save] DB insert failed:', insertErr)
+    errors.push(`Failed to save pairs: ${insertErr.message}`)
+    return { pairs: [], errors }
   }
 
-  onProgress?.(`Done: ${pairRecords.length} pairs saved.`)
+  console.log(`[LEM Save] Saved ${insertedPairs?.length || 0} pairs to DB. Errors: ${errors.length}`)
+  onProgress?.(`${pairRecords.length} pairs saved. Images uploading in background...`)
+
+  // Step 3: Kick off background image upload (non-blocking)
+  uploadPairImagesInBackground(file, lemId, rawPairs, insertedPairs || [])
+
   return { pairs: pairRecords, errors }
+}
+
+/**
+ * Background image upload — renders PDF pages to JPEG and uploads to storage,
+ * then patches each pair record with the image URLs.
+ * Runs after the user has already navigated to the four-panel view.
+ */
+async function uploadPairImagesInBackground(file, lemId, rawPairs, insertedPairs) {
+  try {
+    console.log(`[LEM BG Upload] Starting background image upload for ${rawPairs.length} pairs`)
+
+    await ensurePdfJs()
+    const arrayBuffer = await file.arrayBuffer()
+    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
+    const numPages = pdf.numPages
+    const scale = numPages > 50 ? 1.5 : 2.0
+    const jpegQuality = numPages > 50 ? 0.8 : 0.9
+
+    // Collect all page indices that need images
+    const neededIndices = new Set()
+    for (const pair of rawPairs) {
+      if (pair.lem) pair.lem.pageIndices.forEach(i => neededIndices.add(i))
+      if (pair.ticket) pair.ticket.pageIndices.forEach(i => neededIndices.add(i))
+    }
+
+    console.log(`[LEM BG Upload] Rendering ${neededIndices.size} pages...`)
+    const allPageImages = new Array(numPages).fill(null)
+    let rendered = 0
+    for (const idx of neededIndices) {
+      rendered++
+      try {
+        const page = await pdf.getPage(idx + 1)
+        allPageImages[idx] = await renderPageToImage(page, scale, jpegQuality)
+      } catch (renderErr) {
+        console.error(`[LEM BG Upload] Failed to render page ${idx + 1}:`, renderErr)
+      }
+      if (rendered % 20 === 0) console.log(`[LEM BG Upload] Rendered ${rendered}/${neededIndices.size}`)
+    }
+    console.log(`[LEM BG Upload] Rendered ${allPageImages.filter(Boolean).length} pages`)
+
+    // Upload images and update each pair record
+    const errors = []
+    for (let p = 0; p < rawPairs.length; p++) {
+      const pair = rawPairs[p]
+      const dbPair = insertedPairs.find(r => r.pair_index === p)
+      if (!dbPair) continue
+
+      let lemUrls = []
+      if (pair.lem) {
+        lemUrls = await uploadPageImages(lemId, 'lem', p, pair.lem.pageIndices, allPageImages, errors)
+      }
+
+      let ticketUrls = []
+      if (pair.ticket) {
+        ticketUrls = await uploadPageImages(lemId, 'ticket', p, pair.ticket.pageIndices, allPageImages, errors)
+      }
+
+      // Patch the pair record with image URLs
+      if (lemUrls.length > 0 || ticketUrls.length > 0) {
+        const update = {}
+        if (lemUrls.length > 0) update.lem_page_urls = lemUrls
+        if (ticketUrls.length > 0) update.contractor_ticket_urls = ticketUrls
+        await supabase.from('lem_reconciliation_pairs').update(update).eq('id', dbPair.id)
+      }
+
+      if (p === 0) console.log(`[LEM BG Upload] Pair 0: ${lemUrls.length} LEM urls, ${ticketUrls.length} ticket urls`)
+      if ((p + 1) % 20 === 0) console.log(`[LEM BG Upload] Progress: ${p + 1}/${rawPairs.length} pairs`)
+    }
+
+    console.log(`[LEM BG Upload] Done. ${errors.length} errors.`)
+    if (errors.length > 0) console.warn('[LEM BG Upload] Errors:', errors)
+  } catch (err) {
+    console.error('[LEM BG Upload] Fatal error:', err)
+  }
 }

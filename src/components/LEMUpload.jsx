@@ -168,12 +168,17 @@ export default function LEMUpload({ onUploadComplete }) {
   }
 
   async function handleSave() {
-    if (!preview || preview.pairs.length === 0) return
+    console.log('[LEM Save] handleSave clicked', { preview: !!preview, pairCount: preview?.pairs?.length, rawPairCount: rawPairs?.length })
+    if (!preview || preview.pairs.length === 0) {
+      console.warn('[LEM Save] No preview pairs — aborting')
+      return
+    }
     if (!contractorName.trim()) {
       setErrors(['Contractor name is required before saving.'])
       return
     }
     setUploading(true)
+    setProgress('Creating LEM record...')
 
     try {
       const orgId = getOrgId()
@@ -184,7 +189,7 @@ export default function LEMUpload({ onUploadComplete }) {
       const files = Array.isArray(file) ? file : file ? [file] : []
       const sourceFilename = files.map(f => f.name).join(', ')
       for (const f of files) {
-        const filePath = `lem-uploads/${orgId}/${Date.now()}-${f.name}`
+        const filePath = `${orgId}/${Date.now()}-${f.name}`
         const { error: storageErr } = await supabase.storage.from('lem-uploads').upload(filePath, f)
         if (!storageErr && !sourceFileUrl) {
           const { data: urlData } = supabase.storage.from('lem-uploads').getPublicUrl(filePath)
@@ -192,7 +197,8 @@ export default function LEMUpload({ onUploadComplete }) {
         }
       }
 
-      // Create parent LEM record with profile reference
+      // Create parent LEM record
+      console.log('[LEM Save] Creating contractor_lem_uploads record...')
       const { data: lemRecord, error: lemErr } = await supabase
         .from('contractor_lem_uploads')
         .insert({
@@ -213,19 +219,25 @@ export default function LEMUpload({ onUploadComplete }) {
         .single()
 
       if (lemErr) throw lemErr
+      console.log('[LEM Save] Created LEM record:', lemRecord.id)
 
-      // Upload images and create pair records using already-classified pairs
-      setProgress('Uploading page images and creating pairs...')
-      let totalPairs = 0
+      // Save pair records to DB (fast — no image rendering)
+      setProgress('Saving pairs...')
       const f = Array.isArray(file) ? file[0] : file
-      const { pairs: savedPairs, errors: uploadErrors } = await saveParsedPairs(
+      const { pairs: savedPairs, errors: saveErrors } = await saveParsedPairs(
         f, setProgress, lemRecord.id, orgId, rawPairs, profile?.po_number
       )
-      totalPairs = savedPairs.length
-      console.log(`[LEM Save] saveParsedPairs returned: ${totalPairs} pairs, ${uploadErrors.length} errors`)
-      if (uploadErrors.length > 0) {
-        console.warn('[LEM Save] Upload errors:', uploadErrors)
-        setErrors(prev => [...prev, ...uploadErrors])
+      const totalPairs = savedPairs.length
+      console.log(`[LEM Save] saveParsedPairs returned: ${totalPairs} pairs, ${saveErrors.length} errors`)
+
+      if (saveErrors.length > 0) {
+        console.warn('[LEM Save] Save errors:', saveErrors)
+        setErrors(prev => [...prev, ...saveErrors])
+      }
+
+      if (totalPairs === 0) {
+        alert('Save failed — no pairs were created. Check console for errors.')
+        return
       }
 
       // Update the LEM record status
@@ -233,10 +245,13 @@ export default function LEMUpload({ onUploadComplete }) {
         .update({ status: 'parsed', total_claimed: totalPairs })
         .eq('id', lemRecord.id)
 
-      alert(`Saved: ${totalPairs} LEM/ticket pairs ready for visual reconciliation.`)
+      console.log(`[LEM Save] Done. ${totalPairs} pairs saved. Navigating to review...`)
+
+      // Navigate immediately — images upload in background
       resetForm()
-      onUploadComplete?.()
+      onUploadComplete?.(lemRecord)
     } catch (err) {
+      console.error('[LEM Save] handleSave error:', err)
       alert('Save failed: ' + err.message)
     } finally {
       setUploading(false)
