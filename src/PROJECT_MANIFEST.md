@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - March 8, 2026
+## Project Manifest - March 11, 2026
 
 ---
 
@@ -330,7 +330,7 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 │
 ├── utils/
 │   ├── queryHelpers.js         # Org-scoped query helpers (useOrgQuery)
-│   ├── lemParser.js            # LEM PDF parser: pdf.js text extraction, regex/keyword classification (zero API calls), state machine page grouping, image rendering for display only (Updated Mar 8, 2026)
+│   ├── lemParser.js            # LEM PDF parser: pdf.js text extraction, content-marker classification (lem_score/ticket_score), continuation page inheritance, adjacency pairing for alternating LEM/ticket pages, background image upload (Updated Mar 11, 2026)
 │   ├── lemMatcher.js           # Three-strategy matching engine: exact ticket → normalized ticket → date+crew fallback, variance calculation (NEW - Mar 2026)
 │   └── ticketNormalizer.js     # Ticket number normalization: strips prefixes, handles format variations (NEW - Mar 2026)
 │
@@ -406,8 +406,8 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
     ├── TenantSwitcher.jsx       # Organization switcher dropdown
     ├── AIAgentStatusIcon.jsx    # AI Watcher status indicator (NEW - Feb 2026)
     ├── LEMUpload.jsx            # Contractor LEM PDF upload, parse, preview, save (NEW - Mar 2026)
-    ├── LEMReconciliation.jsx    # Visual four-panel reconciliation: pair list sidebar, LEMFourPanelView integration, resolution workflow, invoice integration (Updated Mar 8, 2026)
-    ├── LEMFourPanelView.jsx     # Four-panel visual comparison: zoomable image panels, inspector data panel with rate card costs, keyboard nav, resolution bar (NEW - Mar 8, 2026)
+    ├── LEMReconciliation.jsx    # Visual four-panel reconciliation: pair list sidebar, LEMFourPanelView integration, resolution workflow, invoice integration, report date-range loading with debug logging (Updated Mar 11, 2026)
+    ├── LEMFourPanelView.jsx     # Four-panel visual comparison: zoomable image panels, inspector report PDF embed (Panel 4), score-based report matching (crew+date+PDF priority), keyboard nav, resolution bar (Updated Mar 11, 2026)
     ├── InvoiceUpload.jsx        # Invoice upload with reconciliation gate, Claude Vision parsing, variance comparison (NEW - Mar 2026)
     ├── InvoiceComparison.jsx    # Invoice vs reconciliation comparison, approve/reject/mark-paid workflow (NEW - Mar 2026)
     ├── MapDashboard.jsx
@@ -537,6 +537,39 @@ src/ReconciliationDashboard.jsx   # Added "Contractor LEMs" tab + LEMReconciliat
 
 ---
 
+### LEM Pairing Fix, Report Matching, Admin Search, Ticket Thumbnails (March 11, 2026)
+
+**Fixed LEM pair classification/grouping, report matching scoring, admin portal search, and ticket photo thumbnails**
+
+1. **LEM pairing fix** (`lemParser.js`) — Demo PDF produced 20 pairs instead of 10 because date-based matching was used even when pages alternated LEM→ticket cleanly. New `alternatesCleanly` check detects this pattern and uses adjacency pairing. Added content-marker classification (lem_score/ticket_score for 11 LEM markers, 7 ticket markers) to replace word-count-only heuristic. Added post-classification inheritance: ambiguous continuation pages (equipment overflow, extra rows) inherit type from the previous page. Cleaned `extractCrewFromText` to stop at "Date:", double-spaces, and date patterns (was capturing "SOMERVILLE AECON   Date:   2026-03-06  T" as crew name).
+
+2. **Score-based report matching** (`LEMFourPanelView.jsx`) — Replaced first-match-wins matching with scored candidate ranking. Crew name quality: exact=10, multi-word overlap=5+, single-word=3, first-word=1. Bonuses: +2 for `pdf_storage_url`, +1 for ticket photos, +10 for date+crew over date-only. This ensures report 1995 (exact "SOMERVILLE AECON" + has PDF) beats report 1993 (loose "Somerville" match, no PDF).
+
+3. **Panel 4 → PDF embed** (`LEMFourPanelView.jsx`) — Replaced inspector data table with `InspectorReportPanel` that embeds the matched report's `pdf_storage_url` via iframe. Shows report date, inspector name, and "Open PDF" link.
+
+4. **Admin portal search** (`AdminPortal.jsx`) — Added search bar to the Reports tab. Filters by inspector name, date, spread, or activity/contractor. Name matches rank first in results, then sorted by date descending. Shows "X of Y reports" count.
+
+5. **Reports page timing fix** (`ReportsPage.jsx`) — `fetchReports()` fired on mount before `organizationId` or `isSuperAdmin` resolved, returning zero reports for super admins. Now waits for org context.
+
+6. **Ticket photo thumbnails** (`ActivityBlock.jsx`) — Replaced the green "Ticket photo attached" text box with actual clickable thumbnail images. Single photo: 120×160px. Multi-page: 80×106px side by side. Click opens the existing fullscreen modal. Works for new uploads (File objects) and saved photos (URLs).
+
+7. **Image orientation preserved** (`lemParser.js`) — Removed forced landscape-to-portrait rotation in `renderPageToImage`. Pages render in original orientation. `ImagePanel` uses `maxWidth` with `height: auto` instead of fixed width.
+
+8. **Background image upload** (`lemParser.js`) — `saveParsedPairs` saves DB records immediately (no images), then kicks off `uploadPairImagesInBackground` which renders pages and patches each pair record with URLs. User navigates to the four-panel view without waiting for image uploads.
+
+**Files Modified:**
+```
+src/utils/lemParser.js              # Content-marker classifier, continuation inheritance, adjacency pairing, crew extraction cleanup, background upload
+src/components/LEMFourPanelView.jsx # Score-based matching, InspectorReportPanel (PDF embed), image orientation
+src/components/LEMReconciliation.jsx # Report loading debug logs, pdf_storage_url in queries
+src/components/LEMUpload.jsx        # Save flow: immediate DB insert + background image upload
+src/AdminPortal.jsx                 # Search bar on Reports tab
+src/ReportsPage.jsx                 # Org context timing fix
+src/ActivityBlock.jsx               # Ticket photo clickable thumbnails
+```
+
+---
+
 ### Visual Four-Panel LEM Reconciliation — Zero API Classification (March 8, 2026)
 
 **Replaced Claude Vision classification with text-based regex matching and implemented visual four-panel reconciliation UI**
@@ -549,12 +582,13 @@ src/ReconciliationDashboard.jsx   # Added "Contractor LEMs" tab + LEMReconciliat
    - Processes 600 pages in seconds with zero rate limits
    - Images rendered only for the four-panel viewer, not for classification
 
-2. **Visual four-panel comparison** (`LEMFourPanelView.jsx` — NEW):
+2. **Visual four-panel comparison** (`LEMFourPanelView.jsx`):
    - Left sidebar: pair list grouped by date, status filters (all/pending/accepted/disputed/skipped), progress bar
    - Panel 1: Contractor LEM page images (zoomable, multi-page scroll, click-to-fullscreen)
    - Panel 2: Contractor Daily Ticket images (same zoom/scroll behavior)
    - Panel 3: Our Ticket Photo (from inspector's `ticketPhotos` in matched activity block)
-   - Panel 4: Inspector Report Data (structured — labour/equipment tables with rate card cost calculations)
+   - Panel 4: Inspector Report PDF (embedded via iframe from `pdf_storage_url`, with date/inspector label and "Open PDF" link)
+   - Score-based report matching: crew name quality (exact=10, multi-word=5+, single-word=3), PDF availability bonus (+2), ticket photo bonus (+1), date+crew bonus (+10)
    - Resolution bar: Accept, Dispute-Variance, Dispute-Ticket Altered, Skip, with inline notes
    - Keyboard navigation: A=Accept, N/Arrow=Next, Arrow Left=Previous
    - Auto-advance to next pending pair after resolution

@@ -318,11 +318,12 @@ This is one of the most comprehensive logs, with these sub-sections:
 
 ### Multi-Page Support
 You can upload multiple photos for a single ticket (e.g., front and back, or multi-page tickets). Pages can be added **one at a time** or **all at once** — new pages accumulate with existing ones instead of replacing them. Claude processes only the new pages to avoid duplicating labour/equipment entries. When multiple pages are attached:
-- The indicator shows "X pages attached" instead of a single filename.
-- The photo modal displays all pages in a scrollable view with "Page X of Y" labels.
+- **Clickable thumbnail images** appear directly on the report (single photo: 120×160px, multi-page: smaller thumbnails side by side). Click any thumbnail to open the full-size viewer.
+- The photo viewer displays all pages in a scrollable view with "Page X of Y" labels.
 - All page filenames are saved to the database (not just the first page).
 - When editing a saved report, adding new pages merges them with the existing saved pages.
 - The "Remove" button clears all accumulated pages at once.
+- Thumbnails appear for everyone editing the report — inspectors, admins, and chief inspectors all see the same photo previews.
 
 ### Classification Matching
 The OCR attempts to match extracted job titles to the app's 127 labour classifications (e.g., General Labourer, Principal Oper 1, Utility Welder, Welder Helper, General Foreman, Bus/Crewcab Driver, Mechanic/Serviceman/Lubeman, Apprentice Oper/Oiler, Backend Welder on Auto Weld Spread, EMT, Paramedic, Aboriginal Coordinator, Bending Engineer) and 334 equipment types (e.g., Backhoe - Cat 330, Sideboom - Cat 583, Dozer - D6T, Grader - Cat G14, Loader - Cat 966, Picker Truck - 15 Ton, Welding Rig, Lincoln Welder, Pickup - 3/4 Ton, Water Truck, Fuel Truck - Tandem, Lowboy Trailer, Generator - 60 kW, Air Compressor - 900 CFM, ATV/Gator, SUV - Expedition/Lexus/Denali). These classifications are merged from the contractor's rate sheet and the CX2-FC contract to ensure every billable classification is available. Matching is case-insensitive.
@@ -741,11 +742,11 @@ A: LEM (Labour and Equipment Manifest) reconciliation is the process of verifyin
 - **Panel 1 — Contractor LEM**: Zoomable page images from the contractor's uploaded LEM PDF showing their billing claim.
 - **Panel 2 — Contractor Daily Ticket**: Zoomable page images from the contractor's own copy of the daily ticket (extracted from their LEM bundle).
 - **Panel 3 — Our Ticket Photo**: Your original field photo of the contractor's daily ticket (from `ticketPhotos`). This is the ground truth captured before the contractor could alter anything.
-- **Panel 4 — Inspector Report Data**: Your structured labour and equipment entries with rate card costs calculated automatically.
+- **Panel 4 — Inspector Report PDF**: Your full inspector report embedded as a PDF, matched by date and contractor name. The system scores all candidate reports and picks the best match (prioritizing exact crew name matches and reports that have archived PDFs).
 
 This four-panel layout catches discrepancies — extra workers claimed, inflated hours, equipment not on-site, or altered ticket copies. Your accurate reporting is the foundation of the entire reconciliation process.
 
-The system uses **zero-API classification** (pdf.js text extraction + regex/keyword pattern matching instead of AI vision) to sort uploaded LEM pages, processing 600+ pages in seconds. Matched pairs are stored in the `lem_reconciliation_pairs` table and presented in a left sidebar organized by date with status filters and progress tracking.
+The system uses **content-marker classification** (pdf.js text extraction + 11 LEM markers and 7 ticket markers for scoring) to sort uploaded LEM pages. Continuation pages (equipment overflow, extra rows) inherit from the preceding page. When pages alternate LEM→ticket cleanly, adjacency pairing produces correct pairs automatically. Matched pairs are stored in the `lem_reconciliation_pairs` table and presented in a left sidebar organized by date with status filters and progress tracking.
 
 Admins resolve each pair with one of four actions: **Accept**, **Dispute-Variance** (numbers don't match), **Dispute-Ticket Altered** (contractor's copy differs from your photo), or **Skip**. Keyboard shortcuts speed up review (A=Accept, N/Arrow Right=Next, Arrow Left=Previous). The "Approve Reconciliation" button only becomes available once all pairs have been reviewed.
 
@@ -760,5 +761,5 @@ A: No. Your job is to submit accurate daily reports with: (1) a clear photo of t
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.10*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.11*
 *Source: InspectorReport.jsx (8,400+ lines) + ActivityBlock.jsx (3,400+ lines)*
