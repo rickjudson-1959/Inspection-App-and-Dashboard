@@ -2317,34 +2317,28 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
           </div>
         )}
 
-        {/* Show ticket photo if one exists (either new upload or saved from database) */}
-        {(block.ticketPhoto || block.savedTicketPhotoUrl || block.savedTicketPhotoUrls?.length > 0) && (
-          <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#d4edda', borderRadius: '6px', border: '1px solid #c3e6cb' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px' }}>
-              <span style={{ color: '#155724', fontSize: '13px', fontWeight: 'bold' }}>
-                ✓ {block.ticketPhotos?.length > 1
-                  ? `${block.ticketPhotos.length} pages attached`
-                  : block.savedTicketPhotoUrls?.length > 1
-                    ? `${block.savedTicketPhotoUrls.length} pages attached`
-                    : `Ticket photo attached: ${block.ticketPhoto?.name || block.savedTicketPhotoName || 'Photo'}`
-                }
-              </span>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button
-                  type="button"
-                  onClick={() => setShowTicketPhoto(true)}
-                  style={{
-                    padding: '6px 12px',
-                    backgroundColor: '#007bff',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '12px'
-                  }}
-                >
-                  👁️ View Photo
-                </button>
+        {/* Ticket photo thumbnail — clickable to view full size */}
+        {(block.ticketPhoto || block.savedTicketPhotoUrl || block.savedTicketPhotoUrls?.length > 0) && (() => {
+          // Build thumbnail URLs for display
+          const thumbUrls = []
+          if (block.ticketPhotos?.length > 0) {
+            block.ticketPhotos.forEach(p => {
+              if (p instanceof File) thumbUrls.push(URL.createObjectURL(p))
+              else if (typeof p === 'string' && p.startsWith('http')) thumbUrls.push(p)
+            })
+          } else if (block.savedTicketPhotoUrls?.length > 0) {
+            thumbUrls.push(...block.savedTicketPhotoUrls)
+          } else if (block.ticketPhoto instanceof File) {
+            thumbUrls.push(URL.createObjectURL(block.ticketPhoto))
+          } else if (block.savedTicketPhotoUrl) {
+            thumbUrls.push(block.savedTicketPhotoUrl)
+          }
+          return (
+            <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#f0f9f4', borderRadius: '6px', border: '1px solid #c3e6cb' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                <span style={{ color: '#155724', fontSize: '12px', fontWeight: '600' }}>
+                  Ticket Photo{thumbUrls.length > 1 ? `s (${thumbUrls.length} pages)` : ''}
+                </span>
                 <button
                   type="button"
                   onClick={() => {
@@ -2355,22 +2349,35 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                     updateBlock(block.id, 'savedTicketPhotoUrls', null)
                     updateBlock(block.id, 'savedTicketPhotoNames', null)
                   }}
-                  style={{
-                    padding: '6px 12px',
-                    backgroundColor: '#dc3545',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '12px'
-                  }}
+                  style={{ padding: '3px 8px', backgroundColor: 'transparent', color: '#dc3545', border: '1px solid #dc3545', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
                 >
-                  ✕ Remove
+                  Remove
                 </button>
               </div>
+              <div
+                onClick={() => setShowTicketPhoto(true)}
+                style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', cursor: 'pointer' }}
+                title="Click to view full size"
+              >
+                {thumbUrls.map((url, idx) => (
+                  <img
+                    key={idx}
+                    src={url}
+                    alt={`Ticket page ${idx + 1}`}
+                    style={{
+                      width: thumbUrls.length === 1 ? '120px' : '80px',
+                      height: thumbUrls.length === 1 ? '160px' : '106px',
+                      objectFit: 'cover',
+                      borderRadius: '4px',
+                      border: '2px solid #c3e6cb',
+                      backgroundColor: '#fff'
+                    }}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )
+        })()}
 
         {/* Ticket Photo Modal */}
         {showTicketPhoto && (block.ticketPhoto || block.savedTicketPhotoUrl || block.savedTicketPhotoUrls?.length > 0) && (
