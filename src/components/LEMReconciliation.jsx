@@ -291,14 +291,22 @@ export default function LEMReconciliation() {
   async function handleResolve(pairId, resolution, notes) {
     setSaving(true)
     const { data: { user } } = await supabase.auth.getUser()
+    const isDispute = resolution === 'disputed_variance' || resolution === 'disputed_ticket_altered'
+    const isPending = resolution === 'pending'
     const update = {
-      status: resolution === 'accepted' ? 'accepted' : resolution === 'pending' ? 'pending' : resolution === 'skipped' ? 'skipped' : 'disputed',
-      resolution: resolution === 'pending' ? null : resolution,
+      status: resolution === 'accepted' ? 'accepted' : isPending ? 'pending' : resolution === 'skipped' ? 'skipped' : 'disputed',
+      resolution: isPending ? null : resolution,
       resolution_notes: notes || null,
-      resolved_by: resolution === 'pending' ? null : user?.id || null,
-      resolved_at: resolution === 'pending' ? null : new Date().toISOString()
+      resolved_by: isPending ? null : user?.id || null,
+      resolved_at: isPending ? null : new Date().toISOString(),
+      dispute_type: isDispute ? (resolution === 'disputed_ticket_altered' ? 'ticket_altered' : 'variance') : null
     }
-    await supabase.from('lem_reconciliation_pairs').update(update).eq('id', pairId)
+    const { error } = await supabase.from('lem_reconciliation_pairs').update(update).eq('id', pairId)
+    if (error) {
+      console.error('Failed to save resolution:', error)
+      setSaving(false)
+      return
+    }
     setPairs(prev => prev.map(p => p.id === pairId ? { ...p, ...update } : p))
     setSaving(false)
   }

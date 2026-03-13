@@ -476,7 +476,7 @@ export default function LEMFourPanelView({
               ) : (
                 <div style={{ display: 'flex', gap: '12px', alignItems: 'center', width: '100%' }}>
                   <span style={{ padding: '4px 12px', borderRadius: '12px', fontSize: '12px', fontWeight: '600', ...(() => { const si = statusIcon(pair.status); return { backgroundColor: si.bg, color: si.color } })() }}>
-                    {pair.status === 'accepted' ? 'Accepted' : pair.status === 'disputed' ? `Disputed: ${pair.resolution || ''}` : pair.status}
+                    {pair.status === 'accepted' ? 'Accepted' : pair.status === 'disputed' ? `Disputed: ${pair.dispute_type === 'ticket_altered' ? 'Ticket Altered' : pair.dispute_type === 'variance' ? 'Variance' : pair.resolution || 'Unknown'}` : pair.status}
                   </span>
                   {pair.resolution_notes && <span style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic' }}>{pair.resolution_notes}</span>}
                   <button onClick={() => onResolve(pair.id, 'pending', '')} style={{ marginLeft: 'auto', padding: '6px 12px', backgroundColor: '#f3f4f6', color: '#6b7280', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}>
