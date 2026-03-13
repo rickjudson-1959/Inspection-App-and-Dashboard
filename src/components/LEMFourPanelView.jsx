@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { supabase } from '../supabase'
 
 /**
@@ -138,45 +138,25 @@ export default function LEMFourPanelView({
 
   const pair = pairs[selectedPairIndex] || null
 
-  // Match pair to inspector report
-  const [matchedBlock, setMatchedBlock] = useState(null)
-  const [matchedReport, setMatchedReport] = useState(null)
+  // Match ALL pairs to inspector reports in one pass, so each block is claimed only once., so each block is claimed only once.
+  // This prevents multiple pairs from showing the same ticket photo.
+  const allMatches = useMemo(() => {
+    if (!pairs.length || !reports.length) return []
 
-  useEffect(() => {
-    if (!pair) { setMatchedBlock(null); setMatchedReport(null); return }
-
-    console.log(`[LEM Match] Pair ${pair.pair_index}: date=${pair.work_date} crew=${pair.crew_name} | ${reports.length} reports available`)
-
-    if (pair.matched_report_id) {
-      const report = reports.find(r => r.id === pair.matched_report_id)
-      if (report) {
-        console.log(`[LEM Match] Using pre-matched report ${report.id} (${report.date})`)
-        setMatchedReport(report)
-        setMatchedBlock(report.activity_blocks?.[pair.matched_block_index] || null)
-      }
-      return
-    }
-
-    // Score-based matching: find the BEST report+block, not just the first
-    const pairCrew = (pair.crew_name || '').toLowerCase().trim()
     const pairContractor = (contractorName || '').toLowerCase().trim()
 
-    // Score how well a block's contractor matches the pair's crew/contractor
-    function crewScore(blockContractor) {
+    function crewScore(blockContractor, pairCrew) {
       if (!blockContractor) return 0
       const bc = blockContractor.toLowerCase().trim()
-      // Check against both pair crew_name and LEM contractor_name
       let best = 0
       for (const search of [pairCrew, pairContractor]) {
         if (!search) continue
-        if (bc === search) { best = Math.max(best, 10); continue } // exact
-        // Multi-word overlap
+        if (bc === search) { best = Math.max(best, 10); continue }
         const sWords = search.split(/\s+/).filter(w => w.length > 2)
         const bWords = bc.split(/\s+/).filter(w => w.length > 2)
         const shared = sWords.filter(sw => bWords.some(bw => bw.includes(sw) || sw.includes(bw))).length
-        if (shared >= 2) { best = Math.max(best, 5 + shared); continue } // strong multi-word match
-        if (shared === 1) { best = Math.max(best, 3); continue } // single word match
-        // First-word fallback
+        if (shared >= 2) { best = Math.max(best, 5 + shared); continue }
+        if (shared === 1) { best = Math.max(best, 3); continue }
         const firstWord = search.split(/\s+/)[0]
         if (firstWord && firstWord.length > 2 && (bc.includes(firstWord) || search.includes(bc.split(/\s+/)[0]))) {
           best = Math.max(best, 1)
@@ -185,60 +165,88 @@ export default function LEMFourPanelView({
       return best
     }
 
-    // Collect all candidates: { report, block, blockIdx, score }
-    const candidates = []
-    const dateMatches = pair.work_date ? reports.filter(r => r.date === pair.work_date) : []
-    console.log(`[LEM Match] ${dateMatches.length} reports match date ${pair.work_date}`)
+    // Track claimed report+block combos so no two pairs share a block
+    const claimedBlocks = new Set() // "reportId:blockIdx"
 
-    // Date-matching candidates (score boosted)
-    for (const report of dateMatches) {
-      const blocks = report.activity_blocks || []
-      for (let bi = 0; bi < blocks.length; bi++) {
-        const cs = crewScore(blocks[bi].contractor)
-        const photos = blocks[bi].ticketPhotos?.length > 0 ? blocks[bi].ticketPhotos : blocks[bi].ticketPhoto ? [blocks[bi].ticketPhoto] : []
-        // Score: crew match quality + bonus for having PDF + bonus for having photos
-        let score = cs + (report.pdf_storage_url ? 2 : 0) + (photos.filter(Boolean).length > 0 ? 1 : 0)
-        if (cs > 0) score += 10 // date + crew match bonus
-        candidates.push({ report, block: blocks[bi], blockIdx: bi, score, reason: `date+crew(${cs})` })
+    const matches = pairs.map(p => {
+      // Pre-matched pairs use their stored match
+      if (p.matched_report_id) {
+        const report = reports.find(r => r.id === p.matched_report_id)
+        if (report) {
+          const key = `${report.id}:${p.matched_block_index}`
+          claimedBlocks.add(key)
+          return { report, block: report.activity_blocks?.[p.matched_block_index] || null }
+        }
       }
-      // Even if no crew match, a date-match report with a PDF is useful
-      if (blocks.length > 0) {
-        const photos = blocks[0].ticketPhotos?.length > 0 ? blocks[0].ticketPhotos : blocks[0].ticketPhoto ? [blocks[0].ticketPhoto] : []
-        candidates.push({ report, block: blocks[0], blockIdx: 0, score: (report.pdf_storage_url ? 4 : 1) + (photos.filter(Boolean).length > 0 ? 1 : 0), reason: 'date-only' })
-      }
-    }
 
-    // If no date-match candidates, try crew-only across all reports
-    if (candidates.length === 0 && (pairCrew || pairContractor)) {
-      for (const report of reports) {
+      const pairCrew = (p.crew_name || '').toLowerCase().trim()
+
+      // Collect candidates, excluding already-claimed blocks
+      const candidates = []
+      const dateMatches = p.work_date ? reports.filter(r => r.date === p.work_date) : []
+
+      for (const report of dateMatches) {
         const blocks = report.activity_blocks || []
         for (let bi = 0; bi < blocks.length; bi++) {
-          const cs = crewScore(blocks[bi].contractor)
-          if (cs > 0) {
-            const photos = blocks[bi].ticketPhotos?.length > 0 ? blocks[bi].ticketPhotos : blocks[bi].ticketPhoto ? [blocks[bi].ticketPhoto] : []
-            candidates.push({ report, block: blocks[bi], blockIdx: bi, score: cs + (report.pdf_storage_url ? 2 : 0) + (photos.filter(Boolean).length > 0 ? 1 : 0), reason: `crew-only(${cs})` })
+          const key = `${report.id}:${bi}`
+          if (claimedBlocks.has(key)) continue
+          const cs = crewScore(blocks[bi].contractor, pairCrew)
+          const photos = blocks[bi].ticketPhotos?.length > 0 ? blocks[bi].ticketPhotos : blocks[bi].ticketPhoto ? [blocks[bi].ticketPhoto] : []
+          let score = cs + (report.pdf_storage_url ? 2 : 0) + (photos.filter(Boolean).length > 0 ? 1 : 0)
+          if (cs > 0) score += 10
+          candidates.push({ report, block: blocks[bi], blockIdx: bi, score, reason: `date+crew(${cs})` })
+        }
+        if (blocks.length > 0 && !claimedBlocks.has(`${report.id}:0`)) {
+          const photos = blocks[0].ticketPhotos?.length > 0 ? blocks[0].ticketPhotos : blocks[0].ticketPhoto ? [blocks[0].ticketPhoto] : []
+          candidates.push({ report, block: blocks[0], blockIdx: 0, score: (report.pdf_storage_url ? 4 : 1) + (photos.filter(Boolean).length > 0 ? 1 : 0), reason: 'date-only' })
+        }
+      }
+
+      // Crew-only fallback if no date matches
+      if (candidates.length === 0 && (pairCrew || pairContractor)) {
+        for (const report of reports) {
+          const blocks = report.activity_blocks || []
+          for (let bi = 0; bi < blocks.length; bi++) {
+            const key = `${report.id}:${bi}`
+            if (claimedBlocks.has(key)) continue
+            const cs = crewScore(blocks[bi].contractor, pairCrew)
+            if (cs > 0) {
+              const photos = blocks[bi].ticketPhotos?.length > 0 ? blocks[bi].ticketPhotos : blocks[bi].ticketPhoto ? [blocks[bi].ticketPhoto] : []
+              candidates.push({ report, block: blocks[bi], blockIdx: bi, score: cs + (report.pdf_storage_url ? 2 : 0) + (photos.filter(Boolean).length > 0 ? 1 : 0), reason: `crew-only(${cs})` })
+            }
           }
         }
       }
-    }
 
-    // Pick the best candidate
-    candidates.sort((a, b) => b.score - a.score)
-    if (candidates.length > 0) {
-      const best = candidates[0]
-      console.log(`[LEM Match] ✓ Best match: report ${best.report.id} (${best.report.date}) block[${best.blockIdx}] contractor="${best.block.contractor}" score=${best.score} reason=${best.reason} pdf=${best.report.pdf_storage_url ? 'YES' : 'NO'}`)
-      if (candidates.length > 1) {
-        console.log(`[LEM Match]   Runner-up: report ${candidates[1].report.id} block[${candidates[1].blockIdx}] contractor="${candidates[1].block.contractor}" score=${candidates[1].score} reason=${candidates[1].reason}`)
+      // Pick best unclaimed candidate
+      candidates.sort((a, b) => b.score - a.score)
+      // Deduplicate: if same report+blockIdx appears multiple times, keep highest score
+      const seen = new Set()
+      const uniqueCandidates = candidates.filter(c => {
+        const key = `${c.report.id}:${c.blockIdx}`
+        if (seen.has(key)) return false
+        seen.add(key)
+        return true
+      })
+
+      if (uniqueCandidates.length > 0) {
+        const best = uniqueCandidates[0]
+        const key = `${best.report.id}:${best.blockIdx}`
+        claimedBlocks.add(key)
+        console.log(`[LEM Match] Pair ${p.pair_index}: ✓ report ${best.report.id} block[${best.blockIdx}] score=${best.score} reason=${best.reason}`)
+        return { report: best.report, block: best.block }
       }
-      setMatchedReport(best.report)
-      setMatchedBlock(best.block)
-      return
-    }
 
-    console.log(`[LEM Match] ✗ No match found for pair ${pair.pair_index} (date=${pair.work_date}, crew=${pairCrew}, contractor=${pairContractor})`)
-    setMatchedBlock(null)
-    setMatchedReport(null)
-  }, [pair, reports])
+      console.log(`[LEM Match] Pair ${p.pair_index}: ✗ No match`)
+      return { report: null, block: null }
+    })
+
+    return matches
+  }, [pairs, reports, contractorName])
+
+  // Current pair's match
+  const matchedReport = allMatches[selectedPairIndex]?.report || null
+  const matchedBlock = allMatches[selectedPairIndex]?.block || null
 
   // Get ticket photos from matched block
   const ticketPhotoUrls = (() => {
