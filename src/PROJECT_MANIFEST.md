@@ -291,12 +291,14 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 - contractor_ticket_urls (JSONB array of image URLs), contractor_ticket_indices (JSONB)
 - Matched report: matched_report_id (FK), matched_block_index, match_method
 - Resolution: status (pending/accepted/disputed/skipped), resolution type, notes, resolved_by/at
-- RLS policy via memberships table
+- dispute_type column: 'variance' or 'ticket_altered' (NULL for non-disputed) — CHECK constrained (Added Mar 13, 2026)
+- RLS policy: `is_super_admin() OR organization_id IN (SELECT user_organization_ids())` (aligned Mar 13, 2026)
 
 **contractor_invoices**
 - Invoice records linked to approved LEMs (reconciliation gate)
-- FK to `contractor_lem_uploads` (hard gate — only approved LEMs can have invoices)
-- Organization-scoped with RLS
+- FK to `contractor_lem_uploads` with ON DELETE CASCADE (added Mar 13, 2026)
+- DB-enforced approval gate: `check_lem_invoice_gate()` BEFORE INSERT trigger rejects invoices for non-approved LEMs (added Mar 13, 2026)
+- RLS policy: `is_super_admin() OR organization_id IN (SELECT user_organization_ids())` (aligned Mar 13, 2026)
 - Invoice number, date, period (start/end)
 - Source file URL (PDF stored in `contractor-invoices` bucket)
 - Parsed totals: labour hours/cost, equipment hours/cost, subtotal, tax, total
@@ -406,8 +408,8 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
     ├── TenantSwitcher.jsx       # Organization switcher dropdown
     ├── AIAgentStatusIcon.jsx    # AI Watcher status indicator (NEW - Feb 2026)
     ├── LEMUpload.jsx            # Contractor LEM PDF upload, parse, preview, save (NEW - Mar 2026)
-    ├── LEMReconciliation.jsx    # Visual four-panel reconciliation: pair list sidebar, LEMFourPanelView integration, resolution workflow, invoice integration, report date-range loading with debug logging (Updated Mar 11, 2026)
-    ├── LEMFourPanelView.jsx     # Four-panel visual comparison: zoomable image panels, inspector report PDF embed (Panel 4), score-based report matching (crew+date+PDF priority), keyboard nav, resolution bar (Updated Mar 11, 2026)
+    ├── LEMReconciliation.jsx    # Visual four-panel reconciliation: pair list sidebar, resolution workflow with dispute_type preservation, invoice integration, report date-range loading (Updated Mar 13, 2026)
+    ├── LEMFourPanelView.jsx     # Four-panel visual comparison: zoomable image panels, inspector report PDF embed (Panel 4), batch report matching with claimed-block dedup, tiered fallback (exact date → ±1 day → crew-only → PDF-only), keyboard nav, resolution bar with dispute subtype display (Updated Mar 13, 2026)
     ├── InvoiceUpload.jsx        # Invoice upload with reconciliation gate, Claude Vision parsing, variance comparison (NEW - Mar 2026)
     ├── InvoiceComparison.jsx    # Invoice vs reconciliation comparison, approve/reject/mark-paid workflow (NEW - Mar 2026)
     ├── MapDashboard.jsx
@@ -458,6 +460,9 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ├── 20260307_create_lem_reconciliation_tables.sql  # contractor_lem_uploads + lem_line_items (NEW - Mar 2026)
 ├── 20260307_lem_four_way_and_invoices.sql         # contractor_ticket_url column + contractor_invoices table (NEW - Mar 2026)
 ├── 20260308_lem_visual_reconciliation.sql           # lem_reconciliation_pairs table (NEW - Mar 8, 2026)
+├── 20260313_lem_invoice_gate_and_cascade.sql        # CASCADE DELETE + BEFORE INSERT approval gate trigger (NEW - Mar 13, 2026)
+├── 20260313_add_dispute_type_column.sql             # dispute_type column on lem_reconciliation_pairs (NEW - Mar 13, 2026)
+├── 20260313_align_lem_rls_policies.sql              # is_super_admin() bypass on all 4 LEM tables (NEW - Mar 13, 2026)
 └── [other migrations]
 ```
 
