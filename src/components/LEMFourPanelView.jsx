@@ -181,39 +181,81 @@ export default function LEMFourPanelView({
 
       const pairCrew = (p.crew_name || '').toLowerCase().trim()
 
-      // Collect candidates, excluding already-claimed blocks
-      const candidates = []
-      const dateMatches = p.work_date ? reports.filter(r => r.date === p.work_date) : []
+      // Helper: check if a date is within +/- 1 day of the pair date
+      function isNearDate(reportDate) {
+        if (!p.work_date || !reportDate) return false
+        const pd = new Date(p.work_date + 'T00:00:00')
+        const rd = new Date(reportDate + 'T00:00:00')
+        return Math.abs(pd - rd) <= 86400000 // 1 day in ms
+      }
 
-      for (const report of dateMatches) {
-        const blocks = report.activity_blocks || []
-        for (let bi = 0; bi < blocks.length; bi++) {
-          const key = `${report.id}:${bi}`
-          if (claimedBlocks.has(key)) continue
-          const cs = crewScore(blocks[bi].contractor, pairCrew)
-          const photos = blocks[bi].ticketPhotos?.length > 0 ? blocks[bi].ticketPhotos : blocks[bi].ticketPhoto ? [blocks[bi].ticketPhoto] : []
-          let score = cs + (report.pdf_storage_url ? 2 : 0) + (photos.filter(Boolean).length > 0 ? 1 : 0)
-          if (cs > 0) score += 10
-          candidates.push({ report, block: blocks[bi], blockIdx: bi, score, reason: `date+crew(${cs})` })
-        }
-        if (blocks.length > 0 && !claimedBlocks.has(`${report.id}:0`)) {
-          const photos = blocks[0].ticketPhotos?.length > 0 ? blocks[0].ticketPhotos : blocks[0].ticketPhoto ? [blocks[0].ticketPhoto] : []
-          candidates.push({ report, block: blocks[0], blockIdx: 0, score: (report.pdf_storage_url ? 4 : 1) + (photos.filter(Boolean).length > 0 ? 1 : 0), reason: 'date-only' })
+      // Helper: score a block candidate
+      function scoreBlock(report, block, bi, reason) {
+        const key = `${report.id}:${bi}`
+        if (claimedBlocks.has(key)) return null
+        const cs = crewScore(block.contractor, pairCrew)
+        const photos = block.ticketPhotos?.length > 0 ? block.ticketPhotos : block.ticketPhoto ? [block.ticketPhoto] : []
+        const hasPhotos = photos.filter(Boolean).length > 0
+        const hasPdf = !!report.pdf_storage_url
+        let score = cs + (hasPdf ? 2 : 0) + (hasPhotos ? 1 : 0)
+        if (reason.startsWith('date') && cs > 0) score += 10
+        return { report, block, blockIdx: bi, score, reason: `${reason}(crew=${cs})` }
+      }
+
+      const candidates = []
+
+      // Tier 1: Exact date match — all unclaimed blocks
+      if (p.work_date) {
+        const dateMatches = reports.filter(r => r.date === p.work_date)
+        for (const report of dateMatches) {
+          const blocks = report.activity_blocks || []
+          for (let bi = 0; bi < blocks.length; bi++) {
+            const c = scoreBlock(report, blocks[bi], bi, 'date')
+            if (c) candidates.push(c)
+          }
         }
       }
 
-      // Crew-only fallback if no date matches
+      // Tier 2: Near-date match (+/- 1 day) — only if no exact date candidates
+      if (candidates.length === 0 && p.work_date) {
+        const nearMatches = reports.filter(r => r.date !== p.work_date && isNearDate(r.date))
+        for (const report of nearMatches) {
+          const blocks = report.activity_blocks || []
+          for (let bi = 0; bi < blocks.length; bi++) {
+            const c = scoreBlock(report, blocks[bi], bi, 'near-date')
+            if (c) { c.score = Math.max(0, c.score - 2); candidates.push(c) } // slight penalty
+          }
+        }
+      }
+
+      // Tier 3: Crew-only match across all reports — only if still nothing
       if (candidates.length === 0 && (pairCrew || pairContractor)) {
         for (const report of reports) {
           const blocks = report.activity_blocks || []
           for (let bi = 0; bi < blocks.length; bi++) {
-            const key = `${report.id}:${bi}`
-            if (claimedBlocks.has(key)) continue
             const cs = crewScore(blocks[bi].contractor, pairCrew)
             if (cs > 0) {
-              const photos = blocks[bi].ticketPhotos?.length > 0 ? blocks[bi].ticketPhotos : blocks[bi].ticketPhoto ? [blocks[bi].ticketPhoto] : []
-              candidates.push({ report, block: blocks[bi], blockIdx: bi, score: cs + (report.pdf_storage_url ? 2 : 0) + (photos.filter(Boolean).length > 0 ? 1 : 0), reason: `crew-only(${cs})` })
+              const c = scoreBlock(report, blocks[bi], bi, 'crew-only')
+              if (c) candidates.push(c)
             }
+          }
+        }
+      }
+
+      // Tier 4: Any unclaimed report with a PDF (last resort — at least show the PDF)
+      if (candidates.length === 0 && p.work_date) {
+        const dateMatches = reports.filter(r => r.date === p.work_date && r.pdf_storage_url)
+        for (const report of dateMatches) {
+          const blocks = report.activity_blocks || []
+          for (let bi = 0; bi < blocks.length; bi++) {
+            const key = `${report.id}:${bi}`
+            if (!claimedBlocks.has(key)) {
+              candidates.push({ report, block: blocks[bi], blockIdx: bi, score: 1, reason: 'date-any-block' })
+            }
+          }
+          // If ALL blocks claimed, still offer the report (with block[0]) for the PDF panel
+          if (candidates.length === 0 && blocks.length > 0) {
+            candidates.push({ report, block: blocks[0], blockIdx: 0, score: 0, reason: 'date-pdf-only' })
           }
         }
       }
