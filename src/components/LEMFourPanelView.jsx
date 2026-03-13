@@ -107,11 +107,11 @@ function InspectorReportPanel({ pdfUrl, reportDate, inspector }) {
           </a>
         </div>
       </div>
-      <div style={{ flex: 1, minHeight: '200px', maxHeight: '70vh' }}>
+      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
         <iframe
           src={pdfUrl}
           title="Inspector Report PDF"
-          style={{ width: '100%', height: '100%', border: 'none', borderRadius: '0 0 6px 6px', minHeight: '400px' }}
+          style={{ width: '100%', height: '100%', border: 'none', borderRadius: '0 0 6px 6px' }}
         />
       </div>
     </div>
