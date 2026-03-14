@@ -36,6 +36,25 @@ export default function LEMReconciliation() {
   // When a LEM is selected, also load reports matching its date range
   useEffect(() => { if (selectedLem) loadReportsForLem(selectedLem) }, [selectedLem])
 
+  // Poll for background image uploads: if any pair has empty image URLs, re-fetch every 3s
+  const pairsNeedingImages = pairs.filter(p =>
+    (p.lem_page_indices?.length > 0 && (!p.lem_page_urls || p.lem_page_urls.length === 0)) ||
+    (p.contractor_ticket_indices?.length > 0 && (!p.contractor_ticket_urls || p.contractor_ticket_urls.length === 0))
+  ).length
+  useEffect(() => {
+    if (!selectedLem || pairsNeedingImages === 0) return
+    console.log(`[LEM Recon] ${pairsNeedingImages} pair(s) awaiting images — polling...`)
+    const interval = setInterval(async () => {
+      const { data } = await supabase
+        .from('lem_reconciliation_pairs')
+        .select('*')
+        .eq('lem_upload_id', selectedLem.id)
+        .order('pair_index')
+      if (data) setPairs(data)
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [selectedLem?.id, pairsNeedingImages])
+
   async function loadReportsAndRates() {
     const orgId = getOrgId()
     const endDate = new Date()
@@ -452,6 +471,9 @@ export default function LEMReconciliation() {
               <option value="365">Last year</option>
             </select>
           </div>
+          <button onClick={() => { loadLemUploads(); loadReportsAndRates() }} style={{ padding: '8px 16px', backgroundColor: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontWeight: '500', fontSize: '13px' }}>
+            Refresh
+          </button>
           {subView === 'contractorLems' && !showUpload && !showInvoiceUpload && (
             <>
               {/* PO Filter */}

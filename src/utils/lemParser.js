@@ -159,7 +159,8 @@ const CLASSIFY_DELAY_MS = 4000 // 1 page every 4 seconds = 15/min, stays under 3
 const MAX_RETRIES = 4
 
 async function classifyPageWithVision(pageImageBase64, classificationGuide, contractorName) {
-  const prompt = `You are classifying pages from ${contractorName}'s LEM billing package.
+  const prompt = classificationGuide
+    ? `You are classifying pages from ${contractorName}'s LEM billing package.
 
 This contractor's documents have these characteristics:
 ${JSON.stringify(classificationGuide, null, 2)}
@@ -172,6 +173,23 @@ Look at this page and classify it. Return ONLY JSON (no markdown, no code fences
   "crew": "crew name or null",
   "page_number": "X of Y or null"
 }`
+    : `You are classifying a page from a contractor's LEM (Labour & Equipment Manifest) billing package used in pipeline construction.
+
+Page types:
+- "lem": A billing summary sheet showing labour hours, equipment hours, rates, and costs. Usually has columns for RT/OT hours, rate/hr, line totals. May say "Labour & Equipment Manifest" or similar.
+- "daily_ticket": A daily field ticket signed by the foreman and/or inspector. Usually has a ticket number, date, crew members, equipment list, and signature lines. May say "Daily Field Ticket" or "Daily Report".
+- "cover_sheet": A cover page, table of contents, summary page, or transmittal letter. Not a billing document or field ticket.
+
+Extract the foreman/superintendent name (the person in charge of the crew on that page), NOT the contractor company name.
+
+Return ONLY valid JSON (no markdown, no code fences):
+{
+  "page_type": "lem" or "daily_ticket" or "cover_sheet",
+  "confidence": 0.0 to 1.0,
+  "date": "YYYY-MM-DD or null (the work date shown on this page)",
+  "crew": "foreman or superintendent name, or null",
+  "page_number": "X of Y or null"
+}`
 
   const response = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -182,7 +200,7 @@ Look at this page and classify it. Return ONLY JSON (no markdown, no code fences
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-5-20250929',
+      model: 'claude-sonnet-4-6',
       max_tokens: 200,
       messages: [{
         role: 'user',
@@ -248,7 +266,7 @@ async function classifyWithProfile(pdf, profile, onProgress, lemId, existingProg
     while (retries < MAX_RETRIES) {
       try {
         const result = await classifyPageWithVision(
-          image, profile.classification_guide, profile.contractor_name
+          image, profile?.classification_guide || null, profile?.contractor_name || 'Unknown'
         )
         classifications[i] = result
         completedSet.add(i)
@@ -309,7 +327,7 @@ async function classifyWithProfile(pdf, profile, onProgress, lemId, existingProg
  * Group classified pages into document groups, excluding cover sheets.
  * Uses page_number data if available, otherwise falls back to sequential grouping.
  */
-function groupPagesWithProfile(classifications) {
+export function groupPagesWithProfile(classifications) {
   // Filter to only LEM and ticket pages (exclude cover sheets and unknowns)
   const pageEntries = classifications
     .map((cls, idx) => ({ ...cls, originalIndex: idx }))
@@ -369,7 +387,7 @@ function groupByPageNumbers(entries) {
   return groups
 }
 
-function groupSequential(entries) {
+export function groupSequential(entries) {
   if (entries.length === 0) return []
   const groups = []
   let cur = {
@@ -403,7 +421,7 @@ function groupSequential(entries) {
  *   2. If there are blocks of same-type groups, try date-based matching.
  *   3. Fallback: sequential adjacency with orphans.
  */
-function buildPairsFromGroups(groups) {
+export function buildPairsFromGroups(groups) {
   const pairs = []
 
   // Check if groups alternate: lem, ticket, lem, ticket...
@@ -551,9 +569,10 @@ export async function parseLEMFile(file, onProgress, lemId, orgId, profile = nul
   let classifications = []
   let flaggedCount = 0
 
-  if (profile && ANTHROPIC_API_KEY) {
-    // Profile-based Vision classification
-    onProgress?.(`Classifying ${numPages} pages using ${profile.contractor_name} profile...`)
+  if (ANTHROPIC_API_KEY) {
+    // Vision API classification (with or without profile)
+    const mode = profile ? `${profile.contractor_name} profile` : 'Vision API (no profile)'
+    onProgress?.(`Classifying ${numPages} pages using ${mode}...`)
 
     // Check for existing progress (resume support)
     let existingProgress = null
@@ -573,8 +592,8 @@ export async function parseLEMFile(file, onProgress, lemId, orgId, profile = nul
     classifications = result.classifications
     flaggedCount = result.flaggedCount
   } else {
-    // Text-based fallback (no profile)
-    onProgress?.('Classifying pages (text analysis — no profile)...')
+    // Text-based fallback (no API key)
+    onProgress?.('Classifying pages (text analysis — no API key)...')
     for (let i = 1; i <= numPages; i++) {
       if (i % 50 === 0 || i === 1) onProgress?.(`Classifying page ${i} of ${numPages}...`)
       const page = await pdf.getPage(i)
