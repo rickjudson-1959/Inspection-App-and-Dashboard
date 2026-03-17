@@ -154,6 +154,11 @@ function AdminPortal() {
   // Addendum upload state
   const [uploadingAddendum, setUploadingAddendum] = useState(null) // parent document id
 
+  // Document removal state
+  const [showRemoveDocPrompt, setShowRemoveDocPrompt] = useState(false)
+  const [pendingRemoveDoc, setPendingRemoveDoc] = useState(null) // { doc, category }
+  const [removingDoc, setRemovingDoc] = useState(null) // category key while removing
+
   // ITP Digital Signature state
   const [showSignaturePad, setShowSignaturePad] = useState(false)
   const [signingRole, setSigningRole] = useState(null) // { key, label, shortLabel }
@@ -1191,6 +1196,85 @@ function AdminPortal() {
     }
 
     setUploadingAddendum(null)
+  }
+
+  // Prompt to remove a vault document (all versions + addenda + storage files + AI embeddings)
+  function promptRemoveDocument(doc, category) {
+    setPendingRemoveDoc({ doc, category })
+    setShowRemoveDocPrompt(true)
+  }
+
+  // Remove a vault document — all versions, addenda, storage files, and AI embeddings
+  async function removeVaultDocument() {
+    if (!pendingRemoveDoc || !selectedOrgForSetup) return
+
+    const { doc, category } = pendingRemoveDoc
+    setShowRemoveDocPrompt(false)
+    setPendingRemoveDoc(null)
+    setRemovingDoc(category)
+    setGovernanceMessage(null)
+
+    try {
+      // Gather all records for this category (all versions + addenda)
+      const allDocsForCategory = projectDocuments.filter(d =>
+        d.category === category && !d.is_global
+      )
+
+      const docIds = allDocsForCategory.map(d => d.id)
+
+      // 1. Delete AI embeddings for all versions
+      if (docIds.length > 0) {
+        await supabase
+          .from('document_embeddings')
+          .delete()
+          .in('source_id', docIds)
+      }
+
+      // 2. Delete storage files
+      const storagePaths = allDocsForCategory
+        .map(d => {
+          if (!d.file_url) return null
+          // Extract path after /object/public/documents/
+          const marker = '/object/public/documents/'
+          const idx = d.file_url.indexOf(marker)
+          if (idx === -1) return null
+          return d.file_url.substring(idx + marker.length)
+        })
+        .filter(Boolean)
+
+      if (storagePaths.length > 0) {
+        const { error: storageError } = await supabase.storage
+          .from('documents')
+          .remove(storagePaths)
+
+        if (storageError) {
+          console.warn('Storage cleanup warning (non-blocking):', storageError.message)
+        }
+      }
+
+      // 3. Delete all DB records for this category in this org
+      const { error: deleteError } = await supabase
+        .from('project_documents')
+        .delete()
+        .eq('organization_id', selectedOrgForSetup)
+        .eq('category', category)
+        .eq('is_global', false)
+
+      if (deleteError) throw deleteError
+
+      // 4. Refresh data
+      await fetchGovernanceData(selectedOrgForSetup)
+
+      setGovernanceMessage({
+        type: 'success',
+        text: `${category.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())} document removed (${allDocsForCategory.length} record${allDocsForCategory.length !== 1 ? 's' : ''} including all versions and supporting docs).`
+      })
+    } catch (err) {
+      console.error('Error removing vault document:', err)
+      setGovernanceMessage({ type: 'error', text: 'Remove failed: ' + err.message })
+    }
+
+    setRemovingDoc(null)
   }
 
   // Auto-index document after upload with helpful error guidance
@@ -4856,6 +4940,24 @@ function AdminPortal() {
                                 >
                                   {processingDocForAI === doc.id ? '⏳ Processing...' : (indexedDocs[doc.id] ? `✅ Indexed (${indexedDocs[doc.id]})` : '🤖 Index for AI')}
                                 </button>
+
+                                {/* Remove document button */}
+                                <button
+                                  onClick={() => promptRemoveDocument(doc, cat.key)}
+                                  disabled={removingDoc === cat.key}
+                                  style={{
+                                    fontSize: '11px',
+                                    color: removingDoc === cat.key ? '#999' : '#dc2626',
+                                    backgroundColor: 'transparent',
+                                    border: 'none',
+                                    cursor: removingDoc === cat.key ? 'not-allowed' : 'pointer',
+                                    textDecoration: 'underline',
+                                    padding: 0
+                                  }}
+                                  title="Remove this document and all versions"
+                                >
+                                  {removingDoc === cat.key ? '⏳ Removing...' : 'Remove'}
+                                </button>
                               </div>
                             </div>
                           ) : (
@@ -7560,6 +7662,81 @@ function AdminPortal() {
                   }}
                 >
                   Yes, Reset Signatures
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Remove Document Confirmation Modal */}
+        {showRemoveDocPrompt && pendingRemoveDoc && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000
+          }}>
+            <div style={{
+              backgroundColor: 'white',
+              borderRadius: '12px',
+              padding: '30px',
+              maxWidth: '450px',
+              width: '90%',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.3)'
+            }}>
+              <h3 style={{ margin: '0 0 15px 0', color: '#dc3545' }}>
+                Remove Document
+              </h3>
+              <p style={{ margin: '0 0 10px 0', color: '#374151', fontSize: '14px', lineHeight: '1.5' }}>
+                This will permanently remove <strong>{pendingRemoveDoc.doc.file_name}</strong> from the vault, including:
+              </p>
+              <ul style={{ margin: '0 0 20px 0', color: '#6b7280', fontSize: '13px', lineHeight: '1.8', paddingLeft: '20px' }}>
+                <li>All previous versions</li>
+                <li>All supporting documents (addenda)</li>
+                <li>AI search index entries</li>
+                <li>Stored files</li>
+              </ul>
+              <p style={{ margin: '0 0 25px 0', color: '#dc2626', fontSize: '13px', fontWeight: 'bold' }}>
+                This action cannot be undone.
+              </p>
+              <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => {
+                    setShowRemoveDocPrompt(false)
+                    setPendingRemoveDoc(null)
+                  }}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#6c757d',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '13px'
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={removeVaultDocument}
+                  style={{
+                    padding: '10px 20px',
+                    backgroundColor: '#dc2626',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                    fontSize: '13px',
+                    fontWeight: 'bold'
+                  }}
+                >
+                  Remove Permanently
                 </button>
               </div>
             </div>
