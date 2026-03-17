@@ -178,9 +178,10 @@ function InspectorReport({
   // Chainage tracking (moved here for auto-save dependency)
   const [chainageReasons, setChainageReasons] = useState({}) // { blockId: { overlapReason: '', gapReason: '' } }
 
-  // Pipeline Map visibility
-  const [showMap, setShowMap] = useState(true)
+  // Pipeline Map visibility — only show if org has pipeline route data configured
+  const [showMap, setShowMap] = useState(false)
   const [showExpandedMap, setShowExpandedMap] = useState(false)
+  const [hasRouteData, setHasRouteData] = useState(false)
 
   // Close expanded map on browser back button instead of navigating away
   useEffect(() => {
@@ -1409,22 +1410,19 @@ CRITICAL - Individual Entries Required:
     }
   }, [userProfile, isEditMode, editReportId, inspectorName])
 
-  // Auto-populate AFE/Contract # from contract_config for new reports
+  // Auto-populate AFE/Contract # from contract_config for new reports + check route data
   useEffect(() => {
     async function fetchContractConfig() {
-      // Skip if in edit mode (AFE will be loaded from saved report)
-      if (isEditMode || editReportId) return
-
-      // Skip if AFE is already set (from draft restore)
-      if (afe) return
-
       // Wait for org context to be ready
       if (!organizationId) return
+
+      // In edit mode, only check route data (AFE loaded from saved report)
+      const skipAfe = isEditMode || editReportId || !!afe
 
       try {
         const { data: config, error } = await supabase
           .from('contract_config')
-          .select('contract_number')
+          .select('contract_number, start_kp')
           .eq('organization_id', organizationId)
           .single()
 
@@ -1434,16 +1432,21 @@ CRITICAL - Individual Entries Required:
           return
         }
 
-        if (config?.contract_number) {
+        if (!skipAfe && config?.contract_number) {
           setAfe(config.contract_number)
         }
+
+        // Only show pipeline map if org has KP route data configured
+        const orgHasRoute = !!(config?.start_kp)
+        setHasRouteData(orgHasRoute)
+        if (orgHasRoute) setShowMap(true)
       } catch (err) {
-        console.error('Error fetching contract config for AFE:', err)
+        console.error('Error fetching contract config:', err)
       }
     }
 
     fetchContractConfig()
-  }, [organizationId, isEditMode, editReportId, afe])
+  }, [organizationId])
 
   // Set user role from userProfile (from AuthContext)
   useEffect(() => {
@@ -9264,20 +9267,22 @@ CRITICAL - Individual Entries Required:
             </select>
           )}
           
-          <button
-            onClick={() => setShowMap(!showMap)}
-            style={{
-              padding: '8px 12px',
-              backgroundColor: showMap ? '#28a745' : '#17a2b8',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '12px'
-            }}
-          >
-            🗺️ {showMap ? 'Hide Map' : 'Map'}
-          </button>
+          {hasRouteData && (
+            <button
+              onClick={() => setShowMap(!showMap)}
+              style={{
+                padding: '8px 12px',
+                backgroundColor: showMap ? '#28a745' : '#17a2b8',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px'
+              }}
+            >
+              🗺️ {showMap ? 'Hide Map' : 'Map'}
+            </button>
+          )}
 
           <TourHelpButton onClick={startTour} />
 
