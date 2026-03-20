@@ -311,6 +311,7 @@ export default function FeedRiskRegister({ feedEstimateId, projectId }) {
                 <th style={{ ...thStyle, textAlign: 'right' }}>Cost Allowance</th>
                 <th style={thStyle}>Status</th>
                 <th style={{ ...thStyle, textAlign: 'right' }}>Actual Impact</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>Variance</th>
                 <th style={{ ...thStyle, textAlign: 'center' }}>Actions</th>
               </tr>
             </thead>
@@ -395,6 +396,19 @@ export default function FeedRiskRegister({ feedEstimateId, projectId }) {
                     {/* Actual Impact */}
                     <td style={{ ...tdStyle, textAlign: 'right' }}>
                       {co ? formatCurrency(co.actual_cost_impact) : '—'}
+                    </td>
+
+                    {/* Variance to Allowance */}
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>
+                      {co && risk.cost_allowance != null ? (() => {
+                        const variance = (parseFloat(co.actual_cost_impact) || 0) - (parseFloat(risk.cost_allowance) || 0)
+                        const isOver = variance > 0
+                        return (
+                          <span style={{ color: isOver ? '#c62828' : '#2e7d32', fontWeight: '600', fontSize: '12px' }}>
+                            {isOver ? '+' : ''}{formatCurrency(variance)}
+                          </span>
+                        )
+                      })() : '—'}
                     </td>
 
                     {/* Actions */}
