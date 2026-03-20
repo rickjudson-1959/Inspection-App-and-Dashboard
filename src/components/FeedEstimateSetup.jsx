@@ -1,12 +1,18 @@
 import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../supabase'
-import { useOrgQuery, withOrgId } from '../utils/queryHelpers.js'
+import { useOrgQuery } from '../utils/queryHelpers.js'
 import { useOrgPath } from '../contexts/OrgContext.jsx'
 import { useAuth } from '../AuthContext.jsx'
 import { logFeedAction } from '../utils/feedAuditLogger.js'
 
 const ESTIMATE_CLASSES = ['Class 2', 'Class 3', 'Class 4', 'Class 5']
+
+const APPROVAL_STATUSES = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'approved_for_FID', label: 'Approved for FID' },
+  { value: 'superseded', label: 'Superseded' }
+]
 
 export default function FeedEstimateSetup({ projectId, onSaved }) {
   const { addOrgFilter, getOrgId } = useOrgQuery()
@@ -19,16 +25,27 @@ export default function FeedEstimateSetup({ projectId, onSaved }) {
   const [existingId, setExistingId] = useState(null)
   const [error, setError] = useState(null)
 
+  // EPCM firm profiles for the linked selector
+  const [epcmFirms, setEpcmFirms] = useState([])
+
   const [form, setForm] = useState({
     epcm_firm: '',
+    epcm_firm_id: null,
     estimate_class: 'Class 3',
     estimate_date: '',
     total_estimate: '',
+    estimate_version: 'V1',
+    estimate_basis_year: '',
+    contingency_pct: '',
+    escalation_pct: '',
+    approval_status: 'draft',
+    source_document_url: '',
     notes: ''
   })
 
   useEffect(() => {
     loadExisting()
+    loadEpcmFirms()
   }, [projectId])
 
   async function loadExisting() {
@@ -48,9 +65,16 @@ export default function FeedEstimateSetup({ projectId, onSaved }) {
         setExistingId(data.id)
         setForm({
           epcm_firm: data.epcm_firm || '',
+          epcm_firm_id: data.epcm_firm_id || null,
           estimate_class: data.estimate_class || 'Class 3',
           estimate_date: data.estimate_date || '',
           total_estimate: data.total_estimate != null ? String(data.total_estimate) : '',
+          estimate_version: data.estimate_version || 'V1',
+          estimate_basis_year: data.estimate_basis_year != null ? String(data.estimate_basis_year) : '',
+          contingency_pct: data.contingency_pct != null ? String(data.contingency_pct) : '',
+          escalation_pct: data.escalation_pct != null ? String(data.escalation_pct) : '',
+          approval_status: data.approval_status || 'draft',
+          source_document_url: data.source_document_url || '',
           notes: data.meta?.notes || ''
         })
       }
@@ -61,8 +85,32 @@ export default function FeedEstimateSetup({ projectId, onSaved }) {
     setLoading(false)
   }
 
+  async function loadEpcmFirms() {
+    try {
+      let query = supabase.from('epcm_firms').select('id, name, short_name').order('name')
+      query = addOrgFilter(query)
+      const { data } = await query
+      setEpcmFirms(data || [])
+    } catch (err) {
+      console.warn('Could not load EPCM firms:', err)
+    }
+  }
+
   function handleChange(field, value) {
     setForm(prev => ({ ...prev, [field]: value }))
+  }
+
+  function handleFirmSelect(firmId) {
+    if (!firmId) {
+      handleChange('epcm_firm_id', null)
+      return
+    }
+    const firm = epcmFirms.find(f => f.id === firmId)
+    setForm(prev => ({
+      ...prev,
+      epcm_firm_id: firmId,
+      epcm_firm: firm ? (firm.short_name || firm.name) : prev.epcm_firm
+    }))
   }
 
   async function handleSave() {
@@ -76,9 +124,16 @@ export default function FeedEstimateSetup({ projectId, onSaved }) {
         organization_id: orgId,
         project_id: projectId || null,
         epcm_firm: form.epcm_firm || null,
+        epcm_firm_id: form.epcm_firm_id || null,
         estimate_class: form.estimate_class,
         estimate_date: form.estimate_date || null,
         total_estimate: totalNum,
+        estimate_version: form.estimate_version || 'V1',
+        estimate_basis_year: form.estimate_basis_year ? parseInt(form.estimate_basis_year) : null,
+        contingency_pct: form.contingency_pct ? parseFloat(form.contingency_pct) : null,
+        escalation_pct: form.escalation_pct ? parseFloat(form.escalation_pct) : null,
+        approval_status: form.approval_status,
+        source_document_url: form.source_document_url || null,
         currency: 'CAD',
         meta: { notes: form.notes || '' },
         created_by: user?.id || null
@@ -86,7 +141,7 @@ export default function FeedEstimateSetup({ projectId, onSaved }) {
 
       let result
       if (existingId) {
-        const { updated_at, created_by, created_at, ...updateFields } = record
+        const { created_by, ...updateFields } = record
         const { data, error: updateErr } = await supabase
           .from('feed_estimates')
           .update(updateFields)
@@ -113,7 +168,9 @@ export default function FeedEstimateSetup({ projectId, onSaved }) {
         newValue: JSON.stringify({
           epcm_firm: form.epcm_firm,
           estimate_class: form.estimate_class,
-          total_estimate: totalNum
+          total_estimate: totalNum,
+          estimate_version: form.estimate_version,
+          approval_status: form.approval_status
         }),
         organizationId: orgId
       })
@@ -145,7 +202,7 @@ export default function FeedEstimateSetup({ projectId, onSaved }) {
       )}
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        {/* EPCM Firm */}
+        {/* EPCM Firm (text) */}
         <div>
           <label style={labelStyle}>EPCM Firm</label>
           <input
@@ -157,18 +214,46 @@ export default function FeedEstimateSetup({ projectId, onSaved }) {
           />
         </div>
 
-        {/* Estimate Class */}
+        {/* EPCM Firm Profile (linked) */}
         <div>
-          <label style={labelStyle}>Estimate Class</label>
+          <label style={labelStyle}>EPCM Firm Profile (optional)</label>
           <select
-            value={form.estimate_class}
-            onChange={e => handleChange('estimate_class', e.target.value)}
+            value={form.epcm_firm_id || ''}
+            onChange={e => handleFirmSelect(e.target.value || null)}
             style={inputStyle}
           >
-            {ESTIMATE_CLASSES.map(c => (
-              <option key={c} value={c}>{c}</option>
+            <option value="">-- No linked profile --</option>
+            {epcmFirms.map(f => (
+              <option key={f.id} value={f.id}>{f.name}{f.short_name ? ` (${f.short_name})` : ''}</option>
             ))}
           </select>
+          <p style={helperStyle}>Link to an EPCM firm profile for cross-project scoring (Phase 2).</p>
+        </div>
+
+        {/* Estimate Class + Version — side by side */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div>
+            <label style={labelStyle}>Estimate Class</label>
+            <select
+              value={form.estimate_class}
+              onChange={e => handleChange('estimate_class', e.target.value)}
+              style={inputStyle}
+            >
+              {ESTIMATE_CLASSES.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label style={labelStyle}>Estimate Version</label>
+            <input
+              type="text"
+              value={form.estimate_version}
+              onChange={e => handleChange('estimate_version', e.target.value)}
+              placeholder="V1"
+              style={inputStyle}
+            />
+          </div>
         </div>
 
         {/* Estimate Date */}
@@ -194,6 +279,79 @@ export default function FeedEstimateSetup({ projectId, onSaved }) {
             min="0"
             style={inputStyle}
           />
+        </div>
+
+        {/* Estimate Basis Year */}
+        <div>
+          <label style={labelStyle}>Estimate Basis Year</label>
+          <input
+            type="number"
+            value={form.estimate_basis_year}
+            onChange={e => handleChange('estimate_basis_year', e.target.value)}
+            placeholder="e.g. 2023"
+            min="2000"
+            max="2099"
+            style={inputStyle}
+          />
+          <p style={helperStyle}>The year unit rates were benchmarked from. Used for inflation normalization.</p>
+        </div>
+
+        {/* Contingency + Escalation — side by side */}
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+          <div>
+            <label style={labelStyle}>Contingency %</label>
+            <input
+              type="number"
+              value={form.contingency_pct}
+              onChange={e => handleChange('contingency_pct', e.target.value)}
+              placeholder="e.g. 15"
+              step="0.1"
+              min="0"
+              max="100"
+              style={inputStyle}
+            />
+            <p style={helperStyle}>Typical Class 3: 15–20%</p>
+          </div>
+          <div>
+            <label style={labelStyle}>Escalation %</label>
+            <input
+              type="number"
+              value={form.escalation_pct}
+              onChange={e => handleChange('escalation_pct', e.target.value)}
+              placeholder="e.g. 3.5"
+              step="0.1"
+              min="0"
+              max="100"
+              style={inputStyle}
+            />
+          </div>
+        </div>
+
+        {/* Approval Status */}
+        <div>
+          <label style={labelStyle}>Approval Status</label>
+          <select
+            value={form.approval_status}
+            onChange={e => handleChange('approval_status', e.target.value)}
+            style={inputStyle}
+          >
+            {APPROVAL_STATUSES.map(s => (
+              <option key={s.value} value={s.value}>{s.label}</option>
+            ))}
+          </select>
+        </div>
+
+        {/* Source Document URL */}
+        <div>
+          <label style={labelStyle}>FEED Report Link</label>
+          <input
+            type="text"
+            value={form.source_document_url}
+            onChange={e => handleChange('source_document_url', e.target.value)}
+            placeholder="SharePoint or S3 URL"
+            style={inputStyle}
+          />
+          <p style={helperStyle}>Link to the FEED estimate report for traceability.</p>
         </div>
 
         {/* Notes / Assumptions */}
@@ -247,4 +405,10 @@ const inputStyle = {
   borderRadius: '6px',
   fontSize: '14px',
   boxSizing: 'border-box'
+}
+
+const helperStyle = {
+  margin: '4px 0 0',
+  fontSize: '11px',
+  color: '#999'
 }
