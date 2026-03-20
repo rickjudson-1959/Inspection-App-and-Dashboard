@@ -679,6 +679,12 @@ function Dashboard({ onBackToReport }) {
               View Financials (EVM)
             </button>
             <button
+              onClick={() => navigate(orgPath('/feed'))}
+              style={{ padding: '10px 16px', backgroundColor: '#1a5f2a', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+            >
+              FEED Intelligence
+            </button>
+            <button
               onClick={() => navigate(orgPath('/chief-dashboard'))}
               style={{ padding: '10px 16px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
             >
