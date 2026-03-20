@@ -37,6 +37,7 @@ import TimesheetEditor from './TimesheetEditor.jsx'
 import TimesheetReview from './TimesheetReview.jsx'
 import ReferenceLibrary from './ReferenceLibrary.jsx'
 import WeldingChiefDashboard from './WeldingChiefDashboard.jsx'
+import FeedDashboard from './Components/FeedDashboard.jsx'
 
 // Root redirect - sends users to their org-scoped, role-specific landing page
 function RootRedirect() {
@@ -191,6 +192,13 @@ function OrgRoutes() {
       <Route path="evm-dashboard" element={
         <ProtectedRoute allowedRoles={['exec', 'cm', 'pm', 'admin', 'super_admin']}>
           <EVMDashboard />
+        </ProtectedRoute>
+      } />
+
+      {/* FEED Intelligence */}
+      <Route path="feed" element={
+        <ProtectedRoute allowedRoles={['exec', 'cm', 'pm', 'chief', 'chief_inspector', 'admin', 'super_admin']}>
+          <FeedDashboard />
         </ProtectedRoute>
       } />
 

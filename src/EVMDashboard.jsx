@@ -533,9 +533,14 @@ function EVMDashboard() {
     <div style={{ padding: '20px', maxWidth: '1800px', margin: '0 auto', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
       {/* Header */}
       <div style={{ marginBottom: '20px' }}>
-        <button onClick={() => navigate(orgPath('/admin'))} style={{ background: 'none', border: 'none', color: '#007bff', cursor: 'pointer', fontSize: '14px', marginBottom: '10px' }}>
-          ← Return to Admin Portal
-        </button>
+        <div style={{ display: 'flex', gap: '12px', marginBottom: '10px' }}>
+          <button onClick={() => navigate(orgPath('/admin'))} style={{ background: 'none', border: 'none', color: '#007bff', cursor: 'pointer', fontSize: '14px' }}>
+            ← Return to Admin Portal
+          </button>
+          <button onClick={() => navigate(orgPath('/feed'))} style={{ background: 'none', border: 'none', color: '#1a5f2a', cursor: 'pointer', fontSize: '14px', fontWeight: 'bold' }}>
+            FEED Intelligence →
+          </button>
+        </div>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '15px' }}>
           <div>
             <h1 style={{ margin: '0 0 5px 0', fontSize: '26px', color: '#1a237e' }}>
