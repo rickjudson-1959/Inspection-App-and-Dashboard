@@ -95,7 +95,7 @@ CREATE TABLE IF NOT EXISTS feed_risk_closeouts (
   id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   organization_id     UUID NOT NULL REFERENCES organizations(id),
   risk_id             UUID NOT NULL REFERENCES feed_risks(id) ON DELETE CASCADE,
-  inspector_report_id UUID REFERENCES daily_reports(id),
+  inspector_report_id BIGINT REFERENCES daily_reports(id),
   outcome             TEXT,
   actual_cost_impact  NUMERIC(14,2),
   closed_date         DATE,
