@@ -126,29 +126,29 @@ export default function ReconciliationDashboard() {
       lemsQuery = lemsQuery.eq('is_third_party', true)
     }
 
-    lemsQuery = addOrgFilter(lemsQuery)
+    lemsQuery = addOrgFilter(lemsQuery, true)
     const { data: lems } = await lemsQuery.order('date', { ascending: false })
 
     let reportsQuery = supabase.from('daily_reports').select('*')
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0])
       .order('date', { ascending: false })
-    reportsQuery = addOrgFilter(reportsQuery)
+    reportsQuery = addOrgFilter(reportsQuery, true)
     const { data: reports } = await reportsQuery
 
     let disputeQuery = supabase.from('disputes').select('*')
       .order('created_at', { ascending: false })
-    disputeQuery = addOrgFilter(disputeQuery)
+    disputeQuery = addOrgFilter(disputeQuery, true)
     const { data: disputeData } = await disputeQuery
 
     let correctionQuery = supabase.from('reconciliation_corrections').select('*')
       .order('created_at', { ascending: false })
-    correctionQuery = addOrgFilter(correctionQuery)
+    correctionQuery = addOrgFilter(correctionQuery, true)
     const { data: correctionData } = await correctionQuery
 
     let batchQuery = supabase.from('billing_batches').select('*')
       .order('created_at', { ascending: false })
-    batchQuery = addOrgFilter(batchQuery)
+    batchQuery = addOrgFilter(batchQuery, true)
     const { data: batchData } = await batchQuery
 
     // Load rate tables for cost calculations via server-side API route
@@ -170,7 +170,7 @@ export default function ReconciliationDashboard() {
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0])
       .order('date', { ascending: false })
-    trenchQuery = addOrgFilter(trenchQuery)
+    trenchQuery = addOrgFilter(trenchQuery, true)
     const { data: trenchLogData } = await trenchQuery
 
     // Load crossing support items for pipe support trackable items
@@ -179,7 +179,7 @@ export default function ReconciliationDashboard() {
       .gte('report_date', startDate.toISOString().split('T')[0])
       .lte('report_date', endDate.toISOString().split('T')[0])
       .order('created_at', { ascending: false })
-    crossingQuery = addOrgFilter(crossingQuery)
+    crossingQuery = addOrgFilter(crossingQuery, true)
     const { data: crossingSupportData } = await crossingQuery
 
     // Load general trackable items (all types except crossing_support which has its own tab)
@@ -188,7 +188,7 @@ export default function ReconciliationDashboard() {
       .gte('report_date', startDate.toISOString().split('T')[0])
       .lte('report_date', endDate.toISOString().split('T')[0])
       .order('report_date', { ascending: false })
-    trackableQuery = addOrgFilter(trackableQuery)
+    trackableQuery = addOrgFilter(trackableQuery, true)
     const { data: trackableData } = await trackableQuery
 
     setContractorData(lems || [])

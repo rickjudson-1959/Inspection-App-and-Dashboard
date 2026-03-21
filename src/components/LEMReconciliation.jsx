@@ -67,7 +67,7 @@ export default function LEMReconciliation({ refreshTrigger } = {}) {
       .gte('date', startDate.toISOString().split('T')[0])
       .lte('date', endDate.toISOString().split('T')[0])
       .order('date', { ascending: false })
-    rq = addOrgFilter(rq)
+    rq = addOrgFilter(rq, true)
     const { data: reportData } = await rq
     setReports(reportData || [])
 
@@ -112,7 +112,7 @@ export default function LEMReconciliation({ refreshTrigger } = {}) {
         .gte('date', minDate)
         .lte('date', maxDate)
         .order('date', { ascending: false })
-      rq = addOrgFilter(rq)
+      rq = addOrgFilter(rq, true)
       const { data: extraReports } = await rq
       console.log(`[LEM Reports] Found ${extraReports?.length || 0} extra reports`)
       if (extraReports && extraReports.length > 0) {
@@ -135,7 +135,7 @@ export default function LEMReconciliation({ refreshTrigger } = {}) {
       .gte('date', start)
       .lte('date', end)
       .order('date', { ascending: false })
-    rq = addOrgFilter(rq)
+    rq = addOrgFilter(rq, true)
     const { data: extraReports } = await rq
     if (extraReports && extraReports.length > 0) {
       setReports(prev => {
@@ -282,11 +282,11 @@ export default function LEMReconciliation({ refreshTrigger } = {}) {
   async function loadLemUploads() {
     setLoading(true)
     let q = supabase.from('contractor_lem_uploads').select('*').order('uploaded_at', { ascending: false })
-    q = addOrgFilter(q)
+    q = addOrgFilter(q, true)
     const { data } = await q
 
     let iq = supabase.from('contractor_invoices').select('*').order('uploaded_at', { ascending: false })
-    iq = addOrgFilter(iq)
+    iq = addOrgFilter(iq, true)
     const { data: invData } = await iq
 
     setLemUploads(data || [])
