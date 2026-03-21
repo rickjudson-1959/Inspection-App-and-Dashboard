@@ -78,17 +78,121 @@ function ImagePanel({ title, titleColor, borderColor, bgColor, urls, emptyText }
 }
 
 /**
- * Inspector report PDF panel (Panel 4) — embeds the stored PDF
+ * Editable Panel 4 — shows inspector report data or system-calculated costs
+ * with inline editing capability and live rate card costing.
+ * All edits are audit-logged.
  */
-function InspectorReportPanel({ pdfUrl, reportDate, inspector }) {
-  if (!pdfUrl) {
+function EditableDataPanel({ report, block, standaloneTicket, labourRates, equipmentRates, onDataChange }) {
+  const [labourEntries, setLabourEntries] = useState([])
+  const [equipmentEntries, setEquipmentEntries] = useState([])
+  const [dirty, setDirty] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [saved, setSaved] = useState(false)
+
+  // Source label
+  const source = report ? 'Inspector Report' : standaloneTicket ? 'Admin Entry' : null
+  const sourceDate = report?.date || standaloneTicket?.work_date || null
+  const sourceAuthor = report?.inspector_name || (standaloneTicket ? 'Cost Control' : null)
+
+  // Initialize entries from data source
+  useEffect(() => {
+    if (block) {
+      setLabourEntries((block.labourEntries || []).map((e, i) => ({ ...e, _idx: i })))
+      setEquipmentEntries((block.equipmentEntries || []).map((e, i) => ({ ...e, _idx: i })))
+    } else if (standaloneTicket) {
+      setLabourEntries((standaloneTicket.labour_entries || []).map((e, i) => ({ ...e, _idx: i })))
+      setEquipmentEntries((standaloneTicket.equipment_entries || []).map((e, i) => ({ ...e, _idx: i })))
+    } else {
+      setLabourEntries([])
+      setEquipmentEntries([])
+    }
+    setDirty(false)
+    setSaved(false)
+  }, [block, standaloneTicket])
+
+  // Rate card matching (fuzzy)
+  function findRate(name, rates) {
+    if (!name || !rates?.length) return null
+    const s = name.toLowerCase().trim()
+    return rates.find(r => {
+      const k = (r.classification || r.equipment_type || '').toLowerCase().trim()
+      return k === s
+    }) || rates.find(r => {
+      const k = (r.classification || r.equipment_type || '').toLowerCase().trim()
+      return k.includes(s) || s.includes(k)
+    }) || null
+  }
+
+  function calcLabourCost(entry) {
+    const rate = findRate(entry.classification || entry.name, labourRates)
+    if (!rate) return 0
+    const rt = parseFloat(entry.rt || entry.hours || 0)
+    const ot = parseFloat(entry.ot || 0)
+    return (rt * (parseFloat(rate.rate_st) || 0)) + (ot * (parseFloat(rate.rate_ot || rate.rate_st) || 0))
+  }
+
+  function calcEquipCost(entry) {
+    const rate = findRate(entry.equipment_type || entry.type, equipmentRates)
+    if (!rate) return 0
+    return parseFloat(entry.hours || 0) * (parseFloat(rate.rate) || 0)
+  }
+
+  function updateLabour(idx, field, value) {
+    setLabourEntries(prev => prev.map((e, i) => i === idx ? { ...e, [field]: value } : e))
+    setDirty(true)
+    setSaved(false)
+  }
+
+  function updateEquipment(idx, field, value) {
+    setEquipmentEntries(prev => prev.map((e, i) => i === idx ? { ...e, [field]: value } : e))
+    setDirty(true)
+    setSaved(false)
+  }
+
+  // Totals
+  const totalLabourCost = labourEntries.reduce((s, e) => s + calcLabourCost(e) * (parseInt(e.count || 1)), 0)
+  const totalEquipCost = equipmentEntries.reduce((s, e) => s + calcEquipCost(e) * (parseInt(e.count || 1)), 0)
+  const totalLabourHrs = labourEntries.reduce((s, e) => s + (parseFloat(e.rt || e.hours || 0) + parseFloat(e.ot || 0)) * (parseInt(e.count || 1)), 0)
+  const totalEquipHrs = equipmentEntries.reduce((s, e) => s + parseFloat(e.hours || 0) * (parseInt(e.count || 1)), 0)
+
+  async function handleSave() {
+    setSaving(true)
+    try {
+      if (report && block && onDataChange) {
+        await onDataChange({
+          type: 'inspector_report',
+          reportId: report.id,
+          labourEntries: labourEntries.map(({ _idx, ...e }) => e),
+          equipmentEntries: equipmentEntries.map(({ _idx, ...e }) => e)
+        })
+      } else if (standaloneTicket && onDataChange) {
+        await onDataChange({
+          type: 'standalone_ticket',
+          ticketId: standaloneTicket.id,
+          labourEntries: labourEntries.map(({ _idx, ...e }) => e),
+          equipmentEntries: equipmentEntries.map(({ _idx, ...e }) => e)
+        })
+      }
+      setDirty(false)
+      setSaved(true)
+    } catch (err) {
+      console.error('Panel 4 save error:', err)
+    }
+    setSaving(false)
+  }
+
+  const cellStyle = { padding: '3px 4px', fontSize: '11px', border: '1px solid #e5e7eb' }
+  const inputStyle = { width: '100%', padding: '2px 4px', fontSize: '11px', border: '1px solid #d1d5db', borderRadius: '2px', boxSizing: 'border-box' }
+  const numInputStyle = { ...inputStyle, width: '50px', textAlign: 'right' }
+
+  if (!source) {
     return (
       <div style={{ backgroundColor: '#f0fdf4', borderRadius: '8px', border: '2px solid #059669', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
         <div style={{ padding: '10px 14px 6px', borderBottom: '1px solid #059669' }}>
-          <h4 style={{ margin: 0, color: '#166534', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase' }}>Inspector Report</h4>
+          <h4 style={{ margin: 0, color: '#166534', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase' }}>Our Data</h4>
         </div>
         <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '200px' }}>
-          <p style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: '12px', textAlign: 'center' }}>No matching inspector report found</p>
+          <p style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: '12px', textAlign: 'center' }}>No matching data source found</p>
         </div>
       </div>
     )
@@ -96,23 +200,118 @@ function InspectorReportPanel({ pdfUrl, reportDate, inspector }) {
 
   return (
     <div style={{ backgroundColor: '#f0fdf4', borderRadius: '8px', border: '2px solid #059669', display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-      <div style={{ padding: '10px 14px 6px', borderBottom: '1px solid #059669', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h4 style={{ margin: 0, color: '#166534', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase' }}>Inspector Report</h4>
+      <div style={{ padding: '8px 14px 6px', borderBottom: '1px solid #059669', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <h4 style={{ margin: 0, color: '#166534', fontSize: '13px', fontWeight: '700', textTransform: 'uppercase' }}>
+          {source}
+        </h4>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          {reportDate && <span style={{ fontSize: '10px', color: '#6b7280' }}>{reportDate}</span>}
-          {inspector && <span style={{ fontSize: '10px', color: '#6b7280' }}>| {inspector}</span>}
-          <a href={pdfUrl} target="_blank" rel="noopener noreferrer"
-            style={{ fontSize: '10px', color: '#2563eb', textDecoration: 'none' }}>
-            Open PDF
-          </a>
+          {sourceDate && <span style={{ fontSize: '10px', color: '#6b7280' }}>{sourceDate}</span>}
+          {sourceAuthor && <span style={{ fontSize: '10px', color: '#6b7280' }}>| {sourceAuthor}</span>}
+          {dirty && (
+            <button onClick={handleSave} disabled={saving}
+              style={{ fontSize: '10px', padding: '2px 8px', backgroundColor: saving ? '#9ca3af' : '#059669', color: 'white', border: 'none', borderRadius: '3px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: '600' }}>
+              {saving ? 'Saving...' : 'Save'}
+            </button>
+          )}
+          {saved && <span style={{ fontSize: '10px', color: '#059669', fontWeight: '600' }}>Saved</span>}
         </div>
       </div>
-      <div style={{ flex: 1, minHeight: 0, overflow: 'hidden' }}>
-        <iframe
-          src={pdfUrl}
-          title="Inspector Report PDF"
-          style={{ width: '100%', height: '100%', border: 'none', borderRadius: '0 0 6px 6px' }}
-        />
+      <div style={{ flex: 1, overflow: 'auto', padding: '6px', fontSize: '11px' }}>
+        {/* Labour table */}
+        <div style={{ marginBottom: '8px' }}>
+          <div style={{ fontWeight: '700', color: '#374151', marginBottom: '4px', fontSize: '11px' }}>
+            Labour ({labourEntries.length}) — {totalLabourHrs.toFixed(1)} hrs — ${totalLabourCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f0fdf4' }}>
+                <th style={{ ...cellStyle, textAlign: 'left', fontWeight: '600' }}>Name</th>
+                <th style={{ ...cellStyle, textAlign: 'left', fontWeight: '600' }}>Classification</th>
+                <th style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', width: '45px' }}>RT</th>
+                <th style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', width: '45px' }}>OT</th>
+                <th style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', width: '35px' }}>Qty</th>
+                <th style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', width: '65px' }}>Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {labourEntries.map((e, i) => {
+                const cost = calcLabourCost(e) * (parseInt(e.count || 1))
+                const hasRate = !!findRate(e.classification || e.name, labourRates)
+                return (
+                  <tr key={i}>
+                    <td style={cellStyle}>
+                      <input value={e.employee_name || e.name || ''} onChange={ev => updateLabour(i, e.employee_name !== undefined ? 'employee_name' : 'name', ev.target.value)} style={inputStyle} />
+                    </td>
+                    <td style={cellStyle}>
+                      <input value={e.classification || ''} onChange={ev => updateLabour(i, 'classification', ev.target.value)} style={{ ...inputStyle, color: hasRate ? '#059669' : '#dc2626' }} />
+                    </td>
+                    <td style={cellStyle}>
+                      <input type="number" value={e.rt || e.hours || ''} onChange={ev => updateLabour(i, e.rt !== undefined ? 'rt' : 'hours', ev.target.value)} style={numInputStyle} />
+                    </td>
+                    <td style={cellStyle}>
+                      <input type="number" value={e.ot || ''} onChange={ev => updateLabour(i, 'ot', ev.target.value)} style={numInputStyle} />
+                    </td>
+                    <td style={cellStyle}>
+                      <input type="number" value={e.count || '1'} onChange={ev => updateLabour(i, 'count', ev.target.value)} style={{ ...numInputStyle, width: '35px' }} />
+                    </td>
+                    <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '500', color: hasRate ? '#059669' : '#dc2626' }}>
+                      ${cost.toFixed(0)}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Equipment table */}
+        <div>
+          <div style={{ fontWeight: '700', color: '#374151', marginBottom: '4px', fontSize: '11px' }}>
+            Equipment ({equipmentEntries.length}) — {totalEquipHrs.toFixed(1)} hrs — ${totalEquipCost.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ backgroundColor: '#f0fdf4' }}>
+                <th style={{ ...cellStyle, textAlign: 'left', fontWeight: '600' }}>Type</th>
+                <th style={{ ...cellStyle, textAlign: 'left', fontWeight: '600', width: '60px' }}>Unit #</th>
+                <th style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', width: '45px' }}>Hrs</th>
+                <th style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', width: '35px' }}>Qty</th>
+                <th style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', width: '65px' }}>Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {equipmentEntries.map((e, i) => {
+                const cost = calcEquipCost(e) * (parseInt(e.count || 1))
+                const hasRate = !!findRate(e.equipment_type || e.type, equipmentRates)
+                return (
+                  <tr key={i}>
+                    <td style={cellStyle}>
+                      <input value={e.equipment_type || e.type || ''} onChange={ev => updateEquipment(i, e.equipment_type !== undefined ? 'equipment_type' : 'type', ev.target.value)} style={{ ...inputStyle, color: hasRate ? '#059669' : '#dc2626' }} />
+                    </td>
+                    <td style={cellStyle}>
+                      <input value={e.unit_number || e.unitNumber || ''} onChange={ev => updateEquipment(i, e.unit_number !== undefined ? 'unit_number' : 'unitNumber', ev.target.value)} style={inputStyle} />
+                    </td>
+                    <td style={cellStyle}>
+                      <input type="number" value={e.hours || ''} onChange={ev => updateEquipment(i, 'hours', ev.target.value)} style={numInputStyle} />
+                    </td>
+                    <td style={cellStyle}>
+                      <input type="number" value={e.count || '1'} onChange={ev => updateEquipment(i, 'count', ev.target.value)} style={{ ...numInputStyle, width: '35px' }} />
+                    </td>
+                    <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '500', color: hasRate ? '#059669' : '#dc2626' }}>
+                      ${cost.toFixed(0)}
+                    </td>
+                  </tr>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Totals bar */}
+        <div style={{ marginTop: '8px', padding: '6px 8px', backgroundColor: '#dcfce7', borderRadius: '4px', display: 'flex', justifyContent: 'space-between', fontWeight: '700', fontSize: '12px', color: '#166534' }}>
+          <span>Total: ${(totalLabourCost + totalEquipCost).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+          <span>{(totalLabourHrs + totalEquipHrs).toFixed(1)} hrs</span>
+        </div>
       </div>
     </div>
   )
@@ -130,7 +329,11 @@ export default function LEMFourPanelView({
   reports,
   saving,
   poNumber,
-  contractorName
+  contractorName,
+  labourRates = [],
+  equipmentRates = [],
+  standaloneTickets = [],
+  onPanel4DataChange
 }) {
   const [resolution, setResolution] = useState('')
   const [resolutionNotes, setResolutionNotes] = useState('')
@@ -165,6 +368,23 @@ export default function LEMFourPanelView({
       return best
     }
 
+    // Foreman matching: pair.crew_name (which Vision extracts as foreman) vs block.foreman
+    function foremanScore(blockForeman, pairCrew) {
+      if (!blockForeman || !pairCrew) return 0
+      const bf = blockForeman.toLowerCase().trim()
+      const pc = pairCrew.toLowerCase().trim()
+      if (bf === pc) return 15 // exact foreman match is strongest signal
+      // Check if last names match (most reliable for partial matches)
+      const bfWords = bf.split(/\s+/).filter(w => w.length > 2)
+      const pcWords = pc.split(/\s+/).filter(w => w.length > 2)
+      const shared = pcWords.filter(pw => bfWords.some(bw => bw === pw)).length
+      if (shared >= 1) return 12 // last name match
+      // Fuzzy: substring match on any word
+      const fuzzy = pcWords.filter(pw => bfWords.some(bw => bw.includes(pw) || pw.includes(bw))).length
+      if (fuzzy >= 1) return 8
+      return 0
+    }
+
     // Track claimed report+block combos so no two pairs share a block
     const claimedBlocks = new Set() // "reportId:blockIdx"
 
@@ -194,12 +414,13 @@ export default function LEMFourPanelView({
         const key = `${report.id}:${bi}`
         if (claimedBlocks.has(key)) return null
         const cs = crewScore(block.contractor, pairCrew)
+        const fs = foremanScore(block.foreman, pairCrew)
         const photos = block.ticketPhotos?.length > 0 ? block.ticketPhotos : block.ticketPhoto ? [block.ticketPhoto] : []
         const hasPhotos = photos.filter(Boolean).length > 0
         const hasPdf = !!report.pdf_storage_url
-        let score = cs + (hasPdf ? 2 : 0) + (hasPhotos ? 1 : 0)
-        if (reason.startsWith('date') && cs > 0) score += 10
-        return { report, block, blockIdx: bi, score, reason: `${reason}(crew=${cs})` }
+        let score = Math.max(cs, fs) + (hasPdf ? 2 : 0) + (hasPhotos ? 1 : 0)
+        if (reason.startsWith('date') && (cs > 0 || fs > 0)) score += 10
+        return { report, block, blockIdx: bi, score, reason: `${reason}(crew=${cs},foreman=${fs})` }
       }
 
       const candidates = []
@@ -228,13 +449,14 @@ export default function LEMFourPanelView({
         }
       }
 
-      // Tier 3: Crew-only match across all reports — only if still nothing
+      // Tier 3: Crew/foreman match across all reports — only if still nothing
       if (candidates.length === 0 && (pairCrew || pairContractor)) {
         for (const report of reports) {
           const blocks = report.activity_blocks || []
           for (let bi = 0; bi < blocks.length; bi++) {
             const cs = crewScore(blocks[bi].contractor, pairCrew)
-            if (cs > 0) {
+            const fs = foremanScore(blocks[bi].foreman, pairCrew)
+            if (cs > 0 || fs > 0) {
               const c = scoreBlock(report, blocks[bi], bi, 'crew-only')
               if (c) candidates.push(c)
             }
@@ -478,10 +700,18 @@ export default function LEMFourPanelView({
                 urls={ticketPhotoUrls}
                 emptyText="No ticket photo from inspector"
               />
-              <InspectorReportPanel
-                pdfUrl={matchedReport?.pdf_storage_url}
-                reportDate={matchedReport?.date}
-                inspector={matchedReport?.inspector_name}
+              <EditableDataPanel
+                report={matchedReport}
+                block={matchedBlock}
+                standaloneTicket={!matchedReport ? standaloneTickets.find(t =>
+                  t.work_date === pair.work_date && (
+                    (t.ticket_number && pair.crew_name && t.ticket_number === pair.crew_name) ||
+                    t.work_date === pair.work_date
+                  )
+                ) : null}
+                labourRates={labourRates}
+                equipmentRates={equipmentRates}
+                onDataChange={onPanel4DataChange}
               />
             </div>
 

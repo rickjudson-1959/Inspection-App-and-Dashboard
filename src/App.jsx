@@ -38,6 +38,7 @@ import TimesheetReview from './TimesheetReview.jsx'
 import ReferenceLibrary from './ReferenceLibrary.jsx'
 import WeldingChiefDashboard from './WeldingChiefDashboard.jsx'
 import FeedDashboard from './components/FeedDashboard.jsx'
+import LEMDashboard from './components/LEMDashboard.jsx'
 
 // Root redirect - sends users to their org-scoped, role-specific landing page
 function RootRedirect() {
@@ -220,6 +221,13 @@ function OrgRoutes() {
       <Route path="reconciliation" element={
         <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <ReconciliationDashboard />
+        </ProtectedRoute>
+      } />
+
+      {/* LEM Dashboard */}
+      <Route path="lem-dashboard" element={
+        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
+          <LEMDashboard />
         </ProtectedRoute>
       } />
 

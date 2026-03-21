@@ -30,8 +30,9 @@ export default function LEMReconciliation({ refreshTrigger } = {}) {
   const [labourRates, setLabourRates] = useState([])
   const [equipmentRates, setEquipmentRates] = useState([])
   const [dateRange, setDateRange] = useState('60')
+  const [standaloneTickets, setStandaloneTickets] = useState([])
 
-  useEffect(() => { loadLemUploads(); loadReportsAndRates() }, [organizationId])
+  useEffect(() => { loadLemUploads(); loadReportsAndRates(); loadStandaloneTickets() }, [organizationId])
   useEffect(() => { loadReportsAndRates() }, [dateRange])
   // Allow parent to trigger a refresh via prop change
   useEffect(() => { if (refreshTrigger) { loadLemUploads(); loadReportsAndRates() } }, [refreshTrigger])
@@ -294,6 +295,57 @@ export default function LEMReconciliation({ refreshTrigger } = {}) {
     setLoading(false)
   }
 
+  async function loadStandaloneTickets() {
+    let sq = supabase.from('standalone_tickets').select('*').order('work_date', { ascending: false })
+    sq = addOrgFilter(sq, true)
+    const { data } = await sq
+    setStandaloneTickets(data || [])
+  }
+
+  async function handlePanel4DataChange(changeData) {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (changeData.type === 'inspector_report') {
+      // Update the activity block's labour/equipment in the report
+      const report = reports.find(r => r.id === changeData.reportId)
+      if (!report) return
+      const blocks = [...(report.activity_blocks || [])]
+      // Find the matched block and update its entries
+      const blockIdx = blocks.findIndex(b =>
+        JSON.stringify(b.labourEntries) !== JSON.stringify(changeData.labourEntries) ||
+        JSON.stringify(b.equipmentEntries) !== JSON.stringify(changeData.equipmentEntries)
+      )
+      if (blockIdx >= 0) {
+        blocks[blockIdx] = { ...blocks[blockIdx], labourEntries: changeData.labourEntries, equipmentEntries: changeData.equipmentEntries }
+      }
+      await supabase.from('daily_reports').update({ activity_blocks: blocks }).eq('id', changeData.reportId)
+      // Audit log
+      await supabase.from('report_audit_log').insert({
+        report_id: changeData.reportId, changed_by_name: user?.email || 'Cost Control',
+        changed_by_role: 'admin', change_type: 'reconciliation_edit', section: 'Reconciliation Panel 4',
+        field_name: 'labour_equipment_entries', new_value: 'Edited from reconciliation four-panel view',
+        organization_id: getOrgId()
+      })
+      // Update local state
+      setReports(prev => prev.map(r => r.id === changeData.reportId ? { ...r, activity_blocks: blocks } : r))
+    } else if (changeData.type === 'standalone_ticket') {
+      await supabase.from('standalone_tickets').update({
+        labour_entries: changeData.labourEntries,
+        equipment_entries: changeData.equipmentEntries,
+        updated_at: new Date().toISOString()
+      }).eq('id', changeData.ticketId)
+      // Audit log
+      await supabase.from('report_audit_log').insert({
+        report_id: null, changed_by_name: user?.email || 'Cost Control',
+        changed_by_role: 'admin', change_type: 'reconciliation_edit', section: 'Reconciliation Panel 4',
+        field_name: 'standalone_ticket_entries', new_value: `Edited standalone ticket ${changeData.ticketId}`,
+        organization_id: getOrgId()
+      })
+      setStandaloneTickets(prev => prev.map(t => t.id === changeData.ticketId
+        ? { ...t, labour_entries: changeData.labourEntries, equipment_entries: changeData.equipmentEntries }
+        : t))
+    }
+  }
+
   async function loadPairs(lemId) {
     const { data } = await supabase
       .from('lem_reconciliation_pairs')
@@ -436,6 +488,10 @@ export default function LEMReconciliation({ refreshTrigger } = {}) {
             saving={saving}
             poNumber={selectedLem?.po_number}
             contractorName={selectedLem?.contractor_name}
+            labourRates={labourRates}
+            equipmentRates={equipmentRates}
+            standaloneTickets={standaloneTickets}
+            onPanel4DataChange={handlePanel4DataChange}
           />
         )}
       </div>
