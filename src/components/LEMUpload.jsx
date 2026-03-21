@@ -154,9 +154,12 @@ export default function LEMUpload({ onUploadComplete }) {
     setUploading(false)
   }
 
-  // --- Separate mode: parse LEM and ticket files independently ---
+  // --- Separate mode: LEM file + ticket files uploaded independently ---
+  // Each ticket FILE = one complete ticket (may have multiple pages).
+  // LEM file = all pages are LEM summary pages.
+  // We render images, upload to storage, and create pair records directly.
   async function handleParseSeparate() {
-    if (!lemFile) { setErrors(['LEM file is required']); return }
+    if (!lemFile) { setErrors(['LEM summary file is required']); return }
     setUploading(true)
     setErrors([])
     setPreview(null)
@@ -164,171 +167,163 @@ export default function LEMUpload({ onUploadComplete }) {
     setShowReview(false)
 
     try {
-      await ensurePdfJs()
+      // Render LEM pages as images
+      setProgress('Rendering LEM pages...')
+      const lemImages = await pdfToImages(lemFile, 500, setProgress)
+      setProgress(`${lemImages.length} LEM pages rendered.`)
 
-      // Extract dates/crew from LEM pages
-      const lemBuffer = await lemFile.arrayBuffer()
-      const lemPdf = await window.pdfjsLib.getDocument({ data: lemBuffer }).promise
-      const lemPageCount = lemPdf.numPages
-      setProgress(`Extracting data from ${lemPageCount} LEM pages...`)
-
-      const lemClassifications = []
-      for (let i = 1; i <= lemPageCount; i++) {
-        const page = await lemPdf.getPage(i)
-        const text = await page.getTextContent()
-        const pageText = text.items.map(item => item.str).join(' ')
-        lemClassifications.push({
-          page_type: 'lem',
-          confidence: 1.0,
-          date: extractDateFromText(pageText),
-          crew: extractCrewFromText(pageText),
-          originalIndex: i - 1
-        })
-      }
-
-      // Extract dates/crew from ticket pages
-      const ticketClassifications = []
-      let ticketPageOffset = lemPageCount
-      const allTicketFiles = ticketFiles.length > 0 ? ticketFiles : []
-
-      for (const tf of allTicketFiles) {
+      // Render each ticket file as images (all pages of one file = one ticket)
+      const ticketGroups = [] // each entry: { fileName, images: [base64...] }
+      for (let i = 0; i < ticketFiles.length; i++) {
+        const tf = ticketFiles[i]
+        setProgress(`Rendering ticket ${i + 1} of ${ticketFiles.length}: ${tf.name}...`)
         if (tf.type === 'application/pdf') {
-          const tBuffer = await tf.arrayBuffer()
-          const tPdf = await window.pdfjsLib.getDocument({ data: tBuffer }).promise
-          setProgress(`Extracting data from ${tf.name} (${tPdf.numPages} pages)...`)
-          for (let i = 1; i <= tPdf.numPages; i++) {
-            const page = await tPdf.getPage(i)
-            const text = await page.getTextContent()
-            const pageText = text.items.map(item => item.str).join(' ')
-            ticketClassifications.push({
-              page_type: 'daily_ticket',
-              confidence: 1.0,
-              date: extractDateFromText(pageText),
-              crew: extractCrewFromText(pageText),
-              originalIndex: ticketPageOffset++
-            })
-          }
+          const imgs = await pdfToImages(tf, 100, setProgress)
+          ticketGroups.push({ fileName: tf.name, images: imgs })
         } else {
-          // Image file — treat as single ticket page
-          ticketClassifications.push({
-            page_type: 'daily_ticket',
-            confidence: 1.0,
-            date: null,
-            crew: null,
-            originalIndex: ticketPageOffset++
+          // Image file — read as base64
+          const b64 = await new Promise(resolve => {
+            const reader = new FileReader()
+            reader.onloadend = () => resolve(reader.result.split(',')[1])
+            reader.readAsDataURL(tf)
           })
+          ticketGroups.push({ fileName: tf.name, images: [b64] })
         }
       }
 
-      setProgress('Building pairs...')
-
-      // Pair by date matching
+      // Build preview: one pair per ticket file (or one pair per LEM page if no tickets)
+      const pairCount = Math.max(ticketGroups.length, lemImages.length > 0 ? 1 : 0)
       const pairs = []
-      const usedTickets = new Set()
-
-      // Group LEM pages by date
-      const lemByDate = {}
-      lemClassifications.forEach((c, i) => {
-        const date = c.date || `lem_page_${i}`
-        if (!lemByDate[date]) lemByDate[date] = { classifications: [], pageIndices: [] }
-        lemByDate[date].classifications.push(c)
-        lemByDate[date].pageIndices.push(i)
-      })
-
-      // For each LEM date group, find matching ticket pages
-      Object.entries(lemByDate).forEach(([date, lemGroup]) => {
-        const matchingTickets = { classifications: [], pageIndices: [] }
-        ticketClassifications.forEach((tc, ti) => {
-          if (usedTickets.has(ti)) return
-          if (tc.date === date || (!tc.date && !usedTickets.has(ti))) {
-            // Match by date, or assign unmatched tickets to LEM groups in order
-            if (tc.date === date) {
-              matchingTickets.classifications.push(tc)
-              matchingTickets.pageIndices.push(tc.originalIndex)
-              usedTickets.add(ti)
-            }
-          }
-        })
-
+      for (let i = 0; i < pairCount; i++) {
         pairs.push({
-          lem: { classifications: lemGroup.classifications, pageIndices: lemGroup.pageIndices },
-          ticket: matchingTickets.pageIndices.length > 0 ? matchingTickets : null
+          pair_index: i,
+          work_date: null,
+          crew_name: null,
+          lem_pages: i === 0 ? lemImages.length : 0,
+          ticket_pages: ticketGroups[i]?.images?.length || 0,
+          ticket_file: ticketGroups[i]?.fileName || null,
+          // Store rendered images for save step
+          _lemImages: i === 0 ? lemImages : [],
+          _ticketImages: ticketGroups[i]?.images || []
         })
-      })
-
-      // Assign any remaining unmatched tickets to pairs that have no tickets
-      const unmatchedTickets = ticketClassifications.filter((_, i) => !usedTickets.has(i))
-      let unmatchedIdx = 0
-      pairs.forEach(p => {
-        if (!p.ticket && unmatchedIdx < unmatchedTickets.length) {
-          const tc = unmatchedTickets[unmatchedIdx++]
-          p.ticket = { classifications: [tc], pageIndices: [tc.originalIndex] }
-        }
-      })
-
-      setRawPairs(pairs)
-
-      const pairSummaries = pairs.map((pair, p) => {
-        const allCls = [...(pair.lem?.classifications || []), ...(pair.ticket?.classifications || [])]
-        return {
-          pair_index: p,
-          work_date: allCls.find(c => c.date)?.date || null,
-          crew_name: allCls.find(c => c.crew)?.crew || null,
-          lem_pages: pair.lem?.pageIndices?.length || 0,
-          ticket_pages: pair.ticket?.pageIndices?.length || 0
-        }
-      })
-
-      setClassifications([...lemClassifications, ...ticketClassifications])
-
-      if (pairSummaries.length > 0) {
-        setPreview({ pairs: pairSummaries, documentInfo: { contractor_name: lemClassifications.find(c => c.crew)?.crew || null } })
-      } else {
-        setErrors(['No pairs could be built from the uploaded files.'])
       }
 
-      // Auto-fill
-      const firstDate = lemClassifications.find(c => c.date)?.date
-      const lastDate = [...lemClassifications].reverse().find(c => c.date)?.date
-      if (firstDate && !periodStart) setPeriodStart(firstDate)
-      if (lastDate && !periodEnd) setPeriodEnd(lastDate)
+      // Store for save
+      setRawPairs(pairs)
+      setPreview({ pairs, documentInfo: null, separateMode: true })
+
+      setProgress('')
     } catch (err) {
       setErrors([`Parse failed: ${err.message}`])
+      setProgress('')
     }
-    setProgress('')
     setUploading(false)
   }
 
-  // Re-export text extraction helpers for separate mode
-  function extractDateFromText(text) {
-    const MONTH_MAP = { jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12' }
-    let m = text.match(/(\d{4})-(\d{2})-(\d{2})/)
-    if (m) return `${m[1]}-${m[2]}-${m[3]}`
-    m = text.match(/(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+(\d{1,2}),?\s*(\d{4})/i)
-    if (m) return `${m[3]}-${MONTH_MAP[m[1].toLowerCase().slice(0,3)]}-${m[2].padStart(2,'0')}`
-    m = text.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})/)
-    if (m) { const a = parseInt(m[1]); if (a > 12) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`; return `${m[3]}-${m[1].padStart(2,'0')}-${m[2].padStart(2,'0')}` }
-    return null
-  }
+  // Save handler for separate mode — uploads images directly, creates pair records with URLs
+  async function handleSaveSeparate() {
+    if (!preview || !rawPairs.length) return
+    if (!contractorName.trim()) { setErrors(['Contractor name is required']); return }
+    setUploading(true)
 
-  function extractCrewFromText(text) {
-    let m = text.match(/(?:crew|contractor|company)\s*[:]\s*([^\n,;]{3,40})/i)
-    if (m) { let name = m[1].replace(/\s{2,}.*$/, '').replace(/\s*date\s*:.*/i, '').trim(); if (name.length >= 3) return name }
-    m = text.match(/foreman\s*[:]\s*([^\n,;]{3,30})/i)
-    if (m) return m[1].replace(/\s{2,}.*$/, '').trim()
-    return null
-  }
+    try {
+      const orgId = getOrgId()
 
-  async function ensurePdfJs() {
-    if (window.pdfjsLib) return
-    await new Promise((resolve, reject) => {
-      const script = document.createElement('script')
-      script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
-      script.onload = resolve
-      script.onerror = () => reject(new Error('Failed to load PDF.js'))
-      document.head.appendChild(script)
-    })
-    window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+      // Upload source files to storage
+      setProgress('Uploading files to storage...')
+      let sourceFileUrl = null
+      const allFiles = [lemFile, ...ticketFiles].filter(Boolean)
+      const sourceFilename = allFiles.map(f => f.name).join(', ')
+      for (const f of allFiles) {
+        const filePath = `${orgId}/${Date.now()}-${f.name}`
+        const { error: storageErr } = await supabase.storage.from('lem-uploads').upload(filePath, f)
+        if (!storageErr && !sourceFileUrl) {
+          const { data: urlData } = supabase.storage.from('lem-uploads').getPublicUrl(filePath)
+          sourceFileUrl = urlData?.publicUrl || null
+        }
+      }
+
+      // Create parent LEM record
+      setProgress('Creating LEM record...')
+      const profile = getSelectedProfile()
+      const { data: lemRecord, error: lemErr } = await supabase
+        .from('contractor_lem_uploads')
+        .insert({
+          organization_id: orgId,
+          uploaded_by: userProfile?.id || null,
+          contractor_name: contractorName.trim(),
+          lem_period_start: periodStart || null,
+          lem_period_end: periodEnd || null,
+          lem_number: lemNumber.trim() || null,
+          source_filename: sourceFilename,
+          source_file_url: sourceFileUrl,
+          profile_id: profile?.id || null,
+          po_number: profile?.po_number || null,
+          total_claimed: rawPairs.length,
+          status: 'parsed'
+        })
+        .select()
+        .single()
+      if (lemErr) throw lemErr
+
+      // Upload rendered images and create pair records
+      const base64ToBlob = (b64) => {
+        const bytes = atob(b64)
+        const arr = new Uint8Array(bytes.length)
+        for (let i = 0; i < bytes.length; i++) arr[i] = bytes.charCodeAt(i)
+        return new Blob([arr], { type: 'image/jpeg' })
+      }
+
+      for (let p = 0; p < rawPairs.length; p++) {
+        const pair = rawPairs[p]
+        setProgress(`Uploading images for pair ${p + 1} of ${rawPairs.length}...`)
+
+        // Upload LEM page images
+        const lemUrls = []
+        for (let i = 0; i < (pair._lemImages || []).length; i++) {
+          const path = `${lemRecord.id}/lem_pages/pair${p}_page${i}.jpg`
+          const { error } = await supabase.storage.from('lem-uploads').upload(path, base64ToBlob(pair._lemImages[i]))
+          if (!error) {
+            const { data } = supabase.storage.from('lem-uploads').getPublicUrl(path)
+            lemUrls.push(data?.publicUrl)
+          }
+        }
+
+        // Upload ticket page images
+        const ticketUrls = []
+        for (let i = 0; i < (pair._ticketImages || []).length; i++) {
+          const path = `${lemRecord.id}/ticket_pages/pair${p}_page${i}.jpg`
+          const { error } = await supabase.storage.from('lem-uploads').upload(path, base64ToBlob(pair._ticketImages[i]))
+          if (!error) {
+            const { data } = supabase.storage.from('lem-uploads').getPublicUrl(path)
+            ticketUrls.push(data?.publicUrl)
+          }
+        }
+
+        // Insert pair record with URLs already populated
+        await supabase.from('lem_reconciliation_pairs').insert({
+          lem_upload_id: lemRecord.id,
+          organization_id: orgId,
+          pair_index: p,
+          work_date: pair.work_date || null,
+          crew_name: pair.crew_name || null,
+          lem_page_urls: lemUrls,
+          lem_page_indices: [],
+          contractor_ticket_urls: ticketUrls,
+          contractor_ticket_indices: [],
+          po_number: profile?.po_number || null,
+          status: 'pending'
+        })
+      }
+
+      setProgress('Done!')
+      resetForm()
+      onUploadComplete?.(lemRecord)
+    } catch (err) {
+      console.error('Separate save error:', err)
+      setErrors([`Save failed: ${err.message}`])
+    }
+    setUploading(false)
   }
 
   function handleClassificationCorrection(pageIndex, newType) {
@@ -732,6 +727,7 @@ export default function LEMUpload({ onUploadComplete }) {
                   <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Crew</th>
                   <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #e5e7eb' }}>LEM Pages</th>
                   <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #e5e7eb' }}>Ticket Pages</th>
+                  {preview.separateMode && <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #e5e7eb' }}>Ticket File</th>}
                 </tr>
               </thead>
               <tbody>
@@ -744,6 +740,7 @@ export default function LEMUpload({ onUploadComplete }) {
                     <td style={{ padding: '6px 8px', textAlign: 'center', color: (pair.ticket_pages || 0) === 0 ? '#dc2626' : 'inherit' }}>
                       {pair.ticket_pages || 0}{(pair.ticket_pages || 0) === 0 ? ' (missing)' : ''}
                     </td>
+                    {preview.separateMode && <td style={{ padding: '6px 8px', fontSize: '11px', color: '#6b7280' }}>{pair.ticket_file || '-'}</td>}
                   </tr>
                 ))}
               </tbody>
@@ -755,9 +752,9 @@ export default function LEMUpload({ onUploadComplete }) {
               style={{ padding: '8px 16px', backgroundColor: '#6b7280', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
               Cancel
             </button>
-            <button onClick={handleSave} disabled={uploading}
+            <button onClick={preview?.separateMode ? handleSaveSeparate : handleSave} disabled={uploading}
               style={{ padding: '8px 20px', backgroundColor: '#059669', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: '500' }}>
-              Save & Upload Images
+              {preview?.separateMode ? 'Save & Upload' : 'Save & Upload Images'}
             </button>
           </div>
         </div>
