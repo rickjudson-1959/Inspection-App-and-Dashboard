@@ -4,7 +4,7 @@ import { supabase } from '../supabase'
 /**
  * Zoomable image panel — supports multi-page scroll, click-to-fullscreen
  */
-function ImagePanel({ title, titleColor, borderColor, bgColor, urls, emptyText }) {
+function ImagePanel({ title, titleColor, borderColor, bgColor, urls, emptyText, claimedData }) {
   const [zoom, setZoom] = useState(1)
   const [fullscreen, setFullscreen] = useState(null) // index of fullscreen image
   const containerRef = useRef(null)
@@ -54,6 +54,62 @@ function ImagePanel({ title, titleColor, borderColor, bgColor, urls, emptyText }
           ))
         )}
       </div>
+
+      {/* Claimed data summary (from LEM OCR extraction) */}
+      {claimedData && (claimedData.labour?.length > 0 || claimedData.equipment?.length > 0) && (
+        <div style={{ borderTop: `1px solid ${borderColor}`, padding: '6px 8px', fontSize: '10px', maxHeight: '35%', overflow: 'auto' }}>
+          <div style={{ fontWeight: '700', color: titleColor, marginBottom: '3px' }}>
+            Claimed: ${(claimedData.totals?.grand_total || 0).toLocaleString()}
+            <span style={{ fontWeight: '400', color: '#6b7280', marginLeft: '8px' }}>
+              {claimedData.labour?.length || 0} labour, {claimedData.equipment?.length || 0} equipment
+            </span>
+          </div>
+          {claimedData.labour?.length > 0 && (
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '4px' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '1px 3px', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>Name</th>
+                  <th style={{ textAlign: 'left', padding: '1px 3px', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>Class</th>
+                  <th style={{ textAlign: 'right', padding: '1px 3px', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>RT</th>
+                  <th style={{ textAlign: 'right', padding: '1px 3px', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>OT</th>
+                  <th style={{ textAlign: 'right', padding: '1px 3px', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>$</th>
+                </tr>
+              </thead>
+              <tbody>
+                {claimedData.labour.map((l, i) => (
+                  <tr key={i}>
+                    <td style={{ padding: '1px 3px' }}>{l.employee_name}</td>
+                    <td style={{ padding: '1px 3px', color: '#6b7280' }}>{l.classification}</td>
+                    <td style={{ padding: '1px 3px', textAlign: 'right' }}>{l.rt_hours || 0}</td>
+                    <td style={{ padding: '1px 3px', textAlign: 'right' }}>{l.ot_hours || 0}</td>
+                    <td style={{ padding: '1px 3px', textAlign: 'right', fontWeight: '500' }}>${(l.line_total || 0).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+          {claimedData.equipment?.length > 0 && (
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '1px 3px', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>Equipment</th>
+                  <th style={{ textAlign: 'right', padding: '1px 3px', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>Hrs</th>
+                  <th style={{ textAlign: 'right', padding: '1px 3px', borderBottom: '1px solid #e5e7eb', fontWeight: '600' }}>$</th>
+                </tr>
+              </thead>
+              <tbody>
+                {claimedData.equipment.map((e, i) => (
+                  <tr key={i}>
+                    <td style={{ padding: '1px 3px' }}>{e.equipment_type} {e.unit_number ? `(${e.unit_number})` : ''}</td>
+                    <td style={{ padding: '1px 3px', textAlign: 'right' }}>{e.hours || 0}</td>
+                    <td style={{ padding: '1px 3px', textAlign: 'right', fontWeight: '500' }}>${(e.line_total || 0).toLocaleString()}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {/* Fullscreen overlay */}
       {fullscreen !== null && (
@@ -683,6 +739,7 @@ export default function LEMFourPanelView({
                 bgColor="#fefce8"
                 urls={pair.lem_page_urls}
                 emptyText="No LEM pages"
+                claimedData={pair.lem_claimed_data}
               />
               <ImagePanel
                 title="Contractor Daily Ticket"

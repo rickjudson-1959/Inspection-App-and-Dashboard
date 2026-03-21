@@ -7,6 +7,7 @@ import LEMUpload from './LEMUpload.jsx'
 import LEMFourPanelView from './LEMFourPanelView.jsx'
 import InvoiceUpload from './InvoiceUpload.jsx'
 import InvoiceComparison from './InvoiceComparison.jsx'
+import { extractAllLEMLineItems } from '../utils/lemParser.js'
 
 export default function LEMReconciliation({ refreshTrigger } = {}) {
   const { addOrgFilter, getOrgId, organizationId } = useOrgQuery()
@@ -460,6 +461,18 @@ export default function LEMReconciliation({ refreshTrigger } = {}) {
             </p>
           </div>
           <div style={{ display: 'flex', gap: '12px' }}>
+            {pairs.length > 0 && !pairs.every(p => p.lem_claimed_data) && (
+              <button onClick={async () => {
+                setSaving(true)
+                const pairsWithUrls = pairs.filter(p => p.lem_page_urls?.length > 0 && !p.lem_claimed_data)
+                await extractAllLEMLineItems(pairsWithUrls, (msg) => console.log(msg))
+                await loadPairs(selectedLem.id)
+                setSaving(false)
+              }} disabled={saving}
+                style={{ padding: '10px 24px', backgroundColor: saving ? '#9ca3af' : '#0ea5e9', color: 'white', border: 'none', borderRadius: '6px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: '600' }}>
+                {saving ? 'Extracting...' : 'Extract LEM Data'}
+              </button>
+            )}
             {allReviewed && selectedLem.status !== 'approved' && (
               <button onClick={approveReconciliation} disabled={saving}
                 style={{ padding: '10px 24px', backgroundColor: saving ? '#9ca3af' : '#059669', color: 'white', border: 'none', borderRadius: '6px', cursor: saving ? 'not-allowed' : 'pointer', fontWeight: '600' }}>

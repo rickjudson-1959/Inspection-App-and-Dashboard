@@ -84,3 +84,10 @@ ALTER TABLE lem_reconciliation_pairs
     CHECK (ticket_source IN ('inspector_report', 'standalone_ticket'));
 ALTER TABLE lem_reconciliation_pairs
   ADD COLUMN IF NOT EXISTS standalone_ticket_id uuid REFERENCES standalone_tickets(id) ON DELETE SET NULL;
+
+-- 6. Add lem_claimed_data column for OCR-extracted billing data from LEM pages
+ALTER TABLE lem_reconciliation_pairs
+  ADD COLUMN IF NOT EXISTS lem_claimed_data jsonb;
+
+COMMENT ON COLUMN lem_reconciliation_pairs.lem_claimed_data IS
+  'Claude Vision OCR-extracted billing data from LEM summary pages: {labour:[], equipment:[], totals:{}, extracted_at}';

@@ -911,3 +911,207 @@ async function uploadPairImagesInBackground(file, lemId, rawPairs, insertedPairs
     console.error('[LEM BG Upload] Fatal error:', err)
   }
 }
+
+// ── LEM Line Item OCR Extraction ─────────────────────────────────────────────
+//
+// Uses Claude Vision to extract the contractor's claimed billing data from
+// LEM summary page images. Returns structured labour/equipment line items
+// with names, classifications, hours, rates, and totals.
+
+/**
+ * Extract billing line items from a LEM summary page image using Claude Vision.
+ *
+ * @param {string} imageUrl - Public URL of the LEM summary page image
+ * @returns {Promise<{labour: Array, equipment: Array, totals: object, raw_text: string}>}
+ */
+export async function extractLEMLineItems(imageUrl) {
+  if (!ANTHROPIC_API_KEY) {
+    console.warn('[LEM OCR] No API key — cannot extract line items')
+    return { labour: [], equipment: [], totals: {}, raw_text: '' }
+  }
+
+  const prompt = `You are extracting billing data from a contractor's Labour & Equipment Manifest (LEM) page used in pipeline construction.
+
+Extract ALL line items from this LEM page. Return ONLY valid JSON (no markdown, no code fences):
+
+{
+  "labour": [
+    {
+      "employee_name": "full name",
+      "classification": "job title/classification exactly as printed",
+      "rt_hours": number or 0,
+      "ot_hours": number or 0,
+      "rt_rate": number or 0,
+      "ot_rate": number or 0,
+      "line_total": number or 0,
+      "count": 1
+    }
+  ],
+  "equipment": [
+    {
+      "equipment_type": "type exactly as printed",
+      "unit_number": "unit/fleet ID or empty string",
+      "hours": number or 0,
+      "rate": number or 0,
+      "line_total": number or 0,
+      "count": 1
+    }
+  ],
+  "totals": {
+    "total_labour_hours": number or 0,
+    "total_labour_cost": number or 0,
+    "total_equipment_hours": number or 0,
+    "total_equipment_cost": number or 0,
+    "grand_total": number or 0
+  }
+}
+
+Rules:
+- Extract every person and piece of equipment listed, even if hours are 0
+- RT = regular time (first 8 hours), OT = overtime (beyond 8)
+- If only total hours are shown (no RT/OT split): put all in rt_hours
+- Rates: extract the hourly rate if visible, otherwise 0
+- line_total: the dollar amount for that line if shown, otherwise 0
+- Keep classification names EXACTLY as printed (e.g., "Gen. Labourer", "Oper 1", "Backhoe Cat 330")
+- If the page has subtotals or grand totals, capture them in the totals object
+- If this page appears to be a continuation (equipment section of a multi-page LEM), still extract all items`
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      // Fetch image as base64
+      const imgResp = await fetch(imageUrl)
+      const imgBlob = await imgResp.blob()
+      const imgBase64 = await new Promise(resolve => {
+        const reader = new FileReader()
+        reader.onloadend = () => resolve(reader.result.split(',')[1])
+        reader.readAsDataURL(imgBlob)
+      })
+
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 4000,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imgBase64 } },
+              { type: 'text', text: prompt }
+            ]
+          }]
+        })
+      })
+
+      if (response.status === 429) {
+        const delay = Math.pow(2, attempt + 1) * 1000
+        console.log(`[LEM OCR] Rate limited — retrying in ${delay / 1000}s`)
+        await sleep(delay)
+        continue
+      }
+
+      if (!response.ok) {
+        console.error(`[LEM OCR] API error: ${response.status}`)
+        return { labour: [], equipment: [], totals: {}, raw_text: '' }
+      }
+
+      const data = await response.json()
+      const text = data.content?.[0]?.text || ''
+
+      // Parse JSON from response (handle markdown fences)
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) {
+        console.warn('[LEM OCR] No JSON in response')
+        return { labour: [], equipment: [], totals: {}, raw_text: text }
+      }
+
+      const parsed = JSON.parse(jsonMatch[0])
+      console.log(`[LEM OCR] Extracted: ${parsed.labour?.length || 0} labour, ${parsed.equipment?.length || 0} equipment`)
+      return {
+        labour: parsed.labour || [],
+        equipment: parsed.equipment || [],
+        totals: parsed.totals || {},
+        raw_text: text
+      }
+    } catch (err) {
+      console.error(`[LEM OCR] Attempt ${attempt + 1} failed:`, err)
+      if (attempt === MAX_RETRIES - 1) {
+        return { labour: [], equipment: [], totals: {}, raw_text: '' }
+      }
+      await sleep(2000)
+    }
+  }
+
+  return { labour: [], equipment: [], totals: {}, raw_text: '' }
+}
+
+/**
+ * Extract billing data from all LEM summary pages in a set of reconciliation pairs.
+ * Stores the extracted data on each pair record in the `lem_claimed_data` JSONB column.
+ *
+ * @param {Array} pairs - Reconciliation pair records with lem_page_urls
+ * @param {Function} onProgress - Progress callback
+ * @returns {Promise<Array>} - Updated pairs with lem_claimed_data populated
+ */
+export async function extractAllLEMLineItems(pairs, onProgress) {
+  const results = []
+
+  for (let i = 0; i < pairs.length; i++) {
+    const pair = pairs[i]
+    const lemUrls = (pair.lem_page_urls || []).filter(Boolean)
+
+    if (lemUrls.length === 0) {
+      results.push({ pairId: pair.id, data: null })
+      continue
+    }
+
+    onProgress?.(`Extracting billing data from pair ${i + 1} of ${pairs.length}...`)
+
+    // Extract from each LEM page (a pair may have multiple LEM pages)
+    const allLabour = []
+    const allEquipment = []
+    let totalLabourCost = 0
+    let totalEquipCost = 0
+    let grandTotal = 0
+
+    for (const url of lemUrls) {
+      const extracted = await extractLEMLineItems(url)
+      allLabour.push(...(extracted.labour || []))
+      allEquipment.push(...(extracted.equipment || []))
+      if (extracted.totals) {
+        totalLabourCost += extracted.totals.total_labour_cost || 0
+        totalEquipCost += extracted.totals.total_equipment_cost || 0
+        grandTotal += extracted.totals.grand_total || 0
+      }
+      // Rate limit: wait between pages
+      if (lemUrls.length > 1) await sleep(CLASSIFY_DELAY_MS)
+    }
+
+    const claimedData = {
+      labour: allLabour,
+      equipment: allEquipment,
+      totals: {
+        total_labour_cost: totalLabourCost,
+        total_equipment_cost: totalEquipCost,
+        grand_total: grandTotal
+      },
+      extracted_at: new Date().toISOString()
+    }
+
+    // Save to pair record
+    await supabase.from('lem_reconciliation_pairs')
+      .update({ lem_claimed_data: claimedData })
+      .eq('id', pair.id)
+
+    results.push({ pairId: pair.id, data: claimedData })
+    console.log(`[LEM OCR] Pair ${i + 1}: ${allLabour.length} labour, ${allEquipment.length} equipment, total=$${grandTotal}`)
+  }
+
+  onProgress?.(`Extraction complete — ${results.filter(r => r.data).length} pairs processed`)
+  return results
+}
