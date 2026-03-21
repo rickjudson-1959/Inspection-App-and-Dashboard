@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 4.12 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-03-20
+## Version: 4.13 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-03-21
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -647,6 +647,7 @@ When OCR extracts total hours from a ticket, the app auto-splits: RT = min(total
 | Holiday | A defect in pipe coating that exposes bare steel |
 | Holiday Test (Jeeping) | Electrical test to detect coating defects using a high-voltage probe |
 | Hydrostatic Test | Pressure test filling the pipeline with water to verify it is leak-free |
+| Indirect LEM | A Labour & Equipment Manifest for overhead costs (office staff, camp, project management) that do not have a corresponding inspector report |
 | Inertia Ratio | Shadow Hours divided by Billed Hours — real-time efficiency metric |
 | Joint Number | Sequential identifier for each pipe joint on the project |
 | JH (Jump Hours) | Bonus hours paid to workers — separate from RT and OT |
@@ -676,6 +677,7 @@ When OCR extracts total hours from a ticket, the app auto-splits: RT = min(total
 | Trackable Items | Project-wide tracked assets (mats, fencing, erosion control, etc.) |
 | Trench Crown | Deliberate mound of soil over the pipeline trench for settlement |
 | Trackable Item | A tracked line item for project tracking and billing (e.g., weld cut outs, repairs, reworks, markers, cathodic protection) |
+| Standalone Ticket | A contractor ticket entered by admin/cost control (not by an inspector) for indirect, third-party, or unmatched work. Serves as the source of truth when no inspector report exists |
 | Steering Log | Record of HDD bore path guidance readings at each drill pipe joint — tracks station, depth, pitch, azimuth, offsets, and bend radius |
 | TVD (True Vertical Depth) | The vertical distance from surface to the drill bit, as opposed to measured depth along the bore path |
 | Waste Management Log | Record of drilling fluid volumes, storage, disposal, additives, and compliance testing for HDD and HD Bore activities |
@@ -789,18 +791,18 @@ A: The system detected you already have a report for the same date and spread. I
 A: The Reconciliation Dashboard has a "Trackable Items" tab (teal). It shows all 14 trackable item categories with filter chips, summary cards per type (including deploy/retrieve/net counts for inventory items like mats, fencing, ramps, goalposts), a detail table with type-specific columns, and an inventory net position panel. Use the date range dropdown to adjust the time window.
 
 **Q: What is LEM reconciliation and how does my daily report fit in?**
-A: LEM (Labour and Equipment Manifest) reconciliation is the process of verifying that a contractor's billing claims match the actual work performed. Admins use a **visual four-panel comparison** to review each ticket side-by-side:
+A: LEM (Labour and Equipment Manifest) reconciliation is the process of verifying that a contractor's billing claims match the actual work performed. The system handles three types of LEMs: **direct** (field crews with an inspector), **indirect** (overhead like office staff), and **third party** (subcontractors). Admins use a **visual four-panel comparison** to review each ticket side-by-side:
 
-- **Panel 1 — Contractor LEM**: Zoomable page images from the contractor's uploaded LEM PDF showing their billing claim.
+- **Panel 1 — Contractor LEM**: Zoomable page images from the contractor's uploaded LEM PDF showing their billing claim. The system uses Claude Vision AI to automatically extract the contractor's claimed labour names, classifications, hours, rates, and totals from these pages so the numbers can be compared directly against Panel 4.
 - **Panel 2 — Contractor Daily Ticket**: Zoomable page images from the contractor's own copy of the daily ticket (extracted from their LEM bundle).
-- **Panel 3 — Our Ticket Photo**: Your original field photo of the contractor's daily ticket (from `ticketPhotos`). This is the ground truth captured before the contractor could alter anything.
-- **Panel 4 — Inspector Report PDF**: Your full inspector report embedded as a PDF, matched by date and contractor name. The system scores all candidate reports and picks the best match (prioritizing exact crew name matches and reports that have archived PDFs).
+- **Panel 3 — Our Ticket Photo**: Your original field photo of the contractor's daily ticket (from `ticketPhotos`). For indirect or third-party tickets where there's no inspector report, this is the signed ticket scan uploaded by the admin/cost control team. This is the ground truth — what was approved before the contractor could alter anything.
+- **Panel 4 — Our Data (Editable)**: An editable view of the labour and equipment entries from your inspector report (or from the admin's ticket entry for indirect/third-party work). Rate cards are applied to calculate costs in real-time. The cost control person can edit entries directly in this panel to fix errors, and all changes are audit-logged. The system shows running totals so the admin can see exactly where the numbers diverge from the contractor's claim in Panel 1.
 
-This four-panel layout catches discrepancies — extra workers claimed, inflated hours, equipment not on-site, or altered ticket copies. Your accurate reporting is the foundation of the entire reconciliation process.
+This four-panel layout catches discrepancies — extra workers claimed, inflated hours, equipment not on-site, or altered ticket copies. Your accurate reporting is the foundation of the entire reconciliation process. For indirect and third-party work where no inspector report exists, the admin enters the signed ticket data first, and Panel 4 shows the system-calculated costs from that entry.
 
-The system uses **content-marker classification** (pdf.js text extraction + 11 LEM markers and 7 ticket markers for scoring) to sort uploaded LEM pages. Continuation pages (equipment overflow, extra rows) inherit from the preceding page. When pages alternate LEM→ticket cleanly, adjacency pairing produces correct pairs automatically. Matched pairs are stored in the `lem_reconciliation_pairs` table and presented in a left sidebar organized by date with status filters and progress tracking.
+The system uses **content-marker classification** (pdf.js text extraction + LEM/ticket markers for scoring) to sort uploaded LEM pages. Continuation pages inherit from the preceding page. Matched pairs are stored in the `lem_reconciliation_pairs` table and presented in a left sidebar organized by date with status filters and progress tracking. A central **LEM Dashboard** tracks all LEMs across all categories, organized by PO and contractor name.
 
-Admins resolve each pair with one of four actions: **Accept**, **Dispute-Variance** (numbers don't match), **Dispute-Ticket Altered** (contractor's copy differs from your photo), or **Skip**. Keyboard shortcuts speed up review (A=Accept, N/Arrow Right=Next, Arrow Left=Previous). The "Approve Reconciliation" button only becomes available once all pairs have been reviewed.
+Admins resolve each pair with one of four actions: **Accept**, **Dispute-Variance** (numbers don't match), **Dispute-Ticket Altered** (contractor's copy differs from our signed copy), or **Skip**. Keyboard shortcuts speed up review (A=Accept, N/Arrow Right=Next, Arrow Left=Previous). The "Approve Reconciliation" button only becomes available once all pairs have been reviewed.
 
 **Q: Why is the ticket number so important?**
 A: The ticket number is the key that links all four documents together in reconciliation. If the ticket number on your report doesn't match the contractor's daily ticket, the system can't automatically match your data to their billing claim. Always double-check that the ticket number in your report matches exactly what's printed on the contractor's ticket. The system normalizes common variations (prefixes like "Ticket-", "TKT-", "DT-", "#") but it can't fix completely wrong numbers.
@@ -822,5 +824,5 @@ A: WBS (Work Breakdown Structure) categories are standard scope buckets used acr
 
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.12*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.13*
 *Source: InspectorReport.jsx (8,400+ lines) + ActivityBlock.jsx (3,400+ lines)*

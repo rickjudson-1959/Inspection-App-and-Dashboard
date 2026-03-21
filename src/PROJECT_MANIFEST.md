@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - March 20, 2026
+## Project Manifest - March 21, 2026
 
 ---
 
@@ -280,8 +280,21 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 - Contractor name, LEM period (start/end), LEM reference number
 - Source file URL (PDF stored in `lem-uploads` bucket)
 - Aggregated totals: labour hours/cost, equipment hours/cost, total claimed
+- lem_category: direct (field crew with inspector), indirect (overhead/office), third_party (subcontractor) — Added Mar 21, 2026
 - Status workflow: uploaded → parsed → approved
 - Uploaded by user FK
+
+**standalone_tickets** (NEW — March 21, 2026)
+- Admin/cost-control-entered tickets for work without inspector reports
+- For indirect overhead, third-party subcontractors, and direct crews without inspectors
+- ticket_number, work_date, contractor_name, po_number, lem_category
+- ticket_photo_urls (JSONB — scans/photos of signed ticket)
+- labour_entries, equipment_entries (JSONB — same structure as activity block)
+- Rate card costing: total_labour_cost, total_equipment_cost, total_cost (calculated on save)
+- signed_by, signed_role (who signed the ticket in the field)
+- matched_lem_upload_id (FK — linked when contractor's LEM arrives)
+- Status: entered → matched → reconciled → approved
+- Organization-scoped with RLS
 
 **lem_reconciliation_pairs** (NEW — replaces lem_line_items for visual approach)
 - Visual reconciliation pairs extracted from LEM PDFs
@@ -290,6 +303,9 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 - lem_page_urls (JSONB array of image URLs), lem_page_indices (JSONB)
 - contractor_ticket_urls (JSONB array of image URLs), contractor_ticket_indices (JSONB)
 - Matched report: matched_report_id (FK), matched_block_index, match_method
+- ticket_source: 'inspector_report' or 'standalone_ticket' — determines Panel 3 source (Added Mar 21, 2026)
+- standalone_ticket_id (FK to standalone_tickets) — for non-inspector tickets (Added Mar 21, 2026)
+- lem_claimed_data (JSONB) — Claude Vision OCR-extracted billing data from LEM summary pages: labour[], equipment[], totals{} (Added Mar 21, 2026)
 - Resolution: status (pending/accepted/disputed/skipped), resolution type, notes, resolved_by/at
 - dispute_type column: 'variance' or 'ticket_altered' (NULL for non-disputed) — CHECK constrained (Added Mar 13, 2026)
 - RLS policy: `is_super_admin() OR organization_id IN (SELECT user_organization_ids())` (aligned Mar 13, 2026)
@@ -399,7 +415,7 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ├── utils/
 │   ├── queryHelpers.js         # Org-scoped query helpers (useOrgQuery)
 │   ├── feedAuditLogger.js      # FEED module audit logger — writes to report_audit_log with module:'feed_intelligence', is_critical:true, regulatory_category:'financial' (NEW - Mar 2026)
-│   ├── lemParser.js            # LEM PDF parser: pdf.js text extraction, content-marker classification (lem_score/ticket_score), continuation page inheritance, adjacency pairing for alternating LEM/ticket pages, background image upload (Updated Mar 11, 2026)
+│   ├── lemParser.js            # LEM PDF parser: pdf.js text extraction, content-marker classification, adjacency pairing, background image upload + Claude Vision OCR extraction of LEM billing line items (extractLEMLineItems, extractAllLEMLineItems) with structured labour/equipment/totals output (Updated Mar 21, 2026)
 │   ├── lemMatcher.js           # Three-strategy matching engine: exact ticket → normalized ticket → date+crew fallback, variance calculation (NEW - Mar 2026)
 │   └── ticketNormalizer.js     # Ticket number normalization: strips prefixes, handles format variations (NEW - Mar 2026)
 │
@@ -475,8 +491,10 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
     ├── TenantSwitcher.jsx       # Organization switcher dropdown
     ├── AIAgentStatusIcon.jsx    # AI Watcher status indicator (NEW - Feb 2026)
     ├── LEMUpload.jsx            # Contractor LEM PDF upload, parse, preview, save (NEW - Mar 2026)
-    ├── LEMReconciliation.jsx    # Visual four-panel reconciliation: pair list sidebar, resolution workflow with dispute_type preservation, invoice integration, report date-range loading (Updated Mar 13, 2026)
-    ├── LEMFourPanelView.jsx     # Four-panel visual comparison: zoomable image panels, inspector report PDF embed (Panel 4), batch report matching with claimed-block dedup, tiered fallback (exact date → ±1 day → crew-only → PDF-only), keyboard nav, resolution bar with dispute subtype display (Updated Mar 13, 2026)
+    ├── LEMReconciliation.jsx    # Visual four-panel reconciliation: three-lane support (direct/indirect/third_party), editable Panel 4 with rate card costing, standalone ticket integration, LEM OCR extraction trigger, forced org filtering (Updated Mar 21, 2026)
+    ├── LEMFourPanelView.jsx     # Four-panel visual comparison: P1=Contractor LEM (with OCR-extracted claimed data), P2=Contractor ticket, P3=Our ticket photo (inspector or admin), P4=Editable data panel (inspector report or system-calculated costs with inline editing + audit trail). Batch report matching, keyboard nav, resolution bar (Updated Mar 21, 2026)
+    ├── LEMDashboard.jsx         # Central LEM tracking dashboard — organized by PO/contractor, filters by category (direct/indirect/third_party) and status, standalone ticket entry integration (NEW - Mar 21, 2026)
+    ├── TicketEntry.jsx          # Admin/cost control ticket entry form — labour/equipment tables, photo upload, rate card costing, audit logging. For tickets without inspector reports (NEW - Mar 21, 2026)
     ├── InvoiceUpload.jsx        # Invoice upload with reconciliation gate, Claude Vision parsing, variance comparison (NEW - Mar 2026)
     ├── InvoiceComparison.jsx    # Invoice vs reconciliation comparison, approve/reject/mark-paid workflow (NEW - Mar 2026)
     ├── FeedDashboard.jsx        # FEED Intelligence main dashboard — 4-tab layout (Overview, Setup, WBS, Risks), metric cards from feed_estimate_summary view, EPCM accuracy grade (A/B/C/D), estimate metadata row, recharts variance chart, risk summary strip (v2 - Mar 2026)
@@ -540,12 +558,48 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ├── 20260319_feed_v2_schema_additions.sql            # ALTER feed_estimates: estimate_version, basis_year, contingency/escalation, approval_status, source_document_url, epcm_firm_id FK (NEW - Mar 19, 2026)
 ├── 20260319_create_feed_wbs_variance_view.sql       # feed_wbs_variance view (estimated vs actual + variance % per WBS item) (NEW - Mar 19, 2026)
 ├── 20260319_feed_v2_views.sql                       # feed_estimate_summary view (accuracy grade, rolled-up metrics) + feed_category_benchmarks view (cross-project benchmarks) (NEW - Mar 19, 2026)
+├── 20260321_lem_categories_and_standalone_tickets.sql # lem_category on contractor_lem_uploads, standalone_tickets table, ticket_source/standalone_ticket_id/lem_claimed_data on lem_reconciliation_pairs (NEW - Mar 21, 2026)
 └── [other migrations]
 ```
 
 ---
 
 ## 6. RECENT UPDATES (January–March 2026)
+
+### Three-Lane LEM Reconciliation with Editable Panel 4 & OCR Extraction (March 21, 2026)
+
+**Extends LEM reconciliation to handle direct, indirect, and third-party cost streams with admin ticket entry, editable cost comparison, and automatic LEM billing extraction.**
+
+1. **Three LEM categories** — `lem_category` column on `contractor_lem_uploads`: `direct` (field crew with inspector), `indirect` (overhead, office staff), `third_party` (subcontractors). Each category follows the same billing pipeline (upload → review → approve → invoice gate → invoice → payment) with different review workflows.
+
+2. **Standalone ticket entry** (`TicketEntry.jsx`) — Admin/cost control form to enter signed contractor tickets that have no inspector report. Captures labour entries, equipment entries, ticket photo/scan uploads, rate card costing, signed-by tracking. Data stored in new `standalone_tickets` table with full RLS. Serves as the source of truth for indirect/third-party work.
+
+3. **LEM Dashboard** (`LEMDashboard.jsx`) — Central LEM tracking at `/:orgSlug/lem-dashboard`. Organized by PO and contractor name. Filters by category (direct/indirect/third party), status, PO, contractor. Merges `contractor_lem_uploads` and `standalone_tickets` into a unified view showing ticket status, LEM status, and invoice status. Integrates TicketEntry for inline ticket creation.
+
+4. **Editable Panel 4** — Replaces the read-only PDF embed in `LEMFourPanelView.jsx` with inline-editable labour/equipment tables:
+   - When inspector report exists → shows inspector's entered data, editable with live rate card costing
+   - When no inspector report → shows system-calculated costs from standalone ticket entry
+   - Green/red highlighting for matched/unmatched rate card classifications
+   - Running totals with variance display against LEM claimed amounts
+   - Save button with full audit trail (all edits logged to `report_audit_log`)
+
+5. **Four-panel layout (consistent across all lanes)**:
+   - Panel 1: Contractor LEM (billing claim images + OCR-extracted data)
+   - Panel 2: Contractor's ticket copy (returned with LEM)
+   - Panel 3: Our copy (inspector's photo or admin's scan of the signed ticket)
+   - Panel 4: Editable data + costs (inspector report or system-calculated)
+
+6. **LEM billing OCR extraction** (`lemParser.js`) — New `extractLEMLineItems()` and `extractAllLEMLineItems()` functions using Claude Vision (claude-sonnet-4) to OCR LEM summary pages. Extracts structured billing data: employee names, classifications, RT/OT hours, rates, line totals, equipment types, unit numbers, hours, totals. Stored as `lem_claimed_data` JSONB on `lem_reconciliation_pairs`. Displayed in Panel 1 below the page image for instant numerical comparison.
+
+7. **"Extract LEM Data" button** — Appears in the reconciliation header when pairs have LEM page images but no extracted billing data. Triggers Claude Vision OCR on all LEM summary pages, rate-limited with retry logic.
+
+8. **Data Exports tab** — Moved Master Production Spreadsheet and Owner System exports (Power BI/SAP) from Reports tab to a dedicated Exports tab in the Admin Portal.
+
+9. **Admin Portal fixes** — Ticket # column added to Reports tab, tab-aware back navigation (from=admin-{tab}), forced org filtering on all reconciliation queries for super admins.
+
+**Route:** `/:orgSlug/lem-dashboard`
+
+**Migration:** `20260321_lem_categories_and_standalone_tickets.sql` — lem_category, standalone_tickets table, ticket_source, standalone_ticket_id, lem_claimed_data
 
 ### FEED Intelligence Module v2 (March 19, 2026)
 
