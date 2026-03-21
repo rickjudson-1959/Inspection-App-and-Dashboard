@@ -61,14 +61,16 @@ export default function LEMReconciliation({ refreshTrigger } = {}) {
 
   async function loadReportsAndRates() {
     const orgId = getOrgId()
-    const endDate = new Date()
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - parseInt(dateRange))
 
     let rq = supabase.from('daily_reports').select('id, date, inspector_name, activity_blocks, pdf_storage_url')
-      .gte('date', startDate.toISOString().split('T')[0])
-      .lte('date', endDate.toISOString().split('T')[0])
       .order('date', { ascending: false })
+    if (dateRange !== 'all') {
+      const endDate = new Date()
+      const startDate = new Date()
+      startDate.setDate(startDate.getDate() - parseInt(dateRange))
+      rq = rq.gte('date', startDate.toISOString().split('T')[0])
+             .lte('date', endDate.toISOString().split('T')[0])
+    }
     rq = addOrgFilter(rq, true)
     const { data: reportData } = await rq
     setReports(reportData || [])
@@ -541,6 +543,7 @@ export default function LEMReconciliation({ refreshTrigger } = {}) {
               <option value="90">Last 90 days</option>
               <option value="180">Last 180 days</option>
               <option value="365">Last year</option>
+              <option value="all">All time</option>
             </select>
           </div>
           <button onClick={() => { loadLemUploads(); loadReportsAndRates() }} style={{ padding: '8px 16px', backgroundColor: '#f3f4f6', color: '#374151', border: '1px solid #d1d5db', borderRadius: '6px', cursor: 'pointer', fontWeight: '500', fontSize: '13px' }}>
