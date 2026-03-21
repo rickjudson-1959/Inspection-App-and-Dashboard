@@ -6037,7 +6037,8 @@ function AdminPortal() {
                         const date = (r.date || '').toLowerCase()
                         const spread = (r.spread || '').toLowerCase()
                         const activities = (r.activity_blocks || []).map(b => (b.activityType || '') + ' ' + (b.contractor || '')).join(' ').toLowerCase()
-                        return name.includes(s) || date.includes(s) || spread.includes(s) || activities.includes(s)
+                        const tickets = (r.activity_blocks || []).map(b => b.ticketNumber || '').join(' ').toLowerCase()
+                        return name.includes(s) || date.includes(s) || spread.includes(s) || activities.includes(s) || tickets.includes(s)
                       }).length
                       return `${count} of ${allReports.length} reports`
                     })()}
@@ -6051,6 +6052,7 @@ function AdminPortal() {
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Inspector</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Spread</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Activities</th>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Ticket #</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Status</th>
                       <th style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>PDF Archive</th>
                       <th style={{ padding: '12px', textAlign: 'center', borderBottom: '1px solid #ddd' }}>Action</th>
@@ -6085,6 +6087,9 @@ function AdminPortal() {
                         <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{report.spread || '-'}</td>
                         <td style={{ padding: '12px', borderBottom: '1px solid #eee', fontSize: '13px' }}>
                           {(report.activity_blocks || []).map(b => b.activityType).filter(Boolean).join(', ') || '-'}
+                        </td>
+                        <td style={{ padding: '12px', borderBottom: '1px solid #eee', fontSize: '13px' }}>
+                          {(report.activity_blocks || []).map(b => b.ticketNumber).filter(Boolean).join(', ') || '-'}
                         </td>
                         <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>
                           <span style={{
