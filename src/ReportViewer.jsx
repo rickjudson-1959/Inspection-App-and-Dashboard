@@ -13,7 +13,8 @@ function ReportViewer() {
   const { addOrgFilter, organizationId, isReady } = useOrgQuery()
   const { orgPath } = useOrgPath()
   const reportId = searchParams.get('id')
-  
+  const fromParam = searchParams.get('from')
+
   const [report, setReport] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -85,6 +86,12 @@ function ReportViewer() {
   }
 
   const goBack = () => {
+    // If navigated from a specific admin tab, return there
+    if (fromParam && fromParam.startsWith('admin-')) {
+      const tab = fromParam.replace('admin-', '')
+      navigate(orgPath(`/admin?tab=${tab}`))
+      return
+    }
     const role = userProfile?.role
     if (role === 'chief_inspector') {
       navigate(orgPath('/chief-dashboard'))

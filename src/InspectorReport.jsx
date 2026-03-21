@@ -3189,8 +3189,9 @@ CRITICAL - Individual Entries Required:
         alert(`Report updated successfully! ${changes.length} field(s) changed.\n\nThe report has been resubmitted for review.`)
 
         // Return to appropriate page based on role
-        if (fromParam === 'admin-reports') {
-          navigate(orgPath('/admin?tab=reports'))
+        if (fromParam && fromParam.startsWith('admin-')) {
+          const tab = fromParam.replace('admin-', '')
+          navigate(orgPath(`/admin?tab=${tab}`))
         } else if (currentUserRole === 'inspector') {
           navigate(orgPath('/inspector'))
         } else if (currentUserRole === 'chief_inspector') {
@@ -9197,8 +9198,9 @@ CRITICAL - Individual Entries Required:
                 const confirmLeave = window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')
                 if (!confirmLeave) return
 
-                if (fromParam === 'admin-reports') {
-                  navigate(orgPath('/admin?tab=reports'))
+                if (fromParam && fromParam.startsWith('admin-')) {
+                  const tab = fromParam.replace('admin-', '')
+                  navigate(orgPath(`/admin?tab=${tab}`))
                 } else if (currentUserRole === 'inspector') {
                   navigate(orgPath('/inspector'))
                 } else if (currentUserRole === 'chief_inspector') {
