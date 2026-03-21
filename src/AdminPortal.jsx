@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useAuth } from './AuthContext.jsx'
 import { supabase } from './supabase'
 import * as XLSX from 'xlsx'
@@ -39,7 +39,8 @@ function AdminPortal() {
   const [inspectorProfiles, setInspectorProfiles] = useState([])
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState('overview')
+  const [searchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') || 'overview')
 
   // Pending Approvals state
   const [pendingReports, setPendingReports] = useState([])
@@ -6150,7 +6151,7 @@ function AdminPortal() {
                             👁️ View
                           </button>
                           <button
-                            onClick={() => navigate(orgPath(`/field-entry?edit=${report.id}`))}
+                            onClick={() => navigate(orgPath(`/field-entry?edit=${report.id}&from=admin-reports`))}
                             style={{ padding: '6px 12px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '12px' }}
                           >
                             ✏️ Edit

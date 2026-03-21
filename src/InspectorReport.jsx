@@ -88,6 +88,7 @@ function InspectorReport({
 
   // Edit mode - prefer props from InspectorApp, fallback to URL params
   const editReportIdFromUrl = searchParams.get('edit')
+  const fromParam = searchParams.get('from')
   const editReportId = editReportIdProp || editReportIdFromUrl
   console.log('[InspectorReport] editReportId:', editReportId, '(prop:', editReportIdProp, ', url:', editReportIdFromUrl, ')')
   const [isEditMode, setIsEditMode] = useState(false)
@@ -3188,7 +3189,9 @@ CRITICAL - Individual Entries Required:
         alert(`Report updated successfully! ${changes.length} field(s) changed.\n\nThe report has been resubmitted for review.`)
 
         // Return to appropriate page based on role
-        if (currentUserRole === 'inspector') {
+        if (fromParam === 'admin-reports') {
+          navigate(orgPath('/admin?tab=reports'))
+        } else if (currentUserRole === 'inspector') {
           navigate(orgPath('/inspector'))
         } else if (currentUserRole === 'chief_inspector') {
           navigate(orgPath('/chief-dashboard'))
@@ -9194,7 +9197,9 @@ CRITICAL - Individual Entries Required:
                 const confirmLeave = window.confirm('Are you sure you want to leave? Any unsaved changes will be lost.')
                 if (!confirmLeave) return
 
-                if (currentUserRole === 'inspector') {
+                if (fromParam === 'admin-reports') {
+                  navigate(orgPath('/admin?tab=reports'))
+                } else if (currentUserRole === 'inspector') {
                   navigate(orgPath('/inspector'))
                 } else if (currentUserRole === 'chief_inspector') {
                   navigate(orgPath('/chief-dashboard'))
