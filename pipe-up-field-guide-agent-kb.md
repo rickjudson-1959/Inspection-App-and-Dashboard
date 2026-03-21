@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 4.10 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-03-08
+## Version: 4.12 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-03-20
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -554,6 +554,53 @@ Tracks pipe protection materials. Fields include:
 
 ---
 
+## SECTION 10B: FEED INTELLIGENCE — HOW YOUR DATA FEEDS COST TRACKING
+
+### What is FEED Intelligence?
+
+FEED (Front End Engineering Design) Intelligence is a module that connects the EPCM (Engineering, Procurement, and Construction Management) firm's pre-construction cost estimate to actual field spend tracked through LEM reconciliation. It answers the question: *"How accurate was the engineer's estimate compared to what we actually spent?"*
+
+This module is used by project managers, construction managers, chief inspectors, executives, and admins — not directly by field inspectors. However, **your daily reports are the foundation of the entire system.** Here's how:
+
+### How Inspector Data Connects to FEED
+
+1. **LEM line items from your reports** — When you log labour, equipment, ticket numbers, and hours in your daily activity blocks, that data flows into `lem_line_items` during LEM reconciliation. Admins then **tag** those LEM entries to WBS (Work Breakdown Structure) scope buckets from the FEED estimate (e.g., "HDD crossings", "Mainline pipe installation"). This is how actual field spend gets mapped back to the engineer's original scope.
+
+2. **Risk closeouts from your reports** — FEED estimates include a risk register (geotechnical hazards, constructability issues, regulatory risks, etc.) with cost allowances. When a risk materializes or is resolved in the field, an admin or chief inspector creates a **risk closeout** that links directly to your inspector report as field evidence. Your photos, work descriptions, and quality data become the proof that a risk was encountered and how it was handled.
+
+3. **Ticket numbers are critical** — The same ticket number that links your report to LEM reconciliation is what enables the LEM-to-WBS tagging. Without accurate ticket numbers, the cost tracking chain breaks.
+
+### What the FEED Dashboard Shows (for context)
+
+Managers see a dashboard with:
+- **4 metric cards**: FEED estimate total, actual LEM spend, total variance ($ and %), and an EPCM accuracy grade (A/B/C/D based on how close actuals are to the estimate)
+- **Variance chart**: Horizontal bars showing estimated vs actual for each WBS scope item (e.g., HDD was estimated at $2M but actuals are at $2.6M = +30% overrun)
+- **Risk register**: Open/closed/escalated risks with cost allowances and actual impacts
+- **WBS table**: Breakdown of scope items with tagged LEM counts and variance coloring (green = within 5%, amber = 5-15%, red = over 15%)
+
+### 10 Standard WBS Categories
+
+These are the scope buckets used across projects for benchmarking:
+1. Mainline pipe installation
+2. HDD crossings
+3. Road / watercourse crossings
+4. Compressor / station tie-ins
+5. Hydrostatic test & commissioning
+6. Spread mob / demob
+7. Environmental & regulatory
+8. PM, field inspection & QC
+9. Materials
+10. Other
+
+### What This Means for Inspectors
+
+- **Log accurate hours and equipment** — Your data directly determines whether a WBS item shows as over or under budget
+- **Take clear ticket photos** — These are the link between your report and the billing chain
+- **Document risk encounters** — When you observe geotechnical surprises, regulatory delays, or constructability issues, note them in your work description and quality fields. This becomes evidence for risk closeouts
+- **Your reports build intelligence** — Every project added improves cross-project benchmarks, helping future projects get more accurate FEED estimates
+
+---
+
 ## SECTION 11: LABOUR & EQUIPMENT ENTRIES
 
 ### Labour Entry Fields
@@ -587,6 +634,10 @@ When OCR extracts total hours from a ticket, the app auto-splits: RT = min(total
 | Dmax/Dmin | Maximum and minimum diameter measurements at a pipe bend |
 | Document ID | Unique identifier auto-assigned to every Pipe-Up report |
 | Drag Reason | Documented cause of non-productive time |
+| EPCM | Engineering, Procurement, and Construction Management — the firm that produces FEED estimates and manages project execution |
+| EPCM Accuracy Grade | A letter grade (A/B/C/D) rating how close the EPCM firm's estimate was to actual spend. A = within ±5%, B = ±10%, C = ±20%, D = over 20% |
+| FEED | Front End Engineering Design — the pre-construction phase that produces Class 3 cost estimates, risk registers, and scope definitions before construction begins |
+| FEED Estimate | The Class 3 cost estimate produced during front-end engineering, broken into WBS scope items. Pipe-Up tracks actual field spend against this estimate |
 | Field Joint Coating | Corrosion protection applied at weld locations in the field |
 | Frost Packing | Placing select fill material around the pipe in frozen ground conditions — has its own Activity Type (#25) in Pipe-Up with quality fields for material, depth, ground condition, and frost depth |
 | GPS KP Sync | Feature that calculates chainage from device GPS and pipeline centerline |
@@ -628,6 +679,7 @@ When OCR extracts total hours from a ticket, the app auto-splits: RT = min(total
 | Steering Log | Record of HDD bore path guidance readings at each drill pipe joint — tracks station, depth, pitch, azimuth, offsets, and bend radius |
 | TVD (True Vertical Depth) | The vertical distance from surface to the drill bit, as opposed to measured depth along the bore path |
 | Waste Management Log | Record of drilling fluid volumes, storage, disposal, additives, and compliance testing for HDD and HD Bore activities |
+| WBS | Work Breakdown Structure — the hierarchical breakdown of project scope into cost-trackable line items (e.g., "HDD crossings", "Mainline installation"). Used in FEED Intelligence to map estimates to actual spend |
 | WPS | Welding Procedure Specification — approved parameters for each weld type |
 
 ---
@@ -759,7 +811,16 @@ A: Record what you actually observed — your independent labour count, equipmen
 **Q: Do I need to do anything for LEM reconciliation or invoicing?**
 A: No. Your job is to submit accurate daily reports with: (1) a clear photo of the contractor's daily ticket, (2) the correct ticket number, (3) accurate labour entries (names, classifications, hours), and (4) accurate equipment entries (types, unit numbers, hours). The reconciliation and invoice verification is handled by admins through the Reconciliation Dashboard's four-panel comparison view. The better your data, the faster reconciliation goes.
 
+**Q: What is FEED Intelligence and does it affect my daily reports?**
+A: FEED (Front End Engineering Design) Intelligence is a cost tracking module used by project managers and executives to compare the EPCM engineer's pre-construction estimate against actual field spend. Your daily reports are the data source — when you log labour, equipment, hours, and ticket numbers, that data gets reconciled through the LEM system and then tagged to WBS (Work Breakdown Structure) scope items from the FEED estimate. You don't interact with FEED directly, but the accuracy of your reports determines the accuracy of the cost variance tracking. Keep logging precise hours, clear ticket photos, and detailed work descriptions.
+
+**Q: Someone asked me about a FEED risk closeout — what does that mean?**
+A: During the FEED phase, engineers identify risks (e.g., "geotechnical uncertainty at KP 12+000" or "regulatory timing window for fish habitat"). Each risk has a cost allowance budgeted for it. When that risk materializes (or doesn't) during construction, an admin or chief inspector creates a "closeout" record that links to your inspector report as field evidence. If you're asked about it, they're looking for the report where you documented the relevant field observation — your work description, photos, and quality data for that day and location.
+
+**Q: What are the WBS categories and why do they matter?**
+A: WBS (Work Breakdown Structure) categories are standard scope buckets used across pipeline projects: Mainline installation, HDD crossings, Road/watercourse crossings, Station tie-ins, Hydrostatic test & commissioning, Mob/demob, Environmental & regulatory, PM/inspection, Materials, and Other. They enable cross-project benchmarking — "how does HDD cost variance on this project compare to our portfolio average?" Your LEM entries get tagged to these categories, so the quality of your labour/equipment logging directly affects the benchmarking intelligence.
+
 ---
 
-*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.11*
+*End of Pipe-Up Field Inspection Guide — Agent Knowledge Base v4.12*
 *Source: InspectorReport.jsx (8,400+ lines) + ActivityBlock.jsx (3,400+ lines)*

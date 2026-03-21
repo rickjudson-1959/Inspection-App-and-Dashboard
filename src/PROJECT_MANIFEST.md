@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - March 19, 2026
+## Project Manifest - March 20, 2026
 
 ---
 
@@ -309,24 +309,27 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 - Rejection reason
 - Payment tracking: payment date, payment reference
 
-### FEED Intelligence Tables (NEW - March 2026)
+### FEED Intelligence Tables (NEW - March 2026, v2 - March 19, 2026)
 
 **feed_estimates**
-- One FEED estimate per project per org (unique constraint)
-- EPCM firm, estimate class (Class 2/3/4/5), estimate date, total estimate
-- Currency (CAD default), meta (JSONB: notes, assumptions)
-- Created by user FK, org-scoped with RLS
+- One FEED estimate per project per org (partial unique index: one active per project where approval_status != 'superseded')
+- EPCM firm (plain text) + epcm_firm_id (FK to `epcm_firms`, nullable — both coexist for backward compat)
+- Estimate class (Class 2/3/4/5), estimate date, total estimate, currency (CAD default)
+- v2 columns: estimate_version (text, default 'V1'), estimate_basis_year (integer), contingency_pct, escalation_pct (numeric(5,2)), approval_status (draft | approved_for_FID | superseded), source_document_url (link to FEED report)
+- Meta (JSONB: notes, assumptions), created by user FK, org-scoped with RLS
 
 **feed_wbs_items**
 - WBS (Work Breakdown Structure) line items within a FEED estimate
 - FK to `feed_estimates` (cascade delete)
-- WBS code, scope name, estimated amount, unit, unit rate, quantity
+- WBS code, scope name, scope_category (10 standard buckets: mainline_install, hdd_crossings, road_water_crossings, station_tieins, hydro_test_commissioning, mob_demob, environmental_regulatory, pm_inspection, materials, other)
+- Estimated amount (numeric(14,2)), unit, unit rate, quantity, basis notes
 - Sort order for drag-to-reorder
+- Categories enable cross-project benchmarking
 
 **feed_wbs_actuals**
 - Bridge table mapping LEM line items to WBS scope items
 - FK to `feed_wbs_items` (cascade delete), FK to `lem_line_items`
-- Actual amount, variance note, tagged by user FK
+- Actual amount (numeric(14,2)), variance note (required for partial tagging), tagged by user FK
 - Enables FEED-to-field-spend traceability
 
 **feed_risks**
@@ -335,18 +338,42 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 - Categories: geotechnical, constructability, regulatory, schedule, environmental
 - Severity: low, medium, high, critical
 - Status: open, closed, escalated, not_encountered
-- Cost allowance per risk item
+- Cost allowance per risk item (numeric(14,2))
 
 **feed_risk_closeouts**
 - Inspector-authored closeout records linking field evidence to FEED risks
 - FK to `feed_risks` (cascade delete), FK to `daily_reports`
 - Outcome: resolved, escalated, monitoring
-- Actual cost impact, closed date, field notes
+- Actual cost impact (numeric(14,2)), closed date, field notes, closed by user FK
+
+**epcm_firms** (Phase 2 foundation — table created, management UI deferred)
+- EPCM engineering firm profiles for cross-project scoring
+- Name, short name (e.g. "WorleyParsons"), country (default 'CA'), website
+- Contact name, contact email, notes
+- FK target for `feed_estimates.epcm_firm_id`
+- Org-scoped with RLS
 
 **feed_wbs_variance** (VIEW)
 - Joins `feed_wbs_items` to aggregated `feed_wbs_actuals`
 - Computes: actual_amount, variance_amount, variance_pct in the database
+- Includes scope_category for per-category analysis
+- tagged_lem_count per WBS item
 - Inherits RLS from underlying tables
+
+**feed_estimate_summary** (VIEW)
+- Rolled-up estimate-level metrics from `feed_estimates` joined to `feed_wbs_variance`
+- Computes: total_actual, total_variance_amount, total_variance_pct
+- EPCM accuracy grade: A (±5%), B (±10%), C (±20%), D (>20%)
+- wbs_item_count, wbs_items_with_actuals
+- Includes all v2 metadata: estimate_version, estimate_basis_year, contingency_pct, escalation_pct, approval_status, source_document_url
+- Used by dashboard header cards and EPCM firm scoring engine (Phase 2)
+
+**feed_category_benchmarks** (VIEW — Phase 2 foundation)
+- Cross-project benchmark by WBS scope_category
+- Computes: project_count, avg/min/max/median variance_pct, avg unit_rate
+- Only includes items with actual spend (WHERE actual_amount > 0)
+- Groups by org_id + scope_category
+- Every project added builds the benchmark dataset
 
 ### Supabase Storage Buckets (LEM/Invoice)
 
@@ -371,7 +398,7 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 │
 ├── utils/
 │   ├── queryHelpers.js         # Org-scoped query helpers (useOrgQuery)
-│   ├── feedAuditLogger.js      # FEED module audit logger — writes to report_audit_log with module:'feed_intelligence' (NEW - Mar 2026)
+│   ├── feedAuditLogger.js      # FEED module audit logger — writes to report_audit_log with module:'feed_intelligence', is_critical:true, regulatory_category:'financial' (NEW - Mar 2026)
 │   ├── lemParser.js            # LEM PDF parser: pdf.js text extraction, content-marker classification (lem_score/ticket_score), continuation page inheritance, adjacency pairing for alternating LEM/ticket pages, background image upload (Updated Mar 11, 2026)
 │   ├── lemMatcher.js           # Three-strategy matching engine: exact ticket → normalized ticket → date+crew fallback, variance calculation (NEW - Mar 2026)
 │   └── ticketNormalizer.js     # Ticket number normalization: strips prefixes, handles format variations (NEW - Mar 2026)
@@ -452,12 +479,12 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
     ├── LEMFourPanelView.jsx     # Four-panel visual comparison: zoomable image panels, inspector report PDF embed (Panel 4), batch report matching with claimed-block dedup, tiered fallback (exact date → ±1 day → crew-only → PDF-only), keyboard nav, resolution bar with dispute subtype display (Updated Mar 13, 2026)
     ├── InvoiceUpload.jsx        # Invoice upload with reconciliation gate, Claude Vision parsing, variance comparison (NEW - Mar 2026)
     ├── InvoiceComparison.jsx    # Invoice vs reconciliation comparison, approve/reject/mark-paid workflow (NEW - Mar 2026)
-    ├── FeedDashboard.jsx        # FEED Intelligence main dashboard — 4-tab layout (Overview, Setup, WBS, Risks), metric cards, recharts variance chart, EPCM accuracy grading (NEW - Mar 2026)
-    ├── FeedEstimateSetup.jsx    # FEED estimate create/edit form — EPCM firm, class, total, notes (NEW - Mar 2026)
-    ├── FeedWBSTable.jsx         # WBS line items table — inline edit, reorder, variance coloring, Tag LEMs button (NEW - Mar 2026)
-    ├── FeedTagLEM.jsx           # Slide-over panel to tag/untag LEM entries to WBS items (NEW - Mar 2026)
-    ├── FeedRiskRegister.jsx     # Risk register table — inline add/edit, bulk status, severity badges, closeout link (NEW - Mar 2026)
-    ├── FeedRiskCloseout.jsx     # Risk closeout modal — links inspector report, outcome, actual cost impact (NEW - Mar 2026)
+    ├── FeedDashboard.jsx        # FEED Intelligence main dashboard — 4-tab layout (Overview, Setup, WBS, Risks), metric cards from feed_estimate_summary view, EPCM accuracy grade (A/B/C/D), estimate metadata row, recharts variance chart, risk summary strip (v2 - Mar 2026)
+    ├── FeedEstimateSetup.jsx    # FEED estimate create/edit — EPCM firm (text + linked profile), class, version, basis year, contingency/escalation %, approval status, source doc URL, notes. Audit-logged (v2 - Mar 2026)
+    ├── FeedWBSTable.jsx         # WBS line items — inline edit, scope_category (10 types), reorder, "Load template" (8-row pipeline template), variance coloring (green/amber/red), summary bar, Tag LEMs button (v2 - Mar 2026)
+    ├── FeedTagLEM.jsx           # Slide-over to tag/untag LEM entries to WBS items, search by ticket/crew/activity/foreman (v2 - Mar 2026)
+    ├── FeedRiskRegister.jsx     # Risk register — inline add/edit, category/severity badges, bulk status, variance-to-allowance column, closeout link (v2 - Mar 2026)
+    ├── FeedRiskCloseout.jsx     # Risk closeout modal — links inspector report, outcome, actual cost impact, auto-updates risk status (v2 - Mar 2026)
     ├── MapDashboard.jsx
     ├── OfflineStatusBar.jsx     # PWA status indicator (NEW - Jan 2026)
     └── [supporting components]
@@ -509,6 +536,10 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ├── 20260313_lem_invoice_gate_and_cascade.sql        # CASCADE DELETE + BEFORE INSERT approval gate trigger (NEW - Mar 13, 2026)
 ├── 20260313_add_dispute_type_column.sql             # dispute_type column on lem_reconciliation_pairs (NEW - Mar 13, 2026)
 ├── 20260313_align_lem_rls_policies.sql              # is_super_admin() bypass on all 4 LEM tables (NEW - Mar 13, 2026)
+├── 20260319_create_feed_intelligence_tables.sql     # feed_estimates, feed_wbs_items, feed_wbs_actuals, feed_risks, feed_risk_closeouts, epcm_firms + RLS + indexes (NEW - Mar 19, 2026)
+├── 20260319_feed_v2_schema_additions.sql            # ALTER feed_estimates: estimate_version, basis_year, contingency/escalation, approval_status, source_document_url, epcm_firm_id FK (NEW - Mar 19, 2026)
+├── 20260319_create_feed_wbs_variance_view.sql       # feed_wbs_variance view (estimated vs actual + variance % per WBS item) (NEW - Mar 19, 2026)
+├── 20260319_feed_v2_views.sql                       # feed_estimate_summary view (accuracy grade, rolled-up metrics) + feed_category_benchmarks view (cross-project benchmarks) (NEW - Mar 19, 2026)
 └── [other migrations]
 ```
 
@@ -516,22 +547,23 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–March 2026)
 
-### FEED Intelligence Module (March 19, 2026)
+### FEED Intelligence Module v2 (March 19, 2026)
 
-**Connects FEED (Front End Engineering Design) Class 3 estimates to actual LEM field spend for EPCM estimating accuracy tracking**
+**Connects FEED (Front End Engineering Design) Class 3 estimates to actual LEM field spend for EPCM estimating accuracy tracking. v2 adds scope categories, WBS templates, EPCM accuracy grading, cross-project benchmarking foundation, and EPCM firm profiles.**
 
-1. **5 new database tables** — `feed_estimates`, `feed_wbs_items`, `feed_wbs_actuals`, `feed_risks`, `feed_risk_closeouts` — all org-scoped with RLS and super_admin bypass
-2. **DB variance view** (`feed_wbs_variance`) — computes estimated vs actual and variance % in SQL, not frontend
+1. **6 database tables** — `feed_estimates` (amended with v2 columns: estimate_version, estimate_basis_year, contingency_pct, escalation_pct, approval_status, source_document_url, epcm_firm_id FK), `feed_wbs_items` (with scope_category for 10 standard pipeline WBS buckets), `feed_wbs_actuals`, `feed_risks`, `feed_risk_closeouts`, `epcm_firms` (Phase 2 foundation) — all org-scoped with RLS and super_admin bypass
+2. **3 DB views** — `feed_wbs_variance` (per-item estimated vs actual, variance %, tagged LEM count), `feed_estimate_summary` (rolled-up totals, EPCM accuracy grade A/B/C/D based on ±5%/10%/20% thresholds, metadata for dashboard cards), `feed_category_benchmarks` (cross-project median/avg/min/max variance by scope category — Phase 2 foundation)
 3. **FeedDashboard** — Main module entry point with 4-tab layout:
-   - **Overview**: 4 metric cards (FEED total, actual LEM spend, variance $/%,  EPCM accuracy grade A/B/C/D), horizontal recharts bar chart (estimated vs actual by WBS scope, color-coded by variance severity), risk register summary
-   - **Estimate Setup**: Create/edit FEED estimate (EPCM firm, estimate class, date, total, notes)
-   - **WBS Breakdown**: Inline-editable WBS table with add/delete/reorder, variance coloring, Tag LEMs button
-   - **Risk Register**: Inline add/edit risks, bulk status update, severity/category badges, closeout workflow
-4. **FeedTagLEM** — Slide-over panel to tag/untag LEM line items to WBS scope items, with search and multi-select
-5. **FeedRiskCloseout** — Modal form linking inspector reports to FEED risks with outcome, actual cost impact, field notes
-6. **Audit logging** — All FEED financial writes logged to `report_audit_log` via `feedAuditLogger.js`
+   - **Overview**: 4 metric cards (FEED total with class + version badges, actual LEM spend with "X of Y items tagged", variance $/% color-coded by band, EPCM accuracy grade A/B/C/D large letter), estimate metadata row (EPCM firm, class, version, basis year, contingency/escalation %, approval status badge, source document link), horizontal Recharts bar chart (estimated vs actual by WBS scope, color-coded by variance severity: green ±5%, amber ±15%, red >15%), risk register summary strip (open/closed/escalated counts with cost allowance totals)
+   - **Estimate Setup**: Create/edit FEED estimate with v2 fields — EPCM firm (text + linked profile dropdown from `epcm_firms`), estimate class, version, basis year, contingency %, escalation %, approval status (draft/approved_for_FID/superseded), FEED report link, notes. Audit-logged on save.
+   - **WBS & Costs**: Inline-editable WBS table with scope_category (10-type dropdown), add/delete/reorder rows, variance coloring (green/amber/red/gray), "Load template" button (standard 8-row pipeline template: mainline, HDD, road/water crossings, tie-ins, hydro test, mob/demob, environmental, PM/inspection), summary bar (total estimated, total actual, untagged spend, tagging progress), Tag LEMs button per row
+   - **Risk Register**: Inline add/edit risks with category/severity badges, bulk status update, variance-to-allowance column (actual cost impact minus cost allowance, color-coded), closeout workflow
+4. **FeedTagLEM** — Slide-over panel to tag/untag LEM line items to WBS scope items, with search by ticket/crew/activity/foreman and multi-select
+5. **FeedRiskCloseout** — Modal form linking inspector reports to FEED risks with outcome (resolved/escalated/monitoring), actual cost impact, closed date, field notes. Auto-updates risk status on save
+6. **Audit logging** — All FEED financial writes logged to `report_audit_log` via dedicated `feedAuditLogger.js` utility (action types: feed_estimate_upsert, feed_wbs_item_create/update/delete, feed_lem_tagged/untagged, feed_risk_create/update/delete, feed_risk_closeout). All actions marked `is_critical: true`, `regulatory_category: 'financial'`
 7. **Route**: `/:orgSlug/feed` — accessible to exec, cm, pm, chief, chief_inspector, admin, super_admin
 8. **Navigation**: "FEED Intelligence" button added to Dashboard header and EVM Dashboard header
+9. **Phase 2 ready** — `epcm_firms` table and `feed_category_benchmarks` view are in place. Phase 2 will add EPCM firm profile management (`/epcm-firms`), cross-project accuracy scoring, and benchmark intelligence panel
 
 ### Contractor LEM Reconciliation System — Four-Way Comparison & Invoice Workflow (March 7, 2026)
 

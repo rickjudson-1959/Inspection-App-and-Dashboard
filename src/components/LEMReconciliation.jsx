@@ -8,7 +8,7 @@ import LEMFourPanelView from './LEMFourPanelView.jsx'
 import InvoiceUpload from './InvoiceUpload.jsx'
 import InvoiceComparison from './InvoiceComparison.jsx'
 
-export default function LEMReconciliation() {
+export default function LEMReconciliation({ refreshTrigger } = {}) {
   const { addOrgFilter, getOrgId, organizationId } = useOrgQuery()
   const navigate = useNavigate()
   const { orgPath } = useOrgPath()
@@ -33,6 +33,8 @@ export default function LEMReconciliation() {
 
   useEffect(() => { loadLemUploads(); loadReportsAndRates() }, [organizationId])
   useEffect(() => { loadReportsAndRates() }, [dateRange])
+  // Allow parent to trigger a refresh via prop change
+  useEffect(() => { if (refreshTrigger) { loadLemUploads(); loadReportsAndRates() } }, [refreshTrigger])
   // When a LEM is selected, also load reports matching its date range
   useEffect(() => { if (selectedLem) loadReportsForLem(selectedLem) }, [selectedLem])
 
@@ -224,9 +226,10 @@ export default function LEMReconciliation() {
       for (const report of reports) {
         const blocks = report.activity_blocks || []
         blocks.forEach((block, blockIdx) => {
-          if (!block.ticketNumber || !block.ticketNumber.trim()) return
           const labour = block.labourEntries || []
           const equip = block.equipmentEntries || []
+          // Skip blocks with no activity data at all
+          if (!block.activityType && labour.length === 0 && equip.length === 0) return
           const totalLabourHrs = labour.reduce((s, e) => s + (parseFloat(e.rt || e.hours || 0)) + (parseFloat(e.ot || 0)), 0)
           const totalEquipHrs = equip.reduce((s, e) => s + (parseFloat(e.hours || 0)) * (parseInt(e.count || 1)), 0)
           const totalLabourCost = labour.reduce((s, e) => s + calcLabourCost(e) * (parseInt(e.count || 1)), 0)
@@ -243,7 +246,7 @@ export default function LEMReconciliation() {
 
           tickets.push({
             reportId: report.id, date: report.date, inspector: report.inspector_name,
-            ticketNumber: block.ticketNumber, activityType: block.activityType || '-',
+            ticketNumber: block.ticketNumber || '', activityType: block.activityType || '-',
             contractor: block.contractor || '-', foreman: block.foreman || '-',
             labourCount: labour.length, equipCount: equip.length,
             totalLabourHrs: Math.round(totalLabourHrs * 10) / 10,
