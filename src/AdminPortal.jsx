@@ -3574,7 +3574,7 @@ function AdminPortal() {
       <div style={{ backgroundColor: 'white', borderBottom: '1px solid #ddd', padding: '0 20px' }}>
         <div style={{ display: 'flex', gap: '0', flexWrap: 'wrap' }}>
           {[
-            'overview', 'approvals', 'efficiency', 'mats', 'audit', 'setup', 'projects', 'users', 'reports', 'agenda', 'calendar',
+            'overview', 'approvals', 'efficiency', 'mats', 'audit', 'setup', 'projects', 'users', 'reports', 'exports', 'agenda', 'calendar',
             ...(isSuperAdmin ? ['fleet', 'stats', 'handover'] : [])
           ].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '15px 25px', border: 'none', backgroundColor: activeTab === tab ? '#003366' : 'transparent', color: activeTab === tab ? 'white' : '#333', cursor: 'pointer', fontSize: '14px', fontWeight: activeTab === tab ? 'bold' : 'normal', position: 'relative' }}>
@@ -6008,7 +6008,6 @@ function AdminPortal() {
             <p style={{ color: '#666' }}>View and edit all inspector reports. Click Edit to modify any report.</p>
             <div style={{ display: 'flex', gap: '20px', marginTop: '20px', marginBottom: '20px' }}>
               <button onClick={() => navigate(orgPath('/reports'))} style={{ padding: '15px 30px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '16px' }}>View Reports Page</button>
-              <button onClick={() => exportMasterProduction()} style={{ padding: '15px 30px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '16px' }}>📋 Master Production Spreadsheet</button>
             </div>
 
             {loadingReports ? (
@@ -6165,16 +6164,31 @@ function AdminPortal() {
               </div>
             )}
 
-            {/* ========== DATA EXPORTS FOR POWER BI / SAP ========== */}
-            <div style={{
-              marginTop: '40px',
-              padding: '25px',
-              backgroundColor: '#f0f9ff',
-              borderRadius: '8px',
-              border: '1px solid #0ea5e9'
-            }}>
+          </div>
+        )}
+
+        {/* Data Exports Tab */}
+        {activeTab === 'exports' && (
+          <div>
+            <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
+            <h2>Data Exports</h2>
+            <p style={{ color: '#666' }}>Export project data for internal reporting and owner systems.</p>
+
+            {/* Master Production Spreadsheet */}
+            <div style={{ marginTop: '20px', marginBottom: '30px', padding: '20px', backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 4px rgba(0,0,0,0.1)', border: '1px solid #e5e7eb' }}>
+              <h3 style={{ margin: '0 0 8px 0', color: '#374151' }}>Master Production Spreadsheet</h3>
+              <p style={{ color: '#6b7280', fontSize: '13px', marginBottom: '15px' }}>
+                Export all inspector report data as an Excel spreadsheet with per-activity KP ranges, metres, labour hours, equipment hours, and time lost.
+              </p>
+              <button onClick={() => exportMasterProduction()} style={{ padding: '12px 24px', backgroundColor: '#17a2b8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer', fontSize: '14px', fontWeight: '600' }}>
+                📋 Export Master Production Spreadsheet
+              </button>
+            </div>
+
+            {/* Data Exports for Owner Systems */}
+            <div style={{ padding: '25px', backgroundColor: '#f0f9ff', borderRadius: '8px', border: '1px solid #0ea5e9' }}>
               <h3 style={{ margin: '0 0 10px 0', color: '#0369a1', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                📊 Data Exports for Owner Systems
+                Data Exports for Owner Systems
                 <span style={{ fontSize: '11px', padding: '3px 8px', backgroundColor: '#0ea5e9', color: 'white', borderRadius: '4px' }}>Power BI / SAP Ready</span>
               </h3>
               <p style={{ color: '#0c4a6e', fontSize: '13px', marginBottom: '20px' }}>
@@ -6182,102 +6196,46 @@ function AdminPortal() {
               </p>
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px', marginBottom: '20px' }}>
-                {/* Progress Export */}
                 <div style={{ backgroundColor: 'white', padding: '15px', borderRadius: '6px', border: '1px solid #e0f2fe' }}>
-                  <div style={{ fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>📈 Progress Data</div>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '10px' }}>
-                    Activity progress, KP ranges, crew sizes, labour/equipment hours
-                  </div>
+                  <div style={{ fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>Progress Data</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '10px' }}>Activity progress, KP ranges, crew sizes, labour/equipment hours</div>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      onClick={() => exportOwnerData('progress', 'json')}
-                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                      JSON
-                    </button>
-                    <button
-                      onClick={() => exportOwnerData('progress', 'csv')}
-                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                      CSV
-                    </button>
+                    <button onClick={() => exportOwnerData('progress', 'json')} style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>JSON</button>
+                    <button onClick={() => exportOwnerData('progress', 'csv')} style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>CSV</button>
                   </div>
                 </div>
 
-                {/* Welding Export */}
                 <div style={{ backgroundColor: 'white', padding: '15px', borderRadius: '6px', border: '1px solid #e0f2fe' }}>
-                  <div style={{ fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>🔧 Welding Data</div>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '10px' }}>
-                    Weld IDs, WPS numbers, welder IDs, NDT results, materials
-                  </div>
+                  <div style={{ fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>Welding Data</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '10px' }}>Weld IDs, WPS numbers, welder IDs, NDT results, materials</div>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      onClick={() => exportOwnerData('welding', 'json')}
-                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                      JSON
-                    </button>
-                    <button
-                      onClick={() => exportOwnerData('welding', 'csv')}
-                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                      CSV
-                    </button>
+                    <button onClick={() => exportOwnerData('welding', 'json')} style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>JSON</button>
+                    <button onClick={() => exportOwnerData('welding', 'csv')} style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>CSV</button>
                   </div>
                 </div>
 
-                {/* Cost Export */}
                 <div style={{ backgroundColor: 'white', padding: '15px', borderRadius: '6px', border: '1px solid #e0f2fe' }}>
-                  <div style={{ fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>💰 Cost Data</div>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '10px' }}>
-                    Labour hours, equipment hours, cost codes by activity
-                  </div>
+                  <div style={{ fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>Cost Data</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '10px' }}>Labour hours, equipment hours, cost codes by activity</div>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      onClick={() => exportOwnerData('cost', 'json')}
-                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                      JSON
-                    </button>
-                    <button
-                      onClick={() => exportOwnerData('cost', 'csv')}
-                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                      CSV
-                    </button>
+                    <button onClick={() => exportOwnerData('cost', 'json')} style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>JSON</button>
+                    <button onClick={() => exportOwnerData('cost', 'csv')} style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>CSV</button>
                   </div>
                 </div>
 
-                {/* EVM Export */}
                 <div style={{ backgroundColor: 'white', padding: '15px', borderRadius: '6px', border: '1px solid #e0f2fe' }}>
-                  <div style={{ fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>📉 EVM Data</div>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '10px' }}>
-                    WBS elements, earned value, SPI/CPI metrics
-                  </div>
+                  <div style={{ fontWeight: 'bold', color: '#0369a1', marginBottom: '8px' }}>EVM Data</div>
+                  <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '10px' }}>WBS elements, earned value, SPI/CPI metrics</div>
                   <div style={{ display: 'flex', gap: '8px' }}>
-                    <button
-                      onClick={() => exportOwnerData('evm', 'json')}
-                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                      JSON
-                    </button>
-                    <button
-                      onClick={() => exportOwnerData('evm', 'csv')}
-                      style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-                    >
-                      CSV
-                    </button>
+                    <button onClick={() => exportOwnerData('evm', 'json')} style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>JSON</button>
+                    <button onClick={() => exportOwnerData('evm', 'csv')} style={{ flex: 1, padding: '8px', fontSize: '11px', backgroundColor: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>CSV</button>
                   </div>
                 </div>
               </div>
 
-              {/* Full Export */}
               <div style={{ display: 'flex', gap: '15px', alignItems: 'center', paddingTop: '15px', borderTop: '1px solid #bae6fd' }}>
-                <button
-                  onClick={() => exportOwnerData('all', 'json')}
-                  style={{ padding: '12px 24px', fontSize: '13px', fontWeight: 'bold', backgroundColor: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-                >
-                  📦 Export All Data (JSON)
+                <button onClick={() => exportOwnerData('all', 'json')} style={{ padding: '12px 24px', fontSize: '13px', fontWeight: 'bold', backgroundColor: '#1d4ed8', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}>
+                  Export All Data (JSON)
                 </button>
                 <div style={{ fontSize: '11px', color: '#64748b' }}>
                   <strong>Power BI:</strong> Use JSON endpoint directly or import JSON file<br/>
@@ -6285,7 +6243,6 @@ function AdminPortal() {
                 </div>
               </div>
 
-              {/* API Endpoint Info */}
               <div style={{ marginTop: '20px', padding: '12px', backgroundColor: '#f1f5f9', borderRadius: '6px', fontSize: '11px', fontFamily: 'monospace' }}>
                 <div style={{ fontWeight: 'bold', marginBottom: '5px', color: '#475569' }}>API Endpoint (for Power BI direct connection):</div>
                 <code style={{ color: '#0369a1', wordBreak: 'break-all' }}>
