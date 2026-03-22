@@ -134,7 +134,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
   }
 
   return (
-    <div style={{ padding: '16px', height: 'calc(100vh - 80px)', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -156,7 +156,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
       </div>
 
       {/* 4-panel grid */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 1fr', gridTemplateRows: '1fr 1fr', gap: '10px', minHeight: 0 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
         {/* Panel 1: Contractor LEM (uploaded) */}
         <DocumentPanel
           title="Contractor LEM"
