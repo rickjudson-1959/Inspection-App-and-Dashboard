@@ -15,7 +15,7 @@ const BRAND = {
 }
 
 export default function ReconciliationList({ onSelectTicket, onNavigateToUpload }) {
-  const { organizationId, isReady } = useOrgQuery()
+  const { organizationId, isReady, addOrgFilter } = useOrgQuery()
 
   const [packages, setPackages] = useState([])
   const [loading, setLoading] = useState(true)
@@ -35,20 +35,74 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
   async function loadPackages() {
     setLoading(true)
     try {
-      // recon_package_status view uses org_id (not organization_id)
-      const { data, error } = await supabase
+      // 1. Uploaded contractor docs from recon_package_status view
+      const { data: reconData, error: reconErr } = await supabase
         .from('recon_package_status')
         .select('*')
         .eq('org_id', organizationId)
         .order('date', { ascending: false, nullsFirst: false })
         .order('ticket_number', { ascending: false })
 
-      if (error) {
-        console.error('Error loading reconciliation packages:', error)
-        setPackages([])
-      } else {
-        setPackages(data || [])
+      if (reconErr) console.error('Error loading recon packages:', reconErr)
+
+      // 2. Inspector reports — check which ticket numbers have matching reports + photos
+      let rq = supabase.from('daily_reports')
+        .select('id, date, inspector_name, activity_blocks')
+        .order('date', { ascending: false })
+      rq = addOrgFilter(rq, true)
+      const { data: reports } = await rq
+
+      // Build a map: ticket_number → { hasReport, hasPhoto, date, foreman }
+      const inspectorMap = {}
+      if (reports) {
+        for (const report of reports) {
+          const blocks = report.activity_blocks || []
+          for (const block of blocks) {
+            const tn = block.ticketNumber ? String(block.ticketNumber).trim() : null
+            if (!tn) continue
+            const photos = block.ticketPhotos?.length > 0 ? block.ticketPhotos : block.ticketPhoto ? [block.ticketPhoto] : []
+            inspectorMap[tn] = {
+              hasReport: true,
+              hasPhoto: photos.filter(Boolean).length > 0,
+              date: report.date,
+              foreman: block.foreman || null,
+              inspector: report.inspector_name
+            }
+          }
+        }
       }
+
+      // 3. Merge: start with uploaded docs, supplement with inspector data
+      const uploadedPackages = reconData || []
+      const allTicketNumbers = new Set([
+        ...uploadedPackages.map(p => p.ticket_number),
+        ...Object.keys(inspectorMap)
+      ])
+
+      const merged = [...allTicketNumbers].map(tn => {
+        const uploaded = uploadedPackages.find(p => p.ticket_number === tn) || {}
+        const inspector = inspectorMap[tn] || {}
+        return {
+          ticket_number: tn,
+          date: uploaded.date || inspector.date || null,
+          foreman: uploaded.foreman || inspector.foreman || null,
+          has_lem: uploaded.has_lem || 0,
+          has_ticket: uploaded.has_ticket || 0,
+          has_photo: inspector.hasPhoto ? 1 : 0,
+          has_report: inspector.hasReport ? 1 : 0,
+          inspector: inspector.inspector || null
+        }
+      })
+
+      // Sort by date desc, then ticket number desc
+      merged.sort((a, b) => {
+        if (a.date && b.date) return b.date.localeCompare(a.date)
+        if (a.date) return -1
+        if (b.date) return 1
+        return String(b.ticket_number).localeCompare(String(a.ticket_number))
+      })
+
+      setPackages(merged)
     } catch (err) {
       console.error('Error loading reconciliation packages:', err)
       setPackages([])

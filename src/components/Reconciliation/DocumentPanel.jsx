@@ -1,17 +1,21 @@
 import React, { useState, useMemo } from 'react'
 import ImageViewer from './ImageViewer'
 import PdfViewer from './PdfViewer'
+import InspectorReportPanel from './InspectorReportPanel'
 
 /**
  * DocumentPanel — Reusable panel for the 4-panel reconciliation view.
  * Renders PDF or image documents with zoom, rotate, page nav, and empty state.
+ * For inspector report panels, renders a formatted data view instead.
  *
  * Props:
  *   title       — Panel header text (e.g. "Contractor LEM")
  *   subtitle    — Optional secondary text below title
- *   document    — reconciliation_documents row { file_urls, original_filename, ... } or null
- *   emptyMessage— Text shown when document is null
- *   onUpload    — Callback for the Upload button in empty state
+ *   panelType   — 'uploaded' | 'photo' | 'report' (controls rendering + empty state)
+ *   document    — { file_urls, original_filename, ... } or null (for uploaded/photo)
+ *   reportData  — { report, block } or null (for report panel)
+ *   emptyMessage— Text shown when data is missing
+ *   onUpload    — Callback for Upload button (null for auto-linked panels)
  *   color       — Accent color for border/header (e.g. '#2563eb')
  */
 
@@ -37,7 +41,9 @@ const btnBase = {
 export default function DocumentPanel({
   title,
   subtitle,
+  panelType = 'uploaded',
   document,
+  reportData,
   emptyMessage = 'No document uploaded',
   onUpload,
   color = '#2563eb'
@@ -143,8 +149,18 @@ export default function DocumentPanel({
       </div>
 
       {/* Content area */}
-      <div style={{ flex: 1, overflow: 'auto', padding: '8px', minHeight: '200px', maxHeight: '70vh' }}>
-        {totalPages === 0 ? (
+      <div style={{ flex: 1, overflow: 'auto', padding: panelType === 'report' ? '0' : '8px', minHeight: '200px', maxHeight: '70vh' }}>
+        {panelType === 'report' ? (
+          /* Inspector report — formatted data view */
+          reportData ? (
+            <InspectorReportPanel report={reportData.report} block={reportData.block} />
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '180px', gap: '8px' }}>
+              <p style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: '12px', textAlign: 'center', margin: 0 }}>{emptyMessage}</p>
+              <p style={{ color: '#9ca3af', fontSize: '11px', margin: 0 }}>The inspector must submit a daily report referencing this ticket</p>
+            </div>
+          )
+        ) : totalPages === 0 ? (
           /* Empty state */
           <div style={{
             display: 'flex',
@@ -162,7 +178,9 @@ export default function DocumentPanel({
               textAlign: 'center',
               margin: 0
             }}>{emptyMessage}</p>
-            {onUpload && (
+            {panelType === 'photo' ? (
+              <p style={{ color: '#9ca3af', fontSize: '11px', margin: 0 }}>The inspector must photograph the daily ticket when submitting their report</p>
+            ) : onUpload ? (
               <button
                 onClick={onUpload}
                 style={{
@@ -176,7 +194,7 @@ export default function DocumentPanel({
                   fontWeight: '600'
                 }}
               >Upload</button>
-            )}
+            ) : null}
           </div>
         ) : isPdf ? (
           /* PDF document */

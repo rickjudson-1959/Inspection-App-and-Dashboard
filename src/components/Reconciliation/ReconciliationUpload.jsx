@@ -5,9 +5,7 @@ import { useAuth } from '../../AuthContext.jsx'
 
 const DOC_TYPE_OPTIONS = [
   { value: 'contractor_lem', label: 'Contractor LEM' },
-  { value: 'contractor_ticket', label: 'Contractor Daily Ticket' },
-  { value: 'inspector_photo', label: 'Inspector Ticket Photo' },
-  { value: 'inspector_report', label: 'Inspector Report' }
+  { value: 'contractor_ticket', label: 'Contractor Daily Ticket' }
 ]
 
 const ACCEPTED_FILE_TYPES = '.pdf,.png,.jpg,.jpeg,.tiff'
