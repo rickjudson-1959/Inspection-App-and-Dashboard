@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, useNavigate } from 'react-router-dom'
 import { AuthProvider, useAuth } from './AuthContext.jsx'
 import ProtectedRoute, { getLandingPage } from './ProtectedRoute.jsx'
-import { OrgProvider } from './contexts/OrgContext.jsx'
+import { OrgProvider, useOrgPath } from './contexts/OrgContext.jsx'
 import { supabase } from './supabase'
 import OfflineStatusBar from './components/OfflineStatusBar.jsx'
 import UpdatePrompt from './components/UpdatePrompt.jsx'
@@ -39,6 +39,9 @@ import ReferenceLibrary from './ReferenceLibrary.jsx'
 import WeldingChiefDashboard from './WeldingChiefDashboard.jsx'
 import FeedDashboard from './components/FeedDashboard.jsx'
 import LEMDashboard from './components/LEMDashboard.jsx'
+import ReconciliationList from './components/Reconciliation/ReconciliationList.jsx'
+import ReconciliationUpload from './components/Reconciliation/ReconciliationUpload.jsx'
+import ReconFourPanelView from './components/Reconciliation/ReconFourPanelView.jsx'
 
 // Root redirect - sends users to their org-scoped, role-specific landing page
 function RootRedirect() {
@@ -217,10 +220,29 @@ function OrgRoutes() {
         </ProtectedRoute>
       } />
 
-      {/* Reconciliation Dashboard */}
-      <Route path="reconciliation" element={
+      {/* Reconciliation Dashboard (old — preserved) */}
+      <Route path="reconciliation-legacy" element={
         <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
           <ReconciliationDashboard />
+        </ProtectedRoute>
+      } />
+
+      {/* Reconciliation — 4-Panel System */}
+      <Route path="reconciliation" element={
+        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
+          <ReconciliationListPage />
+        </ProtectedRoute>
+      } />
+
+      {/* Reconciliation 4-Panel */}
+      <Route path="reconciliation/upload" element={
+        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
+          <ReconciliationUploadPage />
+        </ProtectedRoute>
+      } />
+      <Route path="reconciliation/:ticketNumber" element={
+        <ProtectedRoute allowedRoles={['cm', 'pm', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
+          <ReconFourPanelView />
         </ProtectedRoute>
       } />
 
@@ -326,6 +348,26 @@ function OrgRoutes() {
       <Route path="*" element={<Navigate to="dashboard" replace />} />
     </Routes>
   )
+}
+
+function ReconciliationUploadPage() {
+  const navigate = useNavigate()
+  const params = new URLSearchParams(window.location.search)
+  return (
+    <div style={{ padding: 20, maxWidth: 700, margin: '0 auto' }}>
+      <ReconciliationUpload
+        prefillTicket={params.get('ticket') || ''}
+        prefillDocType={params.get('type') || ''}
+        onUploadComplete={() => navigate(-1)}
+      />
+    </div>
+  )
+}
+
+function ReconciliationListPage() {
+  const navigate = useNavigate()
+  const { orgPath } = useOrgPath()
+  return <ReconciliationList onSelectTicket={(ticketNumber) => navigate(orgPath(`/reconciliation/${ticketNumber}`))} />
 }
 
 function App() {
