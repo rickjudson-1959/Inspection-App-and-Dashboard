@@ -23,7 +23,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
   const params = useParams()
   const navigate = useNavigate()
   const { orgPath } = useOrgPath()
-  const { getOrgId, organizationId, addOrgFilter } = useOrgQuery()
+  const { organizationId, addOrgFilter } = useOrgQuery()
   const ticketNumber = ticketProp || params.ticketNumber
 
   const [uploadedDocs, setUploadedDocs] = useState([])
@@ -39,14 +39,13 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
 
   async function loadAllData() {
     setLoading(true)
-    const orgId = getOrgId()
 
     // --- Source 1: Uploaded contractor documents ---
-    const { data: docs } = await supabase
-      .from('reconciliation_documents')
+    let dq = supabase.from('reconciliation_documents')
       .select('*')
-      .eq('org_id', orgId)
       .eq('ticket_number', ticketNumber)
+    dq = addOrgFilter(dq, true)
+    const { data: docs } = await dq
     setUploadedDocs(docs || [])
 
     // --- Source 2: Inspector report matching this ticket number ---

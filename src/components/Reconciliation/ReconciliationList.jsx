@@ -36,12 +36,12 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
     setLoading(true)
     try {
       // 1. Uploaded contractor docs from recon_package_status view
-      const { data: reconData, error: reconErr } = await supabase
-        .from('recon_package_status')
+      let pq = supabase.from('recon_package_status')
         .select('*')
-        .eq('org_id', organizationId)
         .order('date', { ascending: false, nullsFirst: false })
         .order('ticket_number', { ascending: false })
+      pq = addOrgFilter(pq, true)
+      const { data: reconData, error: reconErr } = await pq
 
       if (reconErr) console.error('Error loading recon packages:', reconErr)
 
