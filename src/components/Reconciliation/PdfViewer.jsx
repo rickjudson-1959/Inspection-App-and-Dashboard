@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useCallback } from 'react'
 
 async function ensurePdfJs() {
   if (window.pdfjsLib) return
@@ -20,31 +20,7 @@ export default function PdfViewer({ url, zoom = 1 }) {
   const canvasRef = useRef(null)
   const pdfRef = useRef(null)
 
-  useEffect(() => {
-    loadPdf()
-  }, [url])
-
-  useEffect(() => {
-    if (pdfRef.current && currentPage > 0) renderPage(currentPage)
-  }, [currentPage, zoom])
-
-  async function loadPdf() {
-    try {
-      setLoading(true)
-      setError(null)
-      await ensurePdfJs()
-      const pdf = await window.pdfjsLib.getDocument(url).promise
-      pdfRef.current = pdf
-      setTotalPages(pdf.numPages)
-      setCurrentPage(1)
-      await renderPage(1)
-    } catch (err) {
-      setError('Failed to load PDF: ' + err.message)
-    }
-    setLoading(false)
-  }
-
-  async function renderPage(pageNum) {
+  const renderPage = useCallback(async (pageNum) => {
     if (!pdfRef.current || !canvasRef.current) return
     try {
       const page = await pdfRef.current.getPage(pageNum)
@@ -57,7 +33,38 @@ export default function PdfViewer({ url, zoom = 1 }) {
     } catch (err) {
       console.error('PDF render error:', err)
     }
-  }
+  }, [zoom])
+
+  // Load PDF when URL changes
+  useEffect(() => {
+    let cancelled = false
+    async function load() {
+      try {
+        setLoading(true)
+        setError(null)
+        await ensurePdfJs()
+        const pdf = await window.pdfjsLib.getDocument(url).promise
+        if (cancelled) return
+        pdfRef.current = pdf
+        setTotalPages(pdf.numPages)
+        setCurrentPage(1)
+        // Don't render here — canvas isn't mounted yet while loading=true
+      } catch (err) {
+        if (!cancelled) setError('Failed to load PDF: ' + err.message)
+      }
+      if (!cancelled) setLoading(false)
+    }
+    load()
+    return () => { cancelled = true }
+  }, [url])
+
+  // Render page whenever currentPage, zoom, or loading changes
+  // This ensures the first page renders after loading=false exposes the canvas
+  useEffect(() => {
+    if (!loading && pdfRef.current && currentPage > 0) {
+      renderPage(currentPage)
+    }
+  }, [currentPage, zoom, loading, renderPage])
 
   if (error) return <div style={{ padding: 20, color: '#dc2626', fontSize: 13 }}>{error}</div>
   if (loading) return <div style={{ padding: 20, color: '#6b7280', fontSize: 13, textAlign: 'center' }}>Loading PDF...</div>
