@@ -4,6 +4,7 @@ import { supabase } from '../../supabase'
 import { useOrgQuery } from '../../utils/queryHelpers.js'
 import { useOrgPath } from '../../contexts/OrgContext.jsx'
 import DocumentPanel from './DocumentPanel.jsx'
+import VarianceComparisonPanel from './VarianceComparisonPanel.jsx'
 
 /**
  * ReconFourPanelView — 4-panel document comparison keyed by ticket_number.
@@ -30,6 +31,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
   const [inspectorReport, setInspectorReport] = useState(null) // daily_reports row
   const [matchedBlock, setMatchedBlock] = useState(null)       // activity block with matching ticket #
   const [ticketPhotoUrls, setTicketPhotoUrls] = useState([])   // inspector's ticket photo URLs
+  const [lemData, setLemData] = useState(null)               // contractor_lems row for variance comparison
   const [loading, setLoading] = useState(true)
   const [meta, setMeta] = useState({ date: null, foreman: null })
 
@@ -47,6 +49,14 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
     dq = addOrgFilter(dq, true)
     const { data: docs } = await dq
     setUploadedDocs(docs || [])
+
+    // --- Source 1b: Contractor LEM structured data (for variance comparison) ---
+    let lq = supabase.from('contractor_lems')
+      .select('*')
+      .eq('field_log_id', ticketNumber)
+    lq = addOrgFilter(lq, true)
+    const { data: lemRows } = await lq
+    setLemData(lemRows?.[0] || null)
 
     // --- Source 2: Inspector report matching this ticket number ---
     // Search all reports for an activity block with this ticket number
@@ -199,6 +209,14 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
           color="#059669"
         />
       </div>
+
+      {/* Variance comparison panel — below the 4-panel grid */}
+      <VarianceComparisonPanel
+        ticketNumber={ticketNumber}
+        lemData={lemData}
+        inspectorBlock={matchedBlock}
+        organizationId={organizationId}
+      />
     </div>
   )
 }
