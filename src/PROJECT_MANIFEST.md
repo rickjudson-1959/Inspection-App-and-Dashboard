@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - March 21, 2026
+## Project Manifest - March 22, 2026
 
 ---
 
@@ -325,6 +325,29 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 - Rejection reason
 - Payment tracking: payment date, payment reference
 
+### 4-Panel Reconciliation Tables (NEW - March 22, 2026)
+
+**reconciliation_documents**
+- Stores UPLOADED contractor documents only (LEM and daily ticket)
+- Inspector data (photo + report) pulled from existing app tables, not uploaded
+- organization_id, ticket_number (the universal join key), doc_type (contractor_lem | contractor_ticket)
+- file_urls (text array — supports multi-page PDFs and multiple images)
+- page_count, status (pending | processing | ready | matched | error)
+- linked_lem_id (FK to contractor_lems), linked_report_id (FK to daily_reports)
+- date, foreman — context for display and filtering
+- uploaded_by (FK to auth.users)
+- Organization-scoped with RLS
+
+**recon_package_status** (VIEW)
+- One row per ticket_number showing which uploaded docs exist
+- has_lem, has_ticket counts from reconciliation_documents
+- Photo and report status supplemented by querying daily_reports in the component
+- Used by ReconciliationList for the ticket overview table
+
+### Storage Buckets (Reconciliation)
+
+- **`reconciliation-docs`** — Uploaded contractor LEMs and daily tickets. Path: `{org_id}/{ticket_number}/{doc_type}/{filename}`
+
 ### FEED Intelligence Tables (NEW - March 2026, v2 - March 19, 2026)
 
 **feed_estimates**
@@ -503,6 +526,14 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
     ├── FeedTagLEM.jsx           # Slide-over to tag/untag LEM entries to WBS items, search by ticket/crew/activity/foreman (v2 - Mar 2026)
     ├── FeedRiskRegister.jsx     # Risk register — inline add/edit, category/severity badges, bulk status, variance-to-allowance column, closeout link (v2 - Mar 2026)
     ├── FeedRiskCloseout.jsx     # Risk closeout modal — links inspector report, outcome, actual cost impact, auto-updates risk status (v2 - Mar 2026)
+    ├── Reconciliation/            # 4-Panel Reconciliation System (NEW - Mar 22, 2026)
+    │   ├── ReconciliationUpload.jsx  # Upload form — contractor LEM and daily ticket only (inspector data auto-linked)
+    │   ├── ReconciliationList.jsx    # Ticket list with 4-column completion status (LEM/TK/PH/RPT), merges recon_package_status + daily_reports
+    │   ├── ReconFourPanelView.jsx   # 2x2 grid — fetches from 3 sources: reconciliation_documents, daily_reports, ticket-photos bucket
+    │   ├── DocumentPanel.jsx        # Reusable panel with PDF/image viewer, fullscreen expand (⛶), zoom, rotate, page nav, panelType routing
+    │   ├── InspectorReportPanel.jsx # Formatted read-only manpower + equipment tables from activity_blocks (not a document upload)
+    │   ├── PdfViewer.jsx            # pdf.js canvas renderer with page navigation
+    │   └── ImageViewer.jsx          # Image renderer with ctrl+scroll zoom, click-to-fullscreen
     ├── MapDashboard.jsx
     ├── OfflineStatusBar.jsx     # PWA status indicator (NEW - Jan 2026)
     └── [supporting components]
@@ -559,12 +590,46 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ├── 20260319_create_feed_wbs_variance_view.sql       # feed_wbs_variance view (estimated vs actual + variance % per WBS item) (NEW - Mar 19, 2026)
 ├── 20260319_feed_v2_views.sql                       # feed_estimate_summary view (accuracy grade, rolled-up metrics) + feed_category_benchmarks view (cross-project benchmarks) (NEW - Mar 19, 2026)
 ├── 20260321_lem_categories_and_standalone_tickets.sql # lem_category on contractor_lem_uploads, standalone_tickets table, ticket_source/standalone_ticket_id/lem_claimed_data on lem_reconciliation_pairs (NEW - Mar 21, 2026)
+├── reconciliation_documents_migration.sql            # reconciliation_documents table + recon_package_status view + RLS + triggers (NEW - Mar 22, 2026)
 └── [other migrations]
 ```
 
 ---
 
 ## 6. RECENT UPDATES (January–March 2026)
+
+### 4-Panel Reconciliation System — ticket_number Keyed (March 22, 2026)
+
+**New reconciliation system matching documents by ticket_number across 4 panels. Two panels are uploaded by admin (contractor LEM + contractor daily ticket), two are auto-linked from existing inspector data in the app (ticket photo + formatted report).**
+
+1. **Architecture** — ticket_number is the universal join key. All four document sources converge on this field:
+   - Panel 1 (Contractor LEM): uploaded by admin to `reconciliation_documents` table
+   - Panel 2 (Contractor Daily Ticket): uploaded by admin to `reconciliation_documents` table
+   - Panel 3 (Inspector Ticket Photo): auto-linked from `ticketPhotos` in `daily_reports` → `activity_blocks` — NOT uploaded
+   - Panel 4 (Inspector Report): formatted read-only manpower + equipment tables from `daily_reports` → `activity_blocks` — NOT uploaded
+
+2. **ReconciliationUpload.jsx** — Upload form for contractor docs only (LEM or Daily Ticket). Ticket number required, drag-drop file zone, duplicate detection, multi-page support (PDF = single doc, multiple images = one multi-page doc). Files stored in `reconciliation-docs` bucket at `{org_id}/{ticket_number}/{doc_type}/{filename}`
+
+3. **ReconciliationList.jsx** — Ticket overview table merging two data sources: `recon_package_status` view (uploaded docs) + `daily_reports` scan (inspector photos/reports). Shows 4-column completion status (LEM/TK/PH/RPT checkmarks), Complete/Partial badges, filters by date/status/foreman. Click row → opens 4-panel view.
+
+4. **ReconFourPanelView.jsx** — 2x2 grid fetching from 3 sources: `reconciliation_documents` for uploaded docs, `daily_reports` for inspector data, and `ticket-photos` bucket for inspector's ticket photo URLs. Each panel rendered by DocumentPanel.
+
+5. **DocumentPanel.jsx** — Reusable panel with `panelType` prop (`uploaded`/`photo`/`report`):
+   - Uploaded panels: PDF viewer (pdf.js canvas) or image viewer with zoom/rotate/page nav
+   - Photo panel: auto-linked image with zoom/rotate — no upload button, contextual empty message
+   - Report panel: routes to InspectorReportPanel — no upload button
+   - **Fullscreen expand**: ⛶ button expands any panel to full-viewport overlay for detailed review. Color-coded header bar. ✕ to close.
+   - Minimum 500px height per panel — grid scrolls vertically
+
+6. **InspectorReportPanel.jsx** — Formatted read-only view of inspector report data: header (inspector, date, spread, activity, contractor, foreman, ticket #), manpower table (name, classification, RT, OT, JH, qty with totals), equipment table (type, unit #, hrs, qty with totals), work description
+
+7. **PdfViewer.jsx** — pdf.js canvas renderer with page-by-page navigation. Fixed first-page-blank bug (canvas not mounted during loading state).
+
+8. **ImageViewer.jsx** — Image renderer with ctrl+scroll zoom, click-to-fullscreen overlay
+
+9. **Routes**: `/:orgSlug/reconciliation` (ticket list), `/:orgSlug/reconciliation/upload` (upload form with prefill params), `/:orgSlug/reconciliation/:ticketNumber` (4-panel view), `/:orgSlug/reconciliation-legacy` (old dashboard preserved)
+
+10. **Admin Portal updates** — Ticket # column in Reports tab, Exports tab (separated from Reports), tab-aware back navigation, forced org filtering for super admins, "All time" date range option, "Pipeline Project" + "4-Way Reconciliation" title
 
 ### Three-Lane LEM Reconciliation with Editable Panel 4 & OCR Extraction (March 21, 2026)
 
