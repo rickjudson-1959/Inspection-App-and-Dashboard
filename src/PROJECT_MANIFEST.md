@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - March 22, 2026
+## Project Manifest - March 23, 2026
 
 ---
 
@@ -344,6 +344,17 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 - Photo and report status supplemented by querying daily_reports in the component
 - Used by ReconciliationList for the ticket overview table
 
+**reconciliation_line_items** (NEW - March 23, 2026)
+- Per-row reconciliation decisions for labour and equipment variance comparison
+- organization_id, ticket_number (join key), item_type (labour | equipment)
+- Matching: lem_worker_name, inspector_worker_name, match_confidence (0-1), match_method (exact, last_initial, nickname, etc.)
+- LEM data: lem_rt_hours, lem_ot_hours, lem_dt_hours, lem_total_hours, lem_cost
+- Inspector data: inspector_rt_hours, inspector_ot_hours, inspector_dt_hours, inspector_total_hours
+- Variance: variance_hours, variance_cost
+- Decision: status (pending | accepted | disputed | adjusted), adjusted_hours, adjusted_cost, dispute_notes
+- reconciled_by (FK to auth.users), reconciled_at
+- Organization-scoped with RLS
+
 ### Storage Buckets (Reconciliation)
 
 - **`reconciliation-docs`** — Uploaded contractor LEMs and daily tickets. Path: `{org_id}/{ticket_number}/{doc_type}/{filename}`
@@ -440,7 +451,9 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 │   ├── feedAuditLogger.js      # FEED module audit logger — writes to report_audit_log with module:'feed_intelligence', is_critical:true, regulatory_category:'financial' (NEW - Mar 2026)
 │   ├── lemParser.js            # LEM PDF parser: pdf.js text extraction, content-marker classification, adjacency pairing, background image upload + Claude Vision OCR extraction of LEM billing line items (extractLEMLineItems, extractAllLEMLineItems) with structured labour/equipment/totals output (Updated Mar 21, 2026)
 │   ├── lemMatcher.js           # Three-strategy matching engine: exact ticket → normalized ticket → date+crew fallback, variance calculation (NEW - Mar 2026)
-│   └── ticketNormalizer.js     # Ticket number normalization: strips prefixes, handles format variations (NEW - Mar 2026)
+│   ├── ticketNormalizer.js     # Ticket number normalization: strips prefixes, handles format variations (NEW - Mar 2026)
+│   ├── nameMatchingUtils.js    # 7-pass fuzzy name matching: exact, last+initial, Levenshtein, nickname (34 names), typo, reversed, initials. Equipment token overlap. (NEW - Mar 23, 2026)
+│   └── varianceCalculation.js  # Per-worker RT/OT/DT hour + cost variance, color coding, status icons, aggregate totals (NEW - Mar 23, 2026)
 │
 ├── Dashboards/
 │   ├── Dashboard.jsx           # CMT Dashboard
@@ -533,7 +546,10 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
     │   ├── DocumentPanel.jsx        # Reusable panel with PDF/image viewer, fullscreen expand (⛶), zoom, rotate, page nav, panelType routing
     │   ├── InspectorReportPanel.jsx # Formatted read-only manpower + equipment tables from activity_blocks (not a document upload)
     │   ├── PdfViewer.jsx            # pdf.js canvas renderer with page navigation
-    │   └── ImageViewer.jsx          # Image renderer with ctrl+scroll zoom, click-to-fullscreen
+    │   ├── ImageViewer.jsx          # Image renderer with ctrl+scroll zoom, click-to-fullscreen
+    │   ├── VarianceComparisonPanel.jsx  # Line-by-line variance comparison: fuzzy name matching, labour + equipment sections, bulk actions, saves to reconciliation_line_items (NEW - Mar 23, 2026)
+    │   ├── VarianceSummaryBar.jsx       # Three-card summary: LEM claimed, inspector verified, total variance with color-coded status (NEW - Mar 23, 2026)
+    │   └── VarianceRow.jsx              # Expandable row: name/hours/cost/confidence, RT/OT/DT breakdown, accept/dispute/adjust actions (NEW - Mar 23, 2026)
     ├── MapDashboard.jsx
     ├── OfflineStatusBar.jsx     # PWA status indicator (NEW - Jan 2026)
     └── [supporting components]
@@ -591,6 +607,7 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ├── 20260319_feed_v2_views.sql                       # feed_estimate_summary view (accuracy grade, rolled-up metrics) + feed_category_benchmarks view (cross-project benchmarks) (NEW - Mar 19, 2026)
 ├── 20260321_lem_categories_and_standalone_tickets.sql # lem_category on contractor_lem_uploads, standalone_tickets table, ticket_source/standalone_ticket_id/lem_claimed_data on lem_reconciliation_pairs (NEW - Mar 21, 2026)
 ├── reconciliation_documents_migration.sql            # reconciliation_documents table + recon_package_status view + RLS + triggers (NEW - Mar 22, 2026)
+├── 20260322_reconciliation_line_items.sql            # Per-row reconciliation decisions for variance comparison + RLS (NEW - Mar 23, 2026)
 └── [other migrations]
 ```
 
@@ -629,7 +646,15 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 9. **Routes**: `/:orgSlug/reconciliation` (ticket list), `/:orgSlug/reconciliation/upload` (upload form with prefill params), `/:orgSlug/reconciliation/:ticketNumber` (4-panel view), `/:orgSlug/reconciliation-legacy` (old dashboard preserved)
 
-10. **Admin Portal updates** — Ticket # column in Reports tab, Exports tab (separated from Reports), tab-aware back navigation, forced org filtering for super admins, "All time" date range option, "Pipeline Project" + "4-Way Reconciliation" title
+10. **Variance Comparison Panel** (March 23, 2026) — Line-by-line reconciliation below the 4-panel document viewer:
+    - **Fuzzy name matching** (`nameMatchingUtils.js`): 7-pass engine with confidence scoring — exact (1.0), last+initial (0.95), Levenshtein (0.85), nickname lookup with 34 canonical names (0.80), last name typo (0.70), reversed name order (0.75), initials (0.65). Equipment token overlap matching.
+    - **Variance calculation** (`varianceCalculation.js`): per-worker RT/OT/DT hour and cost variance using LEM rates, color coding (green/yellow/orange/red), status icons
+    - **VarianceSummaryBar**: three-card summary — LEM claimed, inspector verified, total variance with MATCH/MINOR/REVIEW/OVERBILLED status
+    - **VarianceRow**: expandable rows — collapsed shows name/hours/cost/confidence dot, expanded shows full name comparison, RT/OT/DT breakdown, accept/dispute/adjust action buttons
+    - **VarianceComparisonPanel**: orchestrates matching, renders labour + equipment sections, bulk actions (Accept All Matches, Flag All Variances), saves per-row decisions to `reconciliation_line_items` with audit logging
+    - **reconciliation_line_items** table: stores accept/dispute/adjust decisions per line item with confidence, variance, and audit trail
+
+11. **Admin Portal updates** — Ticket # column in Reports tab, Exports tab (separated from Reports), tab-aware back navigation, forced org filtering for super admins, "All time" date range option, "Pipeline Project" + "4-Way Reconciliation" title
 
 ### Three-Lane LEM Reconciliation with Editable Panel 4 & OCR Extraction (March 21, 2026)
 
