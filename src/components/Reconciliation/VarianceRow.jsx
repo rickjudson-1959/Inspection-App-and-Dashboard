@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
 import { getVarianceColor, getVarianceIcon } from '../../utils/varianceCalculation.js'
+import { getWorkerName, getEquipmentName } from '../../utils/nameMatchingUtils.js'
 
 /**
  * VarianceRow — A single expandable row in the variance comparison table.
@@ -108,10 +109,12 @@ export default function VarianceRow({ result, itemType, variance, onAction, save
   const { lemEntry, inspectorEntry, confidence, matchMethod, status } = result
 
   // Determine display values
-  const name = lemEntry?.name || inspectorEntry?.name || 'Unknown'
+  const name = itemType === 'labour'
+    ? (getWorkerName(lemEntry) || getWorkerName(inspectorEntry) || 'Unknown')
+    : (getEquipmentName(lemEntry) || getEquipmentName(inspectorEntry) || 'Unknown')
   const classification = itemType === 'labour'
-    ? (lemEntry?.classification || inspectorEntry?.classification || '-')
-    : (lemEntry?.name || inspectorEntry?.type || inspectorEntry?.equipment_type || '-')
+    ? (lemEntry?.type || lemEntry?.classification || inspectorEntry?.classification || '-')
+    : (lemEntry?.equipment_id || inspectorEntry?.unitNumber || inspectorEntry?.unit_number || '-')
 
   // Hours and costs
   const lemHoursTotal = variance?.lemHours?.total ?? 0
@@ -238,12 +241,12 @@ export default function VarianceRow({ result, itemType, variance, onAction, save
           <div style={{ display: 'flex', gap: '24px', marginBottom: '12px', fontSize: '12px' }}>
             <div>
               <span style={{ color: '#6b7280' }}>LEM: </span>
-              <strong style={{ color: '#1e3a5f' }}>{lemEntry?.name || 'N/A'}</strong>
+              <strong style={{ color: '#1e3a5f' }}>{itemType === 'labour' ? getWorkerName(lemEntry) : getEquipmentName(lemEntry) || 'N/A'}</strong>
             </div>
             <span style={{ color: '#d1d5db' }}>&#8596;</span>
             <div>
               <span style={{ color: '#6b7280' }}>Inspector: </span>
-              <strong style={{ color: '#16a34a' }}>{inspectorEntry?.name || inspectorEntry?.employeeName || inspectorEntry?.employee_name || 'N/A'}</strong>
+              <strong style={{ color: '#16a34a' }}>{itemType === 'labour' ? getWorkerName(inspectorEntry) : getEquipmentName(inspectorEntry) || 'N/A'}</strong>
             </div>
           </div>
 

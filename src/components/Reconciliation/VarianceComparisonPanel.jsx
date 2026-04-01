@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { matchWorkers, matchEquipment } from '../../utils/nameMatchingUtils.js'
+import { matchWorkers, matchEquipment, getWorkerName, getEquipmentName } from '../../utils/nameMatchingUtils.js'
 import {
   calculateWorkerVariance,
   calculateEquipmentVariance,
@@ -88,6 +88,13 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
     const lemEquip = lemData?.equipment_entries || []
     const inspEquip = inspectorBlock?.equipmentEntries || []
 
+    // Debug: log raw data structures so field name issues are immediately visible
+    if (lemLabour.length > 0) console.log('[Variance] LEM labour_entries sample:', JSON.stringify(lemLabour[0]), 'fields:', Object.keys(lemLabour[0]))
+    if (inspLabour.length > 0) console.log('[Variance] Inspector labourEntries sample:', JSON.stringify(inspLabour[0]), 'fields:', Object.keys(inspLabour[0]))
+    if (lemEquip.length > 0) console.log('[Variance] LEM equipment_entries sample:', JSON.stringify(lemEquip[0]), 'fields:', Object.keys(lemEquip[0]))
+    if (inspEquip.length > 0) console.log('[Variance] Inspector equipmentEntries sample:', JSON.stringify(inspEquip[0]), 'fields:', Object.keys(inspEquip[0]))
+    console.log(`[Variance] Ticket ${ticketNumber}: ${lemLabour.length} LEM labour, ${inspLabour.length} inspector labour, ${lemEquip.length} LEM equip, ${inspEquip.length} inspector equip`)
+
     // Match workers
     const workerMatches = matchWorkers(lemLabour, inspLabour)
     setLabourResults(workerMatches)
@@ -132,7 +139,9 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
       // Determine the entry details for audit logging
       const result = itemType === 'labour' ? labourResults[index] : equipmentResults[index]
       const variance = itemType === 'labour' ? labourVariances[index] : equipmentVariances[index]
-      const entryName = result?.lemEntry?.name || result?.inspectorEntry?.name || 'Unknown'
+      const entryName = itemType === 'labour'
+        ? (getWorkerName(result?.lemEntry) || getWorkerName(result?.inspectorEntry) || 'Unknown')
+        : (getEquipmentName(result?.lemEntry) || getEquipmentName(result?.inspectorEntry) || 'Unknown')
 
       // Upsert into reconciliation_line_items
       const { error: upsertError } = await supabase

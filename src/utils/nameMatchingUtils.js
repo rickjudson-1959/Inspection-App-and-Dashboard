@@ -69,6 +69,26 @@ for (const [canonical, nicknames] of Object.entries(NICKNAME_MAP)) {
 // normalizeName — uppercase, trim, collapse whitespace, strip periods/commas,
 //                 normalize hyphens (en-dash / em-dash → ASCII hyphen)
 // ---------------------------------------------------------------------------
+/**
+ * Extract worker name from an entry object — handles all field name conventions.
+ * LEM entries use: name
+ * Inspector entries use: employeeName, employee_name, or name
+ */
+export function getWorkerName(entry) {
+  if (!entry) return ''
+  return entry.employeeName || entry.employee_name || entry.name || ''
+}
+
+/**
+ * Extract equipment name from an entry object — handles all field name conventions.
+ * LEM entries use: type
+ * Inspector entries use: type, equipment_type, description
+ */
+export function getEquipmentName(entry) {
+  if (!entry) return ''
+  return entry.type || entry.equipment_type || entry.description || entry.name || ''
+}
+
 export function normalizeName(name) {
   if (!name || typeof name !== 'string') return '';
   return name
@@ -378,7 +398,7 @@ export function matchWorkers(lemEntries, inspectorEntries) {
   // Pre-compute normalized parts for every inspector entry
   const inspectorParsed = inspectorEntries.map(entry => ({
     entry,
-    parts: extractNameParts(normalizeName(entry.name)),
+    parts: extractNameParts(normalizeName(getWorkerName(entry))),
   }));
 
   const results = [];
@@ -386,7 +406,7 @@ export function matchWorkers(lemEntries, inspectorEntries) {
 
   // For each LEM entry, find the best inspector match
   for (const lemEntry of lemEntries) {
-    const lemNorm = normalizeName(lemEntry.name);
+    const lemNorm = normalizeName(getWorkerName(lemEntry));
     const lemParts = extractNameParts(lemNorm);
 
     // Only consider unmatched inspector entries
@@ -483,7 +503,7 @@ export function matchEquipment(lemEquipment, inspectorEquipment) {
   const matchedInspectorIndices = new Set();
 
   for (const lemEntry of lemEquipment) {
-    const lemTokens = tokenizeEquipment(lemEntry.name);
+    const lemTokens = tokenizeEquipment(getEquipmentName(lemEntry));
     if (lemTokens.length === 0) {
       results.push({
         lemEntry,
@@ -502,7 +522,7 @@ export function matchEquipment(lemEquipment, inspectorEquipment) {
     for (let idx = 0; idx < inspectorEquipment.length; idx++) {
       if (matchedInspectorIndices.has(idx)) continue;
 
-      const ipTokens = tokenizeEquipment(inspectorEquipment[idx].name);
+      const ipTokens = tokenizeEquipment(getEquipmentName(inspectorEquipment[idx]));
       if (ipTokens.length === 0) continue;
 
       // Count overlapping tokens
