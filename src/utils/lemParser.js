@@ -930,16 +930,47 @@ async function uploadPairImagesInBackground(file, lemId, rawPairs, insertedPairs
  * For images: OCRs directly.
  */
 export async function extractLEMFromUrl(docUrl) {
-  if (!docUrl) return { labour: [], equipment: [], totals: {}, raw_text: '' }
+  if (!docUrl) { console.error('[LEM OCR] No URL provided'); return { labour: [], equipment: [], totals: {}, raw_text: '' } }
+
+  console.log(`[LEM OCR] extractLEMFromUrl called with: ${docUrl.substring(0, 100)}...`)
+  console.log(`[LEM OCR] ANTHROPIC_API_KEY present: ${!!ANTHROPIC_API_KEY} (length: ${ANTHROPIC_API_KEY?.length || 0})`)
 
   const isPdf = docUrl.split('?')[0].toLowerCase().endsWith('.pdf')
+  console.log(`[LEM OCR] isPdf: ${isPdf}`)
 
   if (isPdf) {
     // Render PDF pages to images, then OCR each
-    await ensurePdfJs()
-    const resp = await fetch(docUrl)
-    const arrayBuffer = await resp.arrayBuffer()
-    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
+    try {
+      await ensurePdfJs()
+      console.log('[LEM OCR] pdf.js loaded')
+    } catch (e) {
+      console.error('[LEM OCR] Failed to load pdf.js:', e)
+      return { labour: [], equipment: [], totals: {}, raw_text: '' }
+    }
+
+    let resp
+    try {
+      resp = await fetch(docUrl)
+      console.log(`[LEM OCR] PDF fetch status: ${resp.status} ${resp.statusText}`)
+      if (!resp.ok) {
+        console.error(`[LEM OCR] PDF fetch failed: ${resp.status}`)
+        return { labour: [], equipment: [], totals: {}, raw_text: '' }
+      }
+    } catch (e) {
+      console.error('[LEM OCR] PDF fetch error (likely CORS):', e)
+      return { labour: [], equipment: [], totals: {}, raw_text: '' }
+    }
+
+    let pdf
+    try {
+      const arrayBuffer = await resp.arrayBuffer()
+      console.log(`[LEM OCR] PDF arrayBuffer size: ${arrayBuffer.byteLength}`)
+      pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
+    } catch (e) {
+      console.error('[LEM OCR] pdf.js getDocument failed:', e)
+      return { labour: [], equipment: [], totals: {}, raw_text: '' }
+    }
+
     const numPages = pdf.numPages
     console.log(`[LEM OCR] PDF has ${numPages} pages — rendering and extracting...`)
 
@@ -951,11 +982,25 @@ export async function extractLEMFromUrl(docUrl) {
 
     for (let i = 1; i <= numPages; i++) {
       console.log(`[LEM OCR] Processing page ${i} of ${numPages}...`)
-      const page = await pdf.getPage(i)
-      const b64 = await renderPageToImage(page, 2.0, 0.9)
+      let b64
+      try {
+        const page = await pdf.getPage(i)
+        b64 = await renderPageToImage(page, 2.0, 0.9)
+        console.log(`[LEM OCR] Page ${i} rendered to image: ${b64?.length || 0} chars base64`)
+      } catch (e) {
+        console.error(`[LEM OCR] Page ${i} render failed:`, e)
+        continue
+      }
 
       // OCR this page image
-      const pageResult = await extractLEMLineItemsFromBase64(b64)
+      let pageResult
+      try {
+        pageResult = await extractLEMLineItemsFromBase64(b64)
+        console.log(`[LEM OCR] Page ${i} OCR result: ${pageResult.labour?.length || 0} labour, ${pageResult.equipment?.length || 0} equipment`)
+      } catch (e) {
+        console.error(`[LEM OCR] Page ${i} OCR failed:`, e)
+        continue
+      }
       allLabour.push(...(pageResult.labour || []))
       allEquipment.push(...(pageResult.equipment || []))
       if (pageResult.totals) {
@@ -968,6 +1013,7 @@ export async function extractLEMFromUrl(docUrl) {
       if (i < numPages) await sleep(CLASSIFY_DELAY_MS)
     }
 
+    console.log(`[LEM OCR] FINAL: ${allLabour.length} labour, ${allEquipment.length} equipment, total=$${grandTotal}`)
     return {
       labour: allLabour,
       equipment: allEquipment,
