@@ -121,6 +121,9 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
     lem: uploadedDocs.find(d => d.doc_type === 'contractor_lem') || null,
     ticket: uploadedDocs.find(d => d.doc_type === 'contractor_ticket') || null,
   }
+  console.log(`[ReconView] ticket=${ticketNumber} uploadedDocs=${uploadedDocs.length} panels.lem=${!!panels.lem} lemData=${!!lemData} matchedBlock=${!!matchedBlock}`)
+  if (panels.lem) console.log('[ReconView] LEM file_urls:', panels.lem.file_urls)
+  else console.log('[ReconView] No panels.lem — uploadedDocs:', JSON.stringify(uploadedDocs.map(d => ({ type: d.doc_type, org: d.organization_id }))))
 
   // Build photo panel data (auto-linked, not uploaded)
   const photoPanel = ticketPhotoUrls.length > 0
