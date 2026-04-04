@@ -570,7 +570,7 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
       console.log(`[Extract] TOTAL: ${allLabour.length} labour, ${allEquipment.length} equipment, labourCost=$${totalLabourCost}, equipCost=$${totalEquipCost}`)
 
       if (allLabour.length > 0 || allEquipment.length > 0) {
-        const { error: upsertErr } = await supabase.from('contractor_lems').upsert({
+        const lemRecord = {
           organization_id: organizationId,
           field_log_id: ticketNumber,
           date: uploadedLemDate || new Date().toISOString().split('T')[0],
@@ -579,8 +579,31 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
           equipment_entries: allEquipment,
           total_labour_cost: totalLabourCost,
           total_equipment_cost: totalEquipCost,
-        }, { onConflict: 'organization_id,field_log_id' })
-        if (upsertErr) console.error('[LEM OCR] Upsert failed:', upsertErr)
+        }
+
+        // Check if record exists, then update or insert
+        const { data: existing } = await supabase.from('contractor_lems')
+          .select('id')
+          .eq('organization_id', organizationId)
+          .eq('field_log_id', ticketNumber)
+          .limit(1)
+
+        let saveErr
+        if (existing && existing.length > 0) {
+          const { error } = await supabase.from('contractor_lems')
+            .update(lemRecord).eq('id', existing[0].id)
+          saveErr = error
+        } else {
+          const { error } = await supabase.from('contractor_lems')
+            .insert(lemRecord)
+          saveErr = error
+        }
+        if (saveErr) {
+          console.error('[LEM OCR] Save failed:', saveErr)
+          alert('Extraction succeeded but save failed: ' + saveErr.message)
+        } else {
+          console.log('[LEM OCR] Saved successfully')
+        }
 
         if (onLemDataExtracted) onLemDataExtracted()
       } else {

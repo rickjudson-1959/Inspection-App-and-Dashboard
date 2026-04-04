@@ -250,20 +250,31 @@ export default function ReconciliationUpload({ onUploadComplete, prefillTicket, 
             }
           }
 
-          // Upsert contractor_lems record with structured data
+          // Save contractor_lems record with structured data
           if (allLabour.length > 0 || allEquipment.length > 0) {
-            const { error: lemErr } = await supabase
-              .from('contractor_lems')
-              .upsert({
-                organization_id: orgId,
-                field_log_id: ticketTrimmed,
-                foreman: foreman.trim() || null,
-                date: date || new Date().toISOString().split('T')[0],
-                labour_entries: allLabour,
-                equipment_entries: allEquipment,
-                total_labour_cost: totalLabourCost,
-                total_equipment_cost: totalEquipCost,
-              }, { onConflict: 'organization_id,field_log_id' })
+            const lemRecord = {
+              organization_id: orgId,
+              field_log_id: ticketTrimmed,
+              foreman: foreman.trim() || null,
+              date: date || new Date().toISOString().split('T')[0],
+              labour_entries: allLabour,
+              equipment_entries: allEquipment,
+              total_labour_cost: totalLabourCost,
+              total_equipment_cost: totalEquipCost,
+            }
+
+            // Check if exists, then update or insert
+            const { data: existing } = await supabase.from('contractor_lems')
+              .select('id').eq('organization_id', orgId).eq('field_log_id', ticketTrimmed).limit(1)
+
+            let lemErr
+            if (existing && existing.length > 0) {
+              const { error } = await supabase.from('contractor_lems').update(lemRecord).eq('id', existing[0].id)
+              lemErr = error
+            } else {
+              const { error } = await supabase.from('contractor_lems').insert(lemRecord)
+              lemErr = error
+            }
 
             if (lemErr) {
               console.error('[LEM OCR] Failed to save structured data:', lemErr)
