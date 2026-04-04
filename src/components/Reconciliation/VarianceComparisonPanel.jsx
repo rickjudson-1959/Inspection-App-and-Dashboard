@@ -132,19 +132,63 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
     loadRates()
   }, [organizationId])
 
-  // Rate card matching — find the best matching rate for a classification or equipment type
+  // Rate card matching — multi-strategy fuzzy match for classification or equipment type
   function findRate(name, rates, nameField) {
     if (!name || !rates?.length) return null
     const s = name.toLowerCase().trim()
-    // Exact match
+
+    // Pass 1: Exact match (case-insensitive)
     const exact = rates.find(r => (r[nameField] || '').toLowerCase().trim() === s)
     if (exact) return exact
-    // Contains match
+
+    // Pass 2: Contains match (either direction)
     const contains = rates.find(r => {
       const k = (r[nameField] || '').toLowerCase().trim()
       return k.includes(s) || s.includes(k)
     })
-    return contains || null
+    if (contains) return contains
+
+    // Pass 3: Token overlap match — tokenize both and find best overlap
+    // "PRINCIPAL OPERATOR 1" → ["principal", "operator", "1"]
+    // "Principal Oper 1" → ["principal", "oper", "1"]
+    // Shared tokens or partial token matches count
+    function tokenize(str) {
+      return str.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(t => t.length > 0)
+    }
+
+    const sTokens = tokenize(s)
+    let bestRate = null
+    let bestScore = 0
+
+    for (const r of rates) {
+      const k = (r[nameField] || '').toLowerCase().trim()
+      const kTokens = tokenize(k)
+      if (kTokens.length === 0) continue
+
+      let score = 0
+      for (const st of sTokens) {
+        for (const kt of kTokens) {
+          if (st === kt) { score += 2; break }                    // exact token match
+          if (st.length >= 3 && kt.startsWith(st)) { score += 1.5; break }  // "oper" matches "operator"
+          if (kt.length >= 3 && st.startsWith(kt)) { score += 1.5; break }  // "operator" matches "oper"
+          if (st.length >= 4 && kt.includes(st)) { score += 1; break }      // substring
+          if (kt.length >= 4 && st.includes(kt)) { score += 1; break }
+        }
+      }
+
+      // Normalize by total tokens to prefer closer matches
+      const normalizedScore = score / Math.max(sTokens.length, kTokens.length)
+
+      if (normalizedScore > bestScore) {
+        bestScore = normalizedScore
+        bestRate = r
+      }
+    }
+
+    // Require at least 50% token match to avoid false positives
+    if (bestRate && bestScore >= 1.0) return bestRate
+
+    return null
   }
 
   function calcInspectorLabourCost(entry) {
