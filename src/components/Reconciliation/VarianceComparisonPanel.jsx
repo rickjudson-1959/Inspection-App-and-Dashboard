@@ -524,8 +524,9 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
 
   // Extract LEM data from uploaded PDF (for LEMs uploaded before OCR was wired up)
   async function handleExtractFromUpload() {
-    if (!uploadedLemUrls?.length) return
+    if (!uploadedLemUrls?.length) { alert('No uploaded LEM URLs found'); return }
     setProcessing(true)
+    console.log('[Extract] Starting extraction for URLs:', uploadedLemUrls)
     try {
       const allLabour = []
       const allEquipment = []
@@ -533,7 +534,17 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
       let totalEquipCost = 0
 
       for (const url of uploadedLemUrls) {
-        const extracted = await extractLEMFromUrl(url)
+        console.log('[Extract] Processing URL:', url)
+        let extracted
+        try {
+          extracted = await extractLEMFromUrl(url)
+          console.log('[Extract] Result:', JSON.stringify(extracted).substring(0, 300))
+        } catch (ocrError) {
+          console.error('[Extract] extractLEMFromUrl threw:', ocrError)
+          alert('OCR error: ' + ocrError.message)
+          setProcessing(false)
+          return
+        }
         if (extracted.labour) {
           for (const l of extracted.labour) {
             allLabour.push({
@@ -555,6 +566,8 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
           }
         }
       }
+
+      console.log(`[Extract] TOTAL: ${allLabour.length} labour, ${allEquipment.length} equipment, labourCost=$${totalLabourCost}, equipCost=$${totalEquipCost}`)
 
       if (allLabour.length > 0 || allEquipment.length > 0) {
         const { error: upsertErr } = await supabase.from('contractor_lems').upsert({
