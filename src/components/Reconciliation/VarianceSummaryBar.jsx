@@ -1,11 +1,20 @@
 import React from 'react'
 
 /**
- * VarianceSummaryBar — Top-level summary showing total LEM claimed,
- * total inspector verified, and dollar variance.
+ * VarianceSummaryBar — Top-level summary showing totals.
+ *
+ * When hasLem is true (or not provided for backward compat), shows three cards:
+ *   1. Inspector Recorded (green border)
+ *   2. LEM Claimed (navy border)
+ *   3. Variance (color-coded)
+ *
+ * When hasLem is false, shows two cards:
+ *   1. Inspector Recorded — total calculated cost
+ *   2. LEM Status — "Awaiting LEM" badge (gray)
  *
  * Props:
  *   totals — { lemTotal, inspectorTotal, varianceTotal, matchedCount, unmatchedLemCount, unmatchedInspectorCount }
+ *   hasLem — boolean, whether LEM data exists for comparison
  */
 
 function formatCurrency(value) {
@@ -69,7 +78,7 @@ const valueStyle = {
   lineHeight: 1.2,
 }
 
-export default function VarianceSummaryBar({ totals }) {
+export default function VarianceSummaryBar({ totals, hasLem }) {
   const {
     lemTotal = 0,
     inspectorTotal = 0,
@@ -79,6 +88,59 @@ export default function VarianceSummaryBar({ totals }) {
     unmatchedInspectorCount = 0,
   } = totals || {}
 
+  // Default hasLem to true for backward compatibility (if lemTotal > 0, assume LEM exists)
+  const lemExists = hasLem !== undefined ? hasLem : lemTotal > 0
+
+  if (!lemExists) {
+    // ===================================================================
+    // INSPECTOR-ONLY MODE — Two cards
+    // ===================================================================
+    return (
+      <div>
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {/* Card 1: INSPECTOR RECORDED */}
+          <div style={{ ...cardStyle, borderTop: '3px solid #16a34a' }}>
+            <span style={labelStyle}>Inspector Recorded</span>
+            <span style={{ ...valueStyle, color: '#16a34a' }}>
+              {formatCurrencyPlain(inspectorTotal)}
+            </span>
+          </div>
+
+          {/* Card 2: LEM STATUS — awaiting */}
+          <div style={{ ...cardStyle, borderTop: '3px solid #9ca3af' }}>
+            <span style={labelStyle}>LEM Status</span>
+            <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
+              <span style={{
+                fontSize: '13px',
+                fontWeight: '700',
+                color: 'white',
+                backgroundColor: '#9ca3af',
+                padding: '4px 12px',
+                borderRadius: '12px',
+                letterSpacing: '0.5px',
+              }}>
+                AWAITING LEM
+              </span>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary text */}
+        <div style={{
+          marginTop: '8px',
+          fontSize: '12px',
+          color: '#6b7280',
+          textAlign: 'center',
+        }}>
+          {unmatchedInspectorCount} inspector {unmatchedInspectorCount === 1 ? 'entry' : 'entries'} recorded
+        </div>
+      </div>
+    )
+  }
+
+  // ===================================================================
+  // COMPARISON MODE — Three cards
+  // ===================================================================
   const varianceBorder = getVarianceBorderColor(varianceTotal)
   const varianceStatus = getVarianceStatusText(varianceTotal)
   const varianceStatusColor = getVarianceStatusColor(varianceTotal)
@@ -87,7 +149,15 @@ export default function VarianceSummaryBar({ totals }) {
     <div>
       {/* Three summary cards */}
       <div style={{ display: 'flex', gap: '12px' }}>
-        {/* Card 1: LEM CLAIMED */}
+        {/* Card 1: INSPECTOR RECORDED */}
+        <div style={{ ...cardStyle, borderTop: '3px solid #16a34a' }}>
+          <span style={labelStyle}>Inspector Recorded</span>
+          <span style={{ ...valueStyle, color: '#16a34a' }}>
+            {formatCurrencyPlain(inspectorTotal)}
+          </span>
+        </div>
+
+        {/* Card 2: LEM CLAIMED */}
         <div style={{ ...cardStyle, borderTop: '3px solid #1e3a5f' }}>
           <span style={labelStyle}>LEM Claimed</span>
           <span style={{ ...valueStyle, color: '#1e3a5f' }}>
@@ -95,17 +165,9 @@ export default function VarianceSummaryBar({ totals }) {
           </span>
         </div>
 
-        {/* Card 2: INSPECTOR VERIFIED */}
-        <div style={{ ...cardStyle, borderTop: '3px solid #16a34a' }}>
-          <span style={labelStyle}>Inspector Verified</span>
-          <span style={{ ...valueStyle, color: '#16a34a' }}>
-            {formatCurrencyPlain(inspectorTotal)}
-          </span>
-        </div>
-
-        {/* Card 3: TOTAL VARIANCE */}
+        {/* Card 3: VARIANCE */}
         <div style={{ ...cardStyle, borderTop: `3px solid ${varianceBorder}` }}>
-          <span style={labelStyle}>Total Variance</span>
+          <span style={labelStyle}>Variance</span>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px' }}>
             <span style={{ ...valueStyle, color: varianceStatusColor }}>
               {formatCurrency(varianceTotal)}

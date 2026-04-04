@@ -1,11 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { matchWorkers, matchEquipment, getWorkerName, getEquipmentName } from '../../utils/nameMatchingUtils.js'
+import { calculateWorkerVariance, calculateEquipmentVariance, calculateTotals } from '../../utils/varianceCalculation.js'
 import { extractLEMFromUrl } from '../../utils/lemParser.js'
-import {
-  calculateWorkerVariance,
-  calculateEquipmentVariance,
-  calculateTotals,
-} from '../../utils/varianceCalculation.js'
 import VarianceSummaryBar from './VarianceSummaryBar.jsx'
 import VarianceRow from './VarianceRow.jsx'
 import { supabase } from '../../supabase'
@@ -14,11 +10,18 @@ import { supabase } from '../../supabase'
  * VarianceComparisonPanel — Main variance comparison panel that goes below
  * the 4-panel document viewer.
  *
+ * FUNDAMENTAL PRINCIPLE: The inspector report is the source of truth.
+ * It ALWAYS displays, even without LEM data. The LEM is an overlay
+ * for comparison when available.
+ *
  * Props:
- *   ticketNumber    — string
- *   lemData         — contractor_lems row (with labour_entries, equipment_entries)
- *   inspectorBlock  — activity_blocks entry (with labourEntries, equipmentEntries)
- *   organizationId  — for DB operations
+ *   ticketNumber          — string
+ *   lemData               — contractor_lems row (with labour_entries, equipment_entries), or null
+ *   inspectorBlock        — activity_blocks entry (with labourEntries, equipmentEntries)
+ *   organizationId        — for DB operations
+ *   onInspectorBlockChange — callback when inspector data is edited
+ *   uploadedLemUrls       — array of uploaded LEM PDF URLs (for extraction)
+ *   onLemDataExtracted    — callback after LEM data is extracted from uploads
  */
 
 const sectionHeaderStyle = {
@@ -48,8 +51,58 @@ const tableHeaderStyle = {
   letterSpacing: '0.3px',
 }
 
+// Simpler grid for inspector-only mode (no LEM comparison)
+const inspectorOnlyTableHeaderStyle = {
+  display: 'grid',
+  gridTemplateColumns: '32px 1fr 120px 80px 80px 80px',
+  alignItems: 'center',
+  backgroundColor: '#f1f5f9',
+  borderBottom: '1px solid #cbd5e1',
+  fontSize: '11px',
+  fontWeight: '600',
+  color: '#475569',
+  textTransform: 'uppercase',
+  letterSpacing: '0.3px',
+}
+
 const thCell = {
   padding: '6px 10px',
+}
+
+// Editable cell styles for inspector-only mode
+const inspectorOnlyCellStyle = {
+  padding: '6px 10px',
+  fontSize: '12px',
+}
+
+const inspectorOnlyInputStyle = {
+  padding: '4px 6px',
+  fontSize: '12px',
+  border: '1px solid #d1d5db',
+  borderRadius: '3px',
+  fontFamily: 'inherit',
+  width: '100%',
+  boxSizing: 'border-box',
+}
+
+const inspectorOnlyNumberInputStyle = {
+  padding: '4px 6px',
+  fontSize: '12px',
+  border: '1px solid #d1d5db',
+  borderRadius: '3px',
+  fontFamily: 'inherit',
+  width: '68px',
+  textAlign: 'right',
+  boxSizing: 'border-box',
+}
+
+function num(v) {
+  const n = Number(v)
+  return Number.isFinite(n) ? n : 0
+}
+
+function formatCurrency(value) {
+  return num(value).toLocaleString('en-CA', { style: 'currency', currency: 'CAD' })
 }
 
 export default function VarianceComparisonPanel({ ticketNumber, lemData, inspectorBlock, organizationId, onInspectorBlockChange, uploadedLemUrls, onLemDataExtracted }) {
@@ -74,6 +127,8 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
     { value: 'ppe', label: 'PPE' },
     { value: 'other', label: 'Other' },
   ]
+
+  const hasLem = !!lemData
 
   // Initialize editable block when inspector data changes
   useEffect(() => {
@@ -113,55 +168,95 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
     }
   }, [ticketNumber, organizationId])
 
-  // Run matching and variance calculations on mount or data change
+  // Run matching and variance calculations when BOTH lemData and editableBlock exist
+  // When inspector-only, we still calculate inspector totals for the summary bar
   useEffect(() => {
-    if (!lemData && !editableBlock) return
+    if (!editableBlock) return
 
-    const lemLabour = lemData?.labour_entries || []
     const inspLabour = editableBlock?.labourEntries || []
-    const lemEquip = lemData?.equipment_entries || []
     const inspEquip = editableBlock?.equipmentEntries || []
 
-    // Debug: log raw data structures
-    if (lemLabour.length > 0) console.log('[Variance] LEM labour sample:', Object.keys(lemLabour[0]))
-    if (inspLabour.length > 0) console.log('[Variance] Inspector labour sample:', Object.keys(inspLabour[0]))
-    if (lemEquip.length > 0) console.log('[Variance] LEM equip sample:', Object.keys(lemEquip[0]))
-    if (inspEquip.length > 0) console.log('[Variance] Inspector equip sample:', Object.keys(inspEquip[0]))
+    if (hasLem) {
+      // FULL COMPARISON MODE — match and calculate variances
+      const lemLabour = lemData?.labour_entries || []
+      const lemEquip = lemData?.equipment_entries || []
 
-    // Match workers
-    const workerMatches = matchWorkers(lemLabour, inspLabour)
-    setLabourResults(workerMatches)
+      // Debug: log raw data structures
+      if (lemLabour.length > 0) console.log('[Variance] LEM labour sample:', Object.keys(lemLabour[0]))
+      if (inspLabour.length > 0) console.log('[Variance] Inspector labour sample:', Object.keys(inspLabour[0]))
+      if (lemEquip.length > 0) console.log('[Variance] LEM equip sample:', Object.keys(lemEquip[0]))
+      if (inspEquip.length > 0) console.log('[Variance] Inspector equip sample:', Object.keys(inspEquip[0]))
 
-    // Calculate variance for each worker match
-    const workerVars = workerMatches.map(match =>
-      calculateWorkerVariance(match.lemEntry, match.inspectorEntry)
-    )
-    setLabourVariances(workerVars)
+      // Match workers
+      const workerMatches = matchWorkers(lemLabour, inspLabour)
+      setLabourResults(workerMatches)
 
-    // Match equipment
-    const equipMatches = matchEquipment(lemEquip, inspEquip)
-    setEquipmentResults(equipMatches)
+      // Calculate variance for each worker match
+      const workerVars = workerMatches.map(match =>
+        calculateWorkerVariance(match.lemEntry, match.inspectorEntry)
+      )
+      setLabourVariances(workerVars)
 
-    // Calculate variance for each equipment match
-    const equipVars = equipMatches.map(match =>
-      calculateEquipmentVariance(match.lemEntry, match.inspectorEntry)
-    )
-    setEquipmentVariances(equipVars)
+      // Match equipment
+      const equipMatches = matchEquipment(lemEquip, inspEquip)
+      setEquipmentResults(equipMatches)
 
-    // Combine all variances for totals calculation
-    const allVariances = [...workerVars, ...equipVars]
-    const combinedResults = allVariances.map((v, i) => ({
-      lemCost: v.lemCost,
-      variance: v.variance,
-      status: i < workerVars.length
-        ? workerMatches[i]?.status
-        : equipMatches[i - workerVars.length]?.status,
-    }))
-    setTotals(calculateTotals(combinedResults))
+      // Calculate variance for each equipment match
+      const equipVars = equipMatches.map(match =>
+        calculateEquipmentVariance(match.lemEntry, match.inspectorEntry)
+      )
+      setEquipmentVariances(equipVars)
 
-    // Load saved statuses
-    loadSavedStatuses()
-  }, [lemData, editableBlock, loadSavedStatuses])
+      // Combine all variances for totals calculation
+      const allVariances = [...workerVars, ...equipVars]
+      const combinedResults = allVariances.map((v, i) => ({
+        lemCost: v.lemCost,
+        variance: v.variance,
+        status: i < workerVars.length
+          ? workerMatches[i]?.status
+          : equipMatches[i - workerVars.length]?.status,
+      }))
+      setTotals(calculateTotals(combinedResults))
+
+      // Load saved statuses
+      loadSavedStatuses()
+    } else {
+      // INSPECTOR-ONLY MODE — calculate inspector totals for summary bar
+      // No matching needed, just sum up inspector costs
+      let inspectorTotalCost = 0
+
+      for (const entry of inspLabour) {
+        const rt = num(entry.rtHours ?? entry.rt_hours ?? entry.rt ?? entry.hours ?? entry.jh ?? 0)
+        const ot = num(entry.otHours ?? entry.ot_hours ?? entry.ot ?? 0)
+        const dt = num(entry.dtHours ?? entry.dt_hours ?? entry.dt ?? 0)
+        const rtRate = num(entry.rt_rate ?? entry.rtRate ?? 0)
+        const otRate = num(entry.ot_rate ?? entry.otRate ?? 0)
+        const dtRate = num(entry.dt_rate ?? entry.dtRate ?? 0)
+        inspectorTotalCost += (rt * rtRate) + (ot * otRate) + (dt * dtRate)
+      }
+
+      for (const entry of inspEquip) {
+        const hours = num(entry.hours ?? entry.count ?? 0)
+        const rate = num(entry.rate ?? 0)
+        inspectorTotalCost += hours * rate
+      }
+
+      setTotals({
+        inspectorTotal: inspectorTotalCost,
+        lemTotal: 0,
+        varianceTotal: 0,
+        matchedCount: 0,
+        unmatchedLemCount: 0,
+        unmatchedInspectorCount: inspLabour.length + inspEquip.length,
+      })
+
+      // Clear comparison data
+      setLabourResults([])
+      setLabourVariances([])
+      setEquipmentResults([])
+      setEquipmentVariances([])
+    }
+  }, [lemData, editableBlock, hasLem, loadSavedStatuses])
 
   // Handle inspector data edit — updates local editable block and notifies parent
   function handleInspectorEdit(itemType, index, field, value) {
@@ -169,38 +264,32 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
       if (!prev) return prev
       const updated = JSON.parse(JSON.stringify(prev))
       const entries = itemType === 'labour' ? updated.labourEntries : updated.equipmentEntries
-      const matchResult = itemType === 'labour' ? labourResults[index] : equipmentResults[index]
 
-      // Find the inspector entry in the editable block that corresponds to this match
-      if (matchResult?.inspectorEntry && entries) {
-        const origEntry = matchResult.inspectorEntry
-        const entryIdx = entries.findIndex(e => e === origEntry || (
-          (e.employeeName === origEntry.employeeName || e.employee_name === origEntry.employee_name) &&
-          (e.rt === origEntry.rt || e.hours === origEntry.hours)
-        ))
+      if (hasLem) {
+        // In comparison mode, use match results to find the correct entry
+        const matchResult = itemType === 'labour' ? labourResults[index] : equipmentResults[index]
 
-        if (entryIdx >= 0) {
-          const fieldMap = {
-            name: itemType === 'labour' ? (entries[entryIdx].employeeName !== undefined ? 'employeeName' : 'employee_name') : null,
-            classification: 'classification',
-            rt: entries[entryIdx].rt !== undefined ? 'rt' : 'rtHours',
-            ot: entries[entryIdx].ot !== undefined ? 'ot' : 'otHours',
-            dt: entries[entryIdx].dt !== undefined ? 'dt' : 'dtHours',
-            hours: 'hours',
-            type: entries[entryIdx].type !== undefined ? 'type' : 'equipment_type',
-            unitNumber: entries[entryIdx].unitNumber !== undefined ? 'unitNumber' : 'unit_number',
+        if (matchResult?.inspectorEntry && entries) {
+          const origEntry = matchResult.inspectorEntry
+          const entryIdx = entries.findIndex(e => e === origEntry || (
+            (e.employeeName === origEntry.employeeName || e.employee_name === origEntry.employee_name) &&
+            (e.rt === origEntry.rt || e.hours === origEntry.hours)
+          ))
+
+          if (entryIdx >= 0) {
+            applyFieldEdit(entries, entryIdx, itemType, field, value)
           }
-          const actualField = fieldMap[field]
-          if (actualField) {
-            const isNumeric = ['rt', 'ot', 'dt', 'hours'].includes(field)
-            entries[entryIdx][actualField] = isNumeric ? parseFloat(value) || 0 : value
+        } else if (!matchResult?.inspectorEntry && value) {
+          // LEM-only row — admin is adding a new inspector entry
+          if (itemType === 'labour' && field === 'name') {
+            updated.labourEntries = updated.labourEntries || []
+            updated.labourEntries.push({ employeeName: value, classification: '', rt: 0, ot: 0, count: 1 })
           }
         }
-      } else if (!matchResult?.inspectorEntry && value) {
-        // LEM-only row — admin is adding a new inspector entry
-        if (itemType === 'labour' && field === 'name') {
-          updated.labourEntries = updated.labourEntries || []
-          updated.labourEntries.push({ employeeName: value, classification: '', rt: 0, ot: 0, count: 1 })
+      } else {
+        // In inspector-only mode, index maps directly to the entries array
+        if (entries && entries[index]) {
+          applyFieldEdit(entries, index, itemType, field, value)
         }
       }
 
@@ -210,6 +299,25 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
       }
       return updated
     })
+  }
+
+  // Shared field edit logic
+  function applyFieldEdit(entries, entryIdx, itemType, field, value) {
+    const fieldMap = {
+      name: itemType === 'labour' ? (entries[entryIdx].employeeName !== undefined ? 'employeeName' : 'employee_name') : null,
+      classification: 'classification',
+      rt: entries[entryIdx].rt !== undefined ? 'rt' : 'rtHours',
+      ot: entries[entryIdx].ot !== undefined ? 'ot' : 'otHours',
+      dt: entries[entryIdx].dt !== undefined ? 'dt' : 'dtHours',
+      hours: 'hours',
+      type: entries[entryIdx].type !== undefined ? 'type' : 'equipment_type',
+      unitNumber: entries[entryIdx].unitNumber !== undefined ? 'unitNumber' : 'unit_number',
+    }
+    const actualField = fieldMap[field]
+    if (actualField) {
+      const isNumeric = ['rt', 'ot', 'dt', 'hours'].includes(field)
+      entries[entryIdx][actualField] = isNumeric ? parseFloat(value) || 0 : value
+    }
   }
 
   // Handle additional cost edit
@@ -382,32 +490,9 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
     setProcessing(false)
   }
 
-  // Empty states
-  if (!lemData) {
-    return (
-      <div style={{
-        padding: '32px',
-        textAlign: 'center',
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        border: '1px solid #e5e7eb',
-        marginTop: '12px',
-      }}>
-        <p style={{ color: '#6b7280', fontSize: '14px', margin: '0 0 12px 0' }}>
-          No contractor LEM data found for this ticket.
-        </p>
-        {uploadedLemUrls?.length > 0 ? (
-          <button onClick={handleExtractFromUpload} disabled={processing}
-            style={{ padding: '10px 24px', backgroundColor: processing ? '#9ca3af' : '#0ea5e9', color: 'white', border: 'none', borderRadius: '6px', cursor: processing ? 'not-allowed' : 'pointer', fontWeight: '600' }}>
-            {processing ? 'Extracting (this may take 30-60s)...' : 'Extract Data from Uploaded LEM'}
-          </button>
-        ) : (
-          <p style={{ color: '#9ca3af', fontSize: '13px', margin: 0 }}>Upload a LEM to enable variance comparison.</p>
-        )}
-      </div>
-    )
-  }
-
+  // =========================================================================
+  // RENDER: No inspector block at all
+  // =========================================================================
   if (!inspectorBlock) {
     return (
       <div style={{
@@ -419,10 +504,34 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
         marginTop: '12px',
       }}>
         <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>
-          No inspector report found for this ticket.
+          No inspector report found for this ticket. The inspector must submit a daily report with this ticket number.
         </p>
       </div>
     )
+  }
+
+  // =========================================================================
+  // RENDER: Inspector data exists — always render it as primary
+  // =========================================================================
+
+  const inspLabour = editableBlock?.labourEntries || []
+  const inspEquip = editableBlock?.equipmentEntries || []
+
+  // Compute inspector-only cost for each labour entry (for inspector-only mode display)
+  function getInspectorLabourCost(entry) {
+    const rt = num(entry.rtHours ?? entry.rt_hours ?? entry.rt ?? entry.hours ?? entry.jh ?? 0)
+    const ot = num(entry.otHours ?? entry.ot_hours ?? entry.ot ?? 0)
+    const dt = num(entry.dtHours ?? entry.dt_hours ?? entry.dt ?? 0)
+    const rtRate = num(entry.rt_rate ?? entry.rtRate ?? 0)
+    const otRate = num(entry.ot_rate ?? entry.otRate ?? 0)
+    const dtRate = num(entry.dt_rate ?? entry.dtRate ?? 0)
+    return (rt * rtRate) + (ot * otRate) + (dt * dtRate)
+  }
+
+  function getInspectorEquipCost(entry) {
+    const hours = num(entry.hours ?? entry.count ?? 0)
+    const rate = num(entry.rate ?? 0)
+    return hours * rate
   }
 
   return (
@@ -435,94 +544,343 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
     }}>
       {/* Summary bar */}
       <div style={{ padding: '16px' }}>
-        <VarianceSummaryBar totals={totals} />
+        <VarianceSummaryBar totals={totals} hasLem={hasLem} />
       </div>
 
-      {/* Labour comparison section */}
+      {/* Awaiting LEM banner (inspector-only mode) */}
+      {!hasLem && (
+        <div style={{
+          margin: '0 16px 16px 16px',
+          padding: '12px 16px',
+          backgroundColor: '#f0f9ff',
+          border: '1px solid #bae6fd',
+          borderRadius: '6px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '12px',
+        }}>
+          <div>
+            <div style={{ fontSize: '13px', fontWeight: '600', color: '#0c4a6e', marginBottom: '4px' }}>
+              Awaiting Contractor LEM
+            </div>
+            <div style={{ fontSize: '12px', color: '#475569' }}>
+              Inspector data is the current baseline. When the LEM arrives, variances will be calculated.
+            </div>
+          </div>
+          {uploadedLemUrls?.length > 0 && (
+            <button onClick={handleExtractFromUpload} disabled={processing}
+              style={{
+                padding: '8px 20px',
+                backgroundColor: processing ? '#9ca3af' : '#0ea5e9',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: processing ? 'not-allowed' : 'pointer',
+                fontWeight: '600',
+                fontSize: '13px',
+                whiteSpace: 'nowrap',
+              }}>
+              {processing ? 'Extracting...' : 'Extract LEM Data'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* ================================================================= */}
+      {/* LABOUR SECTION                                                     */}
+      {/* ================================================================= */}
       <div>
         <div style={sectionHeaderStyle}>
-          <span>Labour Comparison</span>
+          <span>{hasLem ? 'Labour Comparison' : "Inspector's Recorded Labour"}</span>
           <span style={{ fontSize: '12px', fontWeight: '500', color: '#6b7280' }}>
-            {labourResults.length} {labourResults.length === 1 ? 'entry' : 'entries'}
+            {hasLem
+              ? `${labourResults.length} ${labourResults.length === 1 ? 'entry' : 'entries'}`
+              : `${inspLabour.length} ${inspLabour.length === 1 ? 'entry' : 'entries'}`
+            }
           </span>
         </div>
 
-        {/* Table header */}
-        <div style={tableHeaderStyle}>
-          <div style={thCell}></div>
-          <div style={thCell}>Name</div>
-          <div style={thCell}>Classification</div>
-          <div style={{ ...thCell, textAlign: 'right' }}>LEM Hrs</div>
-          <div style={{ ...thCell, textAlign: 'right' }}>LEM Cost</div>
-          <div style={{ ...thCell, textAlign: 'right' }}>Insp. Hrs</div>
-          <div style={{ ...thCell, textAlign: 'right' }}>Variance</div>
-          <div style={{ ...thCell, textAlign: 'center' }}>Conf</div>
-          <div style={{ ...thCell, textAlign: 'center' }}>Status</div>
-        </div>
+        {hasLem ? (
+          <>
+            {/* COMPARISON MODE — full table header */}
+            <div style={tableHeaderStyle}>
+              <div style={thCell}></div>
+              <div style={thCell}>Name</div>
+              <div style={thCell}>Classification</div>
+              <div style={{ ...thCell, textAlign: 'right' }}>Insp. Hrs</div>
+              <div style={{ ...thCell, textAlign: 'right' }}>Insp. Cost</div>
+              <div style={{ ...thCell, textAlign: 'right' }}>LEM Hrs</div>
+              <div style={{ ...thCell, textAlign: 'right' }}>LEM Cost</div>
+              <div style={{ ...thCell, textAlign: 'center' }}>Conf</div>
+              <div style={{ ...thCell, textAlign: 'center' }}>Status</div>
+            </div>
 
-        {/* Labour rows */}
-        {labourResults.length === 0 ? (
-          <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af', fontSize: '12px', fontStyle: 'italic' }}>
-            No labour entries to compare
-          </div>
+            {labourResults.length === 0 ? (
+              <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af', fontSize: '12px', fontStyle: 'italic' }}>
+                No labour entries to compare
+              </div>
+            ) : (
+              labourResults.map((result, idx) => (
+                <VarianceRow
+                  key={`labour-${idx}`}
+                  result={result}
+                  itemType="labour"
+                  variance={labourVariances[idx]}
+                  onAction={(action, notes) => handleAction('labour', idx, action, notes)}
+                  onInspectorEdit={(field, value) => handleInspectorEdit('labour', idx, field, value)}
+                  savedStatus={savedStatuses[`labour-${idx}`]}
+                />
+              ))
+            )}
+          </>
         ) : (
-          labourResults.map((result, idx) => (
-            <VarianceRow
-              key={`labour-${idx}`}
-              result={result}
-              itemType="labour"
-              variance={labourVariances[idx]}
-              onAction={(action, notes) => handleAction('labour', idx, action, notes)}
-              onInspectorEdit={(field, value) => handleInspectorEdit('labour', idx, field, value)}
-              savedStatus={savedStatuses[`labour-${idx}`]}
-            />
-          ))
+          <>
+            {/* INSPECTOR-ONLY MODE — simpler editable table */}
+            <div style={inspectorOnlyTableHeaderStyle}>
+              <div style={thCell}></div>
+              <div style={thCell}>Name</div>
+              <div style={thCell}>Classification</div>
+              <div style={{ ...thCell, textAlign: 'right' }}>RT</div>
+              <div style={{ ...thCell, textAlign: 'right' }}>OT</div>
+              <div style={{ ...thCell, textAlign: 'right' }}>Cost</div>
+            </div>
+
+            {inspLabour.length === 0 ? (
+              <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af', fontSize: '12px', fontStyle: 'italic' }}>
+                No labour entries recorded by inspector
+              </div>
+            ) : (
+              inspLabour.map((entry, idx) => {
+                const entryName = getWorkerName(entry)
+                const classification = entry.classification || entry.type || ''
+                const rt = num(entry.rtHours ?? entry.rt_hours ?? entry.rt ?? entry.hours ?? entry.jh ?? 0)
+                const ot = num(entry.otHours ?? entry.ot_hours ?? entry.ot ?? 0)
+                const cost = getInspectorLabourCost(entry)
+
+                return (
+                  <div
+                    key={`labour-insp-${idx}`}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '32px 1fr 120px 80px 80px 80px',
+                      alignItems: 'center',
+                      borderBottom: '1px solid #e5e7eb',
+                      backgroundColor: idx % 2 === 0 ? 'white' : '#fafbfc',
+                    }}
+                  >
+                    {/* Edit icon */}
+                    <div style={{ ...inspectorOnlyCellStyle, textAlign: 'center', color: '#94a3b8', fontSize: '14px', cursor: 'default' }}>
+                      <span title="Editable">&#9998;</span>
+                    </div>
+
+                    {/* Name — editable */}
+                    <div style={inspectorOnlyCellStyle}>
+                      <input
+                        type="text"
+                        value={entryName}
+                        onChange={(e) => handleInspectorEdit('labour', idx, 'name', e.target.value)}
+                        style={inspectorOnlyInputStyle}
+                      />
+                    </div>
+
+                    {/* Classification — editable */}
+                    <div style={inspectorOnlyCellStyle}>
+                      <input
+                        type="text"
+                        value={classification}
+                        onChange={(e) => handleInspectorEdit('labour', idx, 'classification', e.target.value)}
+                        style={{ ...inspectorOnlyInputStyle, fontSize: '11px' }}
+                      />
+                    </div>
+
+                    {/* RT — editable */}
+                    <div style={{ ...inspectorOnlyCellStyle, textAlign: 'right' }}>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={rt}
+                        onChange={(e) => handleInspectorEdit('labour', idx, 'rt', e.target.value)}
+                        style={inspectorOnlyNumberInputStyle}
+                      />
+                    </div>
+
+                    {/* OT — editable */}
+                    <div style={{ ...inspectorOnlyCellStyle, textAlign: 'right' }}>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={ot}
+                        onChange={(e) => handleInspectorEdit('labour', idx, 'ot', e.target.value)}
+                        style={inspectorOnlyNumberInputStyle}
+                      />
+                    </div>
+
+                    {/* Cost — calculated, read-only */}
+                    <div style={{
+                      ...inspectorOnlyCellStyle,
+                      textAlign: 'right',
+                      fontWeight: '600',
+                      color: cost > 0 ? '#166534' : '#6b7280',
+                    }}>
+                      {cost > 0 ? formatCurrency(cost) : '--'}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </>
         )}
       </div>
 
-      {/* Equipment comparison section */}
+      {/* ================================================================= */}
+      {/* EQUIPMENT SECTION                                                  */}
+      {/* ================================================================= */}
       <div style={{ marginTop: '8px' }}>
         <div style={sectionHeaderStyle}>
-          <span>Equipment Comparison</span>
+          <span>{hasLem ? 'Equipment Comparison' : "Inspector's Recorded Equipment"}</span>
           <span style={{ fontSize: '12px', fontWeight: '500', color: '#6b7280' }}>
-            {equipmentResults.length} {equipmentResults.length === 1 ? 'entry' : 'entries'}
+            {hasLem
+              ? `${equipmentResults.length} ${equipmentResults.length === 1 ? 'entry' : 'entries'}`
+              : `${inspEquip.length} ${inspEquip.length === 1 ? 'entry' : 'entries'}`
+            }
           </span>
         </div>
 
-        {/* Table header */}
-        <div style={tableHeaderStyle}>
-          <div style={thCell}></div>
-          <div style={thCell}>Equipment</div>
-          <div style={thCell}>Type</div>
-          <div style={{ ...thCell, textAlign: 'right' }}>LEM Hrs</div>
-          <div style={{ ...thCell, textAlign: 'right' }}>LEM Cost</div>
-          <div style={{ ...thCell, textAlign: 'right' }}>Insp. Hrs</div>
-          <div style={{ ...thCell, textAlign: 'right' }}>Variance</div>
-          <div style={{ ...thCell, textAlign: 'center' }}>Conf</div>
-          <div style={{ ...thCell, textAlign: 'center' }}>Status</div>
-        </div>
+        {hasLem ? (
+          <>
+            {/* COMPARISON MODE — full table header */}
+            <div style={tableHeaderStyle}>
+              <div style={thCell}></div>
+              <div style={thCell}>Equipment</div>
+              <div style={thCell}>Type</div>
+              <div style={{ ...thCell, textAlign: 'right' }}>Insp. Hrs</div>
+              <div style={{ ...thCell, textAlign: 'right' }}>Insp. Cost</div>
+              <div style={{ ...thCell, textAlign: 'right' }}>LEM Hrs</div>
+              <div style={{ ...thCell, textAlign: 'right' }}>LEM Cost</div>
+              <div style={{ ...thCell, textAlign: 'center' }}>Conf</div>
+              <div style={{ ...thCell, textAlign: 'center' }}>Status</div>
+            </div>
 
-        {/* Equipment rows */}
-        {equipmentResults.length === 0 ? (
-          <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af', fontSize: '12px', fontStyle: 'italic' }}>
-            No equipment entries to compare
-          </div>
+            {equipmentResults.length === 0 ? (
+              <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af', fontSize: '12px', fontStyle: 'italic' }}>
+                No equipment entries to compare
+              </div>
+            ) : (
+              equipmentResults.map((result, idx) => (
+                <VarianceRow
+                  key={`equipment-${idx}`}
+                  result={result}
+                  itemType="equipment"
+                  variance={equipmentVariances[idx]}
+                  onAction={(action, notes) => handleAction('equipment', idx, action, notes)}
+                  onInspectorEdit={(field, value) => handleInspectorEdit('equipment', idx, field, value)}
+                  savedStatus={savedStatuses[`equipment-${idx}`]}
+                />
+              ))
+            )}
+          </>
         ) : (
-          equipmentResults.map((result, idx) => (
-            <VarianceRow
-              key={`equipment-${idx}`}
-              result={result}
-              itemType="equipment"
-              variance={equipmentVariances[idx]}
-              onAction={(action, notes) => handleAction('equipment', idx, action, notes)}
-              onInspectorEdit={(field, value) => handleInspectorEdit('equipment', idx, field, value)}
-              savedStatus={savedStatuses[`equipment-${idx}`]}
-            />
-          ))
+          <>
+            {/* INSPECTOR-ONLY MODE — simpler editable table */}
+            <div style={inspectorOnlyTableHeaderStyle}>
+              <div style={thCell}></div>
+              <div style={thCell}>Equipment</div>
+              <div style={thCell}>Type / Unit #</div>
+              <div style={{ ...thCell, textAlign: 'right' }}>Hours</div>
+              <div style={{ ...thCell, textAlign: 'right' }}>Rate</div>
+              <div style={{ ...thCell, textAlign: 'right' }}>Cost</div>
+            </div>
+
+            {inspEquip.length === 0 ? (
+              <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af', fontSize: '12px', fontStyle: 'italic' }}>
+                No equipment entries recorded by inspector
+              </div>
+            ) : (
+              inspEquip.map((entry, idx) => {
+                const equipName = getEquipmentName(entry)
+                const unitNumber = entry.unitNumber || entry.unit_number || entry.equipment_id || ''
+                const hours = num(entry.hours ?? entry.count ?? 0)
+                const rate = num(entry.rate ?? 0)
+                const cost = getInspectorEquipCost(entry)
+
+                return (
+                  <div
+                    key={`equip-insp-${idx}`}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '32px 1fr 120px 80px 80px 80px',
+                      alignItems: 'center',
+                      borderBottom: '1px solid #e5e7eb',
+                      backgroundColor: idx % 2 === 0 ? 'white' : '#fafbfc',
+                    }}
+                  >
+                    {/* Edit icon */}
+                    <div style={{ ...inspectorOnlyCellStyle, textAlign: 'center', color: '#94a3b8', fontSize: '14px', cursor: 'default' }}>
+                      <span title="Editable">&#9998;</span>
+                    </div>
+
+                    {/* Equipment name — editable */}
+                    <div style={inspectorOnlyCellStyle}>
+                      <input
+                        type="text"
+                        value={equipName}
+                        onChange={(e) => handleInspectorEdit('equipment', idx, 'type', e.target.value)}
+                        style={inspectorOnlyInputStyle}
+                      />
+                    </div>
+
+                    {/* Unit # — editable */}
+                    <div style={inspectorOnlyCellStyle}>
+                      <input
+                        type="text"
+                        value={unitNumber}
+                        onChange={(e) => handleInspectorEdit('equipment', idx, 'unitNumber', e.target.value)}
+                        style={{ ...inspectorOnlyInputStyle, fontSize: '11px' }}
+                      />
+                    </div>
+
+                    {/* Hours — editable */}
+                    <div style={{ ...inspectorOnlyCellStyle, textAlign: 'right' }}>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={hours}
+                        onChange={(e) => handleInspectorEdit('equipment', idx, 'hours', e.target.value)}
+                        style={inspectorOnlyNumberInputStyle}
+                      />
+                    </div>
+
+                    {/* Rate — read-only display */}
+                    <div style={{
+                      ...inspectorOnlyCellStyle,
+                      textAlign: 'right',
+                      fontSize: '11px',
+                      color: '#6b7280',
+                    }}>
+                      {rate > 0 ? `${formatCurrency(rate)}/hr` : '--'}
+                    </div>
+
+                    {/* Cost — calculated, read-only */}
+                    <div style={{
+                      ...inspectorOnlyCellStyle,
+                      textAlign: 'right',
+                      fontWeight: '600',
+                      color: cost > 0 ? '#166534' : '#6b7280',
+                    }}>
+                      {cost > 0 ? formatCurrency(cost) : '--'}
+                    </div>
+                  </div>
+                )
+              })
+            )}
+          </>
         )}
       </div>
 
-      {/* Additional Costs section (small tools, per diem, etc.) */}
+      {/* ================================================================= */}
+      {/* ADDITIONAL COSTS SECTION                                           */}
+      {/* ================================================================= */}
       <div style={{ marginTop: '8px' }}>
         <div style={sectionHeaderStyle}>
           <span>Additional Costs</span>
@@ -572,48 +930,52 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
         )}
       </div>
 
-      {/* Bulk action bar */}
-      <div style={{
-        padding: '12px 16px',
-        display: 'flex',
-        justifyContent: 'flex-end',
-        gap: '8px',
-        borderTop: '2px solid #e5e7eb',
-        backgroundColor: '#f8fafc',
-      }}>
-        <button
-          onClick={handleBulkAccept}
-          disabled={processing}
-          style={{
-            padding: '8px 20px',
-            backgroundColor: processing ? '#86efac' : '#16a34a',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: processing ? 'not-allowed' : 'pointer',
-            fontSize: '13px',
-            fontWeight: '600',
-          }}
-        >
-          {processing ? 'Processing...' : 'Accept All Matches'}
-        </button>
-        <button
-          onClick={handleBulkFlag}
-          disabled={processing}
-          style={{
-            padding: '8px 20px',
-            backgroundColor: processing ? '#fca5a5' : '#dc2626',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: processing ? 'not-allowed' : 'pointer',
-            fontSize: '13px',
-            fontWeight: '600',
-          }}
-        >
-          {processing ? 'Processing...' : 'Flag All Variances'}
-        </button>
-      </div>
+      {/* ================================================================= */}
+      {/* BULK ACTION BAR (only shown when LEM comparison is active)         */}
+      {/* ================================================================= */}
+      {hasLem && (
+        <div style={{
+          padding: '12px 16px',
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: '8px',
+          borderTop: '2px solid #e5e7eb',
+          backgroundColor: '#f8fafc',
+        }}>
+          <button
+            onClick={handleBulkAccept}
+            disabled={processing}
+            style={{
+              padding: '8px 20px',
+              backgroundColor: processing ? '#86efac' : '#16a34a',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: processing ? 'not-allowed' : 'pointer',
+              fontSize: '13px',
+              fontWeight: '600',
+            }}
+          >
+            {processing ? 'Processing...' : 'Accept All Matches'}
+          </button>
+          <button
+            onClick={handleBulkFlag}
+            disabled={processing}
+            style={{
+              padding: '8px 20px',
+              backgroundColor: processing ? '#fca5a5' : '#dc2626',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: processing ? 'not-allowed' : 'pointer',
+              fontSize: '13px',
+              fontWeight: '600',
+            }}
+          >
+            {processing ? 'Processing...' : 'Flag All Variances'}
+          </button>
+        </div>
+      )}
     </div>
   )
 }
