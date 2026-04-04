@@ -157,13 +157,45 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
     'warehouseman class': 'Warehouseman 1',
   }
 
+  // Equipment type alias map — common inspector names → rate card names
+  const EQUIPMENT_ALIASES = {
+    'hydrovac truck': 'Hydrovac',
+    'backhoe cat 420f': 'Rubber Tired Hoe - Cat 420/430 (or equivalent)',
+    'backhoe cat 938': 'Loader - Cat 930',
+    'backhoe cat 966h/l/c': 'Loader - Cat 966',
+    'backhoe cat': 'Backhoe - Cat 330 (or equivalent)',
+    'track hoe': 'Backhoe - Cat 330 (or equivalent)',
+    'longnose excavator': 'Backhoe - Cat 345 Longstick',
+    'bus': 'Bus',
+    'bus/crewcab driver': 'Bus',
+    'suv': 'SUV - Expedition/ Lexus/ Denali/ Yukon/ Navigator',
+    'tahoe/yukon/expedition': 'SUV - Expedition/ Lexus/ Denali/ Yukon/ Navigator',
+    'welder': 'Lincoln Welder',
+    'welding machine': 'Lincoln Welder',
+    'welding rig': 'Welding Rig',
+    'generator': 'Generator - 60 kW',
+    'light tower': 'Light Tower - 6 kW',
+    'loader': 'Loader - Cat 966',
+    'grader': 'Grader - Cat G14',
+    'dozer': 'Dozer - D6T LGP (or equivalent)',
+    'skid steer': 'Skid Steer Loader',
+    'skid steer loader': 'Skid Steer Loader',
+    'fuel truck': 'Fuel Truck - Single Axle',
+    'service truck': 'Service Truck',
+    'water pump': 'Water Pump - 4"',
+    'wash unit': 'Wash Unit - Steam, Water Truck',
+    'steamwater truck': 'Wash Unit - Steam, Water Truck',
+    'fork lift': 'Fork Lift - Zoom Boom',
+    'athey wagon': 'Athey Track Wagon',
+  }
+
   // Rate card matching — multi-strategy fuzzy match for classification or equipment type
   function findRate(name, rates, nameField) {
     if (!name || !rates?.length) return null
     const s = name.toLowerCase().trim()
 
-    // Pass 0: Check alias map first
-    const alias = CLASSIFICATION_ALIASES[s]
+    // Pass 0: Check alias maps first (labour classifications + equipment types)
+    const alias = CLASSIFICATION_ALIASES[s] || EQUIPMENT_ALIASES[s]
     if (alias) {
       const aliasMatch = rates.find(r => (r[nameField] || '').toLowerCase().includes(alias.toLowerCase()))
       if (aliasMatch) return aliasMatch
