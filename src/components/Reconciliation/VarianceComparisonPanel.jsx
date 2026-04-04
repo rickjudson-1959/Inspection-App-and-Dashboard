@@ -176,8 +176,10 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
         }
       }
 
-      // Normalize by total tokens to prefer closer matches
-      const normalizedScore = score / Math.max(sTokens.length, kTokens.length)
+      // Normalize by the SHORTER name's token count — inspector names are often
+      // abbreviated ("JOURNEYMAN / FITTER") while rate cards are long
+      // ("Non-Welder Journeyman/Fitter on Stick Weld Spread (QI Applies)")
+      const normalizedScore = score / Math.min(sTokens.length, kTokens.length)
 
       if (normalizedScore > bestScore) {
         bestScore = normalizedScore
@@ -185,8 +187,8 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
       }
     }
 
-    // Require at least 50% token match to avoid false positives
-    if (bestRate && bestScore >= 1.0) return bestRate
+    // Require most inspector tokens to have a match (≥ 1.5 per token on average)
+    if (bestRate && bestScore >= 1.5) return bestRate
 
     return null
   }
