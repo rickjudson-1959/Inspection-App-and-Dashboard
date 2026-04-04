@@ -924,6 +924,173 @@ async function uploadPairImagesInBackground(file, lemId, rawPairs, insertedPairs
  * @param {string} imageUrl - Public URL of the LEM summary page image
  * @returns {Promise<{labour: Array, equipment: Array, totals: object, raw_text: string}>}
  */
+/**
+ * Extract billing data from a LEM document URL — handles both PDFs and images.
+ * For PDFs: renders each page to an image via pdf.js, then OCRs each page.
+ * For images: OCRs directly.
+ */
+export async function extractLEMFromUrl(docUrl) {
+  if (!docUrl) return { labour: [], equipment: [], totals: {}, raw_text: '' }
+
+  const isPdf = docUrl.split('?')[0].toLowerCase().endsWith('.pdf')
+
+  if (isPdf) {
+    // Render PDF pages to images, then OCR each
+    await ensurePdfJs()
+    const resp = await fetch(docUrl)
+    const arrayBuffer = await resp.arrayBuffer()
+    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
+    const numPages = pdf.numPages
+    console.log(`[LEM OCR] PDF has ${numPages} pages — rendering and extracting...`)
+
+    const allLabour = []
+    const allEquipment = []
+    let grandTotal = 0
+    let totalLabourCost = 0
+    let totalEquipCost = 0
+
+    for (let i = 1; i <= numPages; i++) {
+      console.log(`[LEM OCR] Processing page ${i} of ${numPages}...`)
+      const page = await pdf.getPage(i)
+      const b64 = await renderPageToImage(page, 2.0, 0.9)
+
+      // OCR this page image
+      const pageResult = await extractLEMLineItemsFromBase64(b64)
+      allLabour.push(...(pageResult.labour || []))
+      allEquipment.push(...(pageResult.equipment || []))
+      if (pageResult.totals) {
+        totalLabourCost += pageResult.totals.total_labour_cost || 0
+        totalEquipCost += pageResult.totals.total_equipment_cost || 0
+        grandTotal += pageResult.totals.grand_total || 0
+      }
+
+      // Rate limit between pages
+      if (i < numPages) await sleep(CLASSIFY_DELAY_MS)
+    }
+
+    return {
+      labour: allLabour,
+      equipment: allEquipment,
+      totals: { total_labour_cost: totalLabourCost, total_equipment_cost: totalEquipCost, grand_total: grandTotal },
+      raw_text: ''
+    }
+  } else {
+    // Image URL — OCR directly
+    return await extractLEMLineItems(docUrl)
+  }
+}
+
+/**
+ * Extract billing data from a base64-encoded page image.
+ */
+async function extractLEMLineItemsFromBase64(imgBase64) {
+  if (!ANTHROPIC_API_KEY) return { labour: [], equipment: [], totals: {}, raw_text: '' }
+
+  const prompt = `You are extracting billing data from a contractor's Labour & Equipment Manifest (LEM) page used in pipeline construction.
+
+Extract ALL line items from this LEM page. Return ONLY valid JSON (no markdown, no code fences):
+
+{
+  "labour": [
+    {
+      "employee_name": "full name",
+      "classification": "job title/classification exactly as printed",
+      "rt_hours": number or 0,
+      "ot_hours": number or 0,
+      "rt_rate": number or 0,
+      "ot_rate": number or 0,
+      "line_total": number or 0,
+      "count": 1
+    }
+  ],
+  "equipment": [
+    {
+      "equipment_type": "type exactly as printed",
+      "unit_number": "unit/fleet ID or empty string",
+      "hours": number or 0,
+      "rate": number or 0,
+      "line_total": number or 0,
+      "count": 1
+    }
+  ],
+  "totals": {
+    "total_labour_hours": number or 0,
+    "total_labour_cost": number or 0,
+    "total_equipment_hours": number or 0,
+    "total_equipment_cost": number or 0,
+    "grand_total": number or 0
+  }
+}
+
+Rules:
+- Extract every person and piece of equipment listed, even if hours are 0
+- RT = regular time (first 8 hours), OT = overtime (beyond 8)
+- If only total hours are shown (no RT/OT split): put all in rt_hours
+- Rates: extract the hourly rate if visible, otherwise 0
+- line_total: the dollar amount for that line if shown, otherwise 0
+- Keep classification names EXACTLY as printed
+- If the page has subtotals or grand totals, capture them in the totals object
+- If this page appears to be a continuation (equipment section of a multi-page LEM), still extract all items`
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      const response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': ANTHROPIC_API_KEY,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true'
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 4000,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: imgBase64 } },
+              { type: 'text', text: prompt }
+            ]
+          }]
+        })
+      })
+
+      if (response.status === 429) {
+        const delay = Math.pow(2, attempt + 1) * 1000
+        console.log(`[LEM OCR] Rate limited — retrying in ${delay / 1000}s`)
+        await sleep(delay)
+        continue
+      }
+
+      if (!response.ok) {
+        console.error(`[LEM OCR] API error: ${response.status}`)
+        return { labour: [], equipment: [], totals: {}, raw_text: '' }
+      }
+
+      const data = await response.json()
+      const text = data.content?.[0]?.text || ''
+      const jsonMatch = text.match(/\{[\s\S]*\}/)
+      if (!jsonMatch) return { labour: [], equipment: [], totals: {}, raw_text: text }
+
+      const parsed = JSON.parse(jsonMatch[0])
+      return {
+        labour: parsed.labour || [],
+        equipment: parsed.equipment || [],
+        totals: parsed.totals || {},
+        raw_text: text
+      }
+    } catch (err) {
+      console.error(`[LEM OCR] Attempt ${attempt + 1} failed:`, err)
+      if (attempt === MAX_RETRIES - 1) return { labour: [], equipment: [], totals: {}, raw_text: '' }
+      await sleep(2000)
+    }
+  }
+  return { labour: [], equipment: [], totals: {}, raw_text: '' }
+}
+
+/**
+ * Legacy function — extracts from an image URL (not PDF).
+ */
 export async function extractLEMLineItems(imageUrl) {
   if (!ANTHROPIC_API_KEY) {
     console.warn('[LEM OCR] No API key — cannot extract line items')

@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { supabase } from '../../supabase'
 import { useOrgQuery } from '../../utils/queryHelpers.js'
 import { useAuth } from '../../AuthContext.jsx'
-import { extractLEMLineItems } from '../../utils/lemParser.js'
+import { extractLEMFromUrl } from '../../utils/lemParser.js'
 
 const DOC_TYPE_OPTIONS = [
   { value: 'contractor_lem', label: 'Contractor LEM' },
@@ -217,7 +217,7 @@ export default function ReconciliationUpload({ onUploadComplete, prefillTicket, 
           let totalEquipCost = 0
 
           for (const url of fileUrls) {
-            const extracted = await extractLEMLineItems(url)
+            const extracted = await extractLEMFromUrl(url)
             if (extracted.labour) {
               for (const l of extracted.labour) {
                 allLabour.push({

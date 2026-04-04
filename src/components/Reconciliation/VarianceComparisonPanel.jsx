@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { matchWorkers, matchEquipment, getWorkerName, getEquipmentName } from '../../utils/nameMatchingUtils.js'
-import { extractLEMLineItems } from '../../utils/lemParser.js'
+import { extractLEMFromUrl } from '../../utils/lemParser.js'
 import {
   calculateWorkerVariance,
   calculateEquipmentVariance,
@@ -338,7 +338,7 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
       let totalEquipCost = 0
 
       for (const url of uploadedLemUrls) {
-        const extracted = await extractLEMLineItems(url)
+        const extracted = await extractLEMFromUrl(url)
         if (extracted.labour) {
           for (const l of extracted.labour) {
             allLabour.push({
