@@ -216,6 +216,35 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
         lemData={lemData}
         inspectorBlock={matchedBlock}
         organizationId={organizationId}
+        onInspectorBlockChange={async (updatedBlock) => {
+          // Save edited inspector block back to the daily_reports record
+          if (!inspectorReport) return
+          const blocks = [...(inspectorReport.activity_blocks || [])]
+          const blockIdx = blocks.findIndex(b =>
+            b.ticketNumber && String(b.ticketNumber).trim() === String(ticketNumber).trim()
+          )
+          if (blockIdx >= 0) {
+            blocks[blockIdx] = updatedBlock
+            await supabase.from('daily_reports')
+              .update({ activity_blocks: blocks })
+              .eq('id', inspectorReport.id)
+            // Audit log
+            await supabase.from('report_audit_log').insert({
+              report_id: inspectorReport.id,
+              report_date: inspectorReport.date,
+              changed_by_name: 'Cost Control',
+              changed_by_role: 'admin',
+              change_type: 'reconciliation_edit',
+              section: 'Reconciliation Variance',
+              field_name: `Ticket #${ticketNumber} inspector data`,
+              new_value: 'Edited from variance comparison panel',
+              organization_id: organizationId
+            })
+            // Update local state
+            setMatchedBlock(updatedBlock)
+            setInspectorReport(prev => ({ ...prev, activity_blocks: blocks }))
+          }
+        }}
       />
     </div>
   )

@@ -4,14 +4,15 @@ import { getWorkerName, getEquipmentName } from '../../utils/nameMatchingUtils.j
 
 /**
  * VarianceRow — A single expandable row in the variance comparison table.
+ * Inspector side is editable so admins can correct names, hours, and classifications.
  *
  * Props:
- *   result      — one entry from matchWorkers/matchEquipment output:
- *                  { lemEntry, inspectorEntry, confidence, matchMethod, status }
- *   itemType    — 'labour' or 'equipment'
- *   variance    — output from calculateWorkerVariance or calculateEquipmentVariance
- *   onAction    — callback(action, notes) where action is 'accepted'|'disputed'|'adjusted'
- *   savedStatus — current status from DB if already reconciled
+ *   result           — { lemEntry, inspectorEntry, confidence, matchMethod, status }
+ *   itemType         — 'labour' or 'equipment'
+ *   variance         — from calculateWorkerVariance or calculateEquipmentVariance
+ *   onAction         — callback(action, notes) where action is 'accepted'|'disputed'|'adjusted'
+ *   onInspectorEdit  — callback(field, value) called when admin edits inspector data
+ *   savedStatus      — current status from DB if already reconciled
  */
 
 function num(v) {
@@ -28,10 +29,10 @@ function formatHours(value) {
 }
 
 function getConfidenceColor(confidence) {
-  if (confidence >= 0.9) return '#16a34a'   // green
-  if (confidence >= 0.7) return '#d97706'   // yellow/amber
-  if (confidence >= 0.5) return '#ea580c'   // orange
-  return '#dc2626'                          // red
+  if (confidence >= 0.9) return '#16a34a'
+  if (confidence >= 0.7) return '#d97706'
+  if (confidence >= 0.5) return '#ea580c'
+  return '#dc2626'
 }
 
 function getMatchMethodLabel(method) {
@@ -97,18 +98,60 @@ const miniCellStyle = {
   borderBottom: '1px solid #f3f4f6',
 }
 
-export default function VarianceRow({ result, itemType, variance, onAction, savedStatus }) {
+// Compact input style for editable inspector fields
+const inputStyle = {
+  padding: '4px 6px',
+  fontSize: '12px',
+  border: '1px solid #d1d5db',
+  borderRadius: '3px',
+  fontFamily: 'inherit',
+  width: '100%',
+  boxSizing: 'border-box',
+}
+
+const numberInputStyle = {
+  ...inputStyle,
+  width: '72px',
+  textAlign: 'right',
+}
+
+const labelStyle = {
+  fontSize: '11px',
+  color: '#6b7280',
+  marginBottom: '2px',
+  fontWeight: '500',
+}
+
+const valueStyle = {
+  fontSize: '12px',
+  fontWeight: '600',
+  color: '#1e3a5f',
+}
+
+export default function VarianceRow({ result, itemType, variance, onAction, onInspectorEdit, savedStatus }) {
   const [expanded, setExpanded] = useState(false)
-  const [adjustedHours, setAdjustedHours] = useState('')
+
+  // Editable inspector fields for labour
+  const [editedName, setEditedName] = useState(null)
+  const [editedClassification, setEditedClassification] = useState(null)
+  const [editedRT, setEditedRT] = useState(null)
+  const [editedOT, setEditedOT] = useState(null)
+  const [editedDT, setEditedDT] = useState(null)
+
+  // Editable inspector fields for equipment
+  const [editedHours, setEditedHours] = useState(null)
+  const [editedType, setEditedType] = useState(null)
+  const [editedUnitNumber, setEditedUnitNumber] = useState(null)
+
+  // Action state
   const [disputeNotes, setDisputeNotes] = useState('')
   const [showDisputeInput, setShowDisputeInput] = useState(false)
-  const [showAdjustInput, setShowAdjustInput] = useState(false)
 
   if (!result) return null
 
   const { lemEntry, inspectorEntry, confidence, matchMethod, status } = result
 
-  // Determine display values
+  // Determine display values for collapsed row
   const name = itemType === 'labour'
     ? (getWorkerName(lemEntry) || getWorkerName(inspectorEntry) || 'Unknown')
     : (getEquipmentName(lemEntry) || getEquipmentName(inspectorEntry) || 'Unknown')
@@ -116,7 +159,7 @@ export default function VarianceRow({ result, itemType, variance, onAction, save
     ? (lemEntry?.type || lemEntry?.classification || inspectorEntry?.classification || '-')
     : (lemEntry?.equipment_id || inspectorEntry?.unitNumber || inspectorEntry?.unit_number || '-')
 
-  // Hours and costs
+  // Hours and costs from variance
   const lemHoursTotal = variance?.lemHours?.total ?? 0
   const lemCost = variance?.lemCost ?? 0
   const inspectorHoursTotal = variance?.inspectorHours?.total ?? 0
@@ -125,6 +168,61 @@ export default function VarianceRow({ result, itemType, variance, onAction, save
   // Background color based on cost variance
   const bgColor = getVarianceColor(varianceCost)
   const icon = getVarianceIcon(status)
+
+  // --- Inspector current values (from entry or edits) ---
+  const inspectorName = itemType === 'labour'
+    ? (getWorkerName(inspectorEntry) || '')
+    : (getEquipmentName(inspectorEntry) || '')
+  const inspectorClassification = inspectorEntry?.classification || inspectorEntry?.type || ''
+
+  // Labour hours from inspector
+  const inspRT = num(inspectorEntry?.rtHours ?? inspectorEntry?.rt_hours ?? inspectorEntry?.rt ?? inspectorEntry?.hours ?? inspectorEntry?.jh ?? 0)
+  const inspOT = num(inspectorEntry?.otHours ?? inspectorEntry?.ot_hours ?? inspectorEntry?.ot ?? 0)
+  const inspDT = num(inspectorEntry?.dtHours ?? inspectorEntry?.dt_hours ?? inspectorEntry?.dt ?? 0)
+
+  // Equipment fields from inspector
+  const inspEquipType = inspectorEntry?.type || inspectorEntry?.equipment_type || ''
+  const inspUnitNumber = inspectorEntry?.unitNumber || inspectorEntry?.unit_number || ''
+  const inspEquipHours = num(inspectorEntry?.hours ?? inspectorEntry?.totalHours ?? 0)
+
+  // --- Current display values (edited or original) ---
+  const currentName = editedName !== null ? editedName : inspectorName
+  const currentClassification = editedClassification !== null ? editedClassification : inspectorClassification
+  const currentRT = editedRT !== null ? editedRT : String(inspRT)
+  const currentOT = editedOT !== null ? editedOT : String(inspOT)
+  const currentDT = editedDT !== null ? editedDT : String(inspDT)
+  const currentEquipType = editedType !== null ? editedType : inspEquipType
+  const currentUnitNumber = editedUnitNumber !== null ? editedUnitNumber : inspUnitNumber
+  const currentEquipHours = editedHours !== null ? editedHours : String(inspEquipHours)
+
+  // --- LEM values for display ---
+  const lemName = itemType === 'labour'
+    ? (getWorkerName(lemEntry) || 'N/A')
+    : (getEquipmentName(lemEntry) || 'N/A')
+  const lemClassification = lemEntry?.type || lemEntry?.classification || '-'
+  const lemRT = num(lemEntry?.rt_hours ?? lemEntry?.rt ?? 0)
+  const lemOT = num(lemEntry?.ot_hours ?? lemEntry?.ot ?? 0)
+  const lemDT = num(lemEntry?.dt_hours ?? lemEntry?.dt ?? 0)
+  const lemRTRate = num(lemEntry?.rt_rate)
+  const lemOTRate = num(lemEntry?.ot_rate)
+  const lemDTRate = num(lemEntry?.dt_rate)
+  const lemEquipType = lemEntry?.type || lemEntry?.equipment_type || '-'
+  const lemUnitNumber = lemEntry?.equipment_id || lemEntry?.unit_number || '-'
+  const lemEquipHours = num(lemEntry?.hours ?? lemEntry?.totalHours ?? 0)
+  const lemEquipRate = num(lemEntry?.rate)
+
+  // Calculate inspector cost for labour using LEM rates
+  const inspectorCostCalc = itemType === 'labour'
+    ? (num(currentRT) * lemRTRate) + (num(currentOT) * lemOTRate) + (num(currentDT) * lemDTRate)
+    : num(currentEquipHours) * lemEquipRate
+  const varianceCalc = lemCost - inspectorCostCalc
+
+  // --- Dirty check ---
+  const isDirty = itemType === 'labour'
+    ? (editedName !== null || editedClassification !== null || editedRT !== null || editedOT !== null || editedDT !== null)
+    : (editedType !== null || editedUnitNumber !== null || editedHours !== null || editedName !== null || editedClassification !== null)
+
+  // --- Handlers ---
 
   function handleAccept() {
     if (onAction) onAction('accepted', '')
@@ -137,20 +235,43 @@ export default function VarianceRow({ result, itemType, variance, onAction, save
       setDisputeNotes('')
     } else {
       setShowDisputeInput(true)
-      setShowAdjustInput(false)
     }
   }
 
-  function handleAdjust() {
-    if (showAdjustInput && adjustedHours.trim()) {
-      if (onAction) onAction('adjusted', `Adjusted hours: ${adjustedHours}`)
-      setShowAdjustInput(false)
-      setAdjustedHours('')
+  function handleSaveChanges() {
+    if (!onInspectorEdit) return
+
+    if (itemType === 'labour') {
+      if (editedName !== null) onInspectorEdit('name', editedName)
+      if (editedClassification !== null) onInspectorEdit('classification', editedClassification)
+      if (editedRT !== null) onInspectorEdit('rt', num(editedRT))
+      if (editedOT !== null) onInspectorEdit('ot', num(editedOT))
+      if (editedDT !== null) onInspectorEdit('dt', num(editedDT))
     } else {
-      setShowAdjustInput(true)
-      setShowDisputeInput(false)
+      if (editedName !== null) onInspectorEdit('name', editedName)
+      if (editedType !== null) onInspectorEdit('type', editedType)
+      if (editedUnitNumber !== null) onInspectorEdit('unitNumber', editedUnitNumber)
+      if (editedHours !== null) onInspectorEdit('hours', num(editedHours))
     }
+
+    // Reset edited state after save
+    setEditedName(null)
+    setEditedClassification(null)
+    setEditedRT(null)
+    setEditedOT(null)
+    setEditedDT(null)
+    setEditedHours(null)
+    setEditedType(null)
+    setEditedUnitNumber(null)
   }
+
+  // --- Match info line ---
+  const matchInfoText = status === 'lem_only'
+    ? 'NO MATCH \u2014 LEM only'
+    : status === 'inspector_only'
+      ? 'NO MATCH \u2014 Inspector only'
+      : `Matched: ${getMatchMethodLabel(matchMethod)} (${Math.round(confidence * 100)}% confidence)`
+  const matchInfoColor = (status === 'lem_only' || status === 'inspector_only') ? '#dc2626' : '#6b7280'
 
   return (
     <div style={{ borderBottom: '1px solid #e5e7eb' }}>
@@ -231,120 +352,274 @@ export default function VarianceRow({ result, itemType, variance, onAction, save
 
       {/* Expanded section */}
       {expanded && (
-        <div style={{
-          padding: '12px 16px',
-          backgroundColor: '#fafbfc',
-          borderTop: '1px solid #e5e7eb',
-          transition: 'all 0.2s ease',
-        }}>
-          {/* Name comparison */}
-          <div style={{ display: 'flex', gap: '24px', marginBottom: '12px', fontSize: '12px' }}>
-            <div>
-              <span style={{ color: '#6b7280' }}>LEM: </span>
-              <strong style={{ color: '#1e3a5f' }}>{itemType === 'labour' ? getWorkerName(lemEntry) : getEquipmentName(lemEntry) || 'N/A'}</strong>
-            </div>
-            <span style={{ color: '#d1d5db' }}>&#8596;</span>
-            <div>
-              <span style={{ color: '#6b7280' }}>Inspector: </span>
-              <strong style={{ color: '#16a34a' }}>{itemType === 'labour' ? getWorkerName(inspectorEntry) : getEquipmentName(inspectorEntry) || 'N/A'}</strong>
-            </div>
-          </div>
-
-          {/* Match method and confidence */}
-          <div style={{ fontSize: '11px', color: '#6b7280', marginBottom: '12px' }}>
-            {getMatchMethodLabel(matchMethod)}, {Math.round(confidence * 100)}% confidence
-          </div>
-
-          {/* RT/OT/DT breakdown for labour */}
-          {itemType === 'labour' && variance && (
-            <div style={{ marginBottom: '12px' }}>
-              <table style={{ width: '100%', maxWidth: '500px', borderCollapse: 'collapse', fontSize: '12px' }}>
-                <thead>
-                  <tr>
-                    <th style={{ ...miniHeaderStyle, textAlign: 'left' }}>Hour Type</th>
-                    <th style={miniHeaderStyle}>LEM Hours</th>
-                    <th style={miniHeaderStyle}>Rate</th>
-                    <th style={miniHeaderStyle}>LEM Cost</th>
-                    <th style={miniHeaderStyle}>Inspector Hours</th>
-                    <th style={miniHeaderStyle}>Variance</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style={{ ...miniCellStyle, textAlign: 'left', fontWeight: '500' }}>Regular (RT)</td>
-                    <td style={miniCellStyle}>{formatHours(variance.lemHours?.rt)}</td>
-                    <td style={miniCellStyle}>{formatCurrency(num(lemEntry?.rt_rate))}</td>
-                    <td style={miniCellStyle}>{formatCurrency(num(variance.lemHours?.rt) * num(lemEntry?.rt_rate))}</td>
-                    <td style={miniCellStyle}>{formatHours(variance.inspectorHours?.rt)}</td>
-                    <td style={{ ...miniCellStyle, fontWeight: '600', color: num(variance.variance?.hours?.rt) === 0 ? '#16a34a' : '#dc2626' }}>
-                      {num(variance.variance?.hours?.rt) > 0 ? '+' : ''}{formatHours(variance.variance?.hours?.rt)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style={{ ...miniCellStyle, textAlign: 'left', fontWeight: '500' }}>Overtime (OT)</td>
-                    <td style={miniCellStyle}>{formatHours(variance.lemHours?.ot)}</td>
-                    <td style={miniCellStyle}>{formatCurrency(num(lemEntry?.ot_rate))}</td>
-                    <td style={miniCellStyle}>{formatCurrency(num(variance.lemHours?.ot) * num(lemEntry?.ot_rate))}</td>
-                    <td style={miniCellStyle}>{formatHours(variance.inspectorHours?.ot)}</td>
-                    <td style={{ ...miniCellStyle, fontWeight: '600', color: num(variance.variance?.hours?.ot) === 0 ? '#16a34a' : '#dc2626' }}>
-                      {num(variance.variance?.hours?.ot) > 0 ? '+' : ''}{formatHours(variance.variance?.hours?.ot)}
-                    </td>
-                  </tr>
-                  <tr>
-                    <td style={{ ...miniCellStyle, textAlign: 'left', fontWeight: '500' }}>Double Time (DT)</td>
-                    <td style={miniCellStyle}>{formatHours(variance.lemHours?.dt)}</td>
-                    <td style={miniCellStyle}>{formatCurrency(num(lemEntry?.dt_rate))}</td>
-                    <td style={miniCellStyle}>{formatCurrency(num(variance.lemHours?.dt) * num(lemEntry?.dt_rate))}</td>
-                    <td style={miniCellStyle}>{formatHours(variance.inspectorHours?.dt)}</td>
-                    <td style={{ ...miniCellStyle, fontWeight: '600', color: num(variance.variance?.hours?.dt) === 0 ? '#16a34a' : '#dc2626' }}>
-                      {num(variance.variance?.hours?.dt) > 0 ? '+' : ''}{formatHours(variance.variance?.hours?.dt)}
-                    </td>
-                  </tr>
-                </tbody>
-                <tfoot>
-                  <tr style={{ backgroundColor: '#f0f0f0' }}>
-                    <td style={{ ...miniCellStyle, textAlign: 'left', fontWeight: '700' }}>Total</td>
-                    <td style={{ ...miniCellStyle, fontWeight: '700' }}>{formatHours(variance.lemHours?.total)}</td>
-                    <td style={miniCellStyle}></td>
-                    <td style={{ ...miniCellStyle, fontWeight: '700' }}>{formatCurrency(variance.lemCost)}</td>
-                    <td style={{ ...miniCellStyle, fontWeight: '700' }}>{formatHours(variance.inspectorHours?.total)}</td>
-                    <td style={{ ...miniCellStyle, fontWeight: '700', color: num(variance.variance?.cost?.total) === 0 ? '#16a34a' : '#dc2626' }}>
-                      {formatCurrency(variance.variance?.cost?.total)}
-                    </td>
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-          )}
-
-          {/* Equipment breakdown */}
-          {itemType === 'equipment' && variance && (
-            <div style={{ marginBottom: '12px', fontSize: '12px' }}>
-              <div style={{ display: 'flex', gap: '32px' }}>
-                <div>
-                  <span style={{ color: '#6b7280' }}>LEM: </span>
-                  <strong>{formatHours(variance.lemHours?.total)} hrs</strong>
-                  {lemEntry?.rate && <span style={{ color: '#6b7280' }}> @ {formatCurrency(lemEntry.rate)}/hr</span>}
-                  <span> = {formatCurrency(variance.lemCost)}</span>
-                </div>
-                <div>
-                  <span style={{ color: '#6b7280' }}>Inspector: </span>
-                  <strong>{formatHours(variance.inspectorHours?.total)} hrs</strong>
-                </div>
-                <div>
-                  <span style={{ color: '#6b7280' }}>Variance: </span>
-                  <strong style={{ color: num(variance.variance?.cost?.total) === 0 ? '#16a34a' : '#dc2626' }}>
-                    {formatCurrency(variance.variance?.cost?.total)}
-                  </strong>
-                </div>
+        <div
+          style={{
+            padding: '16px 20px',
+            backgroundColor: '#fafbfc',
+            borderTop: '1px solid #e5e7eb',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Side-by-side comparison */}
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: '16px',
+            marginBottom: '12px',
+          }}>
+            {/* LEM side (read-only) */}
+            <div style={{
+              backgroundColor: '#eff6ff',
+              border: '1px solid #bfdbfe',
+              borderRadius: '6px',
+              padding: '12px',
+            }}>
+              <div style={{
+                fontSize: '11px',
+                fontWeight: '700',
+                color: '#1e40af',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '10px',
+                paddingBottom: '6px',
+                borderBottom: '1px solid #bfdbfe',
+              }}>
+                LEM (Contractor)
               </div>
+
+              {itemType === 'labour' ? (
+                <>
+                  {/* Labour LEM fields */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={labelStyle}>Name</div>
+                    <div style={valueStyle}>{lemName}</div>
+                  </div>
+                  <div style={{ marginBottom: '10px' }}>
+                    <div style={labelStyle}>Classification</div>
+                    <div style={valueStyle}>{lemClassification}</div>
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: '8px',
+                    marginBottom: '10px',
+                  }}>
+                    <div>
+                      <div style={labelStyle}>RT Hours</div>
+                      <div style={valueStyle}>{formatHours(lemRT)}</div>
+                    </div>
+                    <div>
+                      <div style={labelStyle}>OT Hours</div>
+                      <div style={valueStyle}>{formatHours(lemOT)}</div>
+                    </div>
+                    <div>
+                      <div style={labelStyle}>DT Hours</div>
+                      <div style={valueStyle}>{formatHours(lemDT)}</div>
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: '6px' }}>
+                    <div style={labelStyle}>Rate</div>
+                    <div style={{ fontSize: '11px', color: '#374151' }}>
+                      {formatCurrency(lemRTRate)} RT
+                      {lemOTRate > 0 && <> / {formatCurrency(lemOTRate)} OT</>}
+                      {lemDTRate > 0 && <> / {formatCurrency(lemDTRate)} DT</>}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={labelStyle}>LEM Cost</div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#1e3a5f' }}>
+                      {formatCurrency(lemCost)}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Equipment LEM fields */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={labelStyle}>Type</div>
+                    <div style={valueStyle}>{lemEquipType}</div>
+                  </div>
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={labelStyle}>Unit #</div>
+                    <div style={valueStyle}>{lemUnitNumber}</div>
+                  </div>
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={labelStyle}>Hours</div>
+                    <div style={valueStyle}>{formatHours(lemEquipHours)}</div>
+                  </div>
+                  {lemEquipRate > 0 && (
+                    <div style={{ marginBottom: '6px' }}>
+                      <div style={labelStyle}>Rate</div>
+                      <div style={{ fontSize: '11px', color: '#374151' }}>
+                        {formatCurrency(lemEquipRate)}/hr
+                      </div>
+                    </div>
+                  )}
+                  <div>
+                    <div style={labelStyle}>LEM Cost</div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#1e3a5f' }}>
+                      {formatCurrency(lemCost)}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
-          )}
+
+            {/* Inspector side (EDITABLE) */}
+            <div style={{
+              backgroundColor: '#f0fdf4',
+              border: '1px solid #bbf7d0',
+              borderRadius: '6px',
+              padding: '12px',
+            }}>
+              <div style={{
+                fontSize: '11px',
+                fontWeight: '700',
+                color: '#166534',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px',
+                marginBottom: '10px',
+                paddingBottom: '6px',
+                borderBottom: '1px solid #bbf7d0',
+              }}>
+                Inspector (Editable)
+              </div>
+
+              {itemType === 'labour' ? (
+                <>
+                  {/* Labour inspector editable fields */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={labelStyle}>Name</div>
+                    <input
+                      type="text"
+                      value={currentName}
+                      onChange={(e) => setEditedName(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '10px' }}>
+                    <div style={labelStyle}>Classification</div>
+                    <input
+                      type="text"
+                      value={currentClassification}
+                      onChange={(e) => setEditedClassification(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: '8px',
+                    marginBottom: '10px',
+                  }}>
+                    <div>
+                      <div style={labelStyle}>RT Hours</div>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={currentRT}
+                        onChange={(e) => setEditedRT(e.target.value)}
+                        style={numberInputStyle}
+                      />
+                    </div>
+                    <div>
+                      <div style={labelStyle}>OT Hours</div>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={currentOT}
+                        onChange={(e) => setEditedOT(e.target.value)}
+                        style={numberInputStyle}
+                      />
+                    </div>
+                    <div>
+                      <div style={labelStyle}>DT Hours</div>
+                      <input
+                        type="number"
+                        step="0.5"
+                        value={currentDT}
+                        onChange={(e) => setEditedDT(e.target.value)}
+                        style={numberInputStyle}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ marginBottom: '6px' }}>
+                    <div style={labelStyle}>Inspector Cost (at LEM rates)</div>
+                    <div style={{ fontSize: '13px', fontWeight: '700', color: '#166534' }}>
+                      {formatCurrency(inspectorCostCalc)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={labelStyle}>Variance</div>
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      color: varianceCalc === 0 ? '#16a34a' : varianceCalc > 0 ? '#dc2626' : '#3b82f6',
+                    }}>
+                      {varianceCalc > 0 ? '+' : ''}{formatCurrency(varianceCalc)}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <>
+                  {/* Equipment inspector editable fields */}
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={labelStyle}>Type</div>
+                    <input
+                      type="text"
+                      value={currentEquipType}
+                      onChange={(e) => setEditedType(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '8px' }}>
+                    <div style={labelStyle}>Unit #</div>
+                    <input
+                      type="text"
+                      value={currentUnitNumber}
+                      onChange={(e) => setEditedUnitNumber(e.target.value)}
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div style={{ marginBottom: '10px' }}>
+                    <div style={labelStyle}>Hours</div>
+                    <input
+                      type="number"
+                      step="0.5"
+                      value={currentEquipHours}
+                      onChange={(e) => setEditedHours(e.target.value)}
+                      style={numberInputStyle}
+                    />
+                  </div>
+                  <div>
+                    <div style={labelStyle}>Variance</div>
+                    <div style={{
+                      fontSize: '13px',
+                      fontWeight: '700',
+                      color: varianceCalc === 0 ? '#16a34a' : varianceCalc > 0 ? '#dc2626' : '#3b82f6',
+                    }}>
+                      {varianceCalc > 0 ? '+' : ''}{formatCurrency(varianceCalc)}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* Match info line */}
+          <div style={{
+            fontSize: '11px',
+            color: matchInfoColor,
+            marginBottom: '12px',
+            fontWeight: (status === 'lem_only' || status === 'inspector_only') ? '700' : '400',
+          }}>
+            {matchInfoText}
+          </div>
 
           {/* Action buttons */}
           <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', flexWrap: 'wrap' }}>
             <button
-              onClick={(e) => { e.stopPropagation(); handleAccept(); }}
+              onClick={handleAccept}
               style={{
                 padding: '6px 16px',
                 backgroundColor: '#16a34a',
@@ -360,7 +635,7 @@ export default function VarianceRow({ result, itemType, variance, onAction, save
             </button>
 
             <button
-              onClick={(e) => { e.stopPropagation(); handleDispute(); }}
+              onClick={handleDispute}
               style={{
                 padding: '6px 16px',
                 backgroundColor: '#dc2626',
@@ -375,26 +650,28 @@ export default function VarianceRow({ result, itemType, variance, onAction, save
               {showDisputeInput ? 'Submit Dispute' : 'Dispute'}
             </button>
 
-            <button
-              onClick={(e) => { e.stopPropagation(); handleAdjust(); }}
-              style={{
-                padding: '6px 16px',
-                backgroundColor: '#2563eb',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: '600',
-              }}
-            >
-              {showAdjustInput ? 'Submit Adjustment' : 'Adjust'}
-            </button>
+            {isDirty && (
+              <button
+                onClick={handleSaveChanges}
+                style={{
+                  padding: '6px 16px',
+                  backgroundColor: '#2563eb',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                }}
+              >
+                Save Changes
+              </button>
+            )}
           </div>
 
           {/* Dispute notes input */}
           {showDisputeInput && (
-            <div style={{ marginTop: '8px' }} onClick={(e) => e.stopPropagation()}>
+            <div style={{ marginTop: '8px' }}>
               <textarea
                 value={disputeNotes}
                 onChange={(e) => setDisputeNotes(e.target.value)}
@@ -409,27 +686,7 @@ export default function VarianceRow({ result, itemType, variance, onAction, save
                   minHeight: '60px',
                   resize: 'vertical',
                   fontFamily: 'inherit',
-                }}
-              />
-            </div>
-          )}
-
-          {/* Adjusted hours input */}
-          {showAdjustInput && (
-            <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }} onClick={(e) => e.stopPropagation()}>
-              <label style={{ fontSize: '12px', color: '#374151' }}>Adjusted total hours:</label>
-              <input
-                type="number"
-                step="0.5"
-                value={adjustedHours}
-                onChange={(e) => setAdjustedHours(e.target.value)}
-                placeholder="e.g. 8.0"
-                style={{
-                  width: '80px',
-                  padding: '6px 8px',
-                  border: '1px solid #93c5fd',
-                  borderRadius: '4px',
-                  fontSize: '12px',
+                  boxSizing: 'border-box',
                 }}
               />
             </div>

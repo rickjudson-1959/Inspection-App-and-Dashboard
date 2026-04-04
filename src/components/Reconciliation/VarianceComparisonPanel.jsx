@@ -51,7 +51,7 @@ const thCell = {
   padding: '6px 10px',
 }
 
-export default function VarianceComparisonPanel({ ticketNumber, lemData, inspectorBlock, organizationId }) {
+export default function VarianceComparisonPanel({ ticketNumber, lemData, inspectorBlock, organizationId, onInspectorBlockChange }) {
   const [labourResults, setLabourResults] = useState([])
   const [labourVariances, setLabourVariances] = useState([])
   const [equipmentResults, setEquipmentResults] = useState([])
@@ -59,6 +59,39 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
   const [totals, setTotals] = useState(null)
   const [savedStatuses, setSavedStatuses] = useState({}) // keyed by `${type}-${index}`
   const [processing, setProcessing] = useState(false)
+
+  // Local copy of inspector block for edits
+  const [editableBlock, setEditableBlock] = useState(null)
+
+  // Additional costs (small tools, per diem, etc.)
+  const [additionalCosts, setAdditionalCosts] = useState([])
+  const ADDITIONAL_COST_TYPES = [
+    { value: 'small_tools', label: 'Small Tools' },
+    { value: 'per_diem', label: 'Per Diem / Subsistence' },
+    { value: 'travel', label: 'Travel' },
+    { value: 'consumables', label: 'Consumables' },
+    { value: 'ppe', label: 'PPE' },
+    { value: 'other', label: 'Other' },
+  ]
+
+  // Initialize editable block when inspector data changes
+  useEffect(() => {
+    if (inspectorBlock) {
+      setEditableBlock(JSON.parse(JSON.stringify(inspectorBlock)))
+    }
+  }, [inspectorBlock])
+
+  // Load additional costs from LEM
+  useEffect(() => {
+    const lemAdditional = lemData?.additional_costs || lemData?.small_tools ? [{
+      type: 'small_tools',
+      label: 'Small Tools',
+      lemAmount: parseFloat(lemData.small_tools || 0),
+      inspectorAmount: 0,
+      inspectorNotes: ''
+    }] : []
+    setAdditionalCosts(lemAdditional)
+  }, [lemData])
 
   // Load existing reconciliation line items from DB
   const loadSavedStatuses = useCallback(async () => {
@@ -81,19 +114,18 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
 
   // Run matching and variance calculations on mount or data change
   useEffect(() => {
-    if (!lemData && !inspectorBlock) return
+    if (!lemData && !editableBlock) return
 
     const lemLabour = lemData?.labour_entries || []
-    const inspLabour = inspectorBlock?.labourEntries || []
+    const inspLabour = editableBlock?.labourEntries || []
     const lemEquip = lemData?.equipment_entries || []
-    const inspEquip = inspectorBlock?.equipmentEntries || []
+    const inspEquip = editableBlock?.equipmentEntries || []
 
-    // Debug: log raw data structures so field name issues are immediately visible
-    if (lemLabour.length > 0) console.log('[Variance] LEM labour_entries sample:', JSON.stringify(lemLabour[0]), 'fields:', Object.keys(lemLabour[0]))
-    if (inspLabour.length > 0) console.log('[Variance] Inspector labourEntries sample:', JSON.stringify(inspLabour[0]), 'fields:', Object.keys(inspLabour[0]))
-    if (lemEquip.length > 0) console.log('[Variance] LEM equipment_entries sample:', JSON.stringify(lemEquip[0]), 'fields:', Object.keys(lemEquip[0]))
-    if (inspEquip.length > 0) console.log('[Variance] Inspector equipmentEntries sample:', JSON.stringify(inspEquip[0]), 'fields:', Object.keys(inspEquip[0]))
-    console.log(`[Variance] Ticket ${ticketNumber}: ${lemLabour.length} LEM labour, ${inspLabour.length} inspector labour, ${lemEquip.length} LEM equip, ${inspEquip.length} inspector equip`)
+    // Debug: log raw data structures
+    if (lemLabour.length > 0) console.log('[Variance] LEM labour sample:', Object.keys(lemLabour[0]))
+    if (inspLabour.length > 0) console.log('[Variance] Inspector labour sample:', Object.keys(inspLabour[0]))
+    if (lemEquip.length > 0) console.log('[Variance] LEM equip sample:', Object.keys(lemEquip[0]))
+    if (inspEquip.length > 0) console.log('[Variance] Inspector equip sample:', Object.keys(inspEquip[0]))
 
     // Match workers
     const workerMatches = matchWorkers(lemLabour, inspLabour)
@@ -128,7 +160,69 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
 
     // Load saved statuses
     loadSavedStatuses()
-  }, [lemData, inspectorBlock, loadSavedStatuses])
+  }, [lemData, editableBlock, loadSavedStatuses])
+
+  // Handle inspector data edit — updates local editable block and notifies parent
+  function handleInspectorEdit(itemType, index, field, value) {
+    setEditableBlock(prev => {
+      if (!prev) return prev
+      const updated = JSON.parse(JSON.stringify(prev))
+      const entries = itemType === 'labour' ? updated.labourEntries : updated.equipmentEntries
+      const matchResult = itemType === 'labour' ? labourResults[index] : equipmentResults[index]
+
+      // Find the inspector entry in the editable block that corresponds to this match
+      if (matchResult?.inspectorEntry && entries) {
+        const origEntry = matchResult.inspectorEntry
+        const entryIdx = entries.findIndex(e => e === origEntry || (
+          (e.employeeName === origEntry.employeeName || e.employee_name === origEntry.employee_name) &&
+          (e.rt === origEntry.rt || e.hours === origEntry.hours)
+        ))
+
+        if (entryIdx >= 0) {
+          const fieldMap = {
+            name: itemType === 'labour' ? (entries[entryIdx].employeeName !== undefined ? 'employeeName' : 'employee_name') : null,
+            classification: 'classification',
+            rt: entries[entryIdx].rt !== undefined ? 'rt' : 'rtHours',
+            ot: entries[entryIdx].ot !== undefined ? 'ot' : 'otHours',
+            dt: entries[entryIdx].dt !== undefined ? 'dt' : 'dtHours',
+            hours: 'hours',
+            type: entries[entryIdx].type !== undefined ? 'type' : 'equipment_type',
+            unitNumber: entries[entryIdx].unitNumber !== undefined ? 'unitNumber' : 'unit_number',
+          }
+          const actualField = fieldMap[field]
+          if (actualField) {
+            const isNumeric = ['rt', 'ot', 'dt', 'hours'].includes(field)
+            entries[entryIdx][actualField] = isNumeric ? parseFloat(value) || 0 : value
+          }
+        }
+      } else if (!matchResult?.inspectorEntry && value) {
+        // LEM-only row — admin is adding a new inspector entry
+        if (itemType === 'labour' && field === 'name') {
+          updated.labourEntries = updated.labourEntries || []
+          updated.labourEntries.push({ employeeName: value, classification: '', rt: 0, ot: 0, count: 1 })
+        }
+      }
+
+      // Notify parent to persist
+      if (onInspectorBlockChange) {
+        onInspectorBlockChange(updated)
+      }
+      return updated
+    })
+  }
+
+  // Handle additional cost edit
+  function handleAdditionalCostEdit(index, field, value) {
+    setAdditionalCosts(prev => {
+      const updated = [...prev]
+      updated[index] = { ...updated[index], [field]: field === 'inspectorAmount' ? parseFloat(value) || 0 : value }
+      return updated
+    })
+  }
+
+  function addAdditionalCost() {
+    setAdditionalCosts(prev => [...prev, { type: 'small_tools', label: 'Small Tools', lemAmount: 0, inspectorAmount: 0, inspectorNotes: '' }])
+  }
 
   // Handle accept/dispute/adjust action for a line item
   async function handleAction(itemType, index, action, notes) {
@@ -315,6 +409,7 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
               itemType="labour"
               variance={labourVariances[idx]}
               onAction={(action, notes) => handleAction('labour', idx, action, notes)}
+              onInspectorEdit={(field, value) => handleInspectorEdit('labour', idx, field, value)}
               savedStatus={savedStatuses[`labour-${idx}`]}
             />
           ))
@@ -356,9 +451,60 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
               itemType="equipment"
               variance={equipmentVariances[idx]}
               onAction={(action, notes) => handleAction('equipment', idx, action, notes)}
+              onInspectorEdit={(field, value) => handleInspectorEdit('equipment', idx, field, value)}
               savedStatus={savedStatuses[`equipment-${idx}`]}
             />
           ))
+        )}
+      </div>
+
+      {/* Additional Costs section (small tools, per diem, etc.) */}
+      <div style={{ marginTop: '8px' }}>
+        <div style={sectionHeaderStyle}>
+          <span>Additional Costs</span>
+          <button onClick={addAdditionalCost} style={{ padding: '2px 10px', fontSize: '11px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>+ Add</button>
+        </div>
+        {additionalCosts.length === 0 ? (
+          <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af', fontSize: '12px', fontStyle: 'italic' }}>
+            No additional costs. Click "+ Add" for small tools, per diem, travel, etc.
+          </div>
+        ) : (
+          <div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px 120px 1fr', gap: '0', backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1', fontSize: '11px', fontWeight: '600', color: '#475569', textTransform: 'uppercase' }}>
+              <div style={{ padding: '6px 10px' }}>Type</div>
+              <div style={{ padding: '6px 10px', textAlign: 'right' }}>LEM Amount</div>
+              <div style={{ padding: '6px 10px', textAlign: 'right' }}>Inspector Amount</div>
+              <div style={{ padding: '6px 10px', textAlign: 'right' }}>Variance</div>
+              <div style={{ padding: '6px 10px' }}>Notes</div>
+            </div>
+            {additionalCosts.map((cost, idx) => {
+              const variance = (cost.lemAmount || 0) - (cost.inspectorAmount || 0)
+              return (
+                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px 120px 1fr', gap: '0', borderBottom: '1px solid #e5e7eb', backgroundColor: variance === 0 ? '#dcfce7' : variance > 0 ? '#fef2f2' : '#eff6ff' }}>
+                  <div style={{ padding: '6px 10px' }}>
+                    <select value={cost.type} onChange={e => { const t = ADDITIONAL_COST_TYPES.find(c => c.value === e.target.value); handleAdditionalCostEdit(idx, 'type', e.target.value); if (t) handleAdditionalCostEdit(idx, 'label', t.label) }}
+                      style={{ padding: '3px 6px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '3px', width: '100%' }}>
+                      {ADDITIONAL_COST_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                    </select>
+                  </div>
+                  <div style={{ padding: '6px 10px', textAlign: 'right', fontSize: '12px', fontWeight: '500' }}>
+                    ${(cost.lemAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
+                  </div>
+                  <div style={{ padding: '4px 10px' }}>
+                    <input type="number" value={cost.inspectorAmount || ''} onChange={e => handleAdditionalCostEdit(idx, 'inspectorAmount', e.target.value)}
+                      placeholder="0.00" style={{ width: '100%', padding: '3px 6px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '3px', textAlign: 'right' }} />
+                  </div>
+                  <div style={{ padding: '6px 10px', textAlign: 'right', fontSize: '12px', fontWeight: '700', color: variance === 0 ? '#16a34a' : variance > 0 ? '#dc2626' : '#3b82f6' }}>
+                    {variance > 0 ? '+' : ''}${variance.toFixed(2)}
+                  </div>
+                  <div style={{ padding: '4px 10px' }}>
+                    <input type="text" value={cost.inspectorNotes || ''} onChange={e => handleAdditionalCostEdit(idx, 'inspectorNotes', e.target.value)}
+                      placeholder="Notes..." style={{ width: '100%', padding: '3px 6px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '3px' }} />
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         )}
       </div>
 
