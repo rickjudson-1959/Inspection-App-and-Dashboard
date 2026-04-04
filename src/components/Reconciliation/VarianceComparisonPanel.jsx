@@ -132,10 +132,49 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
     loadRates()
   }, [organizationId])
 
+  // Pipeline classification alias map — common field variations → rate card names
+  const CLASSIFICATION_ALIASES = {
+    'fe welder': 'Front-End/Tie-In Welder on Stick Weld Spread',
+    'fe welder (auto)': 'Front-End/Tie-In Welder on Auto Weld Spread',
+    'fe welder operator': 'Front-End/Tie-In Welder on Stick Weld Spread',
+    'straw operator': 'Apprentice Oper/Oiler',
+    'straw (operator)': 'Apprentice Oper/Oiler',
+    'straw (operating)': 'Apprentice Oper/Oiler',
+    'straw - operator': 'Apprentice Oper/Oiler',
+    'straw (labourer)': 'General Labourer',
+    'straw fitter': 'Non-Welder Journeyman/Fitter on Stick Weld Spread',
+    'straw (filter - auto)': 'Non-Welder Journeyman/Fitter on Auto Weld Spread',
+    'straw (filter-auto)': 'Non-Welder Journeyman/Fitter on Auto Weld Spread',
+    'shaw (filter - auto)': 'Non-Welder Journeyman/Fitter on Auto Weld Spread',
+    'skew operator': 'Apprentice Oper/Oiler',
+    'shew operator': 'Apprentice Oper/Oiler',
+    'spray operator': 'Apprentice Oper/Oiler',
+    'jnt welder-foreman': 'UA Welder Foreman',
+    'pipe-in foreman': 'UA Pipe Foreman',
+    'uls-tileth foreman': 'UA Tie-In Foreman',
+    'mechanic ( nite )': 'Mechanic/Serviceman/Lubeman (Night Shift)',
+    'security (7 days/wk)': 'Night Watchman/Security',
+    'warehouseman class': 'Warehouseman 1',
+  }
+
   // Rate card matching — multi-strategy fuzzy match for classification or equipment type
   function findRate(name, rates, nameField) {
     if (!name || !rates?.length) return null
     const s = name.toLowerCase().trim()
+
+    // Pass 0: Check alias map first
+    const alias = CLASSIFICATION_ALIASES[s]
+    if (alias) {
+      const aliasMatch = rates.find(r => (r[nameField] || '').toLowerCase().includes(alias.toLowerCase()))
+      if (aliasMatch) return aliasMatch
+    }
+
+    // Also try stripping parenthetical suffixes: "General Foreman (LAB)" → "General Foreman"
+    const stripped = s.replace(/\s*\([^)]*\)\s*$/, '').trim()
+    if (stripped !== s) {
+      const strippedMatch = rates.find(r => (r[nameField] || '').toLowerCase().trim() === stripped)
+      if (strippedMatch) return strippedMatch
+    }
 
     // Pass 1: Exact match (case-insensitive)
     const exact = rates.find(r => (r[nameField] || '').toLowerCase().trim() === s)
