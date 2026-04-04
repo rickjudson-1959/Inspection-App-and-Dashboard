@@ -245,6 +245,8 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
             setInspectorReport(prev => ({ ...prev, activity_blocks: blocks }))
           }
         }}
+        uploadedLemUrls={panels.lem?.file_urls || []}
+        onLemDataExtracted={() => loadAllData()}
       />
     </div>
   )

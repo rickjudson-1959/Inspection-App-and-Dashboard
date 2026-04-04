@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { matchWorkers, matchEquipment, getWorkerName, getEquipmentName } from '../../utils/nameMatchingUtils.js'
+import { extractLEMLineItems } from '../../utils/lemParser.js'
 import {
   calculateWorkerVariance,
   calculateEquipmentVariance,
@@ -51,7 +52,7 @@ const thCell = {
   padding: '6px 10px',
 }
 
-export default function VarianceComparisonPanel({ ticketNumber, lemData, inspectorBlock, organizationId, onInspectorBlockChange }) {
+export default function VarianceComparisonPanel({ ticketNumber, lemData, inspectorBlock, organizationId, onInspectorBlockChange, uploadedLemUrls, onLemDataExtracted }) {
   const [labourResults, setLabourResults] = useState([])
   const [labourVariances, setLabourVariances] = useState([])
   const [equipmentResults, setEquipmentResults] = useState([])
@@ -326,6 +327,61 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
     }
   }
 
+  // Extract LEM data from uploaded PDF (for LEMs uploaded before OCR was wired up)
+  async function handleExtractFromUpload() {
+    if (!uploadedLemUrls?.length) return
+    setProcessing(true)
+    try {
+      const allLabour = []
+      const allEquipment = []
+      let totalLabourCost = 0
+      let totalEquipCost = 0
+
+      for (const url of uploadedLemUrls) {
+        const extracted = await extractLEMLineItems(url)
+        if (extracted.labour) {
+          for (const l of extracted.labour) {
+            allLabour.push({
+              name: l.employee_name || '', type: l.classification || '', employee_id: '',
+              rt_hours: l.rt_hours || 0, ot_hours: l.ot_hours || 0, dt_hours: 0,
+              rt_rate: l.rt_rate || 0, ot_rate: l.ot_rate || 0, dt_rate: 0,
+              sub: 0, total: l.line_total || 0
+            })
+            totalLabourCost += l.line_total || 0
+          }
+        }
+        if (extracted.equipment) {
+          for (const e of extracted.equipment) {
+            allEquipment.push({
+              type: e.equipment_type || '', equipment_id: e.unit_number || '',
+              hours: e.hours || 0, rate: e.rate || 0, total: e.line_total || 0
+            })
+            totalEquipCost += e.line_total || 0
+          }
+        }
+      }
+
+      if (allLabour.length > 0 || allEquipment.length > 0) {
+        await supabase.from('contractor_lems').upsert({
+          organization_id: organizationId,
+          field_log_id: ticketNumber,
+          labour_entries: allLabour,
+          equipment_entries: allEquipment,
+          total_labour_cost: totalLabourCost,
+          total_equipment_cost: totalEquipCost,
+        }, { onConflict: 'organization_id,field_log_id' })
+
+        if (onLemDataExtracted) onLemDataExtracted()
+      } else {
+        alert('OCR could not extract any labour or equipment data from the uploaded LEM.')
+      }
+    } catch (err) {
+      console.error('[LEM OCR] Extraction failed:', err)
+      alert('Extraction failed: ' + err.message)
+    }
+    setProcessing(false)
+  }
+
   // Empty states
   if (!lemData) {
     return (
@@ -337,9 +393,17 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
         border: '1px solid #e5e7eb',
         marginTop: '12px',
       }}>
-        <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>
-          No contractor LEM data found for this ticket. Upload a LEM to enable variance comparison.
+        <p style={{ color: '#6b7280', fontSize: '14px', margin: '0 0 12px 0' }}>
+          No contractor LEM data found for this ticket.
         </p>
+        {uploadedLemUrls?.length > 0 ? (
+          <button onClick={handleExtractFromUpload} disabled={processing}
+            style={{ padding: '10px 24px', backgroundColor: processing ? '#9ca3af' : '#0ea5e9', color: 'white', border: 'none', borderRadius: '6px', cursor: processing ? 'not-allowed' : 'pointer', fontWeight: '600' }}>
+            {processing ? 'Extracting (this may take 30-60s)...' : 'Extract Data from Uploaded LEM'}
+          </button>
+        ) : (
+          <p style={{ color: '#9ca3af', fontSize: '13px', margin: 0 }}>Upload a LEM to enable variance comparison.</p>
+        )}
       </div>
     )
   }

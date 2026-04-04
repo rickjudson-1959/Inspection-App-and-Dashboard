@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect, useCallback } from 'react'
 import { supabase } from '../../supabase'
 import { useOrgQuery } from '../../utils/queryHelpers.js'
 import { useAuth } from '../../AuthContext.jsx'
+import { extractLEMLineItems } from '../../utils/lemParser.js'
 
 const DOC_TYPE_OPTIONS = [
   { value: 'contractor_lem', label: 'Contractor LEM' },
@@ -204,6 +205,78 @@ export default function ReconciliationUpload({ onUploadComplete, prefillTicket, 
         })
 
       if (insertErr) throw insertErr
+
+      // If this is a contractor LEM, OCR extract structured data for variance comparison
+      if (docType === 'contractor_lem' && fileUrls.length > 0) {
+        setProgress('Extracting billing data from LEM (this may take 30-60s)...')
+        try {
+          // OCR each uploaded page
+          const allLabour = []
+          const allEquipment = []
+          let totalLabourCost = 0
+          let totalEquipCost = 0
+
+          for (const url of fileUrls) {
+            const extracted = await extractLEMLineItems(url)
+            if (extracted.labour) {
+              for (const l of extracted.labour) {
+                allLabour.push({
+                  name: l.employee_name || '',
+                  type: l.classification || '',
+                  employee_id: '',
+                  rt_hours: l.rt_hours || 0,
+                  ot_hours: l.ot_hours || 0,
+                  dt_hours: 0,
+                  rt_rate: l.rt_rate || 0,
+                  ot_rate: l.ot_rate || 0,
+                  dt_rate: 0,
+                  sub: 0,
+                  total: l.line_total || 0
+                })
+                totalLabourCost += l.line_total || 0
+              }
+            }
+            if (extracted.equipment) {
+              for (const e of extracted.equipment) {
+                allEquipment.push({
+                  type: e.equipment_type || '',
+                  equipment_id: e.unit_number || '',
+                  hours: e.hours || 0,
+                  rate: e.rate || 0,
+                  total: e.line_total || 0
+                })
+                totalEquipCost += e.line_total || 0
+              }
+            }
+          }
+
+          // Upsert contractor_lems record with structured data
+          if (allLabour.length > 0 || allEquipment.length > 0) {
+            const { error: lemErr } = await supabase
+              .from('contractor_lems')
+              .upsert({
+                organization_id: orgId,
+                field_log_id: ticketTrimmed,
+                foreman: foreman.trim() || null,
+                date: date || null,
+                labour_entries: allLabour,
+                equipment_entries: allEquipment,
+                total_labour_cost: totalLabourCost,
+                total_equipment_cost: totalEquipCost,
+              }, { onConflict: 'organization_id,field_log_id' })
+
+            if (lemErr) {
+              console.error('[LEM OCR] Failed to save structured data:', lemErr)
+              // Non-blocking — the upload still succeeded
+            } else {
+              console.log(`[LEM OCR] Saved: ${allLabour.length} labour, ${allEquipment.length} equipment for ticket ${ticketTrimmed}`)
+            }
+          }
+        } catch (ocrErr) {
+          console.error('[LEM OCR] Extraction failed:', ocrErr)
+          // Non-blocking — the upload still succeeded
+        }
+      }
 
       // Success
       setSuccess(`Successfully uploaded ${files.length} file${files.length > 1 ? 's' : ''} for ticket ${ticketTrimmed}.`)
