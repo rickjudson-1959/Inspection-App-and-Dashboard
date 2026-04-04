@@ -114,6 +114,56 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
   const [savedStatuses, setSavedStatuses] = useState({}) // keyed by `${type}-${index}`
   const [processing, setProcessing] = useState(false)
 
+  // Rate cards for cost calculation
+  const [labourRates, setLabourRates] = useState([])
+  const [equipmentRates, setEquipmentRates] = useState([])
+
+  // Load rate cards
+  useEffect(() => {
+    if (!organizationId) return
+    async function loadRates() {
+      try {
+        const lr = await fetch(`/api/rates?table=labour_rates&organization_id=${organizationId}`)
+        if (lr.ok) { const d = await lr.json(); if (Array.isArray(d)) setLabourRates(d) }
+        const er = await fetch(`/api/rates?table=equipment_rates&organization_id=${organizationId}`)
+        if (er.ok) { const d = await er.json(); if (Array.isArray(d)) setEquipmentRates(d) }
+      } catch (e) { console.error('Failed to load rate cards:', e) }
+    }
+    loadRates()
+  }, [organizationId])
+
+  // Rate card matching — find the best matching rate for a classification or equipment type
+  function findRate(name, rates, nameField) {
+    if (!name || !rates?.length) return null
+    const s = name.toLowerCase().trim()
+    // Exact match
+    const exact = rates.find(r => (r[nameField] || '').toLowerCase().trim() === s)
+    if (exact) return exact
+    // Contains match
+    const contains = rates.find(r => {
+      const k = (r[nameField] || '').toLowerCase().trim()
+      return k.includes(s) || s.includes(k)
+    })
+    return contains || null
+  }
+
+  function calcInspectorLabourCost(entry) {
+    const classification = entry.classification || ''
+    const rate = findRate(classification, labourRates, 'classification')
+    if (!rate) return 0
+    const rt = num(entry.rt ?? entry.rtHours ?? entry.hours ?? 0)
+    const ot = num(entry.ot ?? entry.otHours ?? 0)
+    return (rt * num(rate.rate_st)) + (ot * num(rate.rate_ot || rate.rate_st))
+  }
+
+  function calcInspectorEquipCost(entry) {
+    const type = entry.type || entry.equipment_type || ''
+    const rate = findRate(type, equipmentRates, 'equipment_type')
+    if (!rate) return 0
+    const hours = num(entry.hours ?? 0)
+    return hours * num(rate.rate_hourly || rate.rate)
+  }
+
   // Local copy of inspector block for edits
   const [editableBlock, setEditableBlock] = useState(null)
 
@@ -221,24 +271,15 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
       // Load saved statuses
       loadSavedStatuses()
     } else {
-      // INSPECTOR-ONLY MODE — calculate inspector totals for summary bar
-      // No matching needed, just sum up inspector costs
+      // INSPECTOR-ONLY MODE — calculate inspector totals using rate cards
       let inspectorTotalCost = 0
 
       for (const entry of inspLabour) {
-        const rt = num(entry.rtHours ?? entry.rt_hours ?? entry.rt ?? entry.hours ?? entry.jh ?? 0)
-        const ot = num(entry.otHours ?? entry.ot_hours ?? entry.ot ?? 0)
-        const dt = num(entry.dtHours ?? entry.dt_hours ?? entry.dt ?? 0)
-        const rtRate = num(entry.rt_rate ?? entry.rtRate ?? 0)
-        const otRate = num(entry.ot_rate ?? entry.otRate ?? 0)
-        const dtRate = num(entry.dt_rate ?? entry.dtRate ?? 0)
-        inspectorTotalCost += (rt * rtRate) + (ot * otRate) + (dt * dtRate)
+        inspectorTotalCost += calcInspectorLabourCost(entry) * num(entry.count ?? 1)
       }
 
       for (const entry of inspEquip) {
-        const hours = num(entry.hours ?? entry.count ?? 0)
-        const rate = num(entry.rate ?? 0)
-        inspectorTotalCost += hours * rate
+        inspectorTotalCost += calcInspectorEquipCost(entry) * num(entry.count ?? 1)
       }
 
       setTotals({
@@ -256,7 +297,7 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
       setEquipmentResults([])
       setEquipmentVariances([])
     }
-  }, [lemData, editableBlock, hasLem, loadSavedStatuses])
+  }, [lemData, editableBlock, hasLem, loadSavedStatuses, labourRates, equipmentRates])
 
   // Handle inspector data edit — updates local editable block and notifies parent
   function handleInspectorEdit(itemType, index, field, value) {
@@ -517,21 +558,24 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
   const inspLabour = editableBlock?.labourEntries || []
   const inspEquip = editableBlock?.equipmentEntries || []
 
-  // Compute inspector-only cost for each labour entry (for inspector-only mode display)
+  // Compute inspector-only cost using rate cards (not from entry — inspector doesn't enter rates)
   function getInspectorLabourCost(entry) {
-    const rt = num(entry.rtHours ?? entry.rt_hours ?? entry.rt ?? entry.hours ?? entry.jh ?? 0)
-    const ot = num(entry.otHours ?? entry.ot_hours ?? entry.ot ?? 0)
-    const dt = num(entry.dtHours ?? entry.dt_hours ?? entry.dt ?? 0)
-    const rtRate = num(entry.rt_rate ?? entry.rtRate ?? 0)
-    const otRate = num(entry.ot_rate ?? entry.otRate ?? 0)
-    const dtRate = num(entry.dt_rate ?? entry.dtRate ?? 0)
-    return (rt * rtRate) + (ot * otRate) + (dt * dtRate)
+    return calcInspectorLabourCost(entry) * num(entry.count ?? 1)
   }
 
   function getInspectorEquipCost(entry) {
-    const hours = num(entry.hours ?? entry.count ?? 0)
-    const rate = num(entry.rate ?? 0)
-    return hours * rate
+    return calcInspectorEquipCost(entry) * num(entry.count ?? 1)
+  }
+
+  // Get the matched rate for display purposes
+  function getLabourRate(entry) {
+    const classification = entry.classification || ''
+    return findRate(classification, labourRates, 'classification')
+  }
+
+  function getEquipRate(entry) {
+    const type = entry.type || entry.equipment_type || ''
+    return findRate(type, equipmentRates, 'equipment_type')
   }
 
   return (
@@ -801,7 +845,8 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
                 const equipName = getEquipmentName(entry)
                 const unitNumber = entry.unitNumber || entry.unit_number || entry.equipment_id || ''
                 const hours = num(entry.hours ?? entry.count ?? 0)
-                const rate = num(entry.rate ?? 0)
+                const matchedRate = getEquipRate(entry)
+                const rate = num(matchedRate?.rate_hourly || matchedRate?.rate || 0)
                 const cost = getInspectorEquipCost(entry)
 
                 return (
