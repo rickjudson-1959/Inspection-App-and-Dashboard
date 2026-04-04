@@ -105,7 +105,7 @@ function formatCurrency(value) {
   return num(value).toLocaleString('en-CA', { style: 'currency', currency: 'CAD' })
 }
 
-export default function VarianceComparisonPanel({ ticketNumber, lemData, inspectorBlock, organizationId, onInspectorBlockChange, uploadedLemUrls, onLemDataExtracted }) {
+export default function VarianceComparisonPanel({ ticketNumber, lemData, inspectorBlock, organizationId, onInspectorBlockChange, uploadedLemUrls, uploadedLemDate, uploadedLemForeman, onLemDataExtracted }) {
   const [labourResults, setLabourResults] = useState([])
   const [labourVariances, setLabourVariances] = useState([])
   const [equipmentResults, setEquipmentResults] = useState([])
@@ -557,14 +557,17 @@ export default function VarianceComparisonPanel({ ticketNumber, lemData, inspect
       }
 
       if (allLabour.length > 0 || allEquipment.length > 0) {
-        await supabase.from('contractor_lems').upsert({
+        const { error: upsertErr } = await supabase.from('contractor_lems').upsert({
           organization_id: organizationId,
           field_log_id: ticketNumber,
+          date: uploadedLemDate || new Date().toISOString().split('T')[0],
+          foreman: uploadedLemForeman || null,
           labour_entries: allLabour,
           equipment_entries: allEquipment,
           total_labour_cost: totalLabourCost,
           total_equipment_cost: totalEquipCost,
         }, { onConflict: 'organization_id,field_log_id' })
+        if (upsertErr) console.error('[LEM OCR] Upsert failed:', upsertErr)
 
         if (onLemDataExtracted) onLemDataExtracted()
       } else {

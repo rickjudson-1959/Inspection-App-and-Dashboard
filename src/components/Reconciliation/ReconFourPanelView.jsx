@@ -246,6 +246,8 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
           }
         }}
         uploadedLemUrls={panels.lem?.file_urls || []}
+        uploadedLemDate={panels.lem?.date || meta.date || null}
+        uploadedLemForeman={panels.lem?.foreman || meta.foreman || null}
         onLemDataExtracted={() => loadAllData()}
       />
     </div>
