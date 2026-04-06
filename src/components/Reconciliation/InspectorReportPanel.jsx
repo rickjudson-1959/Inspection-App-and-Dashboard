@@ -1,14 +1,31 @@
-import React from 'react'
+import React, { useState, useCallback, useRef, useEffect } from 'react'
+import { supabase } from '../../supabase'
 
-/**
- * InspectorReportPanel — Formatted read-only view of inspector report data.
- * Shows manpower table + equipment table from activity_blocks, NOT a document.
- *
- * Props:
- *   report: daily_reports row with activity_blocks
- *   block: the specific activity block matching the ticket number
- */
-export default function InspectorReportPanel({ report, block }) {
+export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated }) {
+  const [editingCell, setEditingCell] = useState(null) // { section, rowIdx, field }
+  const [editValue, setEditValue] = useState('')
+  const [dropdownFilter, setDropdownFilter] = useState('')
+  const [showAliasPrompt, setShowAliasPrompt] = useState(null) // { originalValue, mappedValue, aliasType }
+  const inputRef = useRef(null)
+  const dropdownRef = useRef(null)
+
+  // Focus input when editing starts
+  useEffect(() => {
+    if (editingCell && inputRef.current) inputRef.current.focus()
+  }, [editingCell])
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!editingCell) return
+    function handleClick(e) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setEditingCell(null)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    return () => document.removeEventListener('mousedown', handleClick)
+  }, [editingCell])
+
   if (!report || !block) {
     return (
       <div style={{ padding: 30, textAlign: 'center', color: '#6b7280', fontSize: 13 }}>
@@ -20,11 +37,284 @@ export default function InspectorReportPanel({ report, block }) {
 
   const labourEntries = block.labourEntries || []
   const equipmentEntries = block.equipmentEntries || []
+
+  // --- Rate lookup ---
+  function findLabourRate(classification) {
+    if (!classification) return null
+    const cl = classification.toLowerCase().trim()
+    // 1. Check learned aliases
+    const alias = aliases.find(a => a.alias_type === 'labour' && a.original_value.toLowerCase().trim() === cl)
+    const lookupName = alias ? alias.mapped_value : classification
+    const ln = lookupName.toLowerCase().trim()
+    // 2. Exact match
+    let found = labourRates.find(r => (r.classification || '').toLowerCase().trim() === ln)
+    if (found) return found
+    // 3. Contains match
+    found = labourRates.find(r => {
+      const rc = (r.classification || '').toLowerCase()
+      return rc.includes(ln) || ln.includes(rc)
+    })
+    return found || null
+  }
+
+  function findEquipmentRate(equipType) {
+    if (!equipType) return null
+    const et = equipType.toLowerCase().trim()
+    // 1. Check learned aliases
+    const alias = aliases.find(a => a.alias_type === 'equipment' && a.original_value.toLowerCase().trim() === et)
+    const lookupName = alias ? alias.mapped_value : equipType
+    const en = lookupName.toLowerCase().trim()
+    // 2. Exact match
+    let found = equipmentRates.find(r => (r.equipment_type || r.type || '').toLowerCase().trim() === en)
+    if (found) return found
+    // 3. Contains match
+    found = equipmentRates.find(r => {
+      const rc = (r.equipment_type || r.type || '').toLowerCase()
+      return rc.includes(en) || en.includes(rc)
+    })
+    return found || null
+  }
+
+  function calcLabourCost(entry) {
+    const rate = findLabourRate(entry.classification)
+    if (!rate) return { rate: null, cost: 0 }
+    const rt = parseFloat(entry.rt || entry.hours || 0)
+    const ot = parseFloat(entry.ot || 0)
+    const qty = parseInt(entry.count || 1)
+    const stRate = parseFloat(rate.rate_st || rate.rate || 0)
+    const otRate = parseFloat(rate.rate_ot || stRate * 1.5)
+    const cost = ((rt * stRate) + (ot * otRate)) * qty
+    return { rate: stRate, cost }
+  }
+
+  function calcEquipmentCost(entry) {
+    const rate = findEquipmentRate(entry.type || entry.equipment_type)
+    if (!rate) return { rate: null, cost: 0 }
+    const hrs = parseFloat(entry.hours || 0)
+    const qty = parseInt(entry.count || 1)
+    const hrRate = parseFloat(rate.rate || rate.hourly_rate || 0)
+    const cost = hrs * hrRate * qty
+    return { rate: hrRate, cost }
+  }
+
+  // --- Totals ---
+  const labourCosts = labourEntries.map(e => calcLabourCost(e))
+  const equipmentCosts = equipmentEntries.map(e => calcEquipmentCost(e))
+  const labourTotal = labourCosts.reduce((s, c) => s + c.cost, 0)
+  const equipmentTotal = equipmentCosts.reduce((s, c) => s + c.cost, 0)
+  const grandTotal = labourTotal + equipmentTotal
+
+  function fmt(n) { return n.toLocaleString('en-CA', { style: 'currency', currency: 'CAD' }) }
+
+  // --- Inline editing ---
+  function startEdit(section, rowIdx, field, currentValue) {
+    setEditingCell({ section, rowIdx, field })
+    setEditValue(currentValue || '')
+    setDropdownFilter('')
+  }
+
+  function commitEdit(newValue) {
+    if (!editingCell || !onBlockChange) return
+    const { section, rowIdx, field } = editingCell
+    const entries = section === 'labour' ? [...labourEntries] : [...equipmentEntries]
+    const entry = { ...entries[rowIdx] }
+    const fieldMap = {
+      name: 'employeeName',
+      classification: 'classification',
+      rt: 'rt',
+      ot: 'ot',
+      jh: 'jh',
+      count: 'count',
+      type: 'type',
+      unitNumber: 'unitNumber',
+      hours: 'hours',
+    }
+    const key = fieldMap[field] || field
+    const oldValue = entry[key] || ''
+    entry[key] = newValue
+    entries[rowIdx] = entry
+
+    const updatedBlock = { ...block }
+    if (section === 'labour') updatedBlock.labourEntries = entries
+    else updatedBlock.equipmentEntries = entries
+
+    const auditEntries = [{
+      field: `${section}[${rowIdx}].${field}`,
+      oldValue,
+      newValue,
+    }]
+
+    onBlockChange(updatedBlock, auditEntries)
+    setEditingCell(null)
+  }
+
+  function handleClassificationSelect(section, rowIdx, rateCardName) {
+    const entries = section === 'labour' ? labourEntries : equipmentEntries
+    const entry = entries[rowIdx]
+    const originalValue = section === 'labour'
+      ? (entry.classification || '')
+      : (entry.type || entry.equipment_type || '')
+
+    commitEdit(rateCardName)
+
+    // Prompt to save alias if the original value is different
+    if (originalValue && originalValue.toLowerCase().trim() !== rateCardName.toLowerCase().trim()) {
+      setShowAliasPrompt({
+        originalValue,
+        mappedValue: rateCardName,
+        aliasType: section === 'labour' ? 'labour' : 'equipment',
+      })
+    }
+  }
+
+  async function saveAlias(prompt) {
+    try {
+      const userId = (await supabase.auth.getUser()).data?.user?.id || null
+      // Check if alias already exists
+      const { data: existing } = await supabase.from('classification_aliases')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('alias_type', prompt.aliasType)
+        .ilike('original_value', prompt.originalValue)
+        .maybeSingle()
+
+      if (existing) {
+        await supabase.from('classification_aliases')
+          .update({ mapped_value: prompt.mappedValue, created_by: userId })
+          .eq('id', existing.id)
+      } else {
+        await supabase.from('classification_aliases').insert({
+          organization_id: organizationId,
+          alias_type: prompt.aliasType,
+          original_value: prompt.originalValue,
+          mapped_value: prompt.mappedValue,
+          created_by: userId,
+        })
+      }
+
+      if (onAliasCreated) {
+        onAliasCreated({
+          alias_type: prompt.aliasType,
+          original_value: prompt.originalValue,
+          mapped_value: prompt.mappedValue,
+          organization_id: organizationId,
+        })
+      }
+    } catch (e) {
+      console.error('Failed to save alias:', e)
+    }
+    setShowAliasPrompt(null)
+  }
+
+  // --- Editable cell renderer ---
+  function EditableCell({ section, rowIdx, field, value, style, isDropdown, dropdownItems, dropdownKey }) {
+    const isEditing = editingCell?.section === section && editingCell?.rowIdx === rowIdx && editingCell?.field === field
+
+    if (isEditing && isDropdown) {
+      const filtered = (dropdownItems || []).filter(item => {
+        const name = (item[dropdownKey] || '').toLowerCase()
+        return name.includes(dropdownFilter.toLowerCase())
+      })
+      return (
+        <td style={{ ...style, padding: 0, position: 'relative' }} ref={dropdownRef}>
+          <input
+            ref={inputRef}
+            value={dropdownFilter}
+            onChange={e => setDropdownFilter(e.target.value)}
+            placeholder="Search..."
+            style={{ width: '100%', padding: '4px 6px', fontSize: 12, border: '2px solid #3b82f6', borderRadius: 3, boxSizing: 'border-box' }}
+          />
+          <div style={{
+            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
+            maxHeight: 200, overflowY: 'auto', backgroundColor: 'white',
+            border: '1px solid #d1d5db', borderRadius: '0 0 4px 4px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          }}>
+            {filtered.slice(0, 50).map((item, i) => (
+              <div
+                key={i}
+                onClick={() => handleClassificationSelect(section, rowIdx, item[dropdownKey])}
+                style={{
+                  padding: '6px 8px', fontSize: 12, cursor: 'pointer',
+                  backgroundColor: i % 2 === 0 ? '#f9fafb' : 'white',
+                  borderBottom: '1px solid #f3f4f6',
+                }}
+                onMouseEnter={e => e.target.style.backgroundColor = '#dbeafe'}
+                onMouseLeave={e => e.target.style.backgroundColor = i % 2 === 0 ? '#f9fafb' : 'white'}
+              >
+                {item[dropdownKey]}
+              </div>
+            ))}
+            {filtered.length === 0 && (
+              <div style={{ padding: '8px', fontSize: 12, color: '#9ca3af', fontStyle: 'italic' }}>No matches</div>
+            )}
+          </div>
+        </td>
+      )
+    }
+
+    if (isEditing) {
+      return (
+        <td style={{ ...style, padding: 0 }}>
+          <input
+            ref={inputRef}
+            value={editValue}
+            onChange={e => setEditValue(e.target.value)}
+            onBlur={() => commitEdit(editValue)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') commitEdit(editValue)
+              if (e.key === 'Escape') setEditingCell(null)
+            }}
+            style={{
+              width: '100%', padding: '4px 6px', fontSize: 12,
+              border: '2px solid #3b82f6', borderRadius: 3,
+              boxSizing: 'border-box', textAlign: style?.textAlign || 'left',
+            }}
+          />
+        </td>
+      )
+    }
+
+    return (
+      <td
+        style={{ ...style, cursor: 'pointer' }}
+        onClick={() => startEdit(section, rowIdx, field, value)}
+        title="Click to edit"
+      >
+        {value || '-'}
+      </td>
+    )
+  }
+
   const cellStyle = { padding: '4px 6px', borderBottom: '1px solid #e5e7eb', fontSize: 12 }
   const headerStyle = { ...cellStyle, fontWeight: '600', backgroundColor: '#f0fdf4', color: '#166534' }
 
   return (
     <div style={{ height: '100%', overflow: 'auto', fontSize: 13 }}>
+      {/* Alias learning prompt */}
+      {showAliasPrompt && (
+        <div style={{
+          position: 'sticky', top: 0, zIndex: 50,
+          padding: '10px 14px', backgroundColor: '#eff6ff', borderBottom: '2px solid #3b82f6',
+          display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', fontSize: 12,
+        }}>
+          <span style={{ flex: 1 }}>
+            Save this mapping so <strong>"{showAliasPrompt.originalValue}"</strong> always resolves to <strong>"{showAliasPrompt.mappedValue}"</strong>?
+          </span>
+          <button
+            onClick={() => saveAlias(showAliasPrompt)}
+            style={{ padding: '4px 12px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: '600', fontSize: 12 }}
+          >
+            Yes
+          </button>
+          <button
+            onClick={() => setShowAliasPrompt(null)}
+            style={{ padding: '4px 12px', backgroundColor: '#e5e7eb', color: '#374151', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12 }}
+          >
+            No
+          </button>
+        </div>
+      )}
+
       {/* Report header */}
       <div style={{ padding: '8px 12px', backgroundColor: '#f9fafb', borderBottom: '1px solid #e5e7eb' }}>
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -56,38 +346,55 @@ export default function InspectorReportPanel({ report, block }) {
               <tr>
                 <th style={{ ...headerStyle, textAlign: 'left' }}>Name</th>
                 <th style={{ ...headerStyle, textAlign: 'left' }}>Classification</th>
-                <th style={{ ...headerStyle, textAlign: 'right', width: 45 }}>RT</th>
-                <th style={{ ...headerStyle, textAlign: 'right', width: 45 }}>OT</th>
-                <th style={{ ...headerStyle, textAlign: 'right', width: 45 }}>JH</th>
-                <th style={{ ...headerStyle, textAlign: 'right', width: 35 }}>Qty</th>
+                <th style={{ ...headerStyle, textAlign: 'right', width: 40 }}>RT</th>
+                <th style={{ ...headerStyle, textAlign: 'right', width: 40 }}>OT</th>
+                <th style={{ ...headerStyle, textAlign: 'right', width: 40 }}>JH</th>
+                <th style={{ ...headerStyle, textAlign: 'right', width: 30 }}>Qty</th>
+                <th style={{ ...headerStyle, textAlign: 'right', width: 65 }}>Rate</th>
+                <th style={{ ...headerStyle, textAlign: 'right', width: 75 }}>Cost</th>
               </tr>
             </thead>
             <tbody>
-              {labourEntries.map((e, i) => (
-                <tr key={i}>
-                  <td style={cellStyle}>{e.employeeName || e.employee_name || e.name || '-'}</td>
-                  <td style={{ ...cellStyle, color: '#6b7280' }}>{e.classification || '-'}</td>
-                  <td style={{ ...cellStyle, textAlign: 'right' }}>{e.rt || e.hours || 0}</td>
-                  <td style={{ ...cellStyle, textAlign: 'right' }}>{e.ot || 0}</td>
-                  <td style={{ ...cellStyle, textAlign: 'right' }}>{e.jh || 0}</td>
-                  <td style={{ ...cellStyle, textAlign: 'right' }}>{e.count || 1}</td>
-                </tr>
-              ))}
+              {labourEntries.map((e, i) => {
+                const { rate, cost } = labourCosts[i]
+                return (
+                  <tr key={i}>
+                    <EditableCell section="labour" rowIdx={i} field="name" value={e.employeeName || e.employee_name || e.name || ''} style={cellStyle} />
+                    <EditableCell section="labour" rowIdx={i} field="classification" value={e.classification || ''}
+                      style={{ ...cellStyle, color: '#6b7280' }}
+                      isDropdown dropdownItems={labourRates} dropdownKey="classification" />
+                    <EditableCell section="labour" rowIdx={i} field="rt" value={String(e.rt || e.hours || 0)} style={{ ...cellStyle, textAlign: 'right' }} />
+                    <EditableCell section="labour" rowIdx={i} field="ot" value={String(e.ot || 0)} style={{ ...cellStyle, textAlign: 'right' }} />
+                    <EditableCell section="labour" rowIdx={i} field="jh" value={String(e.jh || 0)} style={{ ...cellStyle, textAlign: 'right' }} />
+                    <EditableCell section="labour" rowIdx={i} field="count" value={String(e.count || 1)} style={{ ...cellStyle, textAlign: 'right' }} />
+                    <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: rate != null ? '#166534' : '#9ca3af', fontStyle: rate != null ? 'normal' : 'italic' }}>
+                      {rate != null ? fmt(rate) : 'No rate found'}
+                    </td>
+                    <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', color: rate != null ? '#166534' : '#9ca3af' }}>
+                      {fmt(cost)}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
             <tfoot>
               <tr style={{ backgroundColor: '#f0fdf4' }}>
                 <td colSpan={2} style={{ ...cellStyle, fontWeight: '600' }}>Total</td>
                 <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600' }}>
-                  {labourEntries.reduce((s, e) => s + parseFloat(e.rt || e.hours || 0) * (parseInt(e.count || 1)), 0).toFixed(1)}
+                  {labourEntries.reduce((s, e) => s + parseFloat(e.rt || e.hours || 0) * parseInt(e.count || 1), 0).toFixed(1)}
                 </td>
                 <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600' }}>
-                  {labourEntries.reduce((s, e) => s + parseFloat(e.ot || 0) * (parseInt(e.count || 1)), 0).toFixed(1)}
+                  {labourEntries.reduce((s, e) => s + parseFloat(e.ot || 0) * parseInt(e.count || 1), 0).toFixed(1)}
                 </td>
                 <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600' }}>
-                  {labourEntries.reduce((s, e) => s + parseFloat(e.jh || 0) * (parseInt(e.count || 1)), 0).toFixed(1)}
+                  {labourEntries.reduce((s, e) => s + parseFloat(e.jh || 0) * parseInt(e.count || 1), 0).toFixed(1)}
                 </td>
                 <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600' }}>
-                  {labourEntries.reduce((s, e) => s + (parseInt(e.count || 1)), 0)}
+                  {labourEntries.reduce((s, e) => s + parseInt(e.count || 1), 0)}
+                </td>
+                <td style={{ ...cellStyle, textAlign: 'right' }}></td>
+                <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '700', color: '#166534' }}>
+                  {fmt(labourTotal)}
                 </td>
               </tr>
             </tfoot>
@@ -107,34 +414,70 @@ export default function InspectorReportPanel({ report, block }) {
             <thead>
               <tr>
                 <th style={{ ...headerStyle, textAlign: 'left' }}>Type</th>
-                <th style={{ ...headerStyle, textAlign: 'left', width: 70 }}>Unit #</th>
-                <th style={{ ...headerStyle, textAlign: 'right', width: 45 }}>Hrs</th>
-                <th style={{ ...headerStyle, textAlign: 'right', width: 35 }}>Qty</th>
+                <th style={{ ...headerStyle, textAlign: 'left', width: 60 }}>Unit #</th>
+                <th style={{ ...headerStyle, textAlign: 'right', width: 40 }}>Hrs</th>
+                <th style={{ ...headerStyle, textAlign: 'right', width: 30 }}>Qty</th>
+                <th style={{ ...headerStyle, textAlign: 'right', width: 65 }}>Rate</th>
+                <th style={{ ...headerStyle, textAlign: 'right', width: 75 }}>Cost</th>
               </tr>
             </thead>
             <tbody>
-              {equipmentEntries.map((e, i) => (
-                <tr key={i}>
-                  <td style={cellStyle}>{e.type || e.equipment_type || '-'}</td>
-                  <td style={cellStyle}>{e.unitNumber || e.unit_number || '-'}</td>
-                  <td style={{ ...cellStyle, textAlign: 'right' }}>{e.hours || 0}</td>
-                  <td style={{ ...cellStyle, textAlign: 'right' }}>{e.count || 1}</td>
-                </tr>
-              ))}
+              {equipmentEntries.map((e, i) => {
+                const { rate, cost } = equipmentCosts[i]
+                return (
+                  <tr key={i}>
+                    <EditableCell section="equipment" rowIdx={i} field="type" value={e.type || e.equipment_type || ''}
+                      style={cellStyle}
+                      isDropdown dropdownItems={equipmentRates} dropdownKey={equipmentRates[0]?.equipment_type ? 'equipment_type' : 'type'} />
+                    <EditableCell section="equipment" rowIdx={i} field="unitNumber" value={e.unitNumber || e.unit_number || ''} style={cellStyle} />
+                    <EditableCell section="equipment" rowIdx={i} field="hours" value={String(e.hours || 0)} style={{ ...cellStyle, textAlign: 'right' }} />
+                    <EditableCell section="equipment" rowIdx={i} field="count" value={String(e.count || 1)} style={{ ...cellStyle, textAlign: 'right' }} />
+                    <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: rate != null ? '#166534' : '#9ca3af', fontStyle: rate != null ? 'normal' : 'italic' }}>
+                      {rate != null ? fmt(rate) : 'No rate found'}
+                    </td>
+                    <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', color: rate != null ? '#166534' : '#9ca3af' }}>
+                      {fmt(cost)}
+                    </td>
+                  </tr>
+                )
+              })}
             </tbody>
             <tfoot>
               <tr style={{ backgroundColor: '#f0fdf4' }}>
                 <td colSpan={2} style={{ ...cellStyle, fontWeight: '600' }}>Total</td>
                 <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600' }}>
-                  {equipmentEntries.reduce((s, e) => s + parseFloat(e.hours || 0) * (parseInt(e.count || 1)), 0).toFixed(1)}
+                  {equipmentEntries.reduce((s, e) => s + parseFloat(e.hours || 0) * parseInt(e.count || 1), 0).toFixed(1)}
                 </td>
                 <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600' }}>
-                  {equipmentEntries.reduce((s, e) => s + (parseInt(e.count || 1)), 0)}
+                  {equipmentEntries.reduce((s, e) => s + parseInt(e.count || 1), 0)}
+                </td>
+                <td style={{ ...cellStyle, textAlign: 'right' }}></td>
+                <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '700', color: '#166534' }}>
+                  {fmt(equipmentTotal)}
                 </td>
               </tr>
             </tfoot>
           </table>
         )}
+      </div>
+
+      {/* Grand total summary */}
+      <div style={{
+        margin: '4px 12px 8px', padding: '10px 14px',
+        backgroundColor: '#f0fdf4', borderRadius: 6, border: '1px solid #bbf7d0',
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+          <span style={{ color: '#374151' }}>Labour Total</span>
+          <span style={{ fontWeight: '600', color: '#166534' }}>{fmt(labourTotal)}</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 6 }}>
+          <span style={{ color: '#374151' }}>Equipment Total</span>
+          <span style={{ fontWeight: '600', color: '#166534' }}>{fmt(equipmentTotal)}</span>
+        </div>
+        <div style={{ borderTop: '2px solid #166534', paddingTop: 6, display: 'flex', justifyContent: 'space-between', fontSize: 14 }}>
+          <span style={{ fontWeight: '700', color: '#166534' }}>Grand Total</span>
+          <span style={{ fontWeight: '700', color: '#166534' }}>{fmt(grandTotal)}</span>
+        </div>
       </div>
 
       {/* Source badge */}
