@@ -34,6 +34,10 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
   const [lemData, setLemData] = useState(null)               // contractor_lems row for variance comparison
   const [loading, setLoading] = useState(true)
   const [meta, setMeta] = useState({ date: null, foreman: null })
+  const [labourRates, setLabourRates] = useState([])
+  const [equipmentRates, setEquipmentRates] = useState([])
+  const [aliases, setAliases] = useState([])
+  const [showVariance, setShowVariance] = useState(false)
 
   useEffect(() => {
     if (ticketNumber && organizationId) loadAllData()
@@ -112,6 +116,22 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
       date: foundReport?.date || docWithDate?.date || null,
       foreman: foundBlock?.foreman || (docs || []).find(d => d.foreman)?.foreman || null
     })
+
+    // --- Load rate cards ---
+    try {
+      const lr = await fetch(`/api/rates?table=labour_rates&organization_id=${organizationId}`)
+      if (lr.ok) { const d = await lr.json(); if (Array.isArray(d)) setLabourRates(d) }
+      const er = await fetch(`/api/rates?table=equipment_rates&organization_id=${organizationId}`)
+      if (er.ok) { const d = await er.json(); if (Array.isArray(d)) setEquipmentRates(d) }
+    } catch (e) { console.error('Failed to load rate cards:', e) }
+
+    // --- Load learned aliases ---
+    try {
+      let aq = supabase.from('classification_aliases').select('*')
+      aq = addOrgFilter(aq, true)
+      const { data: aliasRows } = await aq
+      setAliases(aliasRows || [])
+    } catch (e) { console.error('Failed to load aliases:', e) }
 
     setLoading(false)
   }
@@ -205,54 +225,107 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
         {/* Panel 4: Inspector Report (formatted data view — NOT uploaded) */}
         <DocumentPanel
           title="Inspector Report"
-          subtitle="Manpower & equipment data"
+          subtitle="Manpower & equipment costs"
           panelType="report"
           reportData={reportPanel}
           emptyMessage="No inspector report found for this ticket number"
           color="#059669"
+          labourRates={labourRates}
+          equipmentRates={equipmentRates}
+          aliases={aliases}
+          organizationId={organizationId}
+          onBlockChange={async (updatedBlock, auditEntries) => {
+            if (!inspectorReport) return
+            const blocks = [...(inspectorReport.activity_blocks || [])]
+            const blockIdx = blocks.findIndex(b =>
+              b.ticketNumber && String(b.ticketNumber).trim() === String(ticketNumber).trim()
+            )
+            if (blockIdx >= 0) {
+              blocks[blockIdx] = updatedBlock
+              await supabase.from('daily_reports')
+                .update({ activity_blocks: blocks })
+                .eq('id', inspectorReport.id)
+              for (const entry of (auditEntries || [])) {
+                await supabase.from('report_audit_log').insert({
+                  report_id: inspectorReport.id,
+                  report_date: inspectorReport.date,
+                  changed_by_name: 'Cost Control',
+                  changed_by_role: 'admin',
+                  change_type: 'reconciliation_edit',
+                  section: 'Inspector Report Panel',
+                  field_name: entry.field,
+                  old_value: String(entry.oldValue),
+                  new_value: String(entry.newValue),
+                  organization_id: organizationId
+                })
+              }
+              setMatchedBlock(updatedBlock)
+              setInspectorReport(prev => ({ ...prev, activity_blocks: blocks }))
+            }
+          }}
+          onAliasCreated={(alias) => setAliases(prev => [...prev, alias])}
         />
       </div>
 
-      {/* Variance comparison panel — below the 4-panel grid */}
-      <VarianceComparisonPanel
-        ticketNumber={ticketNumber}
-        lemData={lemData}
-        inspectorBlock={matchedBlock}
-        organizationId={organizationId}
-        onInspectorBlockChange={async (updatedBlock) => {
-          // Save edited inspector block back to the daily_reports record
-          if (!inspectorReport) return
-          const blocks = [...(inspectorReport.activity_blocks || [])]
-          const blockIdx = blocks.findIndex(b =>
-            b.ticketNumber && String(b.ticketNumber).trim() === String(ticketNumber).trim()
-          )
-          if (blockIdx >= 0) {
-            blocks[blockIdx] = updatedBlock
-            await supabase.from('daily_reports')
-              .update({ activity_blocks: blocks })
-              .eq('id', inspectorReport.id)
-            // Audit log
-            await supabase.from('report_audit_log').insert({
-              report_id: inspectorReport.id,
-              report_date: inspectorReport.date,
-              changed_by_name: 'Cost Control',
-              changed_by_role: 'admin',
-              change_type: 'reconciliation_edit',
-              section: 'Reconciliation Variance',
-              field_name: `Ticket #${ticketNumber} inspector data`,
-              new_value: 'Edited from variance comparison panel',
-              organization_id: organizationId
-            })
-            // Update local state
-            setMatchedBlock(updatedBlock)
-            setInspectorReport(prev => ({ ...prev, activity_blocks: blocks }))
-          }
-        }}
-        uploadedLemUrls={panels.lem?.file_urls || []}
-        uploadedLemDate={panels.lem?.date || meta.date || null}
-        uploadedLemForeman={panels.lem?.foreman || meta.foreman || null}
-        onLemDataExtracted={() => loadAllData()}
-      />
+      {/* LEM Comparison toggle — only show button when LEM data exists */}
+      {lemData && (
+        <div style={{ textAlign: 'center' }}>
+          <button
+            onClick={() => setShowVariance(v => !v)}
+            style={{
+              padding: '6px 16px',
+              backgroundColor: showVariance ? '#6b7280' : '#1e3a5f',
+              color: 'white',
+              border: 'none',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '13px',
+              fontWeight: '600',
+            }}
+          >
+            {showVariance ? 'Hide LEM Comparison' : 'Show LEM Comparison'}
+          </button>
+        </div>
+      )}
+
+      {showVariance && (
+        <VarianceComparisonPanel
+          ticketNumber={ticketNumber}
+          lemData={lemData}
+          inspectorBlock={matchedBlock}
+          organizationId={organizationId}
+          onInspectorBlockChange={async (updatedBlock) => {
+            if (!inspectorReport) return
+            const blocks = [...(inspectorReport.activity_blocks || [])]
+            const blockIdx = blocks.findIndex(b =>
+              b.ticketNumber && String(b.ticketNumber).trim() === String(ticketNumber).trim()
+            )
+            if (blockIdx >= 0) {
+              blocks[blockIdx] = updatedBlock
+              await supabase.from('daily_reports')
+                .update({ activity_blocks: blocks })
+                .eq('id', inspectorReport.id)
+              await supabase.from('report_audit_log').insert({
+                report_id: inspectorReport.id,
+                report_date: inspectorReport.date,
+                changed_by_name: 'Cost Control',
+                changed_by_role: 'admin',
+                change_type: 'reconciliation_edit',
+                section: 'Reconciliation Variance',
+                field_name: `Ticket #${ticketNumber} inspector data`,
+                new_value: 'Edited from variance comparison panel',
+                organization_id: organizationId
+              })
+              setMatchedBlock(updatedBlock)
+              setInspectorReport(prev => ({ ...prev, activity_blocks: blocks }))
+            }
+          }}
+          uploadedLemUrls={panels.lem?.file_urls || []}
+          uploadedLemDate={panels.lem?.date || meta.date || null}
+          uploadedLemForeman={panels.lem?.foreman || meta.foreman || null}
+          onLemDataExtracted={() => loadAllData()}
+        />
+      )}
     </div>
   )
 }
