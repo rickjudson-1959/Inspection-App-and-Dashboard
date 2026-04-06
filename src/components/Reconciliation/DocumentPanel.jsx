@@ -35,7 +35,13 @@ export default function DocumentPanel({
   reportData,
   emptyMessage = 'No document uploaded',
   onUpload,
-  color = '#2563eb'
+  color = '#2563eb',
+  labourRates,
+  equipmentRates,
+  aliases,
+  organizationId,
+  onBlockChange,
+  onAliasCreated,
 }) {
   const [currentPage, setCurrentPage] = useState(0)
   const [zoom, setZoom] = useState(1)
@@ -103,7 +109,16 @@ export default function DocumentPanel({
   function renderContent(contentMaxHeight) {
     if (panelType === 'report') {
       return reportData ? (
-        <InspectorReportPanel report={reportData.report} block={reportData.block} />
+        <InspectorReportPanel
+          report={reportData.report}
+          block={reportData.block}
+          labourRates={labourRates || []}
+          equipmentRates={equipmentRates || []}
+          aliases={aliases || []}
+          organizationId={organizationId}
+          onBlockChange={onBlockChange}
+          onAliasCreated={onAliasCreated}
+        />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '180px', gap: '8px' }}>
           <p style={{ color: '#9ca3af', fontStyle: 'italic', fontSize: '12px', textAlign: 'center', margin: 0 }}>{emptyMessage}</p>

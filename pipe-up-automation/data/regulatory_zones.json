@@ -312,7 +312,8 @@
       "status": "VALID",
       "authority": "BCER Permit 9643722 — Condition #0",
       "source_document": "WATR_9643722_EGM-Sec10-05-26-2016.pdf",
-      "source_page": 5
+      "source_page": 5,
+      "needs_kp": true
     },
     {
       "name": "General — Condition #1",
@@ -323,7 +324,8 @@
       "status": "VALID",
       "authority": "BCER Permit 9643722 — Condition #1",
       "source_document": "WATR_9643722_EGM-Sec10-05-26-2016.pdf",
-      "source_page": 5
+      "source_page": 5,
+      "needs_kp": true
     },
     {
       "name": "General — Condition #10",
@@ -444,7 +446,8 @@
       "status": "VALID",
       "authority": "BCER Permit 100008382 — Condition #16",
       "source_document": "100008382-PERMIT-PIPE-Relocate.pdf",
-      "source_page": 3
+      "source_page": 3,
+      "needs_kp": true
     },
     {
       "name": "Water Course Crossings and Works — Condition #11",
@@ -807,7 +810,8 @@
       "status": "VALID",
       "authority": "BCER Permit 100008382 — Condition #16",
       "source_document": "100008382-PERMIT-PIPE-Relocate.pdf",
-      "source_page": 3
+      "source_page": 3,
+      "needs_kp": true
     },
     {
       "name": "Water Course Crossings and Works — Condition #10",
@@ -1401,7 +1405,8 @@
       "status": "VALID",
       "authority": "BCER Permit 9643722 — Condition #0",
       "source_document": "WATR_9643722_EGM-Sec10-05-26-2016.pdf",
-      "source_page": 5
+      "source_page": 5,
+      "needs_kp": true
     },
     {
       "name": "General — Condition #1",
@@ -1412,7 +1417,8 @@
       "status": "VALID",
       "authority": "BCER Permit 9643722 — Condition #1",
       "source_document": "WATR_9643722_EGM-Sec10-05-26-2016.pdf",
-      "source_page": 5
+      "source_page": 5,
+      "needs_kp": true
     },
     {
       "name": "General — Condition #10",
@@ -1555,7 +1561,8 @@
       "status": "VALID",
       "authority": "BCER Permit 100107249 — Condition #7",
       "source_document": "100107249-PERMIT-FACILITY-Coquitlam-V1.pdf",
-      "source_page": 2
+      "source_page": 2,
+      "needs_kp": true
     },
     {
       "name": "Squamish Compressor Station",
@@ -1633,6 +1640,7 @@
       "authority": "BCER PE-110163 — Section 2.3.2",
       "source_document": "PE110163-PERMIT-EMA.pdf",
       "source_page": 4,
+      "needs_kp": true,
       "coordinates": [
         {
           "type": "latlon",
@@ -1683,7 +1691,8 @@
       "status": "VALID",
       "authority": "BCER Permit 9643722 — Condition #0",
       "source_document": "WATR_9643722_EGM-Sec10-05-26-2016.pdf",
-      "source_page": 5
+      "source_page": 5,
+      "needs_kp": true
     },
     {
       "name": "General — Condition #1",
@@ -2283,7 +2292,8 @@
       "status": "VALID",
       "authority": "BCER Permit 100119867 — Condition #13",
       "source_document": "WATR_100119867_EGM-Sec10-05-01-25.pdf",
-      "source_page": 3
+      "source_page": 3,
+      "needs_kp": true
     },
     {
       "name": "Indian River",
@@ -2294,7 +2304,8 @@
       "status": "VALID",
       "authority": "BCER Permit 100119867 — Condition #15",
       "source_document": "WATR_100119867_EGM-Sec10-05-01-25.pdf",
-      "source_page": 3
+      "source_page": 3,
+      "needs_kp": true
     },
     {
       "name": "Rail\nSite",
@@ -2785,7 +2796,8 @@
       "status": "VALID",
       "authority": "BCER Permit 100100734 — Condition #1",
       "source_document": "WATR_100100734_EGM-Sec10-10-13-2016.pdf",
-      "source_page": 1
+      "source_page": 1,
+      "needs_kp": true
     },
     {
       "name": "Stawamus River",
@@ -2796,7 +2808,8 @@
       "status": "VALID",
       "authority": "BCER Permit 100111735 — Condition #52",
       "source_document": "100111735-PERMIT-PIPE-Mainline-amendment.pdf",
-      "source_page": 19
+      "source_page": 19,
+      "needs_kp": true
     },
     {
       "name": "Water Course Crossings and Works — Condition #18",

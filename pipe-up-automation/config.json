@@ -1,0 +1,12 @@
+{
+  "project_name": "SMJV — Eagle Mountain Woodfibre Gas Pipeline",
+  "job_number": "Job #2330",
+  "location": "Squamish, BC",
+  "kml_path": "data/doc.kml",
+  "zones_path": "data/regulatory_zones.json",
+  "reports_dir": "daily_reports",
+  "output_dir": "output",
+  "kp_range": [0, 38.5],
+  "map_center": [49.58, -123.0],
+  "map_zoom": 11
+}

@@ -1,0 +1,119 @@
+[
+  {
+    "name": "General — Condition #0",
+    "type": "environmental",
+    "source_document": "WATR_9643722_EGM-Sec10-05-26-2016.pdf",
+    "source_page": 5,
+    "raw_text": "100 200 300 400\n(All Locations Approximate)\nc k 2 m :\nCH2M Project Number 665837\nNAD 1983. UTM Zone 10 North.\nProposed Pipeline 1017, Kilometre Posts 1017: Universal Pegasus\nInternational (UPI) 08-21-2014; Proposed Tunnel Route: Paladin\nCrossings Inc 03-09-2015; Existing Pipeline: FortisBC 2012; Proposed\nGeotechnical Areas and Boreholes: CH2M 2015-09-17; Water\nWithdrawal Locations: CH2M 2015-10-16; BC Hydro Transmission\nLine: BC Hydro 09-29-2014; Roads: BC MFLNRO 2012; Hydrography:\nNRCan 2007...",
+    "needs": "KP location",
+    "authority": "BCER Permit 9643722 — Condition #0"
+  },
+  {
+    "name": "General — Condition #1",
+    "type": "environmental",
+    "source_document": "WATR_9643722_EGM-Sec10-05-26-2016.pdf",
+    "source_page": 5,
+    "raw_text": "^ 4 3 7 2 2\nFORTISbc\nOctober 2015\nPAGE 1 OF 3\nPROPOSED WATER WITHDRAWAL\nLOCATIONS\nWATER ACT, SECTION 8\nEAGLE MOUNTAIN - WOODFIBRE\nGAS PIPELINE PROJECT\nProposed Water Withdrawal\nLocation\nProposed Borehole Location\nA Kilometre Post\n; Proposed NPS 24 FortisBC\nPipeline Route\n^ m Proposed NPS 24 FortisBC\nPipeline Tunnel Route\n• i Existing NPS 10 FortisBC Pipeline\nProposed Water Withdrawal\nLocation 13 fl l) Proposed Geotechnical Area\nE:484583 N:S506806 10U\n--------Resource Road\nBC Hydro Transmissio...",
+    "needs": "KP location",
+    "authority": "BCER Permit 9643722 — Condition #1"
+  },
+  {
+    "name": "Temperature Sensitive Stream",
+    "type": "environmental",
+    "source_document": "100008382-PERMIT-PIPE-Relocate.pdf",
+    "source_page": 3,
+    "raw_text": "Following initial construction, stream, lake and wetlands crossings are authorized for necessary pipeline\nmaintenance activities on the activity area except for:\na. works within the boundary of a provincial park;\nb. stream bank or stream bed revetment works in a stream classified as S1, S2, S3, S4 or S5;\nc. pipe replacement within the stream channel where the original application specified a trenchless\ncrossing method and the planned works involve a trenched crossing method;\nd. permanent alte...",
+    "needs": "KP location",
+    "authority": "BCER Permit 100008382 — Condition #16"
+  },
+  {
+    "name": "Temperature Sensitive Stream",
+    "type": "fisheries",
+    "source_document": "100008382-PERMIT-PIPE-Relocate.pdf",
+    "source_page": 3,
+    "raw_text": "Following initial construction, stream, lake and wetlands crossings are authorized for necessary pipeline\nmaintenance activities on the activity area except for:\na. works within the boundary of a provincial park;\nb. stream bank or stream bed revetment works in a stream classified as S1, S2, S3, S4 or S5;\nc. pipe replacement within the stream channel where the original application specified a trenchless\ncrossing method and the planned works involve a trenched crossing method;\nd. permanent alte...",
+    "needs": "KP location",
+    "authority": "BCER Permit 100008382 — Condition #16"
+  },
+  {
+    "name": "General — Condition #0",
+    "type": "ground_disturbance",
+    "source_document": "WATR_9643722_EGM-Sec10-05-26-2016.pdf",
+    "source_page": 5,
+    "raw_text": "100 200 300 400\n(All Locations Approximate)\nc k 2 m :\nCH2M Project Number 665837\nNAD 1983. UTM Zone 10 North.\nProposed Pipeline 1017, Kilometre Posts 1017: Universal Pegasus\nInternational (UPI) 08-21-2014; Proposed Tunnel Route: Paladin\nCrossings Inc 03-09-2015; Existing Pipeline: FortisBC 2012; Proposed\nGeotechnical Areas and Boreholes: CH2M 2015-09-17; Water\nWithdrawal Locations: CH2M 2015-10-16; BC Hydro Transmission\nLine: BC Hydro 09-29-2014; Roads: BC MFLNRO 2012; Hydrography:\nNRCan 2007...",
+    "needs": "KP location",
+    "authority": "BCER Permit 9643722 — Condition #0"
+  },
+  {
+    "name": "General — Condition #1",
+    "type": "ground_disturbance",
+    "source_document": "WATR_9643722_EGM-Sec10-05-26-2016.pdf",
+    "source_page": 5,
+    "raw_text": "^ 4 3 7 2 2\nFORTISbc\nOctober 2015\nPAGE 1 OF 3\nPROPOSED WATER WITHDRAWAL\nLOCATIONS\nWATER ACT, SECTION 8\nEAGLE MOUNTAIN - WOODFIBRE\nGAS PIPELINE PROJECT\nProposed Water Withdrawal\nLocation\nProposed Borehole Location\nA Kilometre Post\n; Proposed NPS 24 FortisBC\nPipeline Route\n^ m Proposed NPS 24 FortisBC\nPipeline Tunnel Route\n• i Existing NPS 10 FortisBC Pipeline\nProposed Water Withdrawal\nLocation 13 fl l) Proposed Geotechnical Area\nE:484583 N:S506806 10U\n--------Resource Road\nBC Hydro Transmissio...",
+    "needs": "KP location",
+    "authority": "BCER Permit 9643722 — Condition #1"
+  },
+  {
+    "name": "Noons Creek",
+    "type": "ground_disturbance",
+    "source_document": "100107249-PERMIT-FACILITY-Coquitlam-V1.pdf",
+    "source_page": 2,
+    "raw_text": "The permit holder must submit to the commission a geotechnical inspectors report and\nprofessional safety statement from the Engineer of Record confirming compliance to the\nconstruction drawings, specifications, and actions taken to resolve the recommendations in the\n“Geotechnical Site Investigation Report, EGP Facilities FEED Phase – V1 Coquitlam\nCompressor Station Expansion, 19122690-009-R-RevA, dated February 26, 2020, submitted by\nGolder Associates Ltd”. The submission must include, but is...",
+    "needs": "KP location",
+    "authority": "BCER Permit 100107249 — Condition #7"
+  },
+  {
+    "name": "East Creek",
+    "type": "water_management",
+    "source_document": "PE110163-PERMIT-EMA.pdf",
+    "source_page": 4,
+    "raw_text": "The authorized point of discharge is described as into East Creek,\ndischarge outfall located at 49.6694 N, -123.2484 W.",
+    "needs": "KP location",
+    "authority": "BCER PE-110163 — Section 2.3.2"
+  },
+  {
+    "name": "General — Condition #0",
+    "type": "water_management",
+    "source_document": "WATR_9643722_EGM-Sec10-05-26-2016.pdf",
+    "source_page": 5,
+    "raw_text": "100 200 300 400\n(All Locations Approximate)\nc k 2 m :\nCH2M Project Number 665837\nNAD 1983. UTM Zone 10 North.\nProposed Pipeline 1017, Kilometre Posts 1017: Universal Pegasus\nInternational (UPI) 08-21-2014; Proposed Tunnel Route: Paladin\nCrossings Inc 03-09-2015; Existing Pipeline: FortisBC 2012; Proposed\nGeotechnical Areas and Boreholes: CH2M 2015-09-17; Water\nWithdrawal Locations: CH2M 2015-10-16; BC Hydro Transmission\nLine: BC Hydro 09-29-2014; Roads: BC MFLNRO 2012; Hydrography:\nNRCan 2007...",
+    "needs": "KP location",
+    "authority": "BCER Permit 9643722 — Condition #0"
+  },
+  {
+    "name": "Hixon Creek",
+    "type": "water_management",
+    "source_document": "WATR_100119867_EGM-Sec10-05-01-25.pdf",
+    "source_page": 3,
+    "raw_text": "Prior to any withdrawals from Hixon Creek (POD #001), the wetted depth at POD #001 and the streamflow at the\nIndian River at Twin Bridges hydrometric monitoring station (UTM 10U 507022E 548143N) must be monitored. On\nany day when water is being withdrawn from POD #001, the authorization holder must keep accurate records of:\na. daily water withdrawals in units of cubic metres (m3)\nb. stream wetted depth at POD #001 in metre units (m)\nc. the streamflow of the Indian River as measured at the Ind...",
+    "needs": "KP location",
+    "authority": "BCER Permit 100119867 — Condition #13"
+  },
+  {
+    "name": "Indian River",
+    "type": "water_management",
+    "source_document": "WATR_100119867_EGM-Sec10-05-01-25.pdf",
+    "source_page": 3,
+    "raw_text": "Water withdrawals from POD #001 are not authorized whenever the streamflow of the Indian River as measured\nat the Indian River at Twin Bridges hydrometric monitoring station is at or below the following Environmental Flow\nThresholds:\na. November to March: 6.91 m3/s\nb. April to July: 2.22 m3/s\nc. September to October: 3.64 m3/s",
+    "needs": "KP location",
+    "authority": "BCER Permit 100119867 — Condition #15"
+  },
+  {
+    "name": "Squamish River",
+    "type": "water_management",
+    "source_document": "WATR_100100734_EGM-Sec10-10-13-2016.pdf",
+    "source_page": 1,
+    "raw_text": "The BC Oil and Gas Commission (the “Commission”) pursuant to section 138 of the Petroleum and Natural\nGas Act hereby authorizes the Permit Holder referenced above to construct and operate a related activity(s)\nas set out in the applicable Permitted Activities, Authorized Activities, and Activity Details tables below for\nthe purposes of carrying out oil and gas activities as defined in the Oil and Gas Activities Act (OGAA);\nsubject to the conditions set out herein.\nAUTHORIZED ACTIVITIES\nPoint ...",
+    "needs": "KP location",
+    "authority": "BCER Permit 100100734 — Condition #1"
+  },
+  {
+    "name": "Stawamus River",
+    "type": "water_management",
+    "source_document": "100111735-PERMIT-PIPE-Mainline-amendment.pdf",
+    "source_page": 19,
+    "raw_text": "Prior to any water withdrawals from the Stawamus River (POD #003), the wetted depth at POD #003 and the\nstreamflow of the Stawamus River must be monitored. If a manual measurement of streamflow at POD #003 is\ndeemed to be unsafe by a qualified professional, streamflow may be monitored at Water Survey of Canada Station\n08GA076 (STAWAMUS RIVER AT HIGHWAY NO. 99). On any day when water is being withdrawn the\nauthorization holder must keep accurate records of:\na. daily water withdrawals in units ...",
+    "needs": "KP location",
+    "authority": "BCER Permit 100111735 — Condition #52"
+  }
+]

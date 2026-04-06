@@ -1,0 +1,3070 @@
+{
+  "generated_at": "2026-03-10T19:14:49.584Z",
+  "labour_rates": {
+    "count": 123,
+    "columns": [
+      "classification",
+      "rate_st",
+      "rate_ot",
+      "rate_dt",
+      "effective_date",
+      "po_number"
+    ],
+    "data": [
+      {
+        "classification": "Aboriginal Coordinator",
+        "rate_st": "182.42",
+        "rate_ot": "273.63",
+        "rate_dt": "364.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Appren./Oiler (Night Shift)",
+        "rate_st": "53.18",
+        "rate_ot": "79.77",
+        "rate_dt": "106.36",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Apprentice Oper/Oiler",
+        "rate_st": "49.44",
+        "rate_ot": "74.16",
+        "rate_dt": "98.89",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Articulated Dump Driver",
+        "rate_st": "64.24",
+        "rate_ot": "96.37",
+        "rate_dt": "128.49",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Assistant Project Engineer",
+        "rate_st": "152.08",
+        "rate_ot": "228.12",
+        "rate_dt": "304.16",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Assistant Superintendent",
+        "rate_st": "202.42",
+        "rate_ot": "303.63",
+        "rate_dt": "404.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Backend Welder on Auto Weld Spread (QI Applies)",
+        "rate_st": "83.42",
+        "rate_ot": "125.12",
+        "rate_dt": "166.83",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Backend Welder on Stick Weld Spread (QI Applies)",
+        "rate_st": "82.20",
+        "rate_ot": "123.30",
+        "rate_dt": "164.40",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Bending Engineer (Foreman)",
+        "rate_st": "182.42",
+        "rate_ot": "273.63",
+        "rate_dt": "364.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Bending Machine Operators",
+        "rate_st": "64.24",
+        "rate_ot": "96.36",
+        "rate_dt": "128.47",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Bombardier/Nodwell Driver",
+        "rate_st": "59.79",
+        "rate_ot": "89.69",
+        "rate_dt": "119.58",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Boom Operator - Shack, Prep/Trans. Machine",
+        "rate_st": "64.24",
+        "rate_ot": "96.36",
+        "rate_dt": "128.47",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Buffer/Grinder Helper",
+        "rate_st": "54.13",
+        "rate_ot": "81.20",
+        "rate_dt": "108.26",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Bus/Crewcab Driver",
+        "rate_st": "56.73",
+        "rate_ot": "85.10",
+        "rate_dt": "113.46",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Camp Manager",
+        "rate_st": "164.73",
+        "rate_ot": "247.10",
+        "rate_dt": "329.46",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Construction Manager",
+        "rate_st": "356.26",
+        "rate_ot": "534.39",
+        "rate_dt": "712.52",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Contract Administrator",
+        "rate_st": "202.42",
+        "rate_ot": "303.63",
+        "rate_dt": "404.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Cost Planner/Scheduler",
+        "rate_st": "164.73",
+        "rate_ot": "247.10",
+        "rate_dt": "329.46",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Driller/Conc. Saw/Powderman",
+        "rate_st": "49.84",
+        "rate_ot": "74.75",
+        "rate_dt": "99.67",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Dump Truck Driver < 8 YDS",
+        "rate_st": "59.79",
+        "rate_ot": "89.69",
+        "rate_dt": "119.58",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Dump Truck Driver 12-23 Yds",
+        "rate_st": "64.24",
+        "rate_ot": "96.37",
+        "rate_dt": "128.49",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Dump Truck Driver 8-11 Yds",
+        "rate_st": "59.79",
+        "rate_ot": "89.69",
+        "rate_dt": "119.58",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Electrical Foreman",
+        "rate_st": "182.42",
+        "rate_ot": "273.63",
+        "rate_dt": "364.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "EMT",
+        "rate_st": "115.02",
+        "rate_ot": "172.53",
+        "rate_dt": "230.04",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "End Prep/Transition Fitter on Auto Weld Spread (QI Applies)",
+        "rate_st": "82.20",
+        "rate_ot": "123.30",
+        "rate_dt": "164.40",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "End Prep/Transition Fitter on Stick Weld Spread (QI Applies)",
+        "rate_st": "69.01",
+        "rate_ot": "103.51",
+        "rate_dt": "138.02",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Engineering Manager",
+        "rate_st": "202.42",
+        "rate_ot": "303.63",
+        "rate_dt": "404.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Environmental Coordinator",
+        "rate_st": "164.73",
+        "rate_ot": "247.10",
+        "rate_dt": "329.46",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Equipment Clerk",
+        "rate_st": "95.58",
+        "rate_ot": "143.37",
+        "rate_dt": "191.16",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Equipment Manager",
+        "rate_st": "170.51",
+        "rate_ot": "255.77",
+        "rate_dt": "341.02",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Farm Tractor Driver (For Transport)",
+        "rate_st": "59.79",
+        "rate_ot": "89.69",
+        "rate_dt": "119.58",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Field Engineer",
+        "rate_st": "182.42",
+        "rate_ot": "273.63",
+        "rate_dt": "364.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Flat Deck < 5 Ton",
+        "rate_st": "59.79",
+        "rate_ot": "89.69",
+        "rate_dt": "119.58",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Flat Deck > 5 Ton",
+        "rate_st": "59.79",
+        "rate_ot": "89.69",
+        "rate_dt": "119.58",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Flat Deck Winch < 5 Ton",
+        "rate_st": "59.79",
+        "rate_ot": "89.69",
+        "rate_dt": "119.58",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Flat Deck Winch > 5 Ton",
+        "rate_st": "59.79",
+        "rate_ot": "89.69",
+        "rate_dt": "119.58",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Forklift Driver (Warehouse)",
+        "rate_st": "56.73",
+        "rate_ot": "85.10",
+        "rate_dt": "113.46",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Front-End/Tie-In Welder on Auto Weld Spread (QI Applies)",
+        "rate_st": "83.42",
+        "rate_ot": "125.12",
+        "rate_dt": "166.83",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Front-End/Tie-In Welder on Stick Weld Spread (QI Applies)",
+        "rate_st": "82.20",
+        "rate_ot": "123.30",
+        "rate_dt": "164.40",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Fuel Truck Driver's Helper",
+        "rate_st": "56.88",
+        "rate_ot": "85.25",
+        "rate_dt": "113.61",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Fuel/Water Truck Driver",
+        "rate_st": "59.94",
+        "rate_ot": "89.84",
+        "rate_dt": "119.73",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "General Foreman",
+        "rate_st": "182.42",
+        "rate_ot": "273.63",
+        "rate_dt": "364.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "General Labourer",
+        "rate_st": "48.10",
+        "rate_ot": "72.15",
+        "rate_dt": "96.20",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Graded Helper",
+        "rate_st": "54.74",
+        "rate_ot": "82.11",
+        "rate_dt": "109.47",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Graded Tech. Helper",
+        "rate_st": "54.74",
+        "rate_ot": "82.11",
+        "rate_dt": "109.47",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Ground Disturbance Supervisor",
+        "rate_st": "182.42",
+        "rate_ot": "273.63",
+        "rate_dt": "364.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Highboy Driver",
+        "rate_st": "64.24",
+        "rate_ot": "96.37",
+        "rate_dt": "128.49",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Interm. Oper 2 (Night Shift)",
+        "rate_st": "62.32",
+        "rate_ot": "93.48",
+        "rate_dt": "124.64",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Intermediate Oper",
+        "rate_st": "57.74",
+        "rate_ot": "86.62",
+        "rate_dt": "115.49",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Labourer Job Steward",
+        "rate_st": "48.71",
+        "rate_ot": "73.06",
+        "rate_dt": "97.41",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Landman",
+        "rate_st": "182.42",
+        "rate_ot": "273.63",
+        "rate_dt": "364.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Lowbed/Multipurpose Driver",
+        "rate_st": "64.24",
+        "rate_ot": "96.37",
+        "rate_dt": "128.49",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Mandrel Operator on Auto Weld Spread (QI Applies)",
+        "rate_st": "82.20",
+        "rate_ot": "123.30",
+        "rate_dt": "164.40",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Mandrel Operator on Stick Weld Spread (QI Applies)",
+        "rate_st": "82.20",
+        "rate_ot": "123.30",
+        "rate_dt": "164.40",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Master Mechanic",
+        "rate_st": "182.42",
+        "rate_ot": "273.63",
+        "rate_dt": "364.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Materials Coordinator",
+        "rate_st": "164.66",
+        "rate_ot": "246.99",
+        "rate_dt": "329.32",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Measureman",
+        "rate_st": "64.54",
+        "rate_ot": "96.81",
+        "rate_dt": "129.08",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Mech./Service/Utility Weld Helper",
+        "rate_st": "52.30",
+        "rate_ot": "78.35",
+        "rate_dt": "104.40",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Mech/Serv/Weld Help (Night Shift)",
+        "rate_st": "56.31",
+        "rate_ot": "84.36",
+        "rate_dt": "112.41",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Mechanic/Serviceman/Lubeman",
+        "rate_st": "65.69",
+        "rate_ot": "98.43",
+        "rate_dt": "131.17",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Mechanic/Serviceman/Lubeman (Night Shift)",
+        "rate_st": "71.04",
+        "rate_ot": "106.46",
+        "rate_dt": "141.88",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Night Watchman/Security",
+        "rate_st": "42.48",
+        "rate_ot": "63.72",
+        "rate_dt": "84.96",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Non-Welder Journeyman/Fitter on Auto Weld Spread (QI Applies)",
+        "rate_st": "69.01",
+        "rate_ot": "103.51",
+        "rate_dt": "138.02",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Non-Welder Journeyman/Fitter on Stick Weld Spread (QI Applies)",
+        "rate_st": "69.01",
+        "rate_ot": "103.51",
+        "rate_dt": "138.02",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Office Clerk",
+        "rate_st": "103.22",
+        "rate_ot": "154.83",
+        "rate_dt": "206.44",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Office Clerk (Local Hire)",
+        "rate_st": "42.48",
+        "rate_ot": "63.72",
+        "rate_dt": "84.96",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Office Manager",
+        "rate_st": "182.42",
+        "rate_ot": "273.63",
+        "rate_dt": "364.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Operator Job Steward",
+        "rate_st": "64.84",
+        "rate_ot": "97.27",
+        "rate_dt": "129.69",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Paramedic",
+        "rate_st": "124.07",
+        "rate_ot": "186.11",
+        "rate_dt": "248.14",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Paymaster",
+        "rate_st": "125.85",
+        "rate_ot": "188.78",
+        "rate_dt": "251.70",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Picker Truck Driver < 12 Ton",
+        "rate_st": "59.79",
+        "rate_ot": "89.69",
+        "rate_dt": "119.58",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Picker Truck Driver > 12 Ton",
+        "rate_st": "64.24",
+        "rate_ot": "96.37",
+        "rate_dt": "128.49",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Pickup/Pilot Car Driver",
+        "rate_st": "56.73",
+        "rate_ot": "85.10",
+        "rate_dt": "113.46",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Pneumatic Tools/Nozzleman",
+        "rate_st": "51.04",
+        "rate_ot": "76.56",
+        "rate_dt": "102.08",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Powersaw Operator",
+        "rate_st": "48.62",
+        "rate_ot": "72.93",
+        "rate_dt": "97.24",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Preheater Helper",
+        "rate_st": "54.13",
+        "rate_ot": "81.20",
+        "rate_dt": "108.26",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Princ. Oper 1 (Night Shift)",
+        "rate_st": "69.46",
+        "rate_ot": "104.18",
+        "rate_dt": "138.91",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Princ. Oper 2 (Night Shift)",
+        "rate_st": "67.84",
+        "rate_ot": "101.76",
+        "rate_dt": "135.68",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Principal Oper 1",
+        "rate_st": "64.24",
+        "rate_ot": "96.36",
+        "rate_dt": "128.47",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Principal Oper 2",
+        "rate_st": "62.77",
+        "rate_ot": "94.15",
+        "rate_dt": "125.54",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Project Accountant",
+        "rate_st": "206.90",
+        "rate_ot": "310.35",
+        "rate_dt": "413.80",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Project Administrator",
+        "rate_st": "202.42",
+        "rate_ot": "303.63",
+        "rate_dt": "404.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Project Engineer",
+        "rate_st": "166.50",
+        "rate_ot": "249.75",
+        "rate_dt": "333.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Project Planner",
+        "rate_st": "164.73",
+        "rate_ot": "247.10",
+        "rate_dt": "329.46",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Purchasing Agent",
+        "rate_st": "180.58",
+        "rate_ot": "270.87",
+        "rate_dt": "361.16",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Quality Control Supervisor",
+        "rate_st": "182.42",
+        "rate_ot": "273.63",
+        "rate_dt": "364.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Quality Control Technician",
+        "rate_st": "164.73",
+        "rate_ot": "247.10",
+        "rate_dt": "329.46",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Repair Welder Stick or Auto Weld Spread (QI Applies)",
+        "rate_st": "83.42",
+        "rate_ot": "125.12",
+        "rate_dt": "166.83",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Safety Coordinator",
+        "rate_st": "152.08",
+        "rate_ot": "228.12",
+        "rate_dt": "304.16",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Semi-Trailer (Fuel/Water) Driver",
+        "rate_st": "64.24",
+        "rate_ot": "96.37",
+        "rate_dt": "128.49",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Senior Safety Coordinator",
+        "rate_st": "182.42",
+        "rate_ot": "273.63",
+        "rate_dt": "364.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Set-In/Set Up Drivers (Bend & Weld)",
+        "rate_st": "64.54",
+        "rate_ot": "96.81",
+        "rate_dt": "129.08",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Skid/Bed Truck Driver",
+        "rate_st": "64.24",
+        "rate_ot": "96.37",
+        "rate_dt": "128.49",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Spacer/Stabber on Auto Weld Spread (QI Applies)",
+        "rate_st": "69.01",
+        "rate_ot": "103.51",
+        "rate_dt": "138.02",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Spacer/Stabber on Stick Weld Spread (QI Applies)",
+        "rate_st": "69.01",
+        "rate_ot": "103.51",
+        "rate_dt": "138.02",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Spec Labour (Carpenter, Etc.)",
+        "rate_st": "49.84",
+        "rate_ot": "74.75",
+        "rate_dt": "99.67",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Specialty Princ. Oper",
+        "rate_st": "64.54",
+        "rate_ot": "96.81",
+        "rate_dt": "129.08",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Specialty Princ. Oper. (Night Shift)",
+        "rate_st": "69.80",
+        "rate_ot": "104.69",
+        "rate_dt": "139.59",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Stringing Tractor Drivers",
+        "rate_st": "65.47",
+        "rate_ot": "98.21",
+        "rate_dt": "130.95",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Stringing Truck Driver",
+        "rate_st": "64.24",
+        "rate_ot": "96.37",
+        "rate_dt": "128.49",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Sub Foreman",
+        "rate_st": "152.08",
+        "rate_ot": "228.12",
+        "rate_dt": "304.16",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Superintendent",
+        "rate_st": "264.47",
+        "rate_ot": "396.71",
+        "rate_dt": "528.94",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Swamper/Drill Helper",
+        "rate_st": "48.45",
+        "rate_ot": "72.68",
+        "rate_dt": "96.90",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Teamster - Steward",
+        "rate_st": "64.85",
+        "rate_ot": "97.28",
+        "rate_dt": "129.70",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Time Keeper",
+        "rate_st": "103.22",
+        "rate_ot": "154.83",
+        "rate_dt": "206.44",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Transportation Clerk",
+        "rate_st": "95.58",
+        "rate_ot": "143.37",
+        "rate_dt": "191.16",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Transportation Coordinator",
+        "rate_st": "180.58",
+        "rate_ot": "270.87",
+        "rate_dt": "361.16",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "UA Bore/HDD Support Foreman",
+        "rate_st": "257.32",
+        "rate_ot": "385.98",
+        "rate_dt": "514.64",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "UA Job Steward on Auto Weld Spread (QI Applies)",
+        "rate_st": "82.81",
+        "rate_ot": "124.21",
+        "rate_dt": "165.62",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "UA Job Steward on Stick Weld Spread (QI Applies)",
+        "rate_st": "82.20",
+        "rate_ot": "123.30",
+        "rate_dt": "164.40",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "UA Lower-In Foreman",
+        "rate_st": "257.32",
+        "rate_ot": "385.98",
+        "rate_dt": "514.64",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "UA Pipe Foreman",
+        "rate_st": "287.65",
+        "rate_ot": "431.48",
+        "rate_dt": "575.30",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "UA Test Foreman",
+        "rate_st": "257.32",
+        "rate_ot": "385.98",
+        "rate_dt": "514.64",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "UA Tie-In Foreman",
+        "rate_st": "257.32",
+        "rate_ot": "385.98",
+        "rate_dt": "514.64",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "UA Welder Foreman",
+        "rate_st": "287.65",
+        "rate_ot": "431.48",
+        "rate_dt": "575.30",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Utility Foreman",
+        "rate_st": "182.42",
+        "rate_ot": "273.63",
+        "rate_dt": "364.84",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Utility Welder",
+        "rate_st": "65.69",
+        "rate_ot": "98.43",
+        "rate_dt": "131.17",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Utility Welder (Night Shift)",
+        "rate_st": "71.04",
+        "rate_ot": "106.46",
+        "rate_dt": "141.88",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Warehouseman 1",
+        "rate_st": "64.24",
+        "rate_ot": "96.37",
+        "rate_dt": "128.49",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Warehouseman 2",
+        "rate_st": "59.79",
+        "rate_ot": "89.69",
+        "rate_dt": "119.58",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Welder Helper",
+        "rate_st": "53.52",
+        "rate_ot": "80.29",
+        "rate_dt": "107.05",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Welding Technician Foreman",
+        "rate_st": "244.04",
+        "rate_ot": "366.06",
+        "rate_dt": "488.08",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "classification": "Welding Technician on Stick or Auto Weld Spread (QI Applies)",
+        "rate_st": "82.20",
+        "rate_ot": "123.30",
+        "rate_dt": "164.40",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      }
+    ]
+  },
+  "equipment_rates": {
+    "count": 294,
+    "columns": [
+      "equipment_type",
+      "rate_hourly",
+      "rate_daily",
+      "effective_date",
+      "po_number"
+    ],
+    "data": [
+      {
+        "equipment_type": "\"Cabbed\" Argo Side by Side C/W Trailer",
+        "rate_hourly": "27.56",
+        "rate_daily": "661.46",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "1 Ton Sandblast Unit - Truck, Compressor, Pot",
+        "rate_hourly": "16.21",
+        "rate_daily": "389.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "2 Ton Sandblast Unit - Truck, Compressor, Pot",
+        "rate_hourly": "17.08",
+        "rate_daily": "410.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "5 Ton Sandblast Unit - Truck, Compressor, Pot",
+        "rate_hourly": "23.17",
+        "rate_daily": "556.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "5 Ton Stake Truck",
+        "rate_hourly": "9.29",
+        "rate_daily": "223.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Air Booster",
+        "rate_hourly": "61.75",
+        "rate_daily": "1482.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Air Compressor - 1000 CFM",
+        "rate_hourly": "16.79",
+        "rate_daily": "403.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Air Compressor - 1000 CFM x 350 PSI",
+        "rate_hourly": "26.46",
+        "rate_daily": "635.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Air Compressor - 1200 CFM",
+        "rate_hourly": "18.08",
+        "rate_daily": "434.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Air Compressor - 1250 CFM x 350 PSI (Oil Free)",
+        "rate_hourly": "48.54",
+        "rate_daily": "1165.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Air Compressor - 1300 CFM x 365 PSI",
+        "rate_hourly": "28.67",
+        "rate_daily": "688.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Air Compressor - 150 to 185 CFM",
+        "rate_hourly": "4.08",
+        "rate_daily": "98.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Air Compressor - 1500 CFM",
+        "rate_hourly": "25.83",
+        "rate_daily": "620.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Air Compressor - 200 to 250 CFM",
+        "rate_hourly": "6.21",
+        "rate_daily": "149.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Air Compressor - 300 to 400 CFM",
+        "rate_hourly": "7.08",
+        "rate_daily": "170.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Air Compressor - 780 to 850 CFM",
+        "rate_hourly": "14.50",
+        "rate_daily": "348.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Air Compressor - 900 CFM",
+        "rate_hourly": "15.79",
+        "rate_daily": "379.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Air Compressor - 900 CFM x 350 PSI",
+        "rate_hourly": "22.08",
+        "rate_daily": "530.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Air Dryer -To Handle 2600 CFM x 350 PSI",
+        "rate_hourly": "18.75",
+        "rate_daily": "450.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Aqua Dams 2.2M x 30M",
+        "rate_hourly": "5.51",
+        "rate_daily": "132.29",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "ARGO ATV Side By Side",
+        "rate_hourly": "9.92",
+        "rate_daily": "238.13",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Articulated Dump Truck - Cat/Volvo 30 Ton",
+        "rate_hourly": "37.50",
+        "rate_daily": "900.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Articulated Dump Truck - Cat/Volvo 35 Ton",
+        "rate_hourly": "44.13",
+        "rate_daily": "1059.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Articulated Dump Truck - Cat/Volvo 40 Ton",
+        "rate_hourly": "50.75",
+        "rate_daily": "1218.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Athey Wagon",
+        "rate_hourly": "4.42",
+        "rate_daily": "106.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Athey Wagon - 30 Tonne",
+        "rate_hourly": "11.02",
+        "rate_daily": "264.58",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "ATV/Gator",
+        "rate_hourly": "5.29",
+        "rate_daily": "127.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Automatic Welding Tractor",
+        "rate_hourly": "56.04",
+        "rate_daily": "1345.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Automobile",
+        "rate_hourly": "4.21",
+        "rate_daily": "101.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backfill Blade Attach. for Cat 330 - Cat 345 Size Hoes",
+        "rate_hourly": "8.79",
+        "rate_daily": "211.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Cat 315 (or equivalent)",
+        "rate_hourly": "14.79",
+        "rate_daily": "355.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Cat 320 (or equivalent)",
+        "rate_hourly": "19.88",
+        "rate_daily": "477.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Cat 322 (or equivalent)",
+        "rate_hourly": "22.08",
+        "rate_daily": "530.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Cat 324 (or equivalent)",
+        "rate_hourly": "24.29",
+        "rate_daily": "583.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Cat 325 (or equivalent)",
+        "rate_hourly": "26.46",
+        "rate_daily": "635.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Cat 329 (or equivalent)",
+        "rate_hourly": "29.58",
+        "rate_daily": "710.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Cat 330 (or equivalent)",
+        "rate_hourly": "30.88",
+        "rate_daily": "741.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Cat 330 (or equivalent) c/w Thumb",
+        "rate_hourly": "32.00",
+        "rate_daily": "768.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Cat 330 Longstick",
+        "rate_hourly": "32.67",
+        "rate_daily": "784.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Cat 336 (or equivalent)",
+        "rate_hourly": "33.08",
+        "rate_daily": "794.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Cat 345 (or Equivalent)",
+        "rate_hourly": "41.92",
+        "rate_daily": "1006.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Cat 345 (or equivalent) c/w Thumb",
+        "rate_hourly": "43.67",
+        "rate_daily": "1048.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Cat 345 Longstick",
+        "rate_hourly": "45.21",
+        "rate_daily": "1085.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Cat 365",
+        "rate_hourly": "57.13",
+        "rate_daily": "1371.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Cat 374",
+        "rate_hourly": "65.96",
+        "rate_daily": "1583.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Hitachi 870LC",
+        "rate_hourly": "77.17",
+        "rate_daily": "1852.08",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Backhoe - Link Belt 1400 Long Stick",
+        "rate_hourly": "44.10",
+        "rate_daily": "1058.33",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Bending Machine 16 - 30\" (Does not include bending set/shoes & mandrel that are rented from a 3rd Party)",
+        "rate_hourly": "28.67",
+        "rate_daily": "688.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Bending Machine 20 - 36\" (Does not include bending set/shoes & mandrel that are rented from a 3rd Party)",
+        "rate_hourly": "41.92",
+        "rate_daily": "1006.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Bending Machine 32 - 42\" (Does not include bending set/shoes & mandrel that are rented from a 3rd Party)",
+        "rate_hourly": "52.92",
+        "rate_daily": "1270.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Bending Machine 36 - 48\" (Does not include bending set/shoes & mandrel that are rented from a 3rd Party)",
+        "rate_hourly": "88.21",
+        "rate_daily": "2117.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Boat & Motor (No Trailer)",
+        "rate_hourly": "1.54",
+        "rate_daily": "37.04",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Booster for Lowboy",
+        "rate_hourly": "5.29",
+        "rate_daily": "127.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Bus",
+        "rate_hourly": "10.58",
+        "rate_daily": "254.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Cable Clam/Board - LS 98 Linkbelt",
+        "rate_hourly": "39.71",
+        "rate_daily": "953.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Coating Pre-Heat Generator & Coil",
+        "rate_hourly": "42.33",
+        "rate_daily": "1016.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Coating Tuck - 5 Ton",
+        "rate_hourly": "9.29",
+        "rate_daily": "223.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Compressor Hoses - 2\" x 50'",
+        "rate_hourly": "0.88",
+        "rate_daily": "21.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Compressor Trailer",
+        "rate_hourly": "1.33",
+        "rate_daily": "32.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Cradle Bore Machine & Auger",
+        "rate_hourly": "44.13",
+        "rate_daily": "1059.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Crewcab - 1 Ton",
+        "rate_hourly": "6.79",
+        "rate_daily": "163.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Crewcab - 3/4 Ton",
+        "rate_hourly": "6.38",
+        "rate_daily": "153.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "D5 LPG C/W Tyalta Roto Slasher",
+        "rate_hourly": "145.52",
+        "rate_daily": "3492.50",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Diesel Heater 185Kw",
+        "rate_hourly": "12.86",
+        "rate_daily": "308.77",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Diesel Heater 390,000 BTU",
+        "rate_hourly": "1.73",
+        "rate_daily": "41.43",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Ditch Witch 1330 & Trailer",
+        "rate_hourly": "7.48",
+        "rate_daily": "179.60",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Ditching Wheel - BG 930",
+        "rate_hourly": "79.38",
+        "rate_daily": "1905.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Ditching Wheel - McKenzie 710",
+        "rate_hourly": "132.29",
+        "rate_daily": "3175.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Ditching Wheel - TA 77",
+        "rate_hourly": "52.92",
+        "rate_daily": "1270.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Ditching Wheel -Jetco 7254",
+        "rate_hourly": "66.17",
+        "rate_daily": "1588.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Ditching Wheel -Trenco 1360",
+        "rate_hourly": "165.38",
+        "rate_daily": "3969.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Ditching Wheel Trailer Trailer",
+        "rate_hourly": "13.25",
+        "rate_daily": "318.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - Bush Rake Attachment",
+        "rate_hourly": "6.06",
+        "rate_daily": "145.52",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - Cat 'U' Blade",
+        "rate_hourly": "5.51",
+        "rate_daily": "132.29",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D10 (or equivalent)",
+        "rate_hourly": "95.92",
+        "rate_daily": "2302.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D4 (or equivalent)",
+        "rate_hourly": "17.67",
+        "rate_daily": "424.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D4LGP (or equivalent)",
+        "rate_hourly": "20.29",
+        "rate_daily": "487.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D5 (or equivalent)",
+        "rate_hourly": "24.71",
+        "rate_daily": "593.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D5 LGP (or equivalent)",
+        "rate_hourly": "26.46",
+        "rate_daily": "635.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D6H (or equivalent)",
+        "rate_hourly": "30.88",
+        "rate_daily": "741.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D6N (or equivalent)",
+        "rate_hourly": "30.88",
+        "rate_daily": "741.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D6N LGP (or equivalent)",
+        "rate_hourly": "33.75",
+        "rate_daily": "810.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D6R (or equivalent)",
+        "rate_hourly": "34.21",
+        "rate_daily": "821.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D6R LGP (or equivalent)",
+        "rate_hourly": "37.50",
+        "rate_daily": "900.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D6T (or equivalent)",
+        "rate_hourly": "37.96",
+        "rate_daily": "911.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D6T LGP (or equivalent)",
+        "rate_hourly": "40.17",
+        "rate_daily": "964.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D7E (or equivalent)",
+        "rate_hourly": "44.79",
+        "rate_daily": "1075.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D7R (or equivalent)",
+        "rate_hourly": "42.58",
+        "rate_daily": "1022.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D7R LGP (or equivalent)",
+        "rate_hourly": "51.83",
+        "rate_daily": "1244.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D8T (or equivalent)",
+        "rate_hourly": "48.54",
+        "rate_daily": "1165.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dozer - D9T (or equivalent)",
+        "rate_hourly": "76.96",
+        "rate_daily": "1847.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dual 100 Kw Generator",
+        "rate_hourly": "27.45",
+        "rate_daily": "658.81",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Dual 60 Kw Generator",
+        "rate_hourly": "18.52",
+        "rate_daily": "444.50",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Farm Implement - Brush Hog",
+        "rate_hourly": "13.25",
+        "rate_daily": "318.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Farm Implement - Chisel Plow",
+        "rate_hourly": "13.25",
+        "rate_daily": "318.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Farm Implement - Cultivator",
+        "rate_hourly": "13.25",
+        "rate_daily": "318.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Farm Implement - Disc",
+        "rate_hourly": "13.25",
+        "rate_daily": "318.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Farm Implement - Mower",
+        "rate_hourly": "13.25",
+        "rate_daily": "318.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Farm Implement - Post Pounder",
+        "rate_hourly": "13.25",
+        "rate_daily": "318.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Farm Implement - Rock Picker",
+        "rate_hourly": "13.25",
+        "rate_daily": "318.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Farm Implement - Rock Rake",
+        "rate_hourly": "13.25",
+        "rate_daily": "318.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Farm Implement - Subsoiler",
+        "rate_hourly": "13.25",
+        "rate_daily": "318.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Farm Tractor - Challenger 75",
+        "rate_hourly": "30.88",
+        "rate_daily": "741.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Farm Tractor - Challenger MT845",
+        "rate_hourly": "33.08",
+        "rate_daily": "794.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Farm Tractor - Wheel < 100 HP",
+        "rate_hourly": "17.67",
+        "rate_daily": "424.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Farm Tractor - Wheel > 100 HP",
+        "rate_hourly": "26.46",
+        "rate_daily": "635.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Fence Truck - 1 Ton",
+        "rate_hourly": "7.88",
+        "rate_daily": "189.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Fill Pipe - 8\" (2.5Km)",
+        "rate_hourly": "50.71",
+        "rate_daily": "1217.08",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Fill Pipe - Load of 660 m",
+        "rate_hourly": "11.04",
+        "rate_daily": "265.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Flatdeck - 1 Ton",
+        "rate_hourly": "6.38",
+        "rate_daily": "153.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Flatdeck - 2 Ton",
+        "rate_hourly": "6.88",
+        "rate_daily": "165.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Flatdeck - 3 Ton",
+        "rate_hourly": "7.50",
+        "rate_daily": "180.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Flatdeck - 5 Ton",
+        "rate_hourly": "8.63",
+        "rate_daily": "207.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Flatdeck - 8 Ton",
+        "rate_hourly": "9.29",
+        "rate_daily": "223.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Flatdeck Bottle Truck",
+        "rate_hourly": "11.24",
+        "rate_daily": "269.88",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Floc Water Tank",
+        "rate_hourly": "5.62",
+        "rate_daily": "134.94",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Forklift - Zoom Boom",
+        "rate_hourly": "20.96",
+        "rate_daily": "503.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Frozen Topsoil Cutter (Attachment)",
+        "rate_hourly": "26.46",
+        "rate_daily": "635.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Fuel Tank - 2500 Litre Skid",
+        "rate_hourly": "6.63",
+        "rate_daily": "159.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Fuel Truck - Single Axle",
+        "rate_hourly": "24.29",
+        "rate_daily": "583.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Fuel Truck - Tandem",
+        "rate_hourly": "30.88",
+        "rate_daily": "741.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Gas Powered Auger",
+        "rate_hourly": "2.13",
+        "rate_daily": "51.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Generator - 10 kW",
+        "rate_hourly": "4.42",
+        "rate_daily": "106.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Generator - 100 kW",
+        "rate_hourly": "11.04",
+        "rate_daily": "265.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Generator - 20 kW",
+        "rate_hourly": "6.21",
+        "rate_daily": "149.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Generator - 2500 Watt",
+        "rate_hourly": "1.58",
+        "rate_daily": "38.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Generator - 30 kW",
+        "rate_hourly": "7.96",
+        "rate_daily": "191.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Generator - 3000 Watt",
+        "rate_hourly": "1.79",
+        "rate_daily": "43.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Generator - 3500 Watt",
+        "rate_hourly": "2.00",
+        "rate_daily": "48.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Generator - 5 kW",
+        "rate_hourly": "3.29",
+        "rate_daily": "79.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Generator - 5000 Watt",
+        "rate_hourly": "2.21",
+        "rate_daily": "53.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Generator - 60 kW",
+        "rate_hourly": "9.71",
+        "rate_daily": "233.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Generator - 6500 Watt",
+        "rate_hourly": "2.88",
+        "rate_daily": "69.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Generator Pump & Light 15-20kW",
+        "rate_hourly": "9.59",
+        "rate_daily": "230.19",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Generator Pump & Light 8-10kW",
+        "rate_hourly": "8.06",
+        "rate_daily": "193.41",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Generator Pump Pkg 35kW",
+        "rate_hourly": "14.77",
+        "rate_daily": "354.54",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Generator Pump Pkg 75kW",
+        "rate_hourly": "20.51",
+        "rate_daily": "492.13",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Grader - Cat G12",
+        "rate_hourly": "33.08",
+        "rate_daily": "794.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Grader - Cat G14",
+        "rate_hourly": "47.42",
+        "rate_daily": "1138.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Grader - Cat G140",
+        "rate_hourly": "32.00",
+        "rate_daily": "768.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Grader - Cat G16",
+        "rate_hourly": "52.92",
+        "rate_daily": "1270.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Grader - Cat G160",
+        "rate_hourly": "36.63",
+        "rate_daily": "879.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Highboy Trailer",
+        "rate_hourly": "6.21",
+        "rate_daily": "149.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Hoe - Bucket Rake Attachment",
+        "rate_hourly": "1.65",
+        "rate_daily": "39.69",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Hoe - Chuck Blade Attachment",
+        "rate_hourly": "3.31",
+        "rate_daily": "79.38",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Hoe Attachment - Snow Blower",
+        "rate_hourly": "3.31",
+        "rate_daily": "79.38",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Hoe Pac Attachment for Cat 324 - Cat 336 Size Hoes",
+        "rate_hourly": "17.67",
+        "rate_daily": "424.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Hoe Ram Attachment for Cat 330 or Cat 345 Backhoe",
+        "rate_hourly": "52.92",
+        "rate_daily": "1270.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Hydraulic Clam - Cat 330 Longstick",
+        "rate_hourly": "55.13",
+        "rate_daily": "1323.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Hydraulic Road Sweeper",
+        "rate_hourly": "5.90",
+        "rate_daily": "141.71",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Induction Coil",
+        "rate_hourly": "7.75",
+        "rate_daily": "186.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Jeep for Lowboy",
+        "rate_hourly": "5.29",
+        "rate_daily": "127.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Light Tower - 20 kW",
+        "rate_hourly": "13.25",
+        "rate_daily": "318.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Light Tower - 6 kW",
+        "rate_hourly": "8.83",
+        "rate_daily": "212.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Loader - Cat 930",
+        "rate_hourly": "19.88",
+        "rate_daily": "477.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Loader - Cat 950",
+        "rate_hourly": "26.46",
+        "rate_daily": "635.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Loader - Cat 966",
+        "rate_hourly": "33.08",
+        "rate_daily": "794.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Loader - Cat 980",
+        "rate_hourly": "44.13",
+        "rate_daily": "1059.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Loader - Cat 988",
+        "rate_hourly": "63.71",
+        "rate_daily": "1529.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Loader - Cat IT 28",
+        "rate_hourly": "20.96",
+        "rate_daily": "503.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Loader - Cat IT 38",
+        "rate_hourly": "22.08",
+        "rate_daily": "530.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Loader - Cat IT 62",
+        "rate_hourly": "30.88",
+        "rate_daily": "741.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Loader Attachment - De-Icer",
+        "rate_hourly": "3.67",
+        "rate_daily": "88.16",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Loader Attachment - Pipe/Pole Grapple",
+        "rate_hourly": "13.23",
+        "rate_daily": "317.50",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Lowboy Trailer",
+        "rate_hourly": "27.79",
+        "rate_daily": "667.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Lowboy Trailer (40 Wheeler)",
+        "rate_hourly": "44.10",
+        "rate_daily": "1058.33",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Lowboy Trailer (48 Wheeler)",
+        "rate_hourly": "48.51",
+        "rate_daily": "1164.17",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Lowboy/Highboy Truck Tractor",
+        "rate_hourly": "17.67",
+        "rate_daily": "424.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Mainline Sandblast Unit - Dual Sandblast Units c/w Compressor, Pots",
+        "rate_hourly": "30.67",
+        "rate_daily": "736.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Mechanic's Rig",
+        "rate_hourly": "48.00",
+        "rate_daily": "384.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Mulcher",
+        "rate_hourly": "145.52",
+        "rate_daily": "3492.50",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Nodwell - 6 Man & Mat. Size",
+        "rate_hourly": "39.71",
+        "rate_daily": "953.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Office Trailer",
+        "rate_hourly": "5.54",
+        "rate_daily": "133.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Ozzie Padder",
+        "rate_hourly": "130.09",
+        "rate_daily": "3122.08",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Packer- Crowfoot",
+        "rate_hourly": "9.92",
+        "rate_daily": "238.13",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Panther T8 All Terrain Dump Vehicle",
+        "rate_hourly": "19.84",
+        "rate_daily": "476.25",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Picker Truck - 10 Ton",
+        "rate_hourly": "17.67",
+        "rate_daily": "424.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Picker Truck - 12 Ton",
+        "rate_hourly": "20.96",
+        "rate_daily": "503.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Picker Truck - 15 Ton",
+        "rate_hourly": "26.46",
+        "rate_daily": "635.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Picker Truck - 17 Ton",
+        "rate_hourly": "30.88",
+        "rate_daily": "741.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Picker Truck - 25 Ton",
+        "rate_hourly": "44.13",
+        "rate_daily": "1059.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Picker Truck - 30 Ton",
+        "rate_hourly": "61.75",
+        "rate_daily": "1482.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Picker Truck - 8 Ton",
+        "rate_hourly": "12.79",
+        "rate_daily": "307.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Picker/Hiab Truck - 1 Ton",
+        "rate_hourly": "7.96",
+        "rate_daily": "191.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Picker/Hiab Truck - 3 Ton",
+        "rate_hourly": "10.58",
+        "rate_daily": "254.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Pickup - 1/2 Ton",
+        "rate_hourly": "5.21",
+        "rate_daily": "125.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Pickup - 3/4 Ton",
+        "rate_hourly": "6.04",
+        "rate_daily": "145.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Pigging Head (10\")",
+        "rate_hourly": "3.33",
+        "rate_daily": "80.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Pigging Head (16\")",
+        "rate_hourly": "4.00",
+        "rate_daily": "96.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Pigging Head (20\")",
+        "rate_hourly": "4.67",
+        "rate_daily": "112.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Pigging Head (24\")",
+        "rate_hourly": "4.88",
+        "rate_daily": "117.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Pigging Head (30\")",
+        "rate_hourly": "5.54",
+        "rate_daily": "133.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Pigging Head (36\")",
+        "rate_hourly": "5.88",
+        "rate_daily": "141.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Pigging Head (42\")",
+        "rate_hourly": "8.17",
+        "rate_daily": "196.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Pipe Ramming Tool",
+        "rate_hourly": "15.79",
+        "rate_daily": "378.88",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Pipe Rollers (80,000lb)",
+        "rate_hourly": "2.91",
+        "rate_daily": "69.85",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Pipeline Roller Cradles (Each)",
+        "rate_hourly": "4.41",
+        "rate_daily": "105.83",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Plate Tamper- Walk Behind (1000Lb)",
+        "rate_hourly": "4.63",
+        "rate_daily": "111.13",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Pole Trailer",
+        "rate_hourly": "7.08",
+        "rate_daily": "170.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Port Heater BT400-460H",
+        "rate_hourly": "1.13",
+        "rate_daily": "27.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Portable Plug In Panel with Generator",
+        "rate_hourly": "5.86",
+        "rate_daily": "140.76",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Portable Shop",
+        "rate_hourly": "11.04",
+        "rate_daily": "265.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Portable Shop Heater - Allmand",
+        "rate_hourly": "2.57",
+        "rate_daily": "61.70",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Power Unit for Induction Coil",
+        "rate_hourly": "39.71",
+        "rate_daily": "953.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Powersaw",
+        "rate_hourly": "15.46",
+        "rate_daily": "371.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Pressure Washer - Landa MCV4",
+        "rate_hourly": "4.42",
+        "rate_daily": "106.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Propane Station Unit",
+        "rate_hourly": "6.61",
+        "rate_daily": "158.75",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Propane/Preheat Truck",
+        "rate_hourly": "7.88",
+        "rate_daily": "189.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Rig Mat - 8' x 20'",
+        "rate_hourly": "1.13",
+        "rate_daily": "27.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Rig Mat - 8' x 30'",
+        "rate_hourly": "1.25",
+        "rate_daily": "30.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Rig Mat - 8' x 40'",
+        "rate_hourly": "1.63",
+        "rate_daily": "39.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Ripper Shank for Cat 345 Backhoe",
+        "rate_hourly": "4.54",
+        "rate_daily": "109.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Rock Splitter",
+        "rate_hourly": "7.72",
+        "rate_daily": "185.21",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Roller Packer 90\" Contour",
+        "rate_hourly": "7.72",
+        "rate_daily": "185.21",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Rubber Tired Hoe - Cat 420/430 (or equivalent)",
+        "rate_hourly": "8.83",
+        "rate_daily": "212.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Scissor Neck Trailer",
+        "rate_hourly": "9.96",
+        "rate_daily": "239.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Screw Anchor Attachment (Single) to Hoe",
+        "rate_hourly": "11.54",
+        "rate_daily": "277.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Service Truck",
+        "rate_hourly": "30.88",
+        "rate_daily": "741.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Sheep's Foot Drum Packer",
+        "rate_hourly": "10.20",
+        "rate_daily": "244.79",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Sideboom - Cat 571",
+        "rate_hourly": "29.13",
+        "rate_daily": "699.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Sideboom - Cat 572",
+        "rate_hourly": "33.54",
+        "rate_daily": "805.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Sideboom - Cat 572R",
+        "rate_hourly": "40.79",
+        "rate_daily": "979.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Sideboom - Cat 583",
+        "rate_hourly": "38.63",
+        "rate_daily": "927.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Sideboom - Cat 583T",
+        "rate_hourly": "50.75",
+        "rate_daily": "1218.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Sideboom - Cat 587T",
+        "rate_hourly": "55.13",
+        "rate_daily": "1323.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Sideboom - Cat 594",
+        "rate_hourly": "55.13",
+        "rate_daily": "1323.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Sideboom - Cat PL61 / 561",
+        "rate_hourly": "22.08",
+        "rate_daily": "530.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Sideboom - Liebherr RL64",
+        "rate_hourly": "60.65",
+        "rate_daily": "1455.21",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Silt Fence Installation Attachment",
+        "rate_hourly": "1.75",
+        "rate_daily": "41.89",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Skagit",
+        "rate_hourly": "121.27",
+        "rate_daily": "2910.42",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Skid Mounted - Mainline Coating Unit",
+        "rate_hourly": "33.07",
+        "rate_daily": "793.75",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Skid Sloop",
+        "rate_hourly": "0.92",
+        "rate_daily": "22.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Skid Steer C/W Auger Attachment",
+        "rate_hourly": "14.85",
+        "rate_daily": "356.45",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Skid Truck Tractor",
+        "rate_hourly": "25.38",
+        "rate_daily": "609.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Sled",
+        "rate_hourly": "0.92",
+        "rate_daily": "22.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Slop Tanks",
+        "rate_hourly": "12.24",
+        "rate_daily": "293.69",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Sno Cat - Piston Bully PF 300",
+        "rate_hourly": "79.38",
+        "rate_daily": "1905.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Snow Making Equipment, Sled, Snow Guns, Compressor, Generator Pumps",
+        "rate_hourly": "25.72",
+        "rate_daily": "617.33",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Snow Vehicles (Snowmobiles)",
+        "rate_hourly": "6.61",
+        "rate_daily": "158.75",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Snowplow/Sander Truck",
+        "rate_hourly": "22.08",
+        "rate_daily": "530.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Solar Road Sign Boards",
+        "rate_hourly": "5.86",
+        "rate_daily": "140.76",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Spray Coating Truck",
+        "rate_hourly": "31.33",
+        "rate_daily": "752.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Stepdeck Trailer",
+        "rate_hourly": "7.08",
+        "rate_daily": "170.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Storage Containers",
+        "rate_hourly": "1.13",
+        "rate_daily": "27.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Storage Trailer/ Van",
+        "rate_hourly": "2.67",
+        "rate_daily": "64.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Stringing Truck Tractor",
+        "rate_hourly": "13.25",
+        "rate_daily": "318.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Suburban",
+        "rate_hourly": "6.21",
+        "rate_daily": "149.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Surge Tank",
+        "rate_hourly": "26.46",
+        "rate_daily": "635.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "SUV - Expedition/ Lexus/ Denali/ Yukon/ Navigator",
+        "rate_hourly": "5.75",
+        "rate_daily": "138.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Swamp Mats (Set of 4)",
+        "rate_hourly": "1.50",
+        "rate_daily": "36.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Tag-A-Long Trailer (10 Ton)",
+        "rate_hourly": "4.41",
+        "rate_daily": "105.83",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Tag-A-Long Trailer (20 Ton)",
+        "rate_hourly": "6.63",
+        "rate_daily": "159.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Tag-A-Long Trailer (6 Ton)",
+        "rate_hourly": "4.00",
+        "rate_daily": "96.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Tag-A-Long Trailer (Farm Wagon)",
+        "rate_hourly": "4.41",
+        "rate_daily": "105.83",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Tag-A-Long Trailer (Utility)",
+        "rate_hourly": "2.67",
+        "rate_daily": "64.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Tesmac Ditcher",
+        "rate_hourly": "283.10",
+        "rate_daily": "6794.50",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Test - 1 \" Squeeze Pump",
+        "rate_hourly": "22.08",
+        "rate_daily": "530.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Test - 3\" Squeeze Pump",
+        "rate_hourly": "44.13",
+        "rate_daily": "1059.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Test - Boiler",
+        "rate_hourly": "66.17",
+        "rate_daily": "1588.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Test - Fill Pump 10 x 8",
+        "rate_hourly": "39.71",
+        "rate_daily": "953.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Test - Fill Pump 6 x 6",
+        "rate_hourly": "33.08",
+        "rate_daily": "794.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Test - Fill Pump 8 x 6",
+        "rate_hourly": "35.29",
+        "rate_daily": "847.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Test - Honda Squeeze Pump",
+        "rate_hourly": "4.42",
+        "rate_daily": "106.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Test Trailer & Instrumentation",
+        "rate_hourly": "16.54",
+        "rate_daily": "397.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Texas Winch Truck",
+        "rate_hourly": "30.87",
+        "rate_daily": "740.83",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Track Bore Machine & Auger",
+        "rate_hourly": "48.54",
+        "rate_daily": "1165.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Track Morooka",
+        "rate_hourly": "40.57",
+        "rate_daily": "973.67",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Trailer - B - Train",
+        "rate_hourly": "6.17",
+        "rate_daily": "148.17",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Transition Machine( Includes Power Unit)",
+        "rate_hourly": "50.08",
+        "rate_daily": "1202.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Transition Machine( Without Power Unit)",
+        "rate_hourly": "37.48",
+        "rate_daily": "899.58",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Trombone Trailer",
+        "rate_hourly": "7.08",
+        "rate_daily": "170.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Utility Welder Rig",
+        "rate_hourly": "48.00",
+        "rate_daily": "384.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Wacker, 1301 - Ground Heater and Generator",
+        "rate_hourly": "20.51",
+        "rate_daily": "492.13",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Warehouse Trailer/ Van",
+        "rate_hourly": "6.63",
+        "rate_daily": "159.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Warehouse Trailer/ Van Diesel Heated Storage",
+        "rate_hourly": "8.20",
+        "rate_daily": "196.85",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Wash Unit - Steam, Water Truck",
+        "rate_hourly": "19.84",
+        "rate_daily": "476.25",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Washroom Trailer",
+        "rate_hourly": "6.42",
+        "rate_daily": "154.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Water Pump - 10\" Electric",
+        "rate_hourly": "22.08",
+        "rate_daily": "530.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Water Pump - 2\"",
+        "rate_hourly": "2.21",
+        "rate_daily": "53.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Water Pump - 3\"",
+        "rate_hourly": "3.13",
+        "rate_daily": "75.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Water Pump - 4\"",
+        "rate_hourly": "7.08",
+        "rate_daily": "170.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Water Pump - 6\"",
+        "rate_hourly": "10.58",
+        "rate_daily": "254.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Water Pump - 8\"",
+        "rate_hourly": "13.71",
+        "rate_daily": "329.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Water Tank for Test",
+        "rate_hourly": "11.04",
+        "rate_daily": "265.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Water Tank Trailer",
+        "rate_hourly": "17.67",
+        "rate_daily": "424.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Water Truck",
+        "rate_hourly": "18.08",
+        "rate_daily": "434.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Weld - Auto Repair Shack",
+        "rate_hourly": "8.83",
+        "rate_daily": "212.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Weld - Buffing Tractor (ATV Style)",
+        "rate_hourly": "6.21",
+        "rate_daily": "149.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Weld - Internal Repair Unit",
+        "rate_hourly": "13.71",
+        "rate_daily": "329.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Weld - Quad Welder/Tack Rig",
+        "rate_hourly": "32.00",
+        "rate_daily": "768.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Weld - Sleigh",
+        "rate_hourly": "2.21",
+        "rate_daily": "53.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Weld - Weld Platform (Attachment to Welding Tractors/Booms)",
+        "rate_hourly": "15.25",
+        "rate_daily": "366.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Weld - Welding Shack",
+        "rate_hourly": "6.21",
+        "rate_daily": "149.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      },
+      {
+        "equipment_type": "Welding Rig",
+        "rate_hourly": "48.00",
+        "rate_daily": "384.00",
+        "effective_date": "2026-02-19",
+        "po_number": null
+      }
+    ]
+  }
+}
