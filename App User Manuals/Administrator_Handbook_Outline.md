@@ -229,22 +229,32 @@
 9.2 The Four-Panel Verification View
 | Panel | Color | Source | What to Check |
 |-------|-------|--------|---------------|
-| Contractor LEM | Dark Blue | Digital submission | Names, hours, classifications, rates |
-| Physical LEM | Light Blue | Scanned document | Matches digital? Signatures present? |
-| Inspector Report | Orange | Field inspector | Independent hour verification, calculated costs |
-| OCR'd Daily Ticket | Light Orange | Foreman signature | Proof of work acknowledgment |
+| Contractor LEM | Dark Blue | Auto-OCR'd on upload | Names, hours, classifications, rates |
+| Contractor Daily Ticket | Light Blue | Scanned document | Matches digital? Signatures present? |
+| Our Ticket Photo | Orange | Inspector's photo of signed ticket | Proof of work acknowledgment |
+| Inspector Report Data | Light Orange | Inspector's independent entry | Source of truth — always displays |
 
-9.3 The Money Banner
-- Labour Cost
-- Equipment Cost
-- Total Contractor Billed
-- LEM Hours vs Inspector Hours
-- Variance indicator (Red = mismatch, Green = aligned)
+9.3 Auto-OCR LEM Extraction
+- LEM PDFs are automatically OCR'd on upload — no manual extraction step
+- Multi-page PDFs: each page rendered and extracted individually
+- Structured billing data (labour, equipment, costs) saved to contractor_lems table
+- Classification alias map resolves 22+ common field abbreviations to rate card names
+- Equipment alias map resolves inspector equipment descriptions to rate card names
 
-9.4 Variance Analysis
-- Clicking to highlight mismatches
-- Red rows = contractor discrepancies
-- Green rows = inspector verification
+9.4 The Variance Comparison Panel (Below 4-Panel View)
+- **Inspector data is the source of truth** — always displays, even without LEM data
+- LEM data is an overlay for comparison when available
+- Three-card summary bar: LEM Claimed, Inspector Verified, Total Variance
+- Status indicators: MATCH (green), MINOR (yellow), REVIEW (orange), OVERBILLED (red)
+
+9.5 Variance Analysis
+- Line-by-line labour and equipment comparison
+- Fuzzy name matching (7-pass engine with confidence scoring)
+- Inspector costs calculated from rate cards (not raw entry values)
+- Editable inspector entries for corrections
+- Expandable rows with RT/OT/DT breakdown
+- Accept/Dispute/Adjust actions per line item
+- Bulk actions: Accept All Matches, Flag All Variances
 - Common variance causes
 
 9.5 Making Verification Decisions
@@ -547,9 +557,10 @@
 23.2 Data Issues
 | Issue | Cause | Solution |
 |-------|-------|----------|
-| $0 calculated costs | Missing rate | Add to rate table |
-| Variance shows incorrectly | Name mismatch | Standardize naming |
+| $0 calculated costs | Missing rate or classification alias | Add to rate table or classification alias map |
+| Variance shows incorrectly | Name mismatch | System uses 7-pass fuzzy matching + alias maps; check alias maps if persistent |
 | Missing inspector match | Date/foreman mismatch | Manual investigation |
+| LEM data not appearing | OCR extraction failed | Check PDF format; re-upload to trigger auto-OCR |
 
 23.3 Process Issues
 | Issue | Cause | Solution |
@@ -626,6 +637,7 @@
 | Version | Date | Author | Changes |
 |---------|------|--------|---------|
 | 1.0 | January 2026 | [Name] | Initial release |
+| 1.1 | April 2026 | Auto | Updated reconciliation: auto-OCR LEM extraction, inspector as source of truth, classification/equipment alias maps, variance panel enhancements |
 
 ---
 

@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - March 23, 2026
+## Project Manifest - April 6, 2026
 
 ---
 
@@ -120,7 +120,7 @@
 - **Admin Portal** - User/org/project management
 - **Inspector Invoicing** - Timesheet management
 - **NDT Auditor Dashboard** - NDT monitoring
-- **Reconciliation Dashboard** - Visual four-panel LEM reconciliation (Contractor LEM image | Contractor Ticket image | Our Ticket Photo | Inspector Report Data), text-based PDF classification (zero API calls), left sidebar pair list with status filters and progress tracking, keyboard navigation (A=Accept, N=Next), resolution workflow (Accept/Dispute-Variance/Dispute-Ticket Altered/Skip), billing status management, invoice batching, crossing support reconciliation, crossing variance (bore integrity audit), trackable items reconciliation (14 categories with filter chips, summary cards, detail table with type-specific columns, inventory net position panel), inspector reports sub-view with rate card cost calculations
+- **Reconciliation Dashboard** - Visual four-panel LEM reconciliation (Contractor LEM image | Contractor Ticket image | Our Ticket Photo | Inspector Report Data), text-based PDF classification (zero API calls), left sidebar pair list with status filters and progress tracking, keyboard navigation (A=Accept, N=Next), resolution workflow (Accept/Dispute-Variance/Dispute-Ticket Altered/Skip), billing status management, invoice batching, crossing support reconciliation, crossing variance (bore integrity audit), trackable items reconciliation (14 categories with filter chips, summary cards, detail table with type-specific columns, inventory net position panel), inspector reports sub-view with rate card cost calculations, auto-OCR LEM extraction on upload, inspector data as source of truth in variance comparison, classification alias map (22 entries) and equipment alias map for rate card matching
 
 ### Reporting & Export
 - PDF report generation with all activity data, quality checks, specialized logs, work photo thumbnails, and document certification
@@ -449,7 +449,7 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ├── utils/
 │   ├── queryHelpers.js         # Org-scoped query helpers (useOrgQuery)
 │   ├── feedAuditLogger.js      # FEED module audit logger — writes to report_audit_log with module:'feed_intelligence', is_critical:true, regulatory_category:'financial' (NEW - Mar 2026)
-│   ├── lemParser.js            # LEM PDF parser: pdf.js text extraction, content-marker classification, adjacency pairing, background image upload + Claude Vision OCR extraction of LEM billing line items (extractLEMLineItems, extractAllLEMLineItems) with structured labour/equipment/totals output (Updated Mar 21, 2026)
+│   ├── lemParser.js            # LEM PDF parser: pdf.js text extraction, content-marker classification, adjacency pairing, background image upload + Claude Vision OCR extraction of LEM billing line items. New `extractLEMFromUrl()` handles both PDFs (multi-page render via pdf.js) and images. `extractLEMLineItemsFromBase64()` for per-page OCR. (Updated Apr 4, 2026)
 │   ├── lemMatcher.js           # Three-strategy matching engine: exact ticket → normalized ticket → date+crew fallback, variance calculation (NEW - Mar 2026)
 │   ├── ticketNormalizer.js     # Ticket number normalization: strips prefixes, handles format variations (NEW - Mar 2026)
 │   ├── nameMatchingUtils.js    # 7-pass fuzzy name matching: exact, last+initial, Levenshtein, nickname (34 names), typo, reversed, initials. Equipment token overlap. (NEW - Mar 23, 2026)
@@ -540,14 +540,14 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
     ├── FeedRiskRegister.jsx     # Risk register — inline add/edit, category/severity badges, bulk status, variance-to-allowance column, closeout link (v2 - Mar 2026)
     ├── FeedRiskCloseout.jsx     # Risk closeout modal — links inspector report, outcome, actual cost impact, auto-updates risk status (v2 - Mar 2026)
     ├── Reconciliation/            # 4-Panel Reconciliation System (NEW - Mar 22, 2026)
-    │   ├── ReconciliationUpload.jsx  # Upload form — contractor LEM and daily ticket only (inspector data auto-linked)
+    │   ├── ReconciliationUpload.jsx  # Upload form — contractor LEM and daily ticket only (inspector data auto-linked). Auto-triggers LEM OCR extraction into contractor_lems on upload (Updated Apr 4, 2026)
     │   ├── ReconciliationList.jsx    # Ticket list with 4-column completion status (LEM/TK/PH/RPT), merges recon_package_status + daily_reports
     │   ├── ReconFourPanelView.jsx   # 2x2 grid — fetches from 3 sources: reconciliation_documents, daily_reports, ticket-photos bucket
     │   ├── DocumentPanel.jsx        # Reusable panel with PDF/image viewer, fullscreen expand (⛶), zoom, rotate, page nav, panelType routing
     │   ├── InspectorReportPanel.jsx # Formatted read-only manpower + equipment tables from activity_blocks (not a document upload)
     │   ├── PdfViewer.jsx            # pdf.js canvas renderer with page navigation
     │   ├── ImageViewer.jsx          # Image renderer with ctrl+scroll zoom, click-to-fullscreen
-    │   ├── VarianceComparisonPanel.jsx  # Line-by-line variance comparison: fuzzy name matching, labour + equipment sections, bulk actions, saves to reconciliation_line_items (NEW - Mar 23, 2026)
+    │   ├── VarianceComparisonPanel.jsx  # Line-by-line variance comparison: inspector is source of truth (always shows even without LEM), fuzzy name matching, classification alias map (22 entries), equipment alias map, auto-OCR LEM uploads into contractor_lems, editable inspector data, rate card cost calculation, bulk actions, saves to reconciliation_line_items (Updated Apr 4, 2026)
     │   ├── VarianceSummaryBar.jsx       # Three-card summary: LEM claimed, inspector verified, total variance with color-coded status (NEW - Mar 23, 2026)
     │   └── VarianceRow.jsx              # Expandable row: name/hours/cost/confidence, RT/OT/DT breakdown, accept/dispute/adjust actions (NEW - Mar 23, 2026)
     ├── MapDashboard.jsx
@@ -613,7 +613,35 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ---
 
-## 6. RECENT UPDATES (January–March 2026)
+## 6. RECENT UPDATES (January–April 2026)
+
+### Variance Panel Overhaul — Inspector as Source of Truth + Auto-OCR LEM Extraction (April 4, 2026)
+
+**Major refactor of the variance comparison system: inspector data is now the source of truth (always displays, even without LEM data), LEM uploads auto-extract via OCR, and classification/equipment alias maps resolve field naming mismatches.**
+
+1. **Inspector as source of truth** (`c091b5a`) — Flipped the variance panel so inspector report data always renders as the primary view. LEM data is an overlay for comparison, not a prerequisite. Previously the panel was blank without LEM data.
+
+2. **Auto-OCR LEM extraction** (`ef1ce7c`) — When a contractor LEM is uploaded via `ReconciliationUpload.jsx`, the system now automatically triggers `extractLEMFromUrl()` to OCR the PDF and upsert structured billing data (labour entries, equipment entries, totals) into the `contractor_lems` table. No manual "Extract LEM Data" step required.
+
+3. **PDF OCR support** (`be00591`) — New `extractLEMFromUrl()` in `lemParser.js` handles both PDFs and images. For PDFs: renders each page to a canvas image via pdf.js at 2x scale, then OCRs each page individually with `extractLEMLineItemsFromBase64()`. Aggregates labour, equipment, and cost totals across all pages.
+
+4. **Classification alias map** (`546a401`) — 22-entry alias map in `VarianceComparisonPanel.jsx` that maps common field abbreviations and OCR misreads to official rate card classification names (e.g., "FE Welder" → "Front-End/Tie-In Welder on Stick Weld Spread", "Straw Operator" → "Apprentice Oper/Oiler"). Enables accurate rate card lookups for inspector cost calculation.
+
+5. **Equipment alias map** (`f6fc4c5`) — Maps inspector equipment descriptions to rate card names (e.g., "Hydrovac Truck" → "Hydrovac", "Backhoe Cat 420F" → "Rubber Tired Hoe - Cat 420/430", "Track Hoe" → "Backhoe - Cat 330"). Fixes unmatched equipment rate lookups.
+
+6. **Rate card cost calculation** (`cc3b5ef`) — Inspector costs are now calculated from rate cards (via `/api/rates` endpoint), not from raw entry values. Fuzzy matching with `toLowerCase().includes()` fallback for abbreviated classification names (`6e95a5c`, `8183ab2`).
+
+7. **Editable inspector data** (`860ed7d`) — Inspector labour and equipment entries are editable inline in the variance panel, with additional cost rows supported.
+
+8. **contractor_lems upsert fix** (`bfc607b`) — Replaced `.upsert()` with explicit check-then-insert/update pattern to avoid duplicate key conflicts when re-extracting LEM data for the same ticket.
+
+**Files changed:**
+```
+src/Components/Reconciliation/VarianceComparisonPanel.jsx  # Major update
+src/Components/Reconciliation/ReconciliationUpload.jsx     # Auto-OCR trigger
+src/Components/Reconciliation/ReconFourPanelView.jsx       # Debug logging
+src/utils/lemParser.js                                     # extractLEMFromUrl + extractLEMLineItemsFromBase64
+```
 
 ### 4-Panel Reconciliation System — ticket_number Keyed (March 22, 2026)
 
