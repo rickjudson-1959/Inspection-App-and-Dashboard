@@ -110,10 +110,10 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   function startEdit(section, rowIdx, field, currentValue) {
     setEditingCell({ section, rowIdx, field })
     setEditValue(currentValue || '')
-    setDropdownFilter('')
+    setDropdownFilter(currentValue || '')
   }
 
-  function commitEdit(newValue) {
+  function commitEdit(newValue, moveDown) {
     if (!editingCell || !onBlockChange) return
     const { section, rowIdx, field } = editingCell
     const entries = section === 'labour' ? [...labourEntries] : [...equipmentEntries]
@@ -131,6 +131,17 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     }
     const key = fieldMap[field] || field
     const oldValue = entry[key] || ''
+
+    // Don't save if value hasn't changed
+    if (String(newValue) === String(oldValue)) {
+      if (moveDown) {
+        moveToNextRow(section, rowIdx, field)
+      } else {
+        setEditingCell(null)
+      }
+      return
+    }
+
     entry[key] = newValue
     entries[rowIdx] = entry
 
@@ -145,7 +156,29 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     }]
 
     onBlockChange(updatedBlock, auditEntries)
-    setEditingCell(null)
+
+    if (moveDown) {
+      moveToNextRow(section, rowIdx, field)
+    } else {
+      setEditingCell(null)
+    }
+  }
+
+  function moveToNextRow(section, currentRowIdx, field) {
+    const entries = section === 'labour' ? labourEntries : equipmentEntries
+    const nextIdx = currentRowIdx + 1
+    if (nextIdx < entries.length) {
+      const entry = entries[nextIdx]
+      let currentValue = ''
+      if (field === 'name') currentValue = entry.employeeName || entry.employee_name || entry.name || ''
+      else if (field === 'classification') currentValue = entry.classification || ''
+      else if (field === 'type') currentValue = entry.type || entry.equipment_type || ''
+      else if (field === 'unitNumber') currentValue = entry.unitNumber || entry.unit_number || ''
+      else currentValue = String(entry[field] || '')
+      startEdit(section, nextIdx, field, currentValue)
+    } else {
+      setEditingCell(null)
+    }
   }
 
   function handleClassificationSelect(section, rowIdx, rateCardName) {
@@ -213,16 +246,20 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     if (isEditing && isDropdown) {
       const filtered = (dropdownItems || []).filter(item => {
         const name = (item[dropdownKey] || '').toLowerCase()
-        return name.includes(dropdownFilter.toLowerCase())
+        return name.includes(editValue.toLowerCase())
       })
       return (
         <td style={{ ...style, padding: 0, position: 'relative' }} ref={dropdownRef}>
           <input
             ref={inputRef}
-            value={dropdownFilter}
-            onChange={e => setDropdownFilter(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Escape') setEditingCell(null) }}
-            placeholder="Search..."
+            value={editValue}
+            onChange={e => { setEditValue(e.target.value); setDropdownFilter(e.target.value) }}
+            onBlur={() => commitEdit(editValue)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') { e.preventDefault(); commitEdit(editValue, true) }
+              if (e.key === 'Escape') setEditingCell(null)
+            }}
+            placeholder="Type or search..."
             style={{ width: '100%', padding: '4px 6px', fontSize: 12, border: '2px solid #3b82f6', borderRadius: 3, boxSizing: 'border-box' }}
           />
           <div style={{
@@ -263,7 +300,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
             onChange={e => setEditValue(e.target.value)}
             onBlur={() => commitEdit(editValue)}
             onKeyDown={e => {
-              if (e.key === 'Enter') commitEdit(editValue)
+              if (e.key === 'Enter') { e.preventDefault(); commitEdit(editValue, true) }
               if (e.key === 'Escape') setEditingCell(null)
             }}
             style={{
