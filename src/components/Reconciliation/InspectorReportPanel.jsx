@@ -8,6 +8,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const [showAliasPrompt, setShowAliasPrompt] = useState(null) // { originalValue, mappedValue, aliasType }
   const inputRef = useRef(null)
   const dropdownRef = useRef(null)
+  const skipBlurRef = useRef(false)
 
   // Focus input when editing starts
   useEffect(() => {
@@ -107,14 +108,18 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   function fmt(n) { return n.toLocaleString('en-CA', { style: 'currency', currency: 'CAD' }) }
 
   // --- Inline editing ---
-  function startEdit(section, rowIdx, field, currentValue) {
+  function startEdit(section, rowIdx, field, currentValue, isDropdownField) {
     setEditingCell({ section, rowIdx, field })
-    setEditValue(currentValue || '')
-    setDropdownFilter(currentValue || '')
+    // For dropdown fields: start with empty input so the full list shows
+    setEditValue(isDropdownField ? '' : (currentValue || ''))
+    setDropdownFilter('')
   }
 
   function commitEdit(newValue, moveDown) {
     if (!editingCell || !onBlockChange) return
+    // Prevent onBlur from double-committing when Enter moves to next row
+    skipBlurRef.current = true
+    setTimeout(() => { skipBlurRef.current = false }, 50)
     const { section, rowIdx, field } = editingCell
     const entries = section === 'labour' ? [...labourEntries] : [...equipmentEntries]
     const entry = { ...entries[rowIdx] }
@@ -169,13 +174,14 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     const nextIdx = currentRowIdx + 1
     if (nextIdx < entries.length) {
       const entry = entries[nextIdx]
+      const isDropdownField = (field === 'classification' || field === 'type')
       let currentValue = ''
       if (field === 'name') currentValue = entry.employeeName || entry.employee_name || entry.name || ''
       else if (field === 'classification') currentValue = entry.classification || ''
       else if (field === 'type') currentValue = entry.type || entry.equipment_type || ''
       else if (field === 'unitNumber') currentValue = entry.unitNumber || entry.unit_number || ''
       else currentValue = String(entry[field] || '')
-      startEdit(section, nextIdx, field, currentValue)
+      startEdit(section, nextIdx, field, currentValue, isDropdownField)
     } else {
       setEditingCell(null)
     }
@@ -244,27 +250,30 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     const isEditing = editingCell?.section === section && editingCell?.rowIdx === rowIdx && editingCell?.field === field
 
     if (isEditing && isDropdown) {
-      const filtered = (dropdownItems || []).filter(item => {
-        const name = (item[dropdownKey] || '').toLowerCase()
-        return name.includes(editValue.toLowerCase())
-      })
+      const filterText = editValue.toLowerCase().trim()
+      const filtered = filterText.length === 0
+        ? (dropdownItems || [])
+        : (dropdownItems || []).filter(item => {
+            const name = (item[dropdownKey] || '').toLowerCase()
+            return name.includes(filterText)
+          })
       return (
         <td style={{ ...style, padding: 0, position: 'relative' }} ref={dropdownRef}>
           <input
             ref={inputRef}
             value={editValue}
             onChange={e => { setEditValue(e.target.value); setDropdownFilter(e.target.value) }}
-            onBlur={() => commitEdit(editValue)}
+            onBlur={() => { if (!skipBlurRef.current) { if (editValue.trim()) commitEdit(editValue); else setEditingCell(null) } }}
             onKeyDown={e => {
-              if (e.key === 'Enter') { e.preventDefault(); commitEdit(editValue, true) }
+              if (e.key === 'Enter') { e.preventDefault(); if (editValue.trim()) commitEdit(editValue, true); else setEditingCell(null) }
               if (e.key === 'Escape') setEditingCell(null)
             }}
-            placeholder="Type or search..."
+            placeholder="Type or pick from list..."
             style={{ width: '100%', padding: '4px 6px', fontSize: 12, border: '2px solid #3b82f6', borderRadius: 3, boxSizing: 'border-box' }}
           />
           <div style={{
             position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
-            maxHeight: 200, overflowY: 'auto', backgroundColor: 'white',
+            maxHeight: 300, overflowY: 'auto', backgroundColor: 'white',
             border: '1px solid #d1d5db', borderRadius: '0 0 4px 4px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           }}>
             {filtered.slice(0, 50).map((item, i) => (
@@ -298,7 +307,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
             ref={inputRef}
             value={editValue}
             onChange={e => setEditValue(e.target.value)}
-            onBlur={() => commitEdit(editValue)}
+            onBlur={() => { if (!skipBlurRef.current) commitEdit(editValue) }}
             onKeyDown={e => {
               if (e.key === 'Enter') { e.preventDefault(); commitEdit(editValue, true) }
               if (e.key === 'Escape') setEditingCell(null)
@@ -316,7 +325,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     return (
       <td
         style={{ ...style, cursor: 'pointer' }}
-        onClick={() => startEdit(section, rowIdx, field, value)}
+        onClick={() => startEdit(section, rowIdx, field, value, isDropdown)}
         title="Click to edit"
       >
         {value || '-'}
