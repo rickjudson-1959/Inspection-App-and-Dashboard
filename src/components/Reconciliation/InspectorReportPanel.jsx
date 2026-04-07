@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
+import ReactDOM from 'react-dom'
 import { supabase } from '../../supabase'
 
 export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated }) {
@@ -9,10 +10,17 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const inputRef = useRef(null)
   const dropdownRef = useRef(null)
   const skipBlurRef = useRef(false)
+  const [dropdownPos, setDropdownPos] = useState(null)
 
-  // Focus input when editing starts
+  // Focus input and calculate dropdown position when editing starts
   useEffect(() => {
-    if (editingCell && inputRef.current) inputRef.current.focus()
+    if (editingCell && inputRef.current) {
+      inputRef.current.focus()
+      const rect = inputRef.current.getBoundingClientRect()
+      setDropdownPos({ top: rect.bottom, left: rect.left, width: rect.width })
+    } else {
+      setDropdownPos(null)
+    }
   }, [editingCell])
 
   // Close dropdown on outside click
@@ -258,7 +266,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
             return name.includes(filterText)
           })
       return (
-        <td style={{ ...style, padding: 0, position: 'relative' }} ref={dropdownRef}>
+        <td style={{ ...style, padding: 0 }} ref={dropdownRef}>
           <input
             ref={inputRef}
             value={editValue}
@@ -271,31 +279,34 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
             placeholder="Type or pick from list..."
             style={{ width: '100%', padding: '4px 6px', fontSize: 12, border: '2px solid #3b82f6', borderRadius: 3, boxSizing: 'border-box' }}
           />
-          <div style={{
-            position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 100,
-            maxHeight: 300, overflowY: 'auto', backgroundColor: 'white',
-            border: '1px solid #d1d5db', borderRadius: '0 0 4px 4px', boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          }}>
-            {filtered.slice(0, 50).map((item, i) => (
-              <div
-                key={i}
-                onMouseDown={e => e.preventDefault()}
-                onClick={() => handleClassificationSelect(section, rowIdx, item[dropdownKey])}
-                style={{
-                  padding: '6px 8px', fontSize: 12, cursor: 'pointer',
-                  backgroundColor: i % 2 === 0 ? '#f9fafb' : 'white',
-                  borderBottom: '1px solid #f3f4f6',
-                }}
-                onMouseEnter={e => e.target.style.backgroundColor = '#dbeafe'}
-                onMouseLeave={e => e.target.style.backgroundColor = i % 2 === 0 ? '#f9fafb' : 'white'}
-              >
-                {item[dropdownKey]}
-              </div>
-            ))}
-            {filtered.length === 0 && (
-              <div style={{ padding: '8px', fontSize: 12, color: '#9ca3af', fontStyle: 'italic' }}>No matches</div>
-            )}
-          </div>
+          {dropdownPos && ReactDOM.createPortal(
+            <div style={{
+              position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: Math.max(dropdownPos.width, 280),
+              zIndex: 10000, maxHeight: 300, overflowY: 'auto', backgroundColor: 'white',
+              border: '1px solid #d1d5db', borderRadius: '0 0 4px 4px', boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+            }}>
+              {filtered.slice(0, 80).map((item, i) => (
+                <div
+                  key={i}
+                  onMouseDown={e => e.preventDefault()}
+                  onClick={() => handleClassificationSelect(section, rowIdx, item[dropdownKey])}
+                  style={{
+                    padding: '6px 10px', fontSize: 12, cursor: 'pointer',
+                    backgroundColor: i % 2 === 0 ? '#f9fafb' : 'white',
+                    borderBottom: '1px solid #f3f4f6',
+                  }}
+                  onMouseEnter={e => e.target.style.backgroundColor = '#dbeafe'}
+                  onMouseLeave={e => e.target.style.backgroundColor = i % 2 === 0 ? '#f9fafb' : 'white'}
+                >
+                  {item[dropdownKey]}
+                </div>
+              ))}
+              {filtered.length === 0 && (
+                <div style={{ padding: '8px', fontSize: 12, color: '#9ca3af', fontStyle: 'italic' }}>No matches</div>
+              )}
+            </div>,
+            document.body
+          )}
         </td>
       )
     }
