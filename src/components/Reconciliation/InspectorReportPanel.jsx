@@ -101,7 +101,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     if (!rate) return { rate: null, cost: 0 }
     const hrs = parseFloat(entry.hours || 0)
     const qty = parseInt(entry.count || 1)
-    const hrRate = parseFloat(rate.rate || rate.hourly_rate || 0)
+    const hrRate = parseFloat(rate.rate_hourly || rate.hourly_rate || rate.rate || 0)
     const cost = hrs * hrRate * qty
     return { rate: hrRate, cost }
   }
@@ -535,9 +535,14 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
         </div>
       </div>
 
-      {/* Source badge */}
+      {/* Rate card status + source badge */}
+      {labourRates.length === 0 && equipmentRates.length === 0 && (
+        <div style={{ padding: '8px 12px', fontSize: 12, color: '#dc2626', backgroundColor: '#fef2f2', borderTop: '1px solid #fecaca' }}>
+          No rate cards loaded — costs cannot be calculated. Import rate cards in Admin Portal &gt; Rate Import.
+        </div>
+      )}
       <div style={{ padding: '8px 12px', fontSize: 11, color: '#6b7280', fontStyle: 'italic', borderTop: '1px solid #e5e7eb' }}>
-        Live data from inspector report — Report ID: {report.id}
+        Live data from inspector report — Report ID: {report.id} — Rate cards: {labourRates.length} labour, {equipmentRates.length} equipment
       </div>
     </div>
   )
