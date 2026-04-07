@@ -206,8 +206,8 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     setShowAliasPrompt(null)
   }
 
-  // --- Editable cell renderer ---
-  function EditableCell({ section, rowIdx, field, value, style, isDropdown, dropdownItems, dropdownKey }) {
+  // --- Editable cell renderer (plain function, NOT a component — avoids unmount/remount on re-render) ---
+  function renderCell(section, rowIdx, field, value, style, isDropdown, dropdownItems, dropdownKey) {
     const isEditing = editingCell?.section === section && editingCell?.rowIdx === rowIdx && editingCell?.field === field
 
     if (isEditing && isDropdown) {
@@ -221,6 +221,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
             ref={inputRef}
             value={dropdownFilter}
             onChange={e => setDropdownFilter(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Escape') setEditingCell(null) }}
             placeholder="Search..."
             style={{ width: '100%', padding: '4px 6px', fontSize: 12, border: '2px solid #3b82f6', borderRadius: 3, boxSizing: 'border-box' }}
           />
@@ -232,6 +233,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
             {filtered.slice(0, 50).map((item, i) => (
               <div
                 key={i}
+                onMouseDown={e => e.preventDefault()}
                 onClick={() => handleClassificationSelect(section, rowIdx, item[dropdownKey])}
                 style={{
                   padding: '6px 8px', fontSize: 12, cursor: 'pointer',
@@ -359,14 +361,12 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 const { rate, cost } = labourCosts[i]
                 return (
                   <tr key={i}>
-                    <EditableCell section="labour" rowIdx={i} field="name" value={e.employeeName || e.employee_name || e.name || ''} style={cellStyle} />
-                    <EditableCell section="labour" rowIdx={i} field="classification" value={e.classification || ''}
-                      style={{ ...cellStyle, color: '#6b7280' }}
-                      isDropdown dropdownItems={labourRates} dropdownKey="classification" />
-                    <EditableCell section="labour" rowIdx={i} field="rt" value={String(e.rt || e.hours || 0)} style={{ ...cellStyle, textAlign: 'right' }} />
-                    <EditableCell section="labour" rowIdx={i} field="ot" value={String(e.ot || 0)} style={{ ...cellStyle, textAlign: 'right' }} />
-                    <EditableCell section="labour" rowIdx={i} field="jh" value={String(e.jh || 0)} style={{ ...cellStyle, textAlign: 'right' }} />
-                    <EditableCell section="labour" rowIdx={i} field="count" value={String(e.count || 1)} style={{ ...cellStyle, textAlign: 'right' }} />
+                    {renderCell('labour', i, 'name', e.employeeName || e.employee_name || e.name || '', cellStyle)}
+                    {renderCell('labour', i, 'classification', e.classification || '', { ...cellStyle, color: '#6b7280' }, true, labourRates, 'classification')}
+                    {renderCell('labour', i, 'rt', String(e.rt || e.hours || 0), { ...cellStyle, textAlign: 'right' })}
+                    {renderCell('labour', i, 'ot', String(e.ot || 0), { ...cellStyle, textAlign: 'right' })}
+                    {renderCell('labour', i, 'jh', String(e.jh || 0), { ...cellStyle, textAlign: 'right' })}
+                    {renderCell('labour', i, 'count', String(e.count || 1), { ...cellStyle, textAlign: 'right' })}
                     <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: rate != null ? '#166534' : '#9ca3af', fontStyle: rate != null ? 'normal' : 'italic' }}>
                       {rate != null ? fmt(rate) : 'No rate found'}
                     </td>
@@ -426,12 +426,10 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 const { rate, cost } = equipmentCosts[i]
                 return (
                   <tr key={i}>
-                    <EditableCell section="equipment" rowIdx={i} field="type" value={e.type || e.equipment_type || ''}
-                      style={cellStyle}
-                      isDropdown dropdownItems={equipmentRates} dropdownKey={equipmentRates[0]?.equipment_type ? 'equipment_type' : 'type'} />
-                    <EditableCell section="equipment" rowIdx={i} field="unitNumber" value={e.unitNumber || e.unit_number || ''} style={cellStyle} />
-                    <EditableCell section="equipment" rowIdx={i} field="hours" value={String(e.hours || 0)} style={{ ...cellStyle, textAlign: 'right' }} />
-                    <EditableCell section="equipment" rowIdx={i} field="count" value={String(e.count || 1)} style={{ ...cellStyle, textAlign: 'right' }} />
+                    {renderCell('equipment', i, 'type', e.type || e.equipment_type || '', cellStyle, true, equipmentRates, equipmentRates[0]?.equipment_type ? 'equipment_type' : 'type')}
+                    {renderCell('equipment', i, 'unitNumber', e.unitNumber || e.unit_number || '', cellStyle)}
+                    {renderCell('equipment', i, 'hours', String(e.hours || 0), { ...cellStyle, textAlign: 'right' })}
+                    {renderCell('equipment', i, 'count', String(e.count || 1), { ...cellStyle, textAlign: 'right' })}
                     <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: rate != null ? '#166534' : '#9ca3af', fontStyle: rate != null ? 'normal' : 'italic' }}>
                       {rate != null ? fmt(rate) : 'No rate found'}
                     </td>
