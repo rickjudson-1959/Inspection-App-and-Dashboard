@@ -86,24 +86,38 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
 
   function calcLabourCost(entry) {
     const rate = findLabourRate(entry.classification)
-    if (!rate) return { rate: null, cost: 0 }
+    if (!rate) return { rate: null, rateType: null, cost: 0 }
     const rt = parseFloat(entry.rt || entry.hours || 0)
     const ot = parseFloat(entry.ot || 0)
     const qty = parseInt(entry.count || 1)
-    const stRate = parseFloat(rate.rate_st || rate.rate || 0)
-    const otRate = parseFloat(rate.rate_ot || stRate * 1.5)
-    const cost = ((rt * stRate) + (ot * otRate)) * qty
-    return { rate: stRate, cost }
+    const rateType = rate.rate_type || (parseFloat(rate.rate_st || 0) >= 100 ? 'weekly' : 'hourly')
+
+    if (rateType === 'weekly') {
+      // Weekly rate: daily cost = weekly / 6, plus OT hours at OT rate
+      const weeklyRate = parseFloat(rate.rate_st || 0)
+      const dailyRate = weeklyRate / 6
+      const otRate = parseFloat(rate.rate_ot || 0)
+      // Standard day = 1 day rate. OT hours beyond 8 at OT rate.
+      const otHours = Math.max(0, rt - 8) + ot
+      const cost = (dailyRate + (otHours * otRate)) * qty
+      return { rate: dailyRate, rateType: 'weekly', weeklyRate, cost }
+    } else {
+      // Hourly rate: RT hours × ST rate + OT hours × OT rate
+      const stRate = parseFloat(rate.rate_st || 0)
+      const otRate = parseFloat(rate.rate_ot || stRate * 1.5)
+      const cost = ((rt * stRate) + (ot * otRate)) * qty
+      return { rate: stRate, rateType: 'hourly', cost }
+    }
   }
 
   function calcEquipmentCost(entry) {
     const rate = findEquipmentRate(entry.type || entry.equipment_type)
     if (!rate) return { rate: null, cost: 0 }
-    const hrs = parseFloat(entry.hours || 0)
     const qty = parseInt(entry.count || 1)
-    const hrRate = parseFloat(rate.rate_hourly || rate.hourly_rate || rate.rate || 0)
-    const cost = hrs * hrRate * qty
-    return { rate: hrRate, cost }
+    // Equipment is a daily all-in rate — cost = daily rate per day, not multiplied by hours
+    const dailyRate = parseFloat(rate.rate_daily || rate.rate_hourly || 0)
+    const cost = dailyRate * qty
+    return { rate: dailyRate, rateType: 'daily', cost }
   }
 
   // --- Totals ---
@@ -425,7 +439,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                     {renderCell('labour', i, 'jh', String(e.jh || 0), { ...cellStyle, textAlign: 'right' })}
                     {renderCell('labour', i, 'count', String(e.count || 1), { ...cellStyle, textAlign: 'right' })}
                     <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: rate != null ? '#166534' : '#9ca3af', fontStyle: rate != null ? 'normal' : 'italic' }}>
-                      {rate != null ? fmt(rate) : 'No rate found'}
+                      {rate != null ? `${fmt(rate)}${labourCosts[i].rateType === 'weekly' ? '/day' : '/hr'}` : 'No rate found'}
                     </td>
                     <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', color: rate != null ? '#166534' : '#9ca3af' }}>
                       {fmt(cost)}
@@ -488,7 +502,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                     {renderCell('equipment', i, 'hours', String(e.hours || 0), { ...cellStyle, textAlign: 'right' })}
                     {renderCell('equipment', i, 'count', String(e.count || 1), { ...cellStyle, textAlign: 'right' })}
                     <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: rate != null ? '#166534' : '#9ca3af', fontStyle: rate != null ? 'normal' : 'italic' }}>
-                      {rate != null ? fmt(rate) : 'No rate found'}
+                      {rate != null ? `${fmt(rate)}/day` : 'No rate found'}
                     </td>
                     <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', color: rate != null ? '#166534' : '#9ca3af' }}>
                       {fmt(cost)}
