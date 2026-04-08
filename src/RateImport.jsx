@@ -115,15 +115,19 @@ export default function RateImport({ organizationId, organizationName, onComplet
     }
 
     const prompt = rateType === 'labour'
-      ? `You are extracting labour/personnel rate data from a contractor's rate sheet. The data below is from their file — column names and format will vary by contractor.
+      ? `You are extracting labour/personnel rate data from a contractor's rate sheet for a pipeline construction project. The data below is from their file — column names and format will vary by contractor.
+
+This rate sheet has TWO sections with different rate types:
+1. SALARIED/OFFICE STAFF (managers, foremen, supervisors, office clerks, coordinators, engineers, etc.) — these have WEEKLY rates (typically $1,000+). Set rate_type to "weekly".
+2. HOURLY FIELD WORKERS (labourers, operators, welders, drivers, helpers, etc.) — these have HOURLY rates (typically $40-$90/hr). Set rate_type to "hourly".
 
 Extract every labour classification and its rates. Return ONLY a JSON array.
-Each object must have: classification (string), rate_st (number — straight time hourly rate), rate_ot (number — overtime rate), rate_dt (number — double time rate).
-If overtime is not shown, calculate as 1.5x straight time. If double time is not shown, calculate as 2x straight time.
-If the rates appear to be daily rates (e.g., $700+), divide by 8 to get hourly.
+Each object must have: classification (string), rate_type (string — "weekly" or "hourly"), rate_st (number — the weekly rate OR straight time hourly rate as-is from the sheet, do NOT convert), rate_ot (number — overtime 1.5x hourly rate), rate_dt (number — overtime 2.0x hourly rate).
+If OT is not shown, calculate as 1.5x the hourly rate. If DT is not shown, calculate as 2x the hourly rate.
+For weekly-rate workers: rate_st is the weekly rate as-is (do NOT divide). OT and DT are still hourly rates for hours beyond the standard week.
 Skip any header rows, subtotal rows, or blank rows. Only include actual worker classifications with rates.
 
-Example: [{"classification": "Foreman", "rate_st": 95.00, "rate_ot": 142.50, "rate_dt": 190.00}]
+Example: [{"classification": "General Foreman", "rate_type": "weekly", "rate_st": 5871.00, "rate_ot": 273.63, "rate_dt": 364.84}, {"classification": "General Labourer", "rate_type": "hourly", "rate_st": 48.10, "rate_ot": 72.15, "rate_dt": 96.20}]
 
 Return ONLY the JSON array, no explanation.
 
@@ -188,10 +192,12 @@ ${textContent}`
     }
 
     const prompt = rateType === 'labour'
-      ? `Extract ALL labour/personnel rates from this rate sheet. Column names and format will vary by contractor.
-Return ONLY a JSON array. Each object: classification (string), rate_st (number — straight time hourly), rate_ot (number — overtime, 1.5x if not shown), rate_dt (number — double time, 2x if not shown).
-If rates appear to be daily ($700+), divide by 8 for hourly. Skip headers/subtotals/blanks.
-Example: [{"classification": "Foreman", "rate_st": 95.00, "rate_ot": 142.50, "rate_dt": 190.00}]
+      ? `Extract ALL labour/personnel rates from this pipeline construction rate sheet.
+This sheet has TWO sections: (1) SALARIED staff with WEEKLY rates ($1,000+) — managers, foremen, supervisors, office, coordinators, engineers; (2) HOURLY field workers ($40-$90/hr) — labourers, operators, welders, drivers, helpers.
+Return ONLY a JSON array. Each object: classification (string), rate_type (string — "weekly" or "hourly"), rate_st (number — weekly rate OR hourly ST rate as-is, do NOT convert), rate_ot (number — OT 1.5x hourly rate), rate_dt (number — DT 2.0x hourly rate).
+For weekly workers: rate_st is the full weekly amount. OT/DT are still hourly for hours beyond standard.
+Skip headers/subtotals/blanks.
+Example: [{"classification": "General Foreman", "rate_type": "weekly", "rate_st": 5871.00, "rate_ot": 273.63, "rate_dt": 364.84}]
 Return ONLY the JSON array.`
       : `Extract ALL equipment rates from this rate sheet. Column names and format will vary by contractor.
 Return ONLY a JSON array. Each object: equipment_type (string), rate_hourly (number), rate_daily (number — hourly*8 if not shown).
@@ -337,7 +343,7 @@ Return ONLY the JSON array.`
   // Add empty row
   function addRow() {
     if (activeTab === 'labour') {
-      setPreviewData([...previewData, { classification: '', rate_st: 0, rate_ot: 0, rate_dt: 0, valid: true }])
+      setPreviewData([...previewData, { classification: '', rate_type: 'hourly', rate_st: 0, rate_ot: 0, rate_dt: 0, valid: true }])
     } else {
       setPreviewData([...previewData, { equipment_type: '', rate_hourly: 0, rate_daily: 0, valid: true }])
     }
@@ -370,11 +376,13 @@ Return ONLY the JSON array.`
         }
         if (activeTab === 'labour') {
           record.classification = row.classification
+          record.rate_type = row.rate_type || 'hourly'
           record.rate_st = row.rate_st || 0
           record.rate_ot = row.rate_ot || 0
           record.rate_dt = row.rate_dt || 0
         } else {
           record.equipment_type = row.equipment_type
+          record.rate_type = 'daily'
           record.rate_hourly = row.rate_hourly || 0
           record.rate_daily = row.rate_daily || 0
         }
@@ -518,7 +526,8 @@ Return ONLY the JSON array.`
                   {activeTab === 'labour' ? (
                     <>
                       <th style={{ padding: '8px', textAlign: 'left' }}>Classification</th>
-                      <th style={{ padding: '8px', textAlign: 'right' }}>ST Rate</th>
+                      <th style={{ padding: '8px', textAlign: 'center' }}>Type</th>
+                      <th style={{ padding: '8px', textAlign: 'right' }}>ST/Weekly Rate</th>
                       <th style={{ padding: '8px', textAlign: 'right' }}>OT Rate</th>
                       <th style={{ padding: '8px', textAlign: 'right' }}>DT Rate</th>
                     </>
@@ -539,6 +548,11 @@ Return ONLY the JSON array.`
                     {activeTab === 'labour' ? (
                       <>
                         <td style={{ padding: '6px 8px' }}>{r.classification}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'center', fontSize: '12px' }}>
+                          <span style={{ padding: '2px 8px', borderRadius: '10px', backgroundColor: r.rate_type === 'weekly' ? '#dbeafe' : '#dcfce7', color: r.rate_type === 'weekly' ? '#1e40af' : '#166534', fontWeight: '600' }}>
+                            {r.rate_type === 'weekly' ? 'Weekly' : 'Hourly'}
+                          </span>
+                        </td>
                         <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_st?.toFixed(2)}</td>
                         <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_ot?.toFixed(2)}</td>
                         <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_dt?.toFixed(2)}</td>
@@ -727,7 +741,8 @@ Return ONLY the JSON array.`
                       {activeTab === 'labour' ? (
                         <>
                           <th style={{ color: 'white', padding: '12px', textAlign: 'left' }}>Classification</th>
-                          <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>ST Rate</th>
+                          <th style={{ color: 'white', padding: '12px', textAlign: 'center', width: '90px' }}>Type</th>
+                          <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>ST/Weekly Rate</th>
                           <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>OT Rate</th>
                           <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>DT Rate</th>
                           <th style={{ color: 'white', padding: '12px', textAlign: 'center', width: '60px' }}></th>
@@ -754,6 +769,16 @@ Return ONLY the JSON array.`
                                 onChange={(e) => updateRow(idx, 'classification', e.target.value)}
                                 style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }}
                               />
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'center' }}>
+                              <select
+                                value={row.rate_type || 'hourly'}
+                                onChange={(e) => updateRow(idx, 'rate_type', e.target.value)}
+                                style={{ padding: '6px', border: '1px solid #ddd', borderRadius: '4px', fontSize: '13px' }}
+                              >
+                                <option value="hourly">Hourly</option>
+                                <option value="weekly">Weekly</option>
+                              </select>
                             </td>
                             <td style={{ padding: '8px' }}>
                               <input
