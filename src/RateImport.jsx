@@ -133,14 +133,15 @@ Return ONLY the JSON array, no explanation.
 
 DATA:
 ${textContent}`
-      : `You are extracting equipment rate data from a contractor's rate sheet. The data below is from their file — column names and format will vary by contractor.
+      : `You are extracting equipment rate data from a contractor's rate sheet for a pipeline construction project.
 
-Extract every equipment type and its rates. Return ONLY a JSON array.
-Each object must have: equipment_type (string), rate_hourly (number), rate_daily (number).
-If daily rate is not shown, calculate as hourly * 8. If only daily is shown, calculate hourly as daily / 8.
+Extract every equipment type with its rate breakdown. Return ONLY a JSON array.
+Each object must have: equipment_type (string), rate_base (number — base hourly rate), rate_parts (number — parts and repairs allowance per hour), rate_hourly (number — rate_base + rate_parts), rate_daily (number — rate_hourly × 10 for a standard 10-hour day).
+If only a single hourly rate is shown (no breakdown), put the full amount in rate_base and set rate_parts to 0.
+If only a daily rate is shown, divide by 10 for hourly, put in rate_base, set rate_parts to 0.
 Skip any header rows, subtotal rows, or blank rows. Only include actual equipment with rates.
 
-Example: [{"equipment_type": "Excavator 200", "rate_hourly": 185.00, "rate_daily": 1480.00}]
+Example: [{"equipment_type": "Excavator 200", "rate_base": 15.50, "rate_parts": 3.25, "rate_hourly": 18.75, "rate_daily": 187.50}]
 
 Return ONLY the JSON array, no explanation.
 
@@ -199,10 +200,11 @@ For weekly workers: rate_st is the full weekly amount. OT/DT are still hourly fo
 Skip headers/subtotals/blanks.
 Example: [{"classification": "General Foreman", "rate_type": "weekly", "rate_st": 5871.00, "rate_ot": 273.63, "rate_dt": 364.84}]
 Return ONLY the JSON array.`
-      : `Extract ALL equipment rates from this rate sheet. Column names and format will vary by contractor.
-Return ONLY a JSON array. Each object: equipment_type (string), rate_hourly (number), rate_daily (number — hourly*8 if not shown).
-If only daily shown, hourly = daily/8. Skip headers/subtotals/blanks.
-Example: [{"equipment_type": "Excavator 200", "rate_hourly": 185.00, "rate_daily": 1480.00}]
+      : `Extract ALL equipment rates from this pipeline construction rate sheet.
+Each piece of equipment has a base rate and a parts/repairs allowance. The total hourly rate = base + parts. Daily rate = hourly × 10.
+Return ONLY a JSON array. Each object: equipment_type (string), rate_base (number — base hourly), rate_parts (number — parts/repairs allowance hourly), rate_hourly (number — base + parts), rate_daily (number — hourly × 10).
+If only one rate shown, put in rate_base with rate_parts=0. Skip headers/subtotals/blanks.
+Example: [{"equipment_type": "Excavator 200", "rate_base": 15.50, "rate_parts": 3.25, "rate_hourly": 18.75, "rate_daily": 187.50}]
 Return ONLY the JSON array.`
 
     let claudeMediaType = mediaType
@@ -327,7 +329,7 @@ Return ONLY the JSON array.`
   // Edit a row in preview
   function updateRow(index, field, value) {
     const updated = [...previewData]
-    if (['rate_st', 'rate_ot', 'rate_dt', 'rate_hourly', 'rate_daily'].includes(field)) {
+    if (['rate_st', 'rate_ot', 'rate_dt', 'rate_base', 'rate_parts', 'rate_hourly', 'rate_daily'].includes(field)) {
       updated[index][field] = parseFloat(value) || 0
     } else {
       updated[index][field] = value
@@ -345,7 +347,7 @@ Return ONLY the JSON array.`
     if (activeTab === 'labour') {
       setPreviewData([...previewData, { classification: '', rate_type: 'hourly', rate_st: 0, rate_ot: 0, rate_dt: 0, valid: true }])
     } else {
-      setPreviewData([...previewData, { equipment_type: '', rate_hourly: 0, rate_daily: 0, valid: true }])
+      setPreviewData([...previewData, { equipment_type: '', rate_base: 0, rate_parts: 0, rate_hourly: 0, rate_daily: 0, valid: true }])
     }
   }
 
@@ -383,8 +385,10 @@ Return ONLY the JSON array.`
         } else {
           record.equipment_type = row.equipment_type
           record.rate_type = 'daily'
-          record.rate_hourly = row.rate_hourly || 0
-          record.rate_daily = row.rate_daily || 0
+          record.rate_base = row.rate_base || 0
+          record.rate_parts = row.rate_parts || 0
+          record.rate_hourly = row.rate_hourly || (parseFloat(row.rate_base || 0) + parseFloat(row.rate_parts || 0))
+          record.rate_daily = row.rate_daily || (record.rate_hourly * 10)
         }
         return record
       })
@@ -534,8 +538,10 @@ Return ONLY the JSON array.`
                   ) : (
                     <>
                       <th style={{ padding: '8px', textAlign: 'left' }}>Equipment Type</th>
-                      <th style={{ padding: '8px', textAlign: 'right' }}>Hourly Rate</th>
-                      <th style={{ padding: '8px', textAlign: 'right' }}>Daily Rate</th>
+                      <th style={{ padding: '8px', textAlign: 'right' }}>Base</th>
+                      <th style={{ padding: '8px', textAlign: 'right' }}>Parts</th>
+                      <th style={{ padding: '8px', textAlign: 'right' }}>Hourly</th>
+                      <th style={{ padding: '8px', textAlign: 'right' }}>Daily (10hr)</th>
                     </>
                   )}
                   <th style={{ padding: '8px', textAlign: 'left' }}>PO</th>
@@ -560,6 +566,8 @@ Return ONLY the JSON array.`
                     ) : (
                       <>
                         <td style={{ padding: '6px 8px' }}>{r.equipment_type}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_base?.toFixed(2) || '—'}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_parts?.toFixed(2) || '—'}</td>
                         <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_hourly?.toFixed(2)}</td>
                         <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_daily?.toFixed(2)}</td>
                       </>
@@ -750,8 +758,10 @@ Return ONLY the JSON array.`
                       ) : (
                         <>
                           <th style={{ color: 'white', padding: '12px', textAlign: 'left' }}>Equipment Type</th>
+                          <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>Base Rate</th>
+                          <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>Parts/Repairs</th>
                           <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>Hourly Rate</th>
-                          <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>Daily Rate</th>
+                          <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>Daily (10hr)</th>
                           <th style={{ color: 'white', padding: '12px', textAlign: 'center', width: '60px' }}></th>
                         </>
                       )}
@@ -822,19 +832,25 @@ Return ONLY the JSON array.`
                               <input
                                 type="number"
                                 step="0.01"
-                                value={row.rate_hourly || ''}
-                                onChange={(e) => updateRow(idx, 'rate_hourly', e.target.value)}
-                                style={{ width: '120px', padding: '6px', border: '1px solid #ddd', borderRadius: '4px', textAlign: 'right' }}
+                                value={row.rate_base || ''}
+                                onChange={(e) => updateRow(idx, 'rate_base', e.target.value)}
+                                style={{ width: '90px', padding: '6px', border: '1px solid #ddd', borderRadius: '4px', textAlign: 'right' }}
                               />
                             </td>
                             <td style={{ padding: '8px' }}>
                               <input
                                 type="number"
                                 step="0.01"
-                                value={row.rate_daily || ''}
-                                onChange={(e) => updateRow(idx, 'rate_daily', e.target.value)}
-                                style={{ width: '120px', padding: '6px', border: '1px solid #ddd', borderRadius: '4px', textAlign: 'right' }}
+                                value={row.rate_parts || ''}
+                                onChange={(e) => updateRow(idx, 'rate_parts', e.target.value)}
+                                style={{ width: '90px', padding: '6px', border: '1px solid #ddd', borderRadius: '4px', textAlign: 'right' }}
                               />
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'right', fontWeight: '600', color: '#166534' }}>
+                              ${(parseFloat(row.rate_base || 0) + parseFloat(row.rate_parts || 0)).toFixed(2)}
+                            </td>
+                            <td style={{ padding: '8px', textAlign: 'right', fontWeight: '600', color: '#166534' }}>
+                              ${((parseFloat(row.rate_base || 0) + parseFloat(row.rate_parts || 0)) * 10).toFixed(2)}
                             </td>
                           </>
                         )}
