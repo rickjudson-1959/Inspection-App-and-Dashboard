@@ -417,7 +417,7 @@ function ReportViewer() {
                             <th style={{ padding: '6px', textAlign: 'right', borderBottom: '1px solid #dee2e6' }}>Count</th>
                             <th style={{ padding: '6px', textAlign: 'right', borderBottom: '1px solid #dee2e6' }}>RT</th>
                             <th style={{ padding: '6px', textAlign: 'right', borderBottom: '1px solid #dee2e6' }}>OT</th>
-                            <th style={{ padding: '6px', textAlign: 'right', borderBottom: '1px solid #dee2e6' }}>JH</th>
+                            <th style={{ padding: '6px', textAlign: 'right', borderBottom: '1px solid #dee2e6' }}>DT</th>
                             <th style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>Status</th>
                             <th style={{ padding: '6px', textAlign: 'right', borderBottom: '1px solid #dee2e6' }}>Productive</th>
                             <th style={{ padding: '6px', textAlign: 'left', borderBottom: '1px solid #dee2e6' }}>Delay Reason</th>
@@ -433,7 +433,7 @@ function ReportViewer() {
                             const statusLabels = { 'ACTIVE': 'Active', 'SYNC_DELAY': 'Sync Delay', 'MANAGEMENT_DRAG': 'Mgmt Drag' }
                             const status = l.productionStatus || 'ACTIVE'
                             const statusStyle = statusColors[status] || statusColors['ACTIVE']
-                            const billedHours = ((l.rt || 0) + (l.ot || 0)) * (l.count || 1)
+                            const billedHours = (parseFloat(l.rt || 0) + parseFloat(l.ot || 0)) * parseInt(l.count || 1)
                             const multiplier = status === 'ACTIVE' ? 1.0 : status === 'SYNC_DELAY' ? 0.7 : 0.0
                             const productiveHours = l.shadowEffectiveHours ?? (billedHours * multiplier)
                             return (
@@ -443,7 +443,7 @@ function ReportViewer() {
                                 <td style={{ padding: '6px', textAlign: 'right', borderBottom: '1px solid #eee' }}>{l.count || 1}</td>
                                 <td style={{ padding: '6px', textAlign: 'right', borderBottom: '1px solid #eee' }}>{l.rt || 0}</td>
                                 <td style={{ padding: '6px', textAlign: 'right', borderBottom: '1px solid #eee' }}>{l.ot || 0}</td>
-                                <td style={{ padding: '6px', textAlign: 'right', borderBottom: '1px solid #eee' }}>{l.jh || 0}</td>
+                                <td style={{ padding: '6px', textAlign: 'right', borderBottom: '1px solid #eee' }}>{l.dt || 0}</td>
                                 <td style={{ padding: '6px', textAlign: 'center', borderBottom: '1px solid #eee' }}>
                                   <span style={{ padding: '2px 6px', borderRadius: '4px', fontSize: '10px', backgroundColor: statusStyle.bg, color: statusStyle.color }}>
                                     {statusLabels[status] || 'Active'}
@@ -484,7 +484,7 @@ function ReportViewer() {
                             const statusLabels = { 'ACTIVE': 'Active', 'SYNC_DELAY': 'Sync Delay', 'MANAGEMENT_DRAG': 'Mgmt Drag' }
                             const status = e.productionStatus || 'ACTIVE'
                             const statusStyle = statusColors[status] || statusColors['ACTIVE']
-                            const billedHours = (e.hours || 0) * (e.count || 1)
+                            const billedHours = parseFloat(e.hours || 0) * parseInt(e.count || 1)
                             const multiplier = status === 'ACTIVE' ? 1.0 : status === 'SYNC_DELAY' ? 0.7 : 0.0
                             const productiveHours = e.shadowEffectiveHours ?? (billedHours * multiplier)
                             return (
