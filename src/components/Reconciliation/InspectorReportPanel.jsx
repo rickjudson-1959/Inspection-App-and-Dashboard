@@ -172,7 +172,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
       classification: 'classification',
       rt: 'rt',
       ot: 'ot',
-      jh: 'jh',
+      dt: 'dt',
       count: 'count',
       type: 'type',
       unitNumber: 'unitNumber',
@@ -229,6 +229,23 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     } else {
       setEditingCell(null)
     }
+  }
+
+  function addLabourEntry() {
+    if (!onBlockChange) return
+    const newEntry = { employeeName: '', classification: '', rt: '0', ot: '0', dt: '0', count: '1' }
+    const updatedBlock = { ...block, labourEntries: [...labourEntries, newEntry] }
+    onBlockChange(updatedBlock, [{ field: 'labour[new]', oldValue: '', newValue: 'Added new employee row' }])
+    // Start editing the name field of the new row
+    setTimeout(() => startEdit('labour', labourEntries.length, 'name', ''), 50)
+  }
+
+  function addEquipmentEntry() {
+    if (!onBlockChange) return
+    const newEntry = { type: '', unitNumber: '', hours: '0', count: '1' }
+    const updatedBlock = { ...block, equipmentEntries: [...equipmentEntries, newEntry] }
+    onBlockChange(updatedBlock, [{ field: 'equipment[new]', oldValue: '', newValue: 'Added new equipment row' }])
+    setTimeout(() => startEdit('equipment', equipmentEntries.length, 'type', '', true), 50)
   }
 
   function handleClassificationSelect(section, rowIdx, rateCardName) {
@@ -505,6 +522,14 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
             </tfoot>
           </table>
         )}
+        {onBlockChange && (
+          <button
+            onClick={addLabourEntry}
+            style={{ marginTop: 6, padding: '4px 12px', fontSize: 11, backgroundColor: '#059669', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: '600' }}
+          >
+            + Add Employee
+          </button>
+        )}
       </div>
 
       {/* Equipment table */}
@@ -556,6 +581,14 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
               </tr>
             </tfoot>
           </table>
+        )}
+        {onBlockChange && (
+          <button
+            onClick={addEquipmentEntry}
+            style={{ marginTop: 6, padding: '4px 12px', fontSize: 11, backgroundColor: '#059669', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontWeight: '600' }}
+          >
+            + Add Equipment
+          </button>
         )}
       </div>
 
