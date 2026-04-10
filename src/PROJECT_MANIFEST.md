@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - April 6, 2026
+## Project Manifest - April 10, 2026
 
 ---
 
@@ -120,7 +120,7 @@
 - **Admin Portal** - User/org/project management
 - **Inspector Invoicing** - Timesheet management
 - **NDT Auditor Dashboard** - NDT monitoring
-- **Reconciliation Dashboard** - Visual four-panel LEM reconciliation (Contractor LEM image | Contractor Ticket image | Our Ticket Photo | Inspector Report Data), text-based PDF classification (zero API calls), left sidebar pair list with status filters and progress tracking, keyboard navigation (A=Accept, N=Next), resolution workflow (Accept/Dispute-Variance/Dispute-Ticket Altered/Skip), billing status management, invoice batching, crossing support reconciliation, crossing variance (bore integrity audit), trackable items reconciliation (14 categories with filter chips, summary cards, detail table with type-specific columns, inventory net position panel), inspector reports sub-view with rate card cost calculations, auto-OCR LEM extraction on upload, inspector data as source of truth in variance comparison, classification alias map (22 entries) and equipment alias map for rate card matching
+- **Reconciliation Dashboard** - Visual four-panel LEM reconciliation (Panel 1: Contractor LEM | Panel 2: Inspector Report with costs | Panel 3: Contractor Daily Ticket | Panel 4: Inspector Ticket Photo), costed inspector panel with inline editing (RT/OT/DT hours and rates, subsistence, cost per person), learning classification alias system (`classification_aliases` table), rate card support for weekly/daily salaried rates and hourly Red Book rates, equipment daily rates with base+parts breakdown, LEM comparison toggle, audit-logged edits to inspector data, text-based PDF classification (zero API calls), billing status management, invoice batching, crossing support reconciliation, trackable items reconciliation (14 categories)
 
 ### Reporting & Export
 - PDF report generation with all activity data, quality checks, specialized logs, work photo thumbnails, and document certification
@@ -542,9 +542,9 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
     ├── Reconciliation/            # 4-Panel Reconciliation System (NEW - Mar 22, 2026)
     │   ├── ReconciliationUpload.jsx  # Upload form — contractor LEM and daily ticket only (inspector data auto-linked). Auto-triggers LEM OCR extraction into contractor_lems on upload (Updated Apr 4, 2026)
     │   ├── ReconciliationList.jsx    # Ticket list with 4-column completion status (LEM/TK/PH/RPT), merges recon_package_status + daily_reports
-    │   ├── ReconFourPanelView.jsx   # 2x2 grid — fetches from 3 sources: reconciliation_documents, daily_reports, ticket-photos bucket
-    │   ├── DocumentPanel.jsx        # Reusable panel with PDF/image viewer, fullscreen expand (⛶), zoom, rotate, page nav, panelType routing
-    │   ├── InspectorReportPanel.jsx # Formatted read-only manpower + equipment tables from activity_blocks (not a document upload)
+    │   ├── ReconFourPanelView.jsx   # 2x2 grid: P1 Contractor LEM, P2 Inspector Report (costs), P3 Contractor Ticket, P4 Inspector Photo. Loads rate cards + aliases, toggle for LEM comparison (Updated Apr 10, 2026)
+    │   ├── DocumentPanel.jsx        # Reusable panel with PDF/image viewer, fullscreen expand (⛶), zoom, rotate, page nav, panelType routing. Passes rate card/alias props to InspectorReportPanel (Updated Apr 6, 2026)
+    │   ├── InspectorReportPanel.jsx # Costed inspector panel: Name, Classification (searchable dropdown), RT Hrs/Rate, OT Hrs/Rate, DT Hrs/Rate, Subs, Cost. Inline click-to-edit with audit logging, learning alias system (classification_aliases table), rate lookup with whitespace normalization + token matching. Weekly/daily salaried rates and hourly Red Book rates. Portal-rendered dropdown. (Rewritten Apr 6–10, 2026)
     │   ├── PdfViewer.jsx            # pdf.js canvas renderer with page navigation
     │   ├── ImageViewer.jsx          # Image renderer with ctrl+scroll zoom, click-to-fullscreen
     │   ├── VarianceComparisonPanel.jsx  # Line-by-line variance comparison: inspector is source of truth (always shows even without LEM), fuzzy name matching, classification alias map (22 entries), equipment alias map, auto-OCR LEM uploads into contractor_lems, editable inspector data, rate card cost calculation, bulk actions, saves to reconciliation_line_items (Updated Apr 4, 2026)
@@ -615,6 +615,49 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–April 2026)
 
+### Costed Inspector Panel & Rate Type System (April 6–10, 2026)
+
+**Replaced the variance comparison approach with a simplified costed inspector panel. Inspector data is the source of truth — costs are calculated from rate cards and displayed directly in Panel 2. Supports weekly/daily salaried rates, hourly Red Book rates, and daily equipment rates.**
+
+1. **Costed Inspector Panel** — Rewrote `InspectorReportPanel.jsx` from a read-only table to an inline-editable costed view. LEM-style columns: Name, Classification, RT Hrs, RT Rate, OT Hrs, OT Rate, DT Hrs, DT Rate, Subs, Cost. Summary footer with Labour Total, Equipment Total, Grand Total.
+
+2. **Rate Type System** — Added `rate_type` column to `labour_rates` (`'weekly'` for salaried/indirect, `'hourly'` for Red Book field workers) and `equipment_rates` (`'daily'`). Cost calculation: salaried workers use rate_st as daily rate directly; hourly workers use RT×ST + OT×OT + DT×DT; equipment uses daily all-in rate per unit.
+
+3. **Equipment Rate Breakdown** — Added `rate_monthly`, `rate_base`, `rate_parts` columns. Import extracts: Column 3 (monthly), Column 5 (base hourly), Column 6 (parts/repairs allowance), Column 10 (all-in daily rate).
+
+4. **Labour Rate Import** — Claude prompts target specific columns: V (ST/Weekly), W (OT 1.5x), X (DT 2.0x), Y (Subsistence). For indirect workers with min/max lines, uses MIN rate only.
+
+5. **Subsistence Column** — Added `rate_subs` to `labour_rates`. Displayed per-person in the inspector panel and included in cost calculation.
+
+6. **Learning Alias System** — New `classification_aliases` table (org-scoped with RLS). When admin corrects a classification via searchable dropdown, system prompts "Save this mapping?" → alias stored for future auto-resolution. Eliminates hardcoded alias maps.
+
+7. **Panel Layout Reorder** — P1: Contractor LEM, P2: Inspector Report (costs), P3: Contractor Daily Ticket, P4: Inspector Ticket Photo.
+
+8. **Variance Panel Toggle** — VarianceComparisonPanel hidden by default, "Show LEM Comparison" button appears only when LEM data exists.
+
+9. **Rate Lookup Improvements** — Whitespace normalization (fixes double-space mismatches), token-based fuzzy matching as 4th pass (fixes "Flat Deck - 5 Ton" → "Flat Deck < 5 Ton"), portal-rendered dropdown (fixes overflow clipping in panel).
+
+10. **Audit Trail** — All inspector data edits logged to `report_audit_log` with field, old value, new value, who, when. Changes persist to `daily_reports.activity_blocks` (feeds dashboards).
+
+**New DB tables/columns:**
+- `classification_aliases` — learning alias system (org-scoped, RLS)
+- `labour_rates.rate_type` — 'weekly' or 'hourly'
+- `labour_rates.rate_subs` — subsistence per diem
+- `equipment_rates.rate_type` — 'daily'
+- `equipment_rates.rate_monthly`, `rate_base`, `rate_parts` — breakdown columns
+
+**Files changed:**
+```
+src/Components/Reconciliation/InspectorReportPanel.jsx  # Full rewrite
+src/Components/Reconciliation/ReconFourPanelView.jsx    # Panel reorder, rate loading, toggle
+src/Components/Reconciliation/DocumentPanel.jsx         # Props pass-through
+src/RateImport.jsx                                      # Rate type support, column targeting
+supabase/migrations/20260406_classification_aliases.sql
+supabase/migrations/20260408_add_rate_type_column.sql
+supabase/migrations/20260408_equipment_rate_breakdown.sql
+supabase/migrations/20260410_add_rate_subs_column.sql
+```
+
 ### Variance Panel Overhaul — Inspector as Source of Truth + Auto-OCR LEM Extraction (April 4, 2026)
 
 **Major refactor of the variance comparison system: inspector data is now the source of truth (always displays, even without LEM data), LEM uploads auto-extract via OCR, and classification/equipment alias maps resolve field naming mismatches.**
@@ -649,9 +692,9 @@ src/utils/lemParser.js                                     # extractLEMFromUrl +
 
 1. **Architecture** — ticket_number is the universal join key. All four document sources converge on this field:
    - Panel 1 (Contractor LEM): uploaded by admin to `reconciliation_documents` table
-   - Panel 2 (Contractor Daily Ticket): uploaded by admin to `reconciliation_documents` table
-   - Panel 3 (Inspector Ticket Photo): auto-linked from `ticketPhotos` in `daily_reports` → `activity_blocks` — NOT uploaded
-   - Panel 4 (Inspector Report): formatted read-only manpower + equipment tables from `daily_reports` → `activity_blocks` — NOT uploaded
+   - Panel 2 (Inspector Report): costed manpower + equipment from `daily_reports` → `activity_blocks` with inline editing, rate card costs, audit logging — NOT uploaded
+   - Panel 3 (Contractor Daily Ticket): uploaded by admin to `reconciliation_documents` table
+   - Panel 4 (Inspector Ticket Photo): auto-linked from `ticketPhotos` in `daily_reports` → `activity_blocks` — NOT uploaded
 
 2. **ReconciliationUpload.jsx** — Upload form for contractor docs only (LEM or Daily Ticket). Ticket number required, drag-drop file zone, duplicate detection, multi-page support (PDF = single doc, multiple images = one multi-page doc). Files stored in `reconciliation-docs` bucket at `{org_id}/{ticket_number}/{doc_type}/{filename}`
 
