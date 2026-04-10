@@ -48,39 +48,62 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const equipmentEntries = block.equipmentEntries || []
 
   // --- Rate lookup ---
+  // Normalize whitespace and punctuation for matching
+  function norm(s) { return (s || '').toLowerCase().replace(/\s+/g, ' ').trim() }
+  // Extract meaningful tokens (words and numbers) for fuzzy matching
+  function tokens(s) { return norm(s).replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter(Boolean) }
+
   function findLabourRate(classification) {
     if (!classification) return null
-    const cl = classification.toLowerCase().trim()
+    const cl = norm(classification)
     // 1. Check learned aliases
-    const alias = aliases.find(a => a.alias_type === 'labour' && a.original_value.toLowerCase().trim() === cl)
+    const alias = aliases.find(a => a.alias_type === 'labour' && norm(a.original_value) === cl)
     const lookupName = alias ? alias.mapped_value : classification
-    const ln = lookupName.toLowerCase().trim()
-    // 2. Exact match
-    let found = labourRates.find(r => (r.classification || '').toLowerCase().trim() === ln)
+    const ln = norm(lookupName)
+    // 2. Exact match (normalized whitespace)
+    let found = labourRates.find(r => norm(r.classification) === ln)
     if (found) return found
     // 3. Contains match
     found = labourRates.find(r => {
-      const rc = (r.classification || '').toLowerCase()
+      const rc = norm(r.classification)
       return rc.includes(ln) || ln.includes(rc)
     })
+    if (found) return found
+    // 4. Token overlap — all tokens from the lookup must appear in the rate card name
+    const lookupTokens = tokens(lookupName)
+    if (lookupTokens.length >= 2) {
+      found = labourRates.find(r => {
+        const rateTokens = tokens(r.classification)
+        return lookupTokens.every(t => rateTokens.some(rt => rt.includes(t) || t.includes(rt)))
+      })
+    }
     return found || null
   }
 
   function findEquipmentRate(equipType) {
     if (!equipType) return null
-    const et = equipType.toLowerCase().trim()
+    const et = norm(equipType)
     // 1. Check learned aliases
-    const alias = aliases.find(a => a.alias_type === 'equipment' && a.original_value.toLowerCase().trim() === et)
+    const alias = aliases.find(a => a.alias_type === 'equipment' && norm(a.original_value) === et)
     const lookupName = alias ? alias.mapped_value : equipType
-    const en = lookupName.toLowerCase().trim()
-    // 2. Exact match
-    let found = equipmentRates.find(r => (r.equipment_type || r.type || '').toLowerCase().trim() === en)
+    const en = norm(lookupName)
+    // 2. Exact match (normalized whitespace)
+    let found = equipmentRates.find(r => norm(r.equipment_type || r.type) === en)
     if (found) return found
     // 3. Contains match
     found = equipmentRates.find(r => {
-      const rc = (r.equipment_type || r.type || '').toLowerCase()
+      const rc = norm(r.equipment_type || r.type)
       return rc.includes(en) || en.includes(rc)
     })
+    if (found) return found
+    // 4. Token overlap
+    const lookupTokens = tokens(lookupName)
+    if (lookupTokens.length >= 2) {
+      found = equipmentRates.find(r => {
+        const rateTokens = tokens(r.equipment_type || r.type)
+        return lookupTokens.every(t => rateTokens.some(rt => rt.includes(t) || t.includes(rt)))
+      })
+    }
     return found || null
   }
 
