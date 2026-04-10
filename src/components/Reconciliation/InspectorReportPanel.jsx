@@ -117,12 +117,12 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     const subs = parseFloat(rate.rate_subs || 0)
 
     if (rateType === 'weekly') {
-      const weeklyRate = parseFloat(rate.rate_st || 0)
-      const dailyRate = weeklyRate / 6
+      // rate_st is the daily rate for salaried/indirect workers — use as-is
+      const dailyRate = parseFloat(rate.rate_st || 0)
       const otRate = parseFloat(rate.rate_ot || 0)
       const dtRate = parseFloat(rate.rate_dt || 0)
       const cost = dailyRate + (otHrs * otRate) + (dtHrs * dtRate) + subs
-      return { rtRate: dailyRate, otRate, dtRate, rateType: 'weekly', weeklyRate, subs, cost }
+      return { rtRate: dailyRate, otRate, dtRate, rateType: 'daily', subs, cost }
     } else {
       const stRate = parseFloat(rate.rate_st || 0)
       const otRate = parseFloat(rate.rate_ot || stRate * 1.5)
