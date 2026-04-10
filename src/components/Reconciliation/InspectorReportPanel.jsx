@@ -447,7 +447,6 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 <th style={{ ...headerStyle, textAlign: 'right', width: 40 }}>RT</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 40 }}>OT</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 40 }}>JH</th>
-                <th style={{ ...headerStyle, textAlign: 'right', width: 30 }}>Qty</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 65 }}>Rate</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 55 }}>Subs</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 75 }}>Cost</th>
@@ -463,7 +462,6 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                     {renderCell('labour', i, 'rt', String(e.rt || e.hours || 0), { ...cellStyle, textAlign: 'right' })}
                     {renderCell('labour', i, 'ot', String(e.ot || 0), { ...cellStyle, textAlign: 'right' })}
                     {renderCell('labour', i, 'jh', String(e.jh || 0), { ...cellStyle, textAlign: 'right' })}
-                    {renderCell('labour', i, 'count', String(e.count || 1), { ...cellStyle, textAlign: 'right' })}
                     <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: rate != null ? '#166534' : '#9ca3af', fontStyle: rate != null ? 'normal' : 'italic' }}>
                       {rate != null ? `${fmt(rate)}${labourCosts[i].rateType === 'weekly' ? '/day' : '/hr'}` : 'No rate found'}
                     </td>
@@ -488,9 +486,6 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 </td>
                 <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600' }}>
                   {labourEntries.reduce((s, e) => s + parseFloat(e.jh || 0) * parseInt(e.count || 1), 0).toFixed(1)}
-                </td>
-                <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600' }}>
-                  {labourEntries.reduce((s, e) => s + parseInt(e.count || 1), 0)}
                 </td>
                 <td style={{ ...cellStyle, textAlign: 'right' }}></td>
                 <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: '#166534' }}>
@@ -519,7 +514,6 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 <th style={{ ...headerStyle, textAlign: 'left' }}>Type</th>
                 <th style={{ ...headerStyle, textAlign: 'left', width: 60 }}>Unit #</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 40 }}>Hrs</th>
-                <th style={{ ...headerStyle, textAlign: 'right', width: 30 }}>Qty</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 65 }}>Rate</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 75 }}>Cost</th>
               </tr>
@@ -532,7 +526,6 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                     {renderCell('equipment', i, 'type', e.type || e.equipment_type || '', cellStyle, true, equipmentRates, equipmentRates[0]?.equipment_type ? 'equipment_type' : 'type')}
                     {renderCell('equipment', i, 'unitNumber', e.unitNumber || e.unit_number || '', cellStyle)}
                     {renderCell('equipment', i, 'hours', String(e.hours || 0), { ...cellStyle, textAlign: 'right' })}
-                    {renderCell('equipment', i, 'count', String(e.count || 1), { ...cellStyle, textAlign: 'right' })}
                     <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: rate != null ? '#166534' : '#9ca3af', fontStyle: rate != null ? 'normal' : 'italic' }}>
                       {rate != null ? `${fmt(rate)}/day` : 'No rate found'}
                     </td>
@@ -548,9 +541,6 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 <td colSpan={2} style={{ ...cellStyle, fontWeight: '600' }}>Total</td>
                 <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600' }}>
                   {equipmentEntries.reduce((s, e) => s + parseFloat(e.hours || 0) * parseInt(e.count || 1), 0).toFixed(1)}
-                </td>
-                <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600' }}>
-                  {equipmentEntries.reduce((s, e) => s + parseInt(e.count || 1), 0)}
                 </td>
                 <td style={{ ...cellStyle, textAlign: 'right' }}></td>
                 <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '700', color: '#166534' }}>
