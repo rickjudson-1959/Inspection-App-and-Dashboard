@@ -115,21 +115,23 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     const qty = parseInt(entry.count || 1)
     const rateType = rate.rate_type || (parseFloat(rate.rate_st || 0) >= 100 ? 'weekly' : 'hourly')
 
+    const subs = parseFloat(rate.rate_subs || 0)
+
     if (rateType === 'weekly') {
-      // Weekly rate: daily cost = weekly / 6, plus OT hours at OT rate
+      // Weekly rate: daily cost = weekly / 6, plus OT hours at OT rate, plus subs
       const weeklyRate = parseFloat(rate.rate_st || 0)
       const dailyRate = weeklyRate / 6
       const otRate = parseFloat(rate.rate_ot || 0)
       // Standard day = 1 day rate. OT hours beyond 8 at OT rate.
       const otHours = Math.max(0, rt - 8) + ot
-      const cost = (dailyRate + (otHours * otRate)) * qty
-      return { rate: dailyRate, rateType: 'weekly', weeklyRate, cost }
+      const cost = (dailyRate + (otHours * otRate) + subs) * qty
+      return { rate: dailyRate, rateType: 'weekly', weeklyRate, subs, cost }
     } else {
-      // Hourly rate: RT hours × ST rate + OT hours × OT rate
+      // Hourly rate: RT hours × ST rate + OT hours × OT rate + subs
       const stRate = parseFloat(rate.rate_st || 0)
       const otRate = parseFloat(rate.rate_ot || stRate * 1.5)
-      const cost = ((rt * stRate) + (ot * otRate)) * qty
-      return { rate: stRate, rateType: 'hourly', cost }
+      const cost = ((rt * stRate) + (ot * otRate) + subs) * qty
+      return { rate: stRate, rateType: 'hourly', subs, cost }
     }
   }
 
@@ -447,6 +449,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 <th style={{ ...headerStyle, textAlign: 'right', width: 40 }}>JH</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 30 }}>Qty</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 65 }}>Rate</th>
+                <th style={{ ...headerStyle, textAlign: 'right', width: 55 }}>Subs</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 75 }}>Cost</th>
               </tr>
             </thead>
@@ -463,6 +466,9 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                     {renderCell('labour', i, 'count', String(e.count || 1), { ...cellStyle, textAlign: 'right' })}
                     <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: rate != null ? '#166534' : '#9ca3af', fontStyle: rate != null ? 'normal' : 'italic' }}>
                       {rate != null ? `${fmt(rate)}${labourCosts[i].rateType === 'weekly' ? '/day' : '/hr'}` : 'No rate found'}
+                    </td>
+                    <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: '#166534' }}>
+                      {labourCosts[i].subs ? fmt(labourCosts[i].subs) : '—'}
                     </td>
                     <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', color: rate != null ? '#166534' : '#9ca3af' }}>
                       {fmt(cost)}
@@ -487,6 +493,9 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                   {labourEntries.reduce((s, e) => s + parseInt(e.count || 1), 0)}
                 </td>
                 <td style={{ ...cellStyle, textAlign: 'right' }}></td>
+                <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: '#166534' }}>
+                  {fmt(labourCosts.reduce((s, c) => s + (c.subs || 0), 0))}
+                </td>
                 <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '700', color: '#166534' }}>
                   {fmt(labourTotal)}
                 </td>
