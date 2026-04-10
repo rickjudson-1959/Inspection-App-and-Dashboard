@@ -201,28 +201,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
           color="#d97706"
         />
 
-        {/* Panel 2: Contractor Daily Ticket (uploaded) */}
-        <DocumentPanel
-          title="Contractor Daily Ticket"
-          subtitle="Foreman-signed timesheet"
-          panelType="uploaded"
-          document={panels.ticket}
-          emptyMessage="No daily ticket uploaded for this ticket"
-          onUpload={() => handleUpload('contractor_ticket')}
-          color="#dc2626"
-        />
-
-        {/* Panel 3: Inspector Ticket Photo (auto-linked from report — NOT uploaded) */}
-        <DocumentPanel
-          title="Inspector Ticket Photo"
-          subtitle="Photo from inspector app"
-          panelType="photo"
-          document={photoPanel}
-          emptyMessage="No ticket photo found in inspector reports for this ticket number"
-          color="#374151"
-        />
-
-        {/* Panel 4: Inspector Report (formatted data view — NOT uploaded) */}
+        {/* Panel 2: Inspector Report (formatted data view — NOT uploaded) */}
         <DocumentPanel
           title="Inspector Report"
           subtitle="Manpower & equipment costs"
@@ -264,6 +243,27 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
             }
           }}
           onAliasCreated={(alias) => setAliases(prev => [...prev, alias])}
+        />
+
+        {/* Panel 3: Contractor Daily Ticket (uploaded) */}
+        <DocumentPanel
+          title="Contractor Daily Ticket"
+          subtitle="Foreman-signed timesheet"
+          panelType="uploaded"
+          document={panels.ticket}
+          emptyMessage="No daily ticket uploaded for this ticket"
+          onUpload={() => handleUpload('contractor_ticket')}
+          color="#dc2626"
+        />
+
+        {/* Panel 4: Inspector Ticket Photo (auto-linked from report — NOT uploaded) */}
+        <DocumentPanel
+          title="Inspector Ticket Photo"
+          subtitle="Photo from inspector app"
+          panelType="photo"
+          document={photoPanel}
+          emptyMessage="No ticket photo found in inspector reports for this ticket number"
+          color="#374151"
         />
       </div>
 
