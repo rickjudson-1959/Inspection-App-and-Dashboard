@@ -231,6 +231,18 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     }
   }
 
+  function moveRow(section, fromIdx, toIdx) {
+    if (!onBlockChange) return
+    const entries = section === 'labour' ? [...labourEntries] : [...equipmentEntries]
+    if (toIdx < 0 || toIdx >= entries.length) return
+    const [moved] = entries.splice(fromIdx, 1)
+    entries.splice(toIdx, 0, moved)
+    const updatedBlock = { ...block }
+    if (section === 'labour') updatedBlock.labourEntries = entries
+    else updatedBlock.equipmentEntries = entries
+    onBlockChange(updatedBlock, [{ field: `${section}[${fromIdx}→${toIdx}]`, oldValue: `position ${fromIdx}`, newValue: `position ${toIdx}` }])
+  }
+
   function addLabourEntry() {
     if (!onBlockChange) return
     const newEntry = { employeeName: '', classification: '', rt: '0', ot: '0', dt: '0', count: '1' }
@@ -456,6 +468,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
+                {onBlockChange && <th style={{ ...headerStyle, width: 28 }}></th>}
                 <th style={{ ...headerStyle, textAlign: 'left' }}>Name</th>
                 <th style={{ ...headerStyle, textAlign: 'left' }}>Classification</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 35 }}>RT Hrs</th>
@@ -473,6 +486,16 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 const lc = labourCosts[i]
                 return (
                   <tr key={i}>
+                    {onBlockChange && (
+                      <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 28 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <button onClick={() => moveRow('labour', i, i - 1)} disabled={i === 0}
+                            style={{ border: 'none', background: 'none', cursor: i === 0 ? 'default' : 'pointer', fontSize: 10, color: i === 0 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9650;</button>
+                          <button onClick={() => moveRow('labour', i, i + 1)} disabled={i === labourEntries.length - 1}
+                            style={{ border: 'none', background: 'none', cursor: i === labourEntries.length - 1 ? 'default' : 'pointer', fontSize: 10, color: i === labourEntries.length - 1 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9660;</button>
+                        </div>
+                      </td>
+                    )}
                     {renderCell('labour', i, 'name', e.employeeName || e.employee_name || e.name || '', cellStyle)}
                     {renderCell('labour', i, 'classification', e.classification || '', { ...cellStyle, color: '#6b7280' }, true, labourRates, 'classification')}
                     {renderCell('labour', i, 'rt', String(e.rt || e.hours || 0), { ...cellStyle, textAlign: 'right' })}
@@ -499,7 +522,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
             </tbody>
             <tfoot>
               <tr style={{ backgroundColor: '#f0fdf4' }}>
-                <td colSpan={2} style={{ ...cellStyle, fontWeight: '600' }}>Total</td>
+                <td colSpan={onBlockChange ? 3 : 2} style={{ ...cellStyle, fontWeight: '600' }}>Total</td>
                 <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600' }}>
                   {labourEntries.reduce((s, e) => s + parseFloat(e.rt || e.hours || 0), 0).toFixed(1)}
                 </td>
@@ -543,6 +566,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr>
+                {onBlockChange && <th style={{ ...headerStyle, width: 28 }}></th>}
                 <th style={{ ...headerStyle, textAlign: 'left' }}>Type</th>
                 <th style={{ ...headerStyle, textAlign: 'left', width: 60 }}>Unit #</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 40 }}>Hrs</th>
@@ -555,6 +579,16 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 const { rate, cost } = equipmentCosts[i]
                 return (
                   <tr key={i}>
+                    {onBlockChange && (
+                      <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 28 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                          <button onClick={() => moveRow('equipment', i, i - 1)} disabled={i === 0}
+                            style={{ border: 'none', background: 'none', cursor: i === 0 ? 'default' : 'pointer', fontSize: 10, color: i === 0 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9650;</button>
+                          <button onClick={() => moveRow('equipment', i, i + 1)} disabled={i === equipmentEntries.length - 1}
+                            style={{ border: 'none', background: 'none', cursor: i === equipmentEntries.length - 1 ? 'default' : 'pointer', fontSize: 10, color: i === equipmentEntries.length - 1 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9660;</button>
+                        </div>
+                      </td>
+                    )}
                     {renderCell('equipment', i, 'type', e.type || e.equipment_type || '', cellStyle, true, equipmentRates, equipmentRates[0]?.equipment_type ? 'equipment_type' : 'type')}
                     {renderCell('equipment', i, 'unitNumber', e.unitNumber || e.unit_number || '', cellStyle)}
                     {renderCell('equipment', i, 'hours', String(e.hours || 0), { ...cellStyle, textAlign: 'right' })}
@@ -570,7 +604,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
             </tbody>
             <tfoot>
               <tr style={{ backgroundColor: '#f0fdf4' }}>
-                <td colSpan={2} style={{ ...cellStyle, fontWeight: '600' }}>Total</td>
+                <td colSpan={onBlockChange ? 3 : 2} style={{ ...cellStyle, fontWeight: '600' }}>Total</td>
                 <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600' }}>
                   {equipmentEntries.reduce((s, e) => s + parseFloat(e.hours || 0) * parseInt(e.count || 1), 0).toFixed(1)}
                 </td>
