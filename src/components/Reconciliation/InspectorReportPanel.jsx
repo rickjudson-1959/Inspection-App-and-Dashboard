@@ -9,6 +9,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const [showAliasPrompt, setShowAliasPrompt] = useState(null) // { originalValue, mappedValue, aliasType }
   const inputRef = useRef(null)
   const dropdownRef = useRef(null)
+  const portalRef = useRef(null)
   const skipBlurRef = useRef(false)
   const [dropdownPos, setDropdownPos] = useState(null)
 
@@ -23,11 +24,13 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     }
   }, [editingCell])
 
-  // Close dropdown on outside click
+  // Close dropdown on outside click — check both the cell and the portal dropdown
   useEffect(() => {
     if (!editingCell) return
     function handleClick(e) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+      const inCell = dropdownRef.current && dropdownRef.current.contains(e.target)
+      const inPortal = portalRef.current && portalRef.current.contains(e.target)
+      if (!inCell && !inPortal) {
         setEditingCell(null)
       }
     }
@@ -345,7 +348,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
             style={{ width: '100%', padding: '4px 6px', fontSize: 12, border: '2px solid #3b82f6', borderRadius: 3, boxSizing: 'border-box' }}
           />
           {dropdownPos && ReactDOM.createPortal(
-            <div style={{
+            <div ref={portalRef} style={{
               position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: Math.max(dropdownPos.width, 280),
               zIndex: 10000, maxHeight: 300, overflowY: 'auto', backgroundColor: 'white',
               border: '1px solid #d1d5db', borderRadius: '0 0 4px 4px', boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
