@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import { supabase } from '../../supabase'
 
-export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated, sameDayEntries = { labour: [], equipment: [] } }) {
+export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated, sameDayEntries = { labour: [], equipment: [] }, employeeRoster = [] }) {
   const [editingCell, setEditingCell] = useState(null) // { section, rowIdx, field }
   const [editValue, setEditValue] = useState('')
   const [dropdownFilter, setDropdownFilter] = useState('')
@@ -314,6 +314,34 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     setTimeout(() => startEdit('equipment', equipmentEntries.length, 'type', '', true), 50)
   }
 
+  function handleEmployeeSelect(rowIdx, selectedName) {
+    // Find the employee in the roster to get their classification
+    const rosterEntry = employeeRoster.find(r => r.employeeName === selectedName)
+    if (!rosterEntry || !onBlockChange) {
+      commitEdit(selectedName)
+      return
+    }
+
+    // Save name and auto-fill classification in one update
+    const entries = [...labourEntries]
+    const entry = { ...entries[rowIdx] }
+    const oldName = entry.employeeName || entry.employee_name || entry.name || ''
+    const oldClassification = entry.classification || ''
+    entry.employeeName = selectedName
+    entry.classification = rosterEntry.classification
+    entries[rowIdx] = entry
+
+    const updatedBlock = { ...block, labourEntries: entries }
+    const auditEntries = [
+      { field: `labour[${rowIdx}].name`, oldValue: oldName, newValue: selectedName },
+    ]
+    if (oldClassification !== rosterEntry.classification) {
+      auditEntries.push({ field: `labour[${rowIdx}].classification`, oldValue: oldClassification, newValue: rosterEntry.classification })
+    }
+    onBlockChange(updatedBlock, auditEntries)
+    setEditingCell(null)
+  }
+
   function handleClassificationSelect(section, rowIdx, rateCardName) {
     const entries = section === 'labour' ? labourEntries : equipmentEntries
     const entry = entries[rowIdx]
@@ -373,7 +401,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   }
 
   // --- Editable cell renderer (plain function, NOT a component — avoids unmount/remount on re-render) ---
-  function renderCell(section, rowIdx, field, value, style, isDropdown, dropdownItems, dropdownKey) {
+  function renderCell(section, rowIdx, field, value, style, isDropdown, dropdownItems, dropdownKey, onSelectItem) {
     const isEditing = editingCell?.section === section && editingCell?.rowIdx === rowIdx && editingCell?.field === field
 
     if (isEditing && isDropdown) {
@@ -408,7 +436,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 <div
                   key={i}
                   onMouseDown={e => e.preventDefault()}
-                  onClick={() => handleClassificationSelect(section, rowIdx, item[dropdownKey])}
+                  onClick={() => onSelectItem ? onSelectItem(rowIdx, item[dropdownKey]) : handleClassificationSelect(section, rowIdx, item[dropdownKey])}
                   style={{
                     padding: '6px 10px', fontSize: 12, cursor: 'pointer',
                     backgroundColor: i % 2 === 0 ? '#f9fafb' : 'white',
@@ -552,7 +580,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                           </div>
                         </td>
                       )}
-                      {renderCell('labour', i, 'name', e.employeeName || e.employee_name || e.name || '', cellStyle)}
+                      {renderCell('labour', i, 'name', e.employeeName || e.employee_name || e.name || '', cellStyle, true, employeeRoster, 'employeeName', handleEmployeeSelect)}
                       {renderCell('labour', i, 'classification', e.classification || '', { ...cellStyle, color: '#6b7280' }, true, labourRates, 'classification')}
                       {renderCell('labour', i, 'rt', String(e.rt || e.hours || 0), { ...cellStyle, textAlign: 'right' })}
                       <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: lc.rtRate != null ? '#166534' : '#9ca3af' }}>

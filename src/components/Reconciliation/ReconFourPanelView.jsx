@@ -39,6 +39,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
   const [aliases, setAliases] = useState([])
   const [showVariance, setShowVariance] = useState(false)
   const [sameDayEntries, setSameDayEntries] = useState({ labour: [], equipment: [] })
+  const [employeeRoster, setEmployeeRoster] = useState([])
 
   useEffect(() => {
     if (ticketNumber && organizationId) loadAllData()
@@ -114,6 +115,21 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
       }
     }
     setSameDayEntries(newSameDayEntries)
+
+    // --- Build employee roster (name → classification) from all reports ---
+    const rosterMap = {}
+    for (const report of (reports || [])) {
+      for (const b of (report.activity_blocks || [])) {
+        for (const l of (b.labourEntries || [])) {
+          const name = (l.employeeName || l.employee_name || l.name || '').trim()
+          const cls = (l.classification || '').trim()
+          if (name && cls) {
+            rosterMap[name.toUpperCase()] = { employeeName: name, classification: cls }
+          }
+        }
+      }
+    }
+    setEmployeeRoster(Object.values(rosterMap).sort((a, b) => a.employeeName.localeCompare(b.employeeName)))
 
     // --- Source 3: Inspector's ticket photo from the matched block ---
     if (foundBlock) {
@@ -239,6 +255,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
           aliases={aliases}
           organizationId={organizationId}
           sameDayEntries={sameDayEntries}
+          employeeRoster={employeeRoster}
           onBlockChange={async (updatedBlock, auditEntries) => {
             if (!inspectorReport) return
             const blocks = [...(inspectorReport.activity_blocks || [])]
