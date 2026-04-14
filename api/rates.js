@@ -57,9 +57,15 @@ export default async function handler(req, res) {
       }
 
       const url = `${SUPABASE_URL}/rest/v1/${table}`
+      // For roster tables, use upsert to skip duplicates
+      const isRoster = ['personnel_roster', 'equipment_fleet'].includes(table)
+      const postHeaders = { ...headers, 'Prefer': 'return=representation' }
+      if (isRoster) {
+        postHeaders['Prefer'] = 'return=representation,resolution=merge-duplicates'
+      }
       const response = await fetch(url, {
         method: 'POST',
-        headers: { ...headers, 'Prefer': 'return=representation' },
+        headers: postHeaders,
         body: JSON.stringify(records)
       })
 
