@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 4.13 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-03-21
+## Version: 4.14 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-04-14
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -424,7 +424,7 @@ Click "Download PDF Copy" to generate a comprehensive PDF of the entire report. 
 - **Report header**: Date, inspector, spread, pipeline, AFE, start/end time
 - **Weather**: Conditions, temps, wind, precipitation, ROW condition
 - **Per activity block**: Activity type, contractor, foreman, start/end KP, metres today/previous/total, ticket number, work description, work photos (thumbnail images with KP location and description)
-- **Manpower table**: Employee name, classification, RT, OT, JH, qty, production status, productive hours, drag reason
+- **Manpower table**: Employee name, classification, RT, OT, DT, qty, production status, productive hours, drag reason
 - **Equipment table**: Equipment type, unit number, hours, qty, production status, productive hours, drag reason
 - **Quality checks**: All activity-specific quality fields with structured labels — flat fields (Access, Bending, Lower-in, Backfill, Frost Packing, HD Bores) and collapsible sections (Topsoil horizon separation, Stringing pipe receiving, etc.). Rendered once per block using the `qualityFieldsByActivity` definitions from constants.
 - **Work photos**: Thumbnail images (30×22 mm) for every uploaded work photo, with KP location and description beside each. Appears for all activity types. If a photo fails to load, a placeholder is shown and the PDF still generates successfully.
@@ -604,7 +604,7 @@ These are the scope buckets used across projects for benchmarking:
 ## SECTION 11: LABOUR & EQUIPMENT ENTRIES
 
 ### Labour Entry Fields
-employeeName (full name — with searchable crew roster autocomplete dropdown), classification (from 127 labourClassifications e.g. General Labourer, Principal Oper 1, Utility Welder, Welder Helper, General Foreman, EMT, Paramedic, Aboriginal Coordinator — searchable dropdown), rt (regular time hours, first 8), ot (overtime hours, beyond 8), jh (jump hours/bonus, separate from RT/OT), count (number of workers, editable input, usually 1). All fields (name, classification, RT, OT, JH, count) are editable inline after entry or OCR. Classifications are merged from the contractor's rate sheet and CX2-FC contract — the Reconciliation Dashboard matches these names against imported rates for cost calculations.
+employeeName (full name — **searchable dropdown** populated from the employee roster built from all daily reports. Each dropdown entry shows the employee name AND their last-known classification. **Selecting a name auto-populates the classification field.** The input matches the classification box height (38px). Inspectors can still type new names not in the roster. The roster is loaded from the database on page load and cached.), classification (from 127 labourClassifications e.g. General Labourer, Principal Oper 1, Utility Welder, Welder Helper, General Foreman, EMT, Paramedic, Aboriginal Coordinator — searchable dropdown. **Auto-fills when an employee name is selected from the roster dropdown.**), rt (regular time hours, first 8), ot (overtime hours, beyond 8), dt (double time hours — weekends/holidays, replaces the old JH/jump hours field), count (number of workers, editable input, usually 1). All fields (name, classification, RT, OT, DT, count) are editable inline after entry or OCR. Classifications are merged from the contractor's rate sheet and CX2-FC contract — the Reconciliation Dashboard matches these names against imported rates for cost calculations.
 
 ### Equipment Entry Fields
 type (from 334 equipmentTypes e.g. Backhoe - Cat 330, Sideboom - Cat 583, Dozer - D6T, Welding Rig, Pickup - 3/4 Ton, Water Truck, SUV - Expedition/Lexus/Denali — searchable dropdown), unitNumber (asset ID/fleet number e.g. "U-1234"), hours (hours of use — editable input, can be 0 for idle/standby equipment), count (number of units — editable input, usually 1). All fields (type, unit number, hours, count) are editable inline after entry or OCR.

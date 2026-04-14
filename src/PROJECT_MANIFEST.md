@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - April 14, 2026
+## Project Manifest - April 14, 2026 (v2)
 
 ---
 
@@ -614,6 +614,46 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–April 2026)
+
+### Employee Roster Dropdown, Duplicate Detection, DPR Module & Invitation System (April 14, 2026)
+
+**Major additions to the inspector report, reconciliation panel, and admin portal.**
+
+1. **Employee Name Dropdown on Inspector Report** — `ActivityBlock.jsx` `SearchableNameInput` now loads a full employee roster from all daily reports (475+ names). Dropdown shows name + classification side by side. Selecting a name **auto-populates the classification**. Input height matches classification box (38px). Works in both the new entry form and inline edit table. JH column replaced with DT (double time).
+
+2. **Employee Name Dropdown on Reconciliation Panel** — Same roster-based dropdown on the inspector panel (Panel 2) in the 4-panel reconciliation view. Selecting a name auto-fills classification. Roster built from all daily_reports on page load.
+
+3. **Duplicate Detection Flags** — Informational warnings on inspector panel rows. Same-ticket duplicates: "Duplicate on this ticket". Cross-ticket same-day: "Also on ticket #18230". Red warning bar below flagged rows. Scans all reports for the same date.
+
+4. **Row Management** — Add Employee / Add Equipment buttons. Up/down arrow reorder buttons. Red X delete button with confirmation prompt. All changes save to `daily_reports.activity_blocks` and are audit logged.
+
+5. **DPR Module** — New "Daily Progress Report" tab in Admin Portal. DPR Configuration section in Setup tab. Vercel serverless email route (`/api/send-dpr-email`). 29 activity types mapped. PDF generation and email via Resend.
+
+6. **Custom 7-Day Invitations** — Replaced Supabase Auth's 24-hour tokens with custom token system. `user_invitations` table, `accept-invitation` edge function, `AcceptInvite.jsx` page at `/accept-invite`.
+
+7. **ReportViewer Fixes** — Fixed Productive hours string concatenation bug. JH → DT column rename.
+
+8. **Classification Alias Seeding** — Straw variations (Straw Operator, Straw Fitter, etc.) seeded in `classification_aliases` table mapping to formal rate card names.
+
+**Field Guide**: Updated to v4.14 — employee name dropdown with auto-classification, DT replaces JH.
+
+**Files changed:**
+```
+src/ActivityBlock.jsx                              # Employee roster dropdown, auto-classification
+src/Components/Reconciliation/InspectorReportPanel.jsx  # Roster dropdown, duplicate detection, row management
+src/Components/Reconciliation/ReconFourPanelView.jsx    # Roster + sameDayEntries loading, optimistic UI
+src/Components/Reconciliation/DocumentPanel.jsx         # Props pass-through
+src/ReportViewer.jsx                               # Productive hours fix, JH → DT
+src/AdminPortal.jsx                                # DPR tab + config section
+src/DPRConfig.jsx                                  # DPR configuration component
+src/DPRTab.jsx                                     # DPR editor component
+src/AcceptInvite.jsx                               # Invitation acceptance page
+src/App.jsx                                        # /accept-invite route
+api/send-dpr-email.js                              # Vercel serverless DPR email
+supabase/functions/invite-user/index.ts            # Custom 7-day tokens
+supabase/functions/accept-invitation/index.ts      # Token verification + password setting
+pipe-up-field-guide-agent-kb.md                    # v4.14 — roster dropdown, DT replaces JH
+```
 
 ### Custom 7-Day Invitation System (April 14, 2026)
 
