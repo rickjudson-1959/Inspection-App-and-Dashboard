@@ -25,7 +25,13 @@ export default function RateImport({ organizationId, organizationName, onComplet
   async function loadExistingRates() {
     setLoadingRates(true)
     try {
-      const tableName = activeTab === 'labour' ? 'labour_rates' : 'equipment_rates'
+      const tableMap = {
+        labour: 'labour_rates',
+        equipment: 'equipment_rates',
+        personnel: 'personnel_roster',
+        fleet: 'equipment_fleet'
+      }
+      const tableName = tableMap[activeTab] || 'labour_rates'
       const resp = await fetch(`/api/rates?table=${tableName}&organization_id=${organizationId}`)
       if (resp.ok) {
         setExistingRates(await resp.json())
@@ -269,6 +275,41 @@ Return ONLY the JSON array.`
     return parseRateJSON(content)
   }
 
+  // Parse a simple two-column roster CSV/XLSX and return preview rows
+  async function parseRosterCSV(uploadedFile, tab) {
+    const textContent = await readFileAsText(uploadedFile)
+    if (!textContent || textContent.trim().length < 2) {
+      return { data: [], error: 'File appears to be empty or unreadable.' }
+    }
+
+    const lines = textContent.split('\n').map(l => l.trim()).filter(l => l.length > 0)
+    const rows = []
+
+    for (const line of lines) {
+      // Split on comma (simple CSV — values shouldn't contain commas for these roster fields)
+      const parts = line.split(',')
+      const colA = (parts[0] || '').trim().replace(/^"|"$/g, '')
+      const colB = (parts[1] || '').trim().replace(/^"|"$/g, '')
+
+      // Skip if colA is empty or looks like a header
+      if (!colA) continue
+      const lowerA = colA.toLowerCase()
+      if (tab === 'personnel' && (lowerA === 'employee name' || lowerA === 'name' || lowerA === 'employee')) continue
+      if (tab === 'fleet' && (lowerA === 'unit number' || lowerA === 'unit #' || lowerA === 'unit' || lowerA === 'equipment')) continue
+
+      if (tab === 'personnel') {
+        rows.push({ employee_name: colA, classification: colB, valid: true })
+      } else {
+        rows.push({ unit_number: colA, equipment_type: colB, valid: true })
+      }
+    }
+
+    if (rows.length === 0) {
+      return { data: [], error: 'No data rows found. Ensure Column A has names/unit numbers and Column B has classifications/types.' }
+    }
+    return { data: rows, error: null }
+  }
+
   // Universal file upload handler — routes to the right extraction method
   async function handleFileUpload(e) {
     const uploadedFile = e.target.files[0]
@@ -277,10 +318,31 @@ Return ONLY the JSON array.`
     setFile(uploadedFile)
     setError('')
     setLoading(true)
-    setLoadingMessage('AI is reading the rate sheet...')
+    setLoadingMessage('Reading file...')
 
     try {
       const ext = uploadedFile.name.split('.').pop().toLowerCase()
+
+      // Roster tabs — simple direct CSV parsing, no AI needed
+      if (activeTab === 'personnel' || activeTab === 'fleet') {
+        if (!['csv', 'txt', 'tsv', 'xlsx', 'xls'].includes(ext)) {
+          setError(`Unsupported file type: .${ext}. Upload a CSV or Excel file for roster import.`)
+          setLoading(false)
+          return
+        }
+        const result = await parseRosterCSV(uploadedFile, activeTab)
+        if (result.error) {
+          setError(result.error)
+          setPreviewData([])
+        } else {
+          setPreviewData(result.data)
+        }
+        setLoading(false)
+        setLoadingMessage('')
+        return
+      }
+
+      setLoadingMessage('AI is reading the rate sheet...')
 
       // For CSV/XLSX/XLS — read as text and send to Claude text API
       if (['csv', 'txt', 'tsv', 'xlsx', 'xls'].includes(ext)) {
@@ -355,8 +417,12 @@ Return ONLY the JSON array.`
   function addRow() {
     if (activeTab === 'labour') {
       setPreviewData([...previewData, { classification: '', rate_type: 'hourly', rate_st: 0, rate_ot: 0, rate_dt: 0, rate_subs: 0, valid: true }])
-    } else {
+    } else if (activeTab === 'equipment') {
       setPreviewData([...previewData, { equipment_type: '', rate_monthly: 0, rate_base: 0, rate_parts: 0, rate_hourly: 0, rate_daily: 0, valid: true }])
+    } else if (activeTab === 'personnel') {
+      setPreviewData([...previewData, { employee_name: '', classification: '', valid: true }])
+    } else if (activeTab === 'fleet') {
+      setPreviewData([...previewData, { unit_number: '', equipment_type: '', valid: true }])
     }
   }
 
@@ -377,22 +443,29 @@ Return ONLY the JSON array.`
     setError('')
 
     try {
-      const tableName = activeTab === 'labour' ? 'labour_rates' : 'equipment_rates'
+      const tableMap = {
+        labour: 'labour_rates',
+        equipment: 'equipment_rates',
+        personnel: 'personnel_roster',
+        fleet: 'equipment_fleet'
+      }
+      const tableName = tableMap[activeTab] || 'labour_rates'
 
       const records = previewData.map(row => {
-        const record = {
-          organization_id: organizationId,
-          effective_date: effectiveDate,
-          po_number: poNumber.trim() || null
-        }
+        const record = { organization_id: organizationId }
+
         if (activeTab === 'labour') {
+          record.effective_date = effectiveDate
+          record.po_number = poNumber.trim() || null
           record.classification = row.classification
           record.rate_type = row.rate_type || 'hourly'
           record.rate_st = row.rate_st || 0
           record.rate_ot = row.rate_ot || 0
           record.rate_dt = row.rate_dt || 0
           record.rate_subs = row.rate_subs || 0
-        } else {
+        } else if (activeTab === 'equipment') {
+          record.effective_date = effectiveDate
+          record.po_number = poNumber.trim() || null
           record.equipment_type = row.equipment_type
           record.rate_type = 'daily'
           record.rate_monthly = row.rate_monthly || 0
@@ -400,7 +473,14 @@ Return ONLY the JSON array.`
           record.rate_parts = row.rate_parts || 0
           record.rate_hourly = row.rate_hourly || (parseFloat(row.rate_base || 0) + parseFloat(row.rate_parts || 0))
           record.rate_daily = row.rate_daily || (record.rate_hourly * 10)
+        } else if (activeTab === 'personnel') {
+          record.employee_name = row.employee_name
+          record.classification = row.classification
+        } else if (activeTab === 'fleet') {
+          record.unit_number = row.unit_number
+          record.equipment_type = row.equipment_type
         }
+
         return record
       })
 
@@ -418,7 +498,8 @@ Return ONLY the JSON array.`
       }
 
       const inserted = await response.json()
-      console.log(`[RateImport] SUCCESS: Imported ${inserted.length} ${activeTab} rates`)
+      const tabLabels = { labour: 'labour', equipment: 'equipment', personnel: 'personnel', fleet: 'fleet' }
+      console.log(`[RateImport] SUCCESS: Imported ${inserted.length} ${tabLabels[activeTab] || activeTab} records`)
 
       setImportSuccess(true)
       setPreviewData([])
@@ -438,9 +519,15 @@ Return ONLY the JSON array.`
 
   // Delete all rates for this org
   async function clearRates() {
-    if (!confirm(`Delete all ${activeTab} rates for ${organizationName}?`)) return
+    if (!confirm(`Delete all ${activeTab} records for ${organizationName}?`)) return
     try {
-      const tableName = activeTab === 'labour' ? 'labour_rates' : 'equipment_rates'
+      const tableMap = {
+        labour: 'labour_rates',
+        equipment: 'equipment_rates',
+        personnel: 'personnel_roster',
+        fleet: 'equipment_fleet'
+      }
+      const tableName = tableMap[activeTab] || 'labour_rates'
       const response = await fetch(`/api/rates?table=${tableName}&organization_id=${organizationId}`, {
         method: 'DELETE'
       })
@@ -489,7 +576,7 @@ Return ONLY the JSON array.`
       )}
 
       {/* Tab Selection */}
-      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+      <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap' }}>
         <button
           onClick={() => { setActiveTab('labour'); reset() }}
           style={{
@@ -518,6 +605,34 @@ Return ONLY the JSON array.`
         >
           Equipment Rates
         </button>
+        <button
+          onClick={() => { setActiveTab('personnel'); reset() }}
+          style={{
+            padding: '12px 24px',
+            backgroundColor: activeTab === 'personnel' ? '#003366' : '#f0f0f0',
+            color: activeTab === 'personnel' ? 'white' : '#333',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: '600'
+          }}
+        >
+          Personnel Roster
+        </button>
+        <button
+          onClick={() => { setActiveTab('fleet'); reset() }}
+          style={{
+            padding: '12px 24px',
+            backgroundColor: activeTab === 'fleet' ? '#003366' : '#f0f0f0',
+            color: activeTab === 'fleet' ? 'white' : '#333',
+            border: 'none',
+            borderRadius: '6px',
+            cursor: 'pointer',
+            fontWeight: '600'
+          }}
+        >
+          Equipment Fleet
+        </button>
       </div>
 
       {/* Existing Rates Display */}
@@ -525,7 +640,10 @@ Return ONLY the JSON array.`
         <div style={{ marginBottom: '24px', backgroundColor: '#f8f9fa', borderRadius: '8px', padding: '16px', border: '1px solid #dee2e6' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
             <h3 style={{ margin: 0, color: '#003366' }}>
-              Current {activeTab === 'labour' ? 'Labour' : 'Equipment'} Rates ({existingRates.length})
+              {activeTab === 'labour' && `Current Labour Rates (${existingRates.length})`}
+              {activeTab === 'equipment' && `Current Equipment Rates (${existingRates.length})`}
+              {activeTab === 'personnel' && `Current Personnel Roster (${existingRates.length})`}
+              {activeTab === 'fleet' && `Current Equipment Fleet (${existingRates.length})`}
             </h3>
             <button
               onClick={clearRates}
@@ -538,7 +656,7 @@ Return ONLY the JSON array.`
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
               <thead>
                 <tr style={{ backgroundColor: '#e9ecef', position: 'sticky', top: 0 }}>
-                  {activeTab === 'labour' ? (
+                  {activeTab === 'labour' && (
                     <>
                       <th style={{ padding: '8px', textAlign: 'left' }}>Classification</th>
                       <th style={{ padding: '8px', textAlign: 'center' }}>Type</th>
@@ -547,7 +665,8 @@ Return ONLY the JSON array.`
                       <th style={{ padding: '8px', textAlign: 'right' }}>DT 2.0x</th>
                       <th style={{ padding: '8px', textAlign: 'right' }}>Subs</th>
                     </>
-                  ) : (
+                  )}
+                  {activeTab === 'equipment' && (
                     <>
                       <th style={{ padding: '8px', textAlign: 'left' }}>Equipment Type</th>
                       <th style={{ padding: '8px', textAlign: 'right' }}>Monthly</th>
@@ -557,14 +676,30 @@ Return ONLY the JSON array.`
                       <th style={{ padding: '8px', textAlign: 'right' }}>Daily</th>
                     </>
                   )}
-                  <th style={{ padding: '8px', textAlign: 'left' }}>PO</th>
-                  <th style={{ padding: '8px', textAlign: 'right' }}>Effective</th>
+                  {activeTab === 'personnel' && (
+                    <>
+                      <th style={{ padding: '8px', textAlign: 'left' }}>Employee Name</th>
+                      <th style={{ padding: '8px', textAlign: 'left' }}>Classification</th>
+                    </>
+                  )}
+                  {activeTab === 'fleet' && (
+                    <>
+                      <th style={{ padding: '8px', textAlign: 'left' }}>Unit #</th>
+                      <th style={{ padding: '8px', textAlign: 'left' }}>Equipment Type</th>
+                    </>
+                  )}
+                  {(activeTab === 'labour' || activeTab === 'equipment') && (
+                    <>
+                      <th style={{ padding: '8px', textAlign: 'left' }}>PO</th>
+                      <th style={{ padding: '8px', textAlign: 'right' }}>Effective</th>
+                    </>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {existingRates.map((r, idx) => (
                   <tr key={r.id || idx} style={{ borderBottom: '1px solid #dee2e6' }}>
-                    {activeTab === 'labour' ? (
+                    {activeTab === 'labour' && (
                       <>
                         <td style={{ padding: '6px 8px' }}>{r.classification}</td>
                         <td style={{ padding: '6px 8px', textAlign: 'center', fontSize: '12px' }}>
@@ -577,7 +712,8 @@ Return ONLY the JSON array.`
                         <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_dt?.toFixed(2)}</td>
                         <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_subs?.toFixed(2) || '—'}</td>
                       </>
-                    ) : (
+                    )}
+                    {activeTab === 'equipment' && (
                       <>
                         <td style={{ padding: '6px 8px' }}>{r.equipment_type}</td>
                         <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_monthly?.toFixed(2) || '—'}</td>
@@ -587,8 +723,24 @@ Return ONLY the JSON array.`
                         <td style={{ padding: '6px 8px', textAlign: 'right' }}>${r.rate_daily?.toFixed(2)}</td>
                       </>
                     )}
-                    <td style={{ padding: '6px 8px', fontSize: '12px', color: '#2563eb', fontWeight: '500' }}>{r.po_number || '-'}</td>
-                    <td style={{ padding: '6px 8px', textAlign: 'right', fontSize: '12px', color: '#666' }}>{r.effective_date}</td>
+                    {activeTab === 'personnel' && (
+                      <>
+                        <td style={{ padding: '6px 8px' }}>{r.employee_name}</td>
+                        <td style={{ padding: '6px 8px' }}>{r.classification}</td>
+                      </>
+                    )}
+                    {activeTab === 'fleet' && (
+                      <>
+                        <td style={{ padding: '6px 8px' }}>{r.unit_number}</td>
+                        <td style={{ padding: '6px 8px' }}>{r.equipment_type}</td>
+                      </>
+                    )}
+                    {(activeTab === 'labour' || activeTab === 'equipment') && (
+                      <>
+                        <td style={{ padding: '6px 8px', fontSize: '12px', color: '#2563eb', fontWeight: '500' }}>{r.po_number || '-'}</td>
+                        <td style={{ padding: '6px 8px', textAlign: 'right', fontSize: '12px', color: '#666' }}>{r.effective_date}</td>
+                      </>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -629,13 +781,21 @@ Return ONLY the JSON array.`
               marginBottom: '24px'
             }}>
               <div style={{ fontSize: '36px', marginBottom: '12px', opacity: 0.6 }}>
-                {activeTab === 'labour' ? '\u{1F477}' : '\u{1F6DC}'}
+                {activeTab === 'labour' ? '\u{1F477}' : activeTab === 'equipment' ? '\u{1F6DC}' : activeTab === 'personnel' ? '\u{1F465}' : '\u{1F697}'}
               </div>
               <h3 style={{ margin: '0 0 8px 0', color: '#003366' }}>
-                Upload {activeTab === 'labour' ? 'Labour' : 'Equipment'} Rate Sheet
+                {activeTab === 'labour' && 'Upload Labour Rate Sheet'}
+                {activeTab === 'equipment' && 'Upload Equipment Rate Sheet'}
+                {activeTab === 'personnel' && 'Upload Personnel Roster'}
+                {activeTab === 'fleet' && 'Upload Equipment Fleet'}
               </h3>
               <p style={{ color: '#666', margin: '0 0 20px 0', fontSize: '14px' }}>
-                Drop the contractor's file here — any format works. AI reads it automatically.
+                {(activeTab === 'labour' || activeTab === 'equipment')
+                  ? 'Drop the contractor\'s file here — any format works. AI reads it automatically.'
+                  : activeTab === 'personnel'
+                    ? 'CSV with Column A = employee name (Last, First) and Column B = classification.'
+                    : 'CSV with Column A = unit number and Column B = equipment type/description.'
+                }
               </p>
               <label style={{
                 display: 'inline-block',
@@ -650,13 +810,20 @@ Return ONLY the JSON array.`
                 Choose File
                 <input
                   type="file"
-                  accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf,.png,.jpg,.jpeg,.webp,.gif,.tiff,.bmp"
+                  accept={
+                    (activeTab === 'personnel' || activeTab === 'fleet')
+                      ? '.csv,.txt,.tsv,.xlsx,.xls'
+                      : '.csv,.txt,.tsv,.xlsx,.xls,.pdf,.png,.jpg,.jpeg,.webp,.gif,.tiff,.bmp'
+                  }
                   onChange={handleFileUpload}
                   style={{ display: 'none' }}
                 />
               </label>
               <p style={{ color: '#999', fontSize: '12px', marginTop: '16px' }}>
-                Accepts: CSV, Excel (.xlsx/.xls), PDF, or images (PNG, JPG, etc.)
+                {(activeTab === 'personnel' || activeTab === 'fleet')
+                  ? 'Accepts: CSV or Excel (.xlsx/.xls)'
+                  : 'Accepts: CSV, Excel (.xlsx/.xls), PDF, or images (PNG, JPG, etc.)'
+                }
               </p>
               <p style={{ color: '#888', fontSize: '12px', marginTop: '4px' }}>
                 Or <button
@@ -749,7 +916,11 @@ Return ONLY the JSON array.`
                     Re-upload
                     <input
                       type="file"
-                      accept=".csv,.txt,.tsv,.xlsx,.xls,.pdf,.png,.jpg,.jpeg,.webp,.gif,.tiff,.bmp"
+                      accept={
+                        (activeTab === 'personnel' || activeTab === 'fleet')
+                          ? '.csv,.txt,.tsv,.xlsx,.xls'
+                          : '.csv,.txt,.tsv,.xlsx,.xls,.pdf,.png,.jpg,.jpeg,.webp,.gif,.tiff,.bmp'
+                      }
                       onChange={handleFileUpload}
                       style={{ display: 'none' }}
                     />
@@ -761,7 +932,7 @@ Return ONLY the JSON array.`
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
                   <thead>
                     <tr style={{ backgroundColor: '#003366' }}>
-                      {activeTab === 'labour' ? (
+                      {activeTab === 'labour' && (
                         <>
                           <th style={{ color: 'white', padding: '12px', textAlign: 'left' }}>Classification</th>
                           <th style={{ color: 'white', padding: '12px', textAlign: 'center', width: '90px' }}>Type</th>
@@ -769,9 +940,9 @@ Return ONLY the JSON array.`
                           <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>OT 1.5x (W)</th>
                           <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>DT 2.0x (X)</th>
                           <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>Subs (Y)</th>
-                          <th style={{ color: 'white', padding: '12px', textAlign: 'center', width: '60px' }}></th>
                         </>
-                      ) : (
+                      )}
+                      {activeTab === 'equipment' && (
                         <>
                           <th style={{ color: 'white', padding: '12px', textAlign: 'left' }}>Equipment Type</th>
                           <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>Monthly</th>
@@ -779,15 +950,27 @@ Return ONLY the JSON array.`
                           <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>Parts/Repairs</th>
                           <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>Hourly</th>
                           <th style={{ color: 'white', padding: '12px', textAlign: 'right' }}>Daily (10hr)</th>
-                          <th style={{ color: 'white', padding: '12px', textAlign: 'center', width: '60px' }}></th>
                         </>
                       )}
+                      {activeTab === 'personnel' && (
+                        <>
+                          <th style={{ color: 'white', padding: '12px', textAlign: 'left' }}>Employee Name</th>
+                          <th style={{ color: 'white', padding: '12px', textAlign: 'left' }}>Classification</th>
+                        </>
+                      )}
+                      {activeTab === 'fleet' && (
+                        <>
+                          <th style={{ color: 'white', padding: '12px', textAlign: 'left' }}>Unit #</th>
+                          <th style={{ color: 'white', padding: '12px', textAlign: 'left' }}>Equipment Type</th>
+                        </>
+                      )}
+                      <th style={{ color: 'white', padding: '12px', textAlign: 'center', width: '60px' }}></th>
                     </tr>
                   </thead>
                   <tbody>
                     {previewData.map((row, idx) => (
                       <tr key={idx} style={{ borderBottom: '1px solid #ddd' }}>
-                        {activeTab === 'labour' ? (
+                        {activeTab === 'labour' && (
                           <>
                             <td style={{ padding: '8px' }}>
                               <input
@@ -844,7 +1027,8 @@ Return ONLY the JSON array.`
                               />
                             </td>
                           </>
-                        ) : (
+                        )}
+                        {activeTab === 'equipment' && (
                           <>
                             <td style={{ padding: '8px' }}>
                               <input
@@ -895,6 +1079,50 @@ Return ONLY the JSON array.`
                             </td>
                           </>
                         )}
+                        {activeTab === 'personnel' && (
+                          <>
+                            <td style={{ padding: '8px' }}>
+                              <input
+                                type="text"
+                                value={row.employee_name || ''}
+                                onChange={(e) => updateRow(idx, 'employee_name', e.target.value)}
+                                style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }}
+                                placeholder="Last, First"
+                              />
+                            </td>
+                            <td style={{ padding: '8px' }}>
+                              <input
+                                type="text"
+                                value={row.classification || ''}
+                                onChange={(e) => updateRow(idx, 'classification', e.target.value)}
+                                style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }}
+                                placeholder="e.g. General Labourer"
+                              />
+                            </td>
+                          </>
+                        )}
+                        {activeTab === 'fleet' && (
+                          <>
+                            <td style={{ padding: '8px' }}>
+                              <input
+                                type="text"
+                                value={row.unit_number || ''}
+                                onChange={(e) => updateRow(idx, 'unit_number', e.target.value)}
+                                style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }}
+                                placeholder="e.g. EX-01"
+                              />
+                            </td>
+                            <td style={{ padding: '8px' }}>
+                              <input
+                                type="text"
+                                value={row.equipment_type || ''}
+                                onChange={(e) => updateRow(idx, 'equipment_type', e.target.value)}
+                                style={{ width: '100%', padding: '6px', border: '1px solid #ddd', borderRadius: '4px' }}
+                                placeholder="e.g. Excavator 320"
+                              />
+                            </td>
+                          </>
+                        )}
                         <td style={{ padding: '8px', textAlign: 'center' }}>
                           <button
                             onClick={() => deleteRow(idx)}
@@ -929,25 +1157,29 @@ Return ONLY the JSON array.`
                 flexWrap: 'wrap',
                 gap: '12px'
               }}>
-                <div>
-                  <label style={{ marginRight: '10px', fontWeight: '600' }}>PO Number:</label>
-                  <input
-                    type="text"
-                    value={poNumber}
-                    onChange={(e) => setPoNumber(e.target.value)}
-                    placeholder="e.g., PO-4410"
-                    style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '150px' }}
-                  />
-                </div>
-                <div>
-                  <label style={{ marginRight: '10px', fontWeight: '600' }}>Effective Date:</label>
-                  <input
-                    type="date"
-                    value={effectiveDate}
-                    onChange={(e) => setEffectiveDate(e.target.value)}
-                    style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
-                  />
-                </div>
+                {(activeTab === 'labour' || activeTab === 'equipment') && (
+                  <>
+                    <div>
+                      <label style={{ marginRight: '10px', fontWeight: '600' }}>PO Number:</label>
+                      <input
+                        type="text"
+                        value={poNumber}
+                        onChange={(e) => setPoNumber(e.target.value)}
+                        placeholder="e.g., PO-4410"
+                        style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '4px', width: '150px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ marginRight: '10px', fontWeight: '600' }}>Effective Date:</label>
+                      <input
+                        type="date"
+                        value={effectiveDate}
+                        onChange={(e) => setEffectiveDate(e.target.value)}
+                        style={{ padding: '8px', border: '1px solid #ddd', borderRadius: '4px' }}
+                      />
+                    </div>
+                  </>
+                )}
                 <div style={{ display: 'flex', gap: '10px' }}>
                   <button
                     onClick={reset}
@@ -976,7 +1208,12 @@ Return ONLY the JSON array.`
                       opacity: loading ? 0.7 : 1
                     }}
                   >
-                    {loading ? 'Importing...' : `Import ${previewData.length} ${activeTab === 'labour' ? 'Labour' : 'Equipment'} Rates`}
+                    {loading ? 'Importing...' : (
+                      activeTab === 'labour' ? `Import ${previewData.length} Labour Rates` :
+                      activeTab === 'equipment' ? `Import ${previewData.length} Equipment Rates` :
+                      activeTab === 'personnel' ? `Import ${previewData.length} Personnel` :
+                      `Import ${previewData.length} Fleet Items`
+                    )}
                   </button>
                 </div>
               </div>

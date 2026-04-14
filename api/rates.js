@@ -16,8 +16,8 @@ export default async function handler(req, res) {
 
   const { table, organization_id } = req.query
 
-  if (!table || !['labour_rates', 'equipment_rates'].includes(table)) {
-    return res.status(400).json({ error: 'Invalid or missing table parameter. Use labour_rates or equipment_rates.' })
+  if (!table || !['labour_rates', 'equipment_rates', 'personnel_roster', 'equipment_fleet'].includes(table)) {
+    return res.status(400).json({ error: 'Invalid or missing table parameter. Use labour_rates, equipment_rates, personnel_roster, or equipment_fleet.' })
   }
 
   if (!organization_id) {
