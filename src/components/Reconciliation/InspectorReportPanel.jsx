@@ -285,6 +285,21 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     }
   }
 
+  function removeRow(section, rowIdx) {
+    if (!onBlockChange) return
+    const entries = section === 'labour' ? [...labourEntries] : [...equipmentEntries]
+    const removed = entries[rowIdx]
+    const removedName = section === 'labour'
+      ? (removed.employeeName || removed.employee_name || removed.name || 'unknown')
+      : (removed.type || removed.equipment_type || 'unknown')
+    if (!confirm(`Remove "${removedName}" from this ticket?`)) return
+    entries.splice(rowIdx, 1)
+    const updatedBlock = { ...block }
+    if (section === 'labour') updatedBlock.labourEntries = entries
+    else updatedBlock.equipmentEntries = entries
+    onBlockChange(updatedBlock, [{ field: `${section}[${rowIdx}]`, oldValue: removedName, newValue: 'REMOVED' }])
+  }
+
   function moveRow(section, fromIdx, toIdx) {
     if (!onBlockChange) return
     const entries = section === 'labour' ? [...labourEntries] : [...equipmentEntries]
@@ -571,12 +586,16 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                   <React.Fragment key={i}>
                     <tr>
                       {onBlockChange && (
-                        <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 28 }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                            <button onClick={() => moveRow('labour', i, i - 1)} disabled={i === 0}
-                              style={{ border: 'none', background: 'none', cursor: i === 0 ? 'default' : 'pointer', fontSize: 10, color: i === 0 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9650;</button>
-                            <button onClick={() => moveRow('labour', i, i + 1)} disabled={i === labourEntries.length - 1}
-                              style={{ border: 'none', background: 'none', cursor: i === labourEntries.length - 1 ? 'default' : 'pointer', fontSize: 10, color: i === labourEntries.length - 1 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9660;</button>
+                        <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 38 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                              <button onClick={() => moveRow('labour', i, i - 1)} disabled={i === 0}
+                                style={{ border: 'none', background: 'none', cursor: i === 0 ? 'default' : 'pointer', fontSize: 10, color: i === 0 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9650;</button>
+                              <button onClick={() => moveRow('labour', i, i + 1)} disabled={i === labourEntries.length - 1}
+                                style={{ border: 'none', background: 'none', cursor: i === labourEntries.length - 1 ? 'default' : 'pointer', fontSize: 10, color: i === labourEntries.length - 1 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9660;</button>
+                            </div>
+                            <button onClick={() => removeRow('labour', i)}
+                              style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: '#dc2626', padding: 0, lineHeight: 1, fontWeight: 'bold' }} title="Remove row">&#10005;</button>
                           </div>
                         </td>
                       )}
@@ -674,12 +693,16 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                   <React.Fragment key={i}>
                     <tr>
                       {onBlockChange && (
-                        <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 28 }}>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                            <button onClick={() => moveRow('equipment', i, i - 1)} disabled={i === 0}
-                              style={{ border: 'none', background: 'none', cursor: i === 0 ? 'default' : 'pointer', fontSize: 10, color: i === 0 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9650;</button>
-                            <button onClick={() => moveRow('equipment', i, i + 1)} disabled={i === equipmentEntries.length - 1}
-                              style={{ border: 'none', background: 'none', cursor: i === equipmentEntries.length - 1 ? 'default' : 'pointer', fontSize: 10, color: i === equipmentEntries.length - 1 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9660;</button>
+                        <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 38 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                              <button onClick={() => moveRow('equipment', i, i - 1)} disabled={i === 0}
+                                style={{ border: 'none', background: 'none', cursor: i === 0 ? 'default' : 'pointer', fontSize: 10, color: i === 0 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9650;</button>
+                              <button onClick={() => moveRow('equipment', i, i + 1)} disabled={i === equipmentEntries.length - 1}
+                                style={{ border: 'none', background: 'none', cursor: i === equipmentEntries.length - 1 ? 'default' : 'pointer', fontSize: 10, color: i === equipmentEntries.length - 1 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9660;</button>
+                            </div>
+                            <button onClick={() => removeRow('equipment', i)}
+                              style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: '#dc2626', padding: 0, lineHeight: 1, fontWeight: 'bold' }} title="Remove row">&#10005;</button>
                           </div>
                         </td>
                       )}
