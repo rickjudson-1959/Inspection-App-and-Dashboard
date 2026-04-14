@@ -491,12 +491,35 @@ Return ONLY the JSON array.`
         return record
       })
 
-      console.log('[RateImport] POSTing', records.length, 'records via /api/rates')
+      // For roster tabs, deduplicate and clear existing data first
+      let finalRecords = records
+      if (activeTab === 'personnel') {
+        const seen = new Set()
+        finalRecords = records.filter(r => {
+          const key = (r.employee_name || '').toLowerCase().trim()
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        // Clear existing roster before importing
+        await fetch(`/api/rates?table=${tableName}&organization_id=${organizationId}`, { method: 'DELETE' })
+      } else if (activeTab === 'fleet') {
+        const seen = new Set()
+        finalRecords = records.filter(r => {
+          const key = (r.unit_number || '').toLowerCase().trim()
+          if (seen.has(key)) return false
+          seen.add(key)
+          return true
+        })
+        await fetch(`/api/rates?table=${tableName}&organization_id=${organizationId}`, { method: 'DELETE' })
+      }
+
+      console.log('[RateImport] POSTing', finalRecords.length, 'records via /api/rates')
 
       const response = await fetch(`/api/rates?table=${tableName}&organization_id=${organizationId}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(records)
+        body: JSON.stringify(finalRecords)
       })
 
       if (!response.ok) {
