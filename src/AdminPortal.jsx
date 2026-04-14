@@ -5,6 +5,8 @@ import { supabase } from './supabase'
 import * as XLSX from 'xlsx'
 import ComplianceAuditTrail from './ComplianceAuditTrail.jsx'
 import RateImport from './RateImport.jsx'
+import DPRConfig from './DPRConfig.jsx'
+import DPRTab from './DPRTab.jsx'
 import MasterSwitcher from './MasterSwitcher.jsx'
 import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
 import {
@@ -3574,11 +3576,12 @@ function AdminPortal() {
       <div style={{ backgroundColor: 'white', borderBottom: '1px solid #ddd', padding: '0 20px' }}>
         <div style={{ display: 'flex', gap: '0', flexWrap: 'wrap' }}>
           {[
-            'overview', 'approvals', 'efficiency', 'mats', 'audit', 'setup', 'projects', 'users', 'reports', 'exports', 'agenda', 'calendar',
+            'overview', 'approvals', 'efficiency', 'mats', 'audit', 'setup', 'projects', 'users', 'reports', 'exports', 'dpr', 'agenda', 'calendar',
             ...(isSuperAdmin ? ['fleet', 'stats', 'handover'] : [])
           ].map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{ padding: '15px 25px', border: 'none', backgroundColor: activeTab === tab ? '#003366' : 'transparent', color: activeTab === tab ? 'white' : '#333', cursor: 'pointer', fontSize: '14px', fontWeight: activeTab === tab ? 'bold' : 'normal', position: 'relative' }}>
               {tab === 'approvals' ? `Approvals ${pendingReports.length > 0 ? `(${pendingReports.length})` : ''}` :
+               tab === 'dpr' ? 'Daily Progress Report' :
                tab === 'fleet' ? '🚀 Fleet Onboarding' :
                tab === 'stats' ? '📊 Usage Statistics' :
                tab === 'handover' ? '📦 Project Handover' :
@@ -4418,6 +4421,21 @@ function AdminPortal() {
                     )}
                   </>
                 )}
+              </div>
+            )}
+
+            {/* Daily Progress Report Configuration */}
+            {selectedOrgForSetup && (
+              <div style={{
+                backgroundColor: 'white',
+                padding: '20px',
+                borderRadius: '8px',
+                marginTop: '20px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                border: '2px solid #1976d2'
+              }}>
+                <h3 style={{ margin: '0 0 15px 0', color: '#1976d2' }}>📊 Daily Progress Report Configuration</h3>
+                <DPRConfig />
               </div>
             )}
 
@@ -5838,6 +5856,13 @@ function AdminPortal() {
                 📖 These resources are marked as Global and accessible to all field inspectors via the Reference Library.
               </p>
             </div>
+          </div>
+        )}
+
+        {activeTab === 'dpr' && (
+          <div>
+            <button onClick={() => setActiveTab('overview')} style={{ marginBottom: '20px', padding: '10px 20px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>← Return to Dashboard</button>
+            <DPRTab />
           </div>
         )}
 
