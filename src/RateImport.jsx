@@ -277,25 +277,32 @@ Return ONLY the JSON array.`
 
   // Parse a simple two-column roster CSV/XLSX and return preview rows
   async function parseRosterCSV(uploadedFile, tab) {
-    const textContent = await readFileAsText(uploadedFile)
-    if (!textContent || textContent.trim().length < 2) {
-      return { data: [], error: 'File appears to be empty or unreadable.' }
+    // Use XLSX library for proper parsing — handles quoted commas, XLSX, CSV, etc.
+    let sheetRows = []
+    try {
+      const buffer = await uploadedFile.arrayBuffer()
+      const workbook = XLSX.read(buffer, { type: 'array' })
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
+      // Get as array of arrays — each inner array is a row of cell values
+      sheetRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: '' })
+    } catch (e) {
+      return { data: [], error: `Failed to read file: ${e.message}` }
     }
 
-    const lines = textContent.split('\n').map(l => l.trim()).filter(l => l.length > 0)
+    if (sheetRows.length === 0) {
+      return { data: [], error: 'File appears to be empty.' }
+    }
+
     const rows = []
+    for (const row of sheetRows) {
+      const colA = String(row[0] || '').trim()
+      const colB = String(row[1] || '').trim()
 
-    for (const line of lines) {
-      // Split on comma (simple CSV — values shouldn't contain commas for these roster fields)
-      const parts = line.split(',')
-      const colA = (parts[0] || '').trim().replace(/^"|"$/g, '')
-      const colB = (parts[1] || '').trim().replace(/^"|"$/g, '')
-
-      // Skip if colA is empty or looks like a header
       if (!colA) continue
       const lowerA = colA.toLowerCase()
-      if (tab === 'personnel' && (lowerA === 'employee name' || lowerA === 'name' || lowerA === 'employee')) continue
-      if (tab === 'fleet' && (lowerA === 'unit number' || lowerA === 'unit #' || lowerA === 'unit' || lowerA === 'equipment')) continue
+      // Skip header rows
+      if (tab === 'personnel' && (lowerA === 'employee name' || lowerA === 'name' || lowerA === 'employee' || lowerA === 'last name' || lowerA === 'last, first')) continue
+      if (tab === 'fleet' && (lowerA === 'unit number' || lowerA === 'unit #' || lowerA === 'unit' || lowerA === 'equipment' || lowerA === 'fleet #')) continue
 
       if (tab === 'personnel') {
         rows.push({ employee_name: colA, classification: colB, valid: true })
