@@ -561,42 +561,63 @@ function ActivityBlock({
     }
   }, [knownCrewNames])
 
-  // Load full employee roster (name → classification) from all reports
+  // Load employee + equipment rosters from uploaded CSV tables AND daily reports
   const [employeeRoster, setEmployeeRoster] = useState([])
   const [equipmentRoster, setEquipmentRoster] = useState([])
   useEffect(() => {
     if (!organizationId) return
     async function loadRoster() {
+      // 1. Load from uploaded personnel_roster table (CSV data — takes priority)
+      const personnelMap = {}
+      try {
+        let pq = supabase.from('personnel_roster').select('employee_name, classification')
+        pq = addOrgFilter(pq, true)
+        const { data: pData } = await pq
+        for (const r of (pData || [])) {
+          const name = (r.employee_name || '').trim()
+          const cls = (r.classification || '').trim()
+          if (name && cls) personnelMap[name.toUpperCase()] = { employeeName: name, classification: cls }
+        }
+      } catch (e) { console.warn('personnel_roster not available:', e) }
+
+      // 2. Load from uploaded equipment_fleet table (CSV data — takes priority)
+      const fleetMap = {}
+      try {
+        let eq = supabase.from('equipment_fleet').select('unit_number, equipment_type')
+        eq = addOrgFilter(eq, true)
+        const { data: eData } = await eq
+        for (const r of (eData || [])) {
+          const unit = (r.unit_number || '').trim()
+          const etype = (r.equipment_type || '').trim()
+          if (unit && etype) fleetMap[unit.toUpperCase()] = { unitNumber: unit, equipmentType: etype }
+        }
+      } catch (e) { console.warn('equipment_fleet not available:', e) }
+
+      // 3. Supplement with daily_reports data (fills gaps not in uploaded CSVs)
       let q = supabase.from('daily_reports').select('activity_blocks').order('date', { ascending: false }).limit(200)
       q = addOrgFilter(q, true)
       const { data } = await q
-      const rosterMap = {}
       for (const r of (data || [])) {
         for (const b of (r.activity_blocks || [])) {
           for (const l of (b.labourEntries || [])) {
             const name = (l.employeeName || l.employee_name || l.name || '').trim()
             const cls = (l.classification || '').trim()
-            if (name && cls) {
-              rosterMap[name.toUpperCase()] = { employeeName: name, classification: cls }
+            if (name && cls && !personnelMap[name.toUpperCase()]) {
+              personnelMap[name.toUpperCase()] = { employeeName: name, classification: cls }
             }
           }
-        }
-      }
-      setEmployeeRoster(Object.values(rosterMap).sort((a, b) => a.employeeName.localeCompare(b.employeeName)))
-      // Equipment roster: unit # → equipment type
-      const equipMap = {}
-      for (const r of (data || [])) {
-        for (const b of (r.activity_blocks || [])) {
           for (const e of (b.equipmentEntries || [])) {
             const unit = (e.unitNumber || e.unit_number || '').trim()
             const etype = (e.type || e.equipment_type || '').trim()
-            if (unit && etype) {
-              equipMap[unit.toUpperCase()] = { unitNumber: unit, equipmentType: etype }
+            if (unit && etype && !fleetMap[unit.toUpperCase()]) {
+              fleetMap[unit.toUpperCase()] = { unitNumber: unit, equipmentType: etype }
             }
           }
         }
       }
-      setEquipmentRoster(Object.values(equipMap).sort((a, b) => a.unitNumber.localeCompare(b.unitNumber)))
+
+      setEmployeeRoster(Object.values(personnelMap).sort((a, b) => a.employeeName.localeCompare(b.employeeName)))
+      setEquipmentRoster(Object.values(fleetMap).sort((a, b) => a.unitNumber.localeCompare(b.unitNumber)))
     }
     loadRoster()
   }, [organizationId])

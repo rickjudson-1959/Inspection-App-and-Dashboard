@@ -116,14 +116,26 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
     }
     setSameDayEntries(newSameDayEntries)
 
-    // --- Build employee roster (name → classification) from all reports ---
+    // --- Build employee roster from uploaded CSV + daily reports ---
     const rosterMap = {}
+    // Load from personnel_roster table first (CSV upload — takes priority)
+    try {
+      let pq = supabase.from('personnel_roster').select('employee_name, classification')
+      pq = addOrgFilter(pq, true)
+      const { data: pData } = await pq
+      for (const r of (pData || [])) {
+        const name = (r.employee_name || '').trim()
+        const cls = (r.classification || '').trim()
+        if (name && cls) rosterMap[name.toUpperCase()] = { employeeName: name, classification: cls }
+      }
+    } catch (e) { console.warn('personnel_roster not available:', e) }
+    // Supplement with daily_reports data
     for (const report of (reports || [])) {
       for (const b of (report.activity_blocks || [])) {
         for (const l of (b.labourEntries || [])) {
           const name = (l.employeeName || l.employee_name || l.name || '').trim()
           const cls = (l.classification || '').trim()
-          if (name && cls) {
+          if (name && cls && !rosterMap[name.toUpperCase()]) {
             rosterMap[name.toUpperCase()] = { employeeName: name, classification: cls }
           }
         }
