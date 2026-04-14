@@ -339,15 +339,19 @@ function SearchableSelect({
 
 // SearchableNameInput - free-text input with autocomplete dropdown
 // Allows typing new names OR selecting from known crew names
-function SearchableNameInput({ value, onChange, suggestions, placeholder = 'Name', style = {} }) {
+// roster: array of { employeeName, classification } for auto-fill
+function SearchableNameInput({ value, onChange, suggestions, roster = [], onSelectWithClassification, placeholder = 'Name', style = {} }) {
   const [isFocused, setIsFocused] = useState(false)
   const [filterText, setFilterText] = useState('')
   const containerRef = React.useRef(null)
 
-  const filtered = suggestions.filter(name => {
+  // Use roster if available, otherwise fall back to simple suggestions
+  const rosterNames = roster.length > 0 ? roster : suggestions.map(n => ({ employeeName: n, classification: '' }))
+
+  const filtered = rosterNames.filter(entry => {
     const search = (filterText || value || '').toLowerCase()
     if (!search) return true
-    return name.toLowerCase().includes(search)
+    return entry.employeeName.toLowerCase().includes(search)
   })
 
   useEffect(() => {
@@ -361,7 +365,7 @@ function SearchableNameInput({ value, onChange, suggestions, placeholder = 'Name
     return () => document.removeEventListener('mousedown', handleClickOutside)
   }, [])
 
-  const showDropdown = isFocused && filtered.length > 0 && (filterText || value || '').length > 0
+  const showDropdown = isFocused && filtered.length > 0
 
   return (
     <div ref={containerRef} style={{ position: 'relative', ...style }}>
@@ -375,10 +379,10 @@ function SearchableNameInput({ value, onChange, suggestions, placeholder = 'Name
         }}
         onFocus={() => {
           setIsFocused(true)
-          setFilterText(value || '')
+          setFilterText('')
         }}
         placeholder={placeholder}
-        style={{ width: '100%', padding: '4px', border: '1px solid #ced4da', borderRadius: '3px', fontSize: '12px', boxSizing: 'border-box' }}
+        style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box', minHeight: '38px' }}
       />
       {showDropdown && (
         <div style={{
@@ -391,27 +395,37 @@ function SearchableNameInput({ value, onChange, suggestions, placeholder = 'Name
           borderRadius: '4px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
           zIndex: 1000,
-          maxHeight: '180px',
+          maxHeight: '250px',
           overflowY: 'auto',
           marginTop: '2px'
         }}>
-          {filtered.slice(0, 10).map(name => (
+          {filtered.slice(0, 30).map(entry => (
             <div
-              key={name}
+              key={entry.employeeName}
+              onMouseDown={(e) => e.preventDefault()}
               onClick={() => {
-                onChange(name)
+                onChange(entry.employeeName)
+                if (entry.classification && onSelectWithClassification) {
+                  onSelectWithClassification(entry.employeeName, entry.classification)
+                }
                 setIsFocused(false)
                 setFilterText('')
               }}
               style={{
                 padding: '8px 10px',
                 cursor: 'pointer',
-                backgroundColor: name === value ? '#e3f2fd' : '#fff',
+                backgroundColor: entry.employeeName === value ? '#e3f2fd' : '#fff',
                 borderBottom: '1px solid #f0f0f0',
-                fontSize: '12px'
+                fontSize: '12px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
               }}
             >
-              {name}
+              <span style={{ fontWeight: '500' }}>{entry.employeeName}</span>
+              {entry.classification && (
+                <span style={{ fontSize: '10px', color: '#6b7280', marginLeft: 8 }}>{entry.classification}</span>
+              )}
             </div>
           ))}
         </div>
@@ -546,6 +560,31 @@ function ActivityBlock({
       } catch {}
     }
   }, [knownCrewNames])
+
+  // Load full employee roster (name → classification) from all reports
+  const [employeeRoster, setEmployeeRoster] = useState([])
+  useEffect(() => {
+    if (!organizationId) return
+    async function loadRoster() {
+      let q = supabase.from('daily_reports').select('activity_blocks').order('date', { ascending: false }).limit(200)
+      q = addOrgFilter(q, true)
+      const { data } = await q
+      const rosterMap = {}
+      for (const r of (data || [])) {
+        for (const b of (r.activity_blocks || [])) {
+          for (const l of (b.labourEntries || [])) {
+            const name = (l.employeeName || l.employee_name || l.name || '').trim()
+            const cls = (l.classification || '').trim()
+            if (name && cls) {
+              rosterMap[name.toUpperCase()] = { employeeName: name, classification: cls }
+            }
+          }
+        }
+      }
+      setEmployeeRoster(Object.values(rosterMap).sort((a, b) => a.employeeName.localeCompare(b.employeeName)))
+    }
+    loadRoster()
+  }, [organizationId])
 
   // Track which labour/equipment rows have their flag panel open
   const [openFlagRows, setOpenFlagRows] = useState({})
@@ -2666,6 +2705,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
               value={currentLabour.employeeName}
               onChange={(val) => setCurrentLabour({ ...currentLabour, employeeName: val })}
               suggestions={knownCrewNames}
+              roster={employeeRoster}
+              onSelectWithClassification={(name, cls) => setCurrentLabour(prev => ({ ...prev, employeeName: name, classification: cls }))}
               placeholder="Name"
               style={{ width: '100%' }}
             />
@@ -2766,6 +2807,11 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                             value={entry.employeeName || ''}
                             onChange={(val) => updateLabourField(block.id, entry.id, 'employeeName', val)}
                             suggestions={knownCrewNames}
+                            roster={employeeRoster}
+                            onSelectWithClassification={(name, cls) => {
+                              updateLabourField(block.id, entry.id, 'employeeName', name)
+                              updateLabourField(block.id, entry.id, 'classification', cls)
+                            }}
                             placeholder="Name"
                           />
                         </td>
