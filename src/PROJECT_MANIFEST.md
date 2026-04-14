@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - April 10, 2026
+## Project Manifest - April 14, 2026
 
 ---
 
@@ -614,6 +614,39 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–April 2026)
+
+### Custom 7-Day Invitation System (April 14, 2026)
+
+**Replaced Supabase Auth's 24-hour invitation tokens with a custom token-based system that gives invitees 7 days to accept.**
+
+1. **Custom token generation** — `invite-user` edge function now generates a 64-character hex token, SHA-256 hashes it, and stores the hash in the `user_invitations` table with a 7-day expiry. Raw token is never stored.
+
+2. **New `user_invitations` table** — Tracks all invitations: email, name, role, token hash, expiry, acceptance timestamp. Org-scoped with RLS. Anon read access for token verification on the accept page.
+
+3. **New `accept-invitation` edge function** — Verifies token against hash in DB, checks expiry and used status, sets user password via admin API, confirms email, creates session, marks invitation accepted, updates profile to active.
+
+4. **New `AcceptInvite.jsx` page** — Public route at `/accept-invite?token=...`. Verifies token client-side, shows password form with confirmation, calls edge function, auto-redirects on success. Shows clear error messages for expired/invalid/used tokens.
+
+5. **Email unchanged** — Still uses Resend from verified domain `noreply@pipe-up.ca`. Link format changed from Supabase auth URL to `https://app.pipe-up.ca/accept-invite?token={token}`.
+
+**New files:**
+- `src/AcceptInvite.jsx` — Accept invitation page
+- `supabase/functions/accept-invitation/index.ts` — Token verification + password setting edge function
+- `supabase/migrations/20260414_create_user_invitations.sql` — Invitation tracking table
+
+**Modified files:**
+- `supabase/functions/invite-user/index.ts` — Custom token generation replaces Supabase generateLink
+- `src/App.jsx` — Added `/accept-invite` public route
+
+### Inspector Panel Enhancements (April 10–14, 2026)
+
+**Added row management capabilities to the reconciliation inspector panel.**
+
+1. **Add Employee / Add Equipment** — Buttons below each table to add missing people or equipment. New rows save to `daily_reports.activity_blocks` and are audit logged. Name field auto-focuses on new rows.
+
+2. **Row reorder** — Up/down arrow buttons (▲▼) on each row to move entries. Admin can place newly added entries anywhere in the list. All moves audit logged with position tracking.
+
+3. **ReportViewer bug fixes** — Fixed Productive hours string concatenation bug (`"8" + "4"` = `"84"` instead of `12`). Replaced JH column with DT (double time).
 
 ### Costed Inspector Panel & Rate Type System (April 6–10, 2026)
 
