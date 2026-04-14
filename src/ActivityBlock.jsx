@@ -563,6 +563,7 @@ function ActivityBlock({
 
   // Load full employee roster (name → classification) from all reports
   const [employeeRoster, setEmployeeRoster] = useState([])
+  const [equipmentRoster, setEquipmentRoster] = useState([])
   useEffect(() => {
     if (!organizationId) return
     async function loadRoster() {
@@ -582,6 +583,20 @@ function ActivityBlock({
         }
       }
       setEmployeeRoster(Object.values(rosterMap).sort((a, b) => a.employeeName.localeCompare(b.employeeName)))
+      // Equipment roster: unit # → equipment type
+      const equipMap = {}
+      for (const r of (data || [])) {
+        for (const b of (r.activity_blocks || [])) {
+          for (const e of (b.equipmentEntries || [])) {
+            const unit = (e.unitNumber || e.unit_number || '').trim()
+            const etype = (e.type || e.equipment_type || '').trim()
+            if (unit && etype) {
+              equipMap[unit.toUpperCase()] = { unitNumber: unit, equipmentType: etype }
+            }
+          }
+        }
+      }
+      setEquipmentRoster(Object.values(equipMap).sort((a, b) => a.unitNumber.localeCompare(b.unitNumber)))
     }
     loadRoster()
   }, [organizationId])
@@ -3014,7 +3029,19 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
       <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#cce5ff', borderRadius: '8px' }}>
         <h4 style={{ margin: '0 0 15px 0', color: '#004085' }}>🚜 Equipment</h4>
         
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 100px 80px 80px auto', gap: '10px', marginBottom: '15px', alignItems: 'end' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr 80px 80px auto', gap: '10px', marginBottom: '15px', alignItems: 'end' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Unit #</label>
+            <SearchableNameInput
+              value={currentEquipment.unitNumber}
+              onChange={(val) => setCurrentEquipment({ ...currentEquipment, unitNumber: val })}
+              suggestions={[]}
+              roster={equipmentRoster.map(r => ({ employeeName: r.unitNumber, classification: r.equipmentType }))}
+              onSelectWithClassification={(unit, etype) => setCurrentEquipment(prev => ({ ...prev, unitNumber: unit, type: etype }))}
+              placeholder="Unit #"
+              style={{ width: '100%' }}
+            />
+          </div>
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Equipment Type</label>
             <SearchableSelect
@@ -3022,16 +3049,6 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
               onChange={(val) => setCurrentEquipment({ ...currentEquipment, type: val })}
               options={equipmentTypes}
               placeholder="Select Equipment"
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Unit #</label>
-            <input
-              type="text"
-              placeholder="Unit #"
-              value={currentEquipment.unitNumber}
-              onChange={(e) => setCurrentEquipment({ ...currentEquipment, unitNumber: e.target.value })}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
             />
           </div>
           <div>
@@ -3072,8 +3089,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', minWidth: '450px' }}>
               <thead>
                 <tr style={{ backgroundColor: '#b8daff' }}>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '100px' }}>Unit #</th>
                   <th style={{ padding: '8px', textAlign: 'left' }}>Equipment</th>
-                  <th style={{ padding: '8px', textAlign: 'center', width: '80px' }}>Unit #</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '60px' }}>Hours</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '50px' }}>Count</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
@@ -3090,27 +3107,24 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                     <React.Fragment key={entry.id}>
                       <tr style={{ backgroundColor: '#fff' }}>
                         <td style={{ padding: '2px 4px', borderBottom: '1px solid #dee2e6' }}>
+                          <SearchableNameInput
+                            value={entry.unitNumber || ''}
+                            onChange={(val) => updateEquipmentUnitNumber(block.id, entry.id, val)}
+                            suggestions={[]}
+                            roster={equipmentRoster.map(r => ({ employeeName: r.unitNumber, classification: r.equipmentType }))}
+                            onSelectWithClassification={(unit, etype) => {
+                              updateEquipmentUnitNumber(block.id, entry.id, unit)
+                              updateEquipmentField(block.id, entry.id, 'type', etype)
+                            }}
+                            placeholder="Unit #"
+                          />
+                        </td>
+                        <td style={{ padding: '2px 4px', borderBottom: '1px solid #dee2e6' }}>
                           <SearchableSelect
                             value={entry.type}
                             onChange={(val) => updateEquipmentField(block.id, entry.id, 'type', val)}
                             options={equipmentTypes}
                             placeholder="Select"
-                          />
-                        </td>
-                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                          <input
-                            type="text"
-                            value={entry.unitNumber || ''}
-                            onChange={(e) => updateEquipmentUnitNumber(block.id, entry.id, e.target.value)}
-                            placeholder="—"
-                            style={{
-                              width: '70px',
-                              padding: '4px',
-                              border: '1px solid #ced4da',
-                              borderRadius: '3px',
-                              textAlign: 'center',
-                              fontSize: '12px'
-                            }}
                           />
                         </td>
                         <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
