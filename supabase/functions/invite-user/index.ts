@@ -14,7 +14,7 @@ serve(async (req) => {
   }
 
   try {
-    const { email, full_name, user_role, redirect_to } = await req.json()
+    const { email, full_name, user_role, redirect_to, organization_id } = await req.json()
 
     if (!email || !full_name || !user_role) {
       return new Response(
@@ -23,21 +23,15 @@ serve(async (req) => {
       )
     }
 
-    // CRITICAL: Always use actual Supabase project URL (not custom domain) for auth operations
-    // Custom domains (api.pipe-up.ca) do NOT handle /auth/v1/ routes correctly
-    // Project ref: aatvckalnvojlykfgnmz
-    // We must use the real Supabase URL, not the custom domain, for generateLink to work
     const actualSupabaseUrl = 'https://aatvckalnvojlykfgnmz.supabase.co'
-    
-    console.log('Using Supabase URL for auth:', actualSupabaseUrl)
-    console.log('SUPABASE_URL env var was:', Deno.env.get('SUPABASE_URL'))
-    
+
     const supabaseAdmin = createClient(
-      actualSupabaseUrl,  // Always use actual Supabase URL, never custom domain
+      actualSupabaseUrl,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
       { auth: { autoRefreshToken: false, persistSession: false } }
     )
 
+    // Check if user already exists
     const { data: existingUser } = await supabaseAdmin
       .from('user_profiles')
       .select('id, email')
@@ -51,10 +45,10 @@ serve(async (req) => {
       )
     }
 
-    // Create user account first (without sending Supabase's default email)
+    // Create user account (without sending Supabase's default email)
     const { data: userData, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email: email.toLowerCase(),
-      email_confirm: false, // User needs to confirm via the invitation link
+      email_confirm: false,
       user_metadata: {
         full_name: full_name,
         user_role: user_role,
@@ -63,23 +57,20 @@ serve(async (req) => {
     })
 
     if (createError) {
-      // If user already exists in auth, try to get them
       if (createError.message?.includes('already registered')) {
         const { data: existingAuthUser } = await supabaseAdmin.auth.admin.listUsers()
-        const existingUser = existingAuthUser?.users?.find(u => u.email === email.toLowerCase())
-        
-        if (existingUser) {
-          // Map invitation role values to database role values
+        const found = existingAuthUser?.users?.find(u => u.email === email.toLowerCase())
+
+        if (found) {
           const roleMapping: Record<string, string> = {
             'chief': 'chief_inspector',
             'exec': 'executive',
             'asst_chief': 'assistant_chief_inspector',
           }
           const dbRole = roleMapping[user_role] || user_role
-          
-          // User exists, just update profile
+
           await supabaseAdmin.from('user_profiles').upsert({
-            id: existingUser.id,
+            id: found.id,
             email: email.toLowerCase(),
             full_name,
             user_role: dbRole,
@@ -87,19 +78,19 @@ serve(async (req) => {
             status: 'invited',
             updated_at: new Date().toISOString()
           }, { onConflict: 'id' })
-          
+
           return new Response(
-            JSON.stringify({ 
-              success: true, 
-              message: `User already exists. Profile updated.`, 
-              user_id: existingUser.id,
+            JSON.stringify({
+              success: true,
+              message: `User already exists. Profile updated.`,
+              user_id: found.id,
               note: 'Invitation email not sent - user already registered'
             }),
             { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
           )
         }
       }
-      
+
       return new Response(
         JSON.stringify({ error: createError.message }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -114,96 +105,59 @@ serve(async (req) => {
     }
 
     // Map invitation role values to database role values
-    // Frontend uses short names (chief, exec, asst_chief) but database expects full names
     const roleMapping: Record<string, string> = {
       'chief': 'chief_inspector',
       'exec': 'executive',
       'asst_chief': 'assistant_chief_inspector',
-      // All other roles stay the same
     }
     const dbRole = roleMapping[user_role] || user_role
-    
+
     // Create user profile
     await supabaseAdmin.from('user_profiles').upsert({
       id: userData.user.id,
       email: email.toLowerCase(),
       full_name,
-      user_role: dbRole, // Store the mapped role in both fields
+      user_role: dbRole,
       role: dbRole,
       status: 'invited',
       created_at: new Date().toISOString()
     }, { onConflict: 'id' })
 
-    // Generate invitation link
-    // IMPORTANT: For invitation links, users must set their password first
-    // So we always redirect to /reset-password, then pass the final destination as a parameter
-    const baseUrl = 'https://app.pipe-up.ca'
-    
-    // Determine final destination after password is set
-    const finalDestination = redirect_to ? redirect_to : '/chief-dashboard'
-    
-    // Always redirect to reset-password first, with final destination as parameter
-    // Format: /reset-password?redirect_to=/chief-dashboard
+    // --- CUSTOM 7-DAY TOKEN ---
+    // Generate a random token (64 hex chars)
+    const tokenBytes = new Uint8Array(32)
+    crypto.getRandomValues(tokenBytes)
+    const token = Array.from(tokenBytes).map(b => b.toString(16).padStart(2, '0')).join('')
+
+    // Hash the token for storage (never store raw tokens)
+    const encoder = new TextEncoder()
+    const hashBuffer = await crypto.subtle.digest('SHA-256', encoder.encode(token))
+    const tokenHash = Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('')
+
+    // Determine final redirect destination
+    const finalDestination = redirect_to || '/chief-dashboard'
     const redirectPath = finalDestination.startsWith('/') ? finalDestination : `/${finalDestination}`
-    const redirectUrl = `${baseUrl}/reset-password?redirect_to=${encodeURIComponent(redirectPath)}`
-    
-    const { data: tokenData, error: tokenError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'invite',
+
+    // Store invitation in database with 7-day expiry
+    const { error: inviteInsertError } = await supabaseAdmin.from('user_invitations').insert({
       email: email.toLowerCase(),
-      options: {
-        redirectTo: redirectUrl
-      }
+      full_name,
+      user_role: dbRole,
+      organization_id: organization_id || null,
+      token_hash: tokenHash,
+      expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+      redirect_to: redirectPath,
     })
 
-    if (tokenError) {
-      console.error('❌ Error generating invite link:', tokenError)
-      console.error('Error details:', JSON.stringify(tokenError, null, 2))
-      // Continue anyway - user is created, they can use password reset
-    } else if (tokenData?.properties?.action_link) {
-      const generatedLink = tokenData.properties.action_link
-      console.log('✅ Invitation link generated by Supabase')
-      console.log('🔗 Original link from Supabase:', generatedLink)
-      
-      // CRITICAL FIX: Supabase's generateLink uses the custom domain from dashboard config
-      // We must extract the token and reconstruct the link with the correct Supabase URL
-      let inviteLink = generatedLink
-      
-      try {
-        // Parse the URL to extract query parameters
-        const url = new URL(generatedLink)
-        const token = url.searchParams.get('token')
-        const type = url.searchParams.get('type') || 'invite'
-        const redirectTo = url.searchParams.get('redirect_to') || redirectUrl
-        
-        if (token) {
-          // Reconstruct link with correct Supabase URL
-          inviteLink = `${actualSupabaseUrl}/auth/v1/verify?token=${token}&type=${type}&redirect_to=${encodeURIComponent(redirectTo)}`
-          console.log('🔧 Fixed link to use correct Supabase URL:', inviteLink.substring(0, 80) + '...')
-          console.log('✅ Link now uses:', actualSupabaseUrl)
-        } else {
-          console.warn('⚠️ Could not extract token from link, using original')
-        }
-      } catch (parseError) {
-        console.error('❌ Error parsing invitation link:', parseError)
-        console.warn('⚠️ Using original link (may have wrong domain)')
-      }
-      
-      // Verify the fixed link uses the correct domain
-      if (inviteLink.includes('api.pipe-up.ca')) {
-        console.error('⚠️ WARNING: Fixed link still uses custom domain!')
-      } else if (inviteLink.includes('aatvckalnvojlykfgnmz.supabase.co')) {
-        console.log('✅ Fixed link correctly uses Supabase project URL')
-      }
-      
-      // Store the fixed link in tokenData for use below
-      if (tokenData.properties) {
-        tokenData.properties.action_link = inviteLink
-      }
-    } else {
-      console.error('❌ No action_link in tokenData:', JSON.stringify(tokenData, null, 2))
+    if (inviteInsertError) {
+      console.error('Failed to store invitation:', inviteInsertError)
     }
 
-    // Send custom invitation email via Resend
+    // Build custom invitation link
+    const inviteLink = `https://app.pipe-up.ca/accept-invite?token=${token}`
+    console.log('✅ Custom 7-day invitation link generated')
+
+    // Send email via Resend
     let emailSent = false
     let emailError = null
     let emailMessageId = null
@@ -211,12 +165,7 @@ serve(async (req) => {
     if (!RESEND_API_KEY) {
       emailError = 'RESEND_API_KEY not configured in edge function secrets'
       console.error(emailError)
-    } else if (!tokenData?.properties?.action_link) {
-      emailError = 'Failed to generate invitation link'
-      console.error('Token generation failed:', tokenError)
     } else {
-      // Use the fixed link (tokenData.properties.action_link has been updated above)
-      const inviteLink = tokenData.properties.action_link
       const emailHtml = `
 <!DOCTYPE html>
 <html>
@@ -243,7 +192,7 @@ serve(async (req) => {
       <a href="${inviteLink}" class="button">Accept Invitation & Set Password</a>
       <p>Or copy and paste this link into your browser:</p>
       <p style="word-break: break-all; font-size: 12px; color: #666;">${inviteLink}</p>
-      <p>This link will expire in 7 days.</p>
+      <p><strong>This link is valid for 7 days.</strong></p>
     </div>
     <div class="footer">
       <p>This invitation was sent from Pipe-Up Platform</p>
@@ -261,7 +210,7 @@ serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'Pipe-Up <noreply@pipe-up.ca>', // Verified domain in Resend 
+            from: 'Pipe-Up <noreply@pipe-up.ca>',
             to: email.toLowerCase(),
             subject: `You've been invited to Pipe-Up Pipeline Inspector`,
             html: emailHtml,
@@ -288,16 +237,16 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: emailSent 
-          ? `User account created and invitation email sent to ${email}` 
+      JSON.stringify({
+        success: true,
+        message: emailSent
+          ? `User account created and invitation email sent to ${email}`
           : `User account created. Email ${emailError ? `failed: ${emailError}` : 'not sent'}`,
         user_id: userData.user.id,
         email_sent: emailSent,
         email_message_id: emailMessageId,
         email_error: emailError,
-        invitation_link: tokenData?.properties?.action_link || null
+        invitation_link: inviteLink
       }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     )

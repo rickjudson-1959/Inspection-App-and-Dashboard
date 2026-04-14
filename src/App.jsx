@@ -31,6 +31,7 @@ import ChangeManagement from './ChangeManagement.jsx'
 import ReportsPage from './ReportsPage.jsx'
 import ContractorLEMs from './ContractorLEMs.jsx'
 import ResetPassword from './ResetPassword.jsx'
+import AcceptInvite from './AcceptInvite.jsx'
 import InspectorInvoicingDashboard from './InspectorInvoicingDashboard.jsx'
 import HireOnPackage from './HireOnPackage.jsx'
 import TimesheetEditor from './TimesheetEditor.jsx'
@@ -380,6 +381,7 @@ function App() {
           {/* Public routes */}
           <Route path="/login" element={<Login />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/accept-invite" element={<AcceptInvite />} />
 
           {/* Root - redirects to org-scoped landing page */}
           <Route path="/" element={<RootRedirect />} />
