@@ -63,6 +63,9 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     const alias = aliases.find(a => a.alias_type === 'labour' && norm(a.original_value) === cl)
     const lookupName = alias ? alias.mapped_value : classification
     const ln = norm(lookupName)
+    if (cl.includes('straw') || cl.includes('filter')) {
+      console.log(`[RATE DEBUG] classification="${classification}" norm="${cl}" alias=${alias ? `"${alias.mapped_value}"` : 'none'} lookupName="${lookupName}" ln="${ln}" aliasCount=${aliases.length} rateCount=${labourRates.length}`)
+    }
     // 2. Exact match (normalized whitespace)
     let found = labourRates.find(r => norm(r.classification) === ln)
     if (found) return found
