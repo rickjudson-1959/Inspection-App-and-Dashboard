@@ -421,12 +421,27 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
 
     if (isEditing && isDropdown) {
       const filterText = editValue.toLowerCase().trim()
-      const filtered = filterText.length === 0
+      let filtered = filterText.length === 0
         ? (dropdownItems || [])
         : (dropdownItems || []).filter(item => {
             const name = (item[dropdownKey] || '').toLowerCase()
             return name.includes(filterText)
           })
+      // Also search aliases — if typing "straw", find alias matches and add their mapped rate card entries
+      if (filterText.length > 0 && aliases.length > 0) {
+        const aliasType = (field === 'classification' || field === 'name') ? 'labour' : 'equipment'
+        const matchedAliases = aliases.filter(a => a.alias_type === aliasType && a.original_value.toLowerCase().includes(filterText))
+        for (const alias of matchedAliases) {
+          const mappedLC = alias.mapped_value.toLowerCase().trim()
+          const alreadyInList = filtered.some(item => (item[dropdownKey] || '').toLowerCase().trim() === mappedLC)
+          if (!alreadyInList) {
+            const rateEntry = (dropdownItems || []).find(item => norm(item[dropdownKey]) === norm(alias.mapped_value))
+            if (rateEntry) {
+              filtered = [rateEntry, ...filtered]
+            }
+          }
+        }
+      }
       return (
         <td style={{ ...style, padding: 0 }} ref={dropdownRef}>
           <input
