@@ -221,25 +221,30 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
             )
             if (blockIdx >= 0) {
               blocks[blockIdx] = updatedBlock
-              await supabase.from('daily_reports')
-                .update({ activity_blocks: blocks })
-                .eq('id', inspectorReport.id)
-              for (const entry of (auditEntries || [])) {
-                await supabase.from('report_audit_log').insert({
-                  report_id: inspectorReport.id,
-                  report_date: inspectorReport.date,
-                  changed_by_name: 'Cost Control',
-                  changed_by_role: 'admin',
-                  change_type: 'reconciliation_edit',
-                  section: 'Inspector Report Panel',
-                  field_name: entry.field,
-                  old_value: String(entry.oldValue),
-                  new_value: String(entry.newValue),
-                  organization_id: organizationId
-                })
-              }
+              // Update UI immediately — don't wait for DB save
               setMatchedBlock(updatedBlock)
               setInspectorReport(prev => ({ ...prev, activity_blocks: blocks }))
+              // Save to DB and audit log in background
+              supabase.from('daily_reports')
+                .update({ activity_blocks: blocks })
+                .eq('id', inspectorReport.id)
+                .then(() => {
+                  for (const entry of (auditEntries || [])) {
+                    supabase.from('report_audit_log').insert({
+                      report_id: inspectorReport.id,
+                      report_date: inspectorReport.date,
+                      changed_by_name: 'Cost Control',
+                      changed_by_role: 'admin',
+                      change_type: 'reconciliation_edit',
+                      section: 'Inspector Report Panel',
+                      field_name: entry.field,
+                      old_value: String(entry.oldValue),
+                      new_value: String(entry.newValue),
+                      organization_id: organizationId
+                    })
+                  }
+                })
+                .catch(err => console.error('Failed to save edit:', err))
             }
           }}
           onAliasCreated={(alias) => setAliases(prev => [...prev, alias])}
