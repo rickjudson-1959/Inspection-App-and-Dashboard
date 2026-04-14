@@ -340,94 +340,140 @@ function SearchableSelect({
 // SearchableNameInput - free-text input with autocomplete dropdown
 // Allows typing new names OR selecting from known crew names
 // roster: array of { employeeName, classification } for auto-fill
+// SearchableNameInput - matches SearchableSelect styling and behavior
+// Shows roster with name + classification, auto-fills on selection
 function SearchableNameInput({ value, onChange, suggestions, roster = [], onSelectWithClassification, placeholder = 'Name', style = {} }) {
-  const [isFocused, setIsFocused] = useState(false)
+  const [isOpen, setIsOpen] = useState(false)
   const [filterText, setFilterText] = useState('')
+  const [highlightedIndex, setHighlightedIndex] = useState(0)
+  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 })
   const containerRef = React.useRef(null)
 
-  // Use roster if available, otherwise fall back to simple suggestions
   const rosterNames = roster.length > 0 ? roster : suggestions.map(n => ({ employeeName: n, classification: '' }))
 
   const filtered = rosterNames.filter(entry => {
-    const search = (filterText || value || '').toLowerCase()
-    if (!search) return true
-    return entry.employeeName.toLowerCase().includes(search)
+    if (!filterText.trim()) return true
+    const searchWords = filterText.toLowerCase().split(/\s+/).filter(w => w)
+    const nameLC = entry.employeeName.toLowerCase()
+    return searchWords.every(word => nameLC.includes(word))
   })
 
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (containerRef.current && !containerRef.current.contains(e.target)) {
-        setIsFocused(false)
+        setIsOpen(false)
         setFilterText('')
       }
     }
+    const handleScroll = () => { if (isOpen) { setIsOpen(false); setFilterText('') } }
     document.addEventListener('mousedown', handleClickOutside)
-    return () => document.removeEventListener('mousedown', handleClickOutside)
-  }, [])
+    window.addEventListener('scroll', handleScroll, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      window.removeEventListener('scroll', handleScroll, true)
+    }
+  }, [isOpen])
 
-  const showDropdown = isFocused && filtered.length > 0
+  useEffect(() => { setHighlightedIndex(0) }, [filterText])
+
+  const handleSelect = (entry) => {
+    onChange(entry.employeeName)
+    if (entry.classification && onSelectWithClassification) {
+      onSelectWithClassification(entry.employeeName, entry.classification)
+    }
+    setIsOpen(false)
+    setFilterText('')
+  }
+
+  const handleKeyDown = (e) => {
+    if (!isOpen) {
+      if (e.key === 'ArrowDown' || e.key === 'Enter') { setIsOpen(true); e.preventDefault() }
+      return
+    }
+    switch (e.key) {
+      case 'ArrowDown': setHighlightedIndex(prev => prev < filtered.length - 1 ? prev + 1 : prev); e.preventDefault(); break
+      case 'ArrowUp': setHighlightedIndex(prev => prev > 0 ? prev - 1 : 0); e.preventDefault(); break
+      case 'Enter': if (filtered[highlightedIndex]) { handleSelect(filtered[highlightedIndex]) } e.preventDefault(); break
+      case 'Escape': setIsOpen(false); setFilterText(''); break
+    }
+  }
 
   return (
     <div ref={containerRef} style={{ position: 'relative', ...style }}>
-      <input
-        type="text"
-        value={value || ''}
-        onChange={(e) => {
-          onChange(e.target.value)
-          setFilterText(e.target.value)
-          setIsFocused(true)
+      <div
+        tabIndex={0}
+        onClick={() => {
+          if (containerRef.current) {
+            const rect = containerRef.current.getBoundingClientRect()
+            setDropdownPos({ top: rect.bottom + 2, left: rect.left, width: Math.max(rect.width, 280) })
+          }
+          setIsOpen(true)
         }}
         onFocus={() => {
-          setIsFocused(true)
-          setFilterText('')
+          if (!isOpen) {
+            if (containerRef.current) {
+              const rect = containerRef.current.getBoundingClientRect()
+              setDropdownPos({ top: rect.bottom + 2, left: rect.left, width: Math.max(rect.width, 280) })
+            }
+            setIsOpen(true)
+          }
         }}
-        placeholder={placeholder}
-        style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '12px', boxSizing: 'border-box', minHeight: '38px' }}
-      />
-      {showDropdown && (
+        onKeyDown={(e) => {
+          if (!isOpen && (e.key === 'Enter' || e.key === ' ')) { setIsOpen(true); e.preventDefault() }
+        }}
+        style={{
+          width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px',
+          backgroundColor: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center',
+          justifyContent: 'space-between', boxSizing: 'border-box', minHeight: '38px'
+        }}
+      >
+        {isOpen ? (
+          <input
+            type="text"
+            value={filterText}
+            onChange={(e) => setFilterText(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Type to search..."
+            autoFocus
+            style={{ border: 'none', outline: 'none', width: '100%', fontSize: '14px', padding: 0, backgroundColor: 'transparent' }}
+          />
+        ) : (
+          <span style={{ color: value ? '#333' : '#999', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontSize: '14px' }}>
+            {value || placeholder}
+          </span>
+        )}
+        <span style={{ marginLeft: '8px', color: '#666' }}>▼</span>
+      </div>
+
+      {isOpen && (
         <div style={{
-          position: 'absolute',
-          top: '100%',
-          left: 0,
-          right: 0,
-          backgroundColor: '#fff',
-          border: '1px solid #ced4da',
-          borderRadius: '4px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          zIndex: 1000,
-          maxHeight: '250px',
-          overflowY: 'auto',
-          marginTop: '2px'
+          position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width,
+          backgroundColor: '#fff', border: '1px solid #ced4da', borderRadius: '4px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 9999, maxHeight: '250px', overflowY: 'auto'
         }}>
-          {filtered.slice(0, 30).map(entry => (
-            <div
-              key={entry.employeeName}
-              onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                onChange(entry.employeeName)
-                if (entry.classification && onSelectWithClassification) {
-                  onSelectWithClassification(entry.employeeName, entry.classification)
-                }
-                setIsFocused(false)
-                setFilterText('')
-              }}
-              style={{
-                padding: '8px 10px',
-                cursor: 'pointer',
-                backgroundColor: entry.employeeName === value ? '#e3f2fd' : '#fff',
-                borderBottom: '1px solid #f0f0f0',
-                fontSize: '12px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-              }}
-            >
-              <span style={{ fontWeight: '500' }}>{entry.employeeName}</span>
-              {entry.classification && (
-                <span style={{ fontSize: '10px', color: '#6b7280', marginLeft: 8 }}>{entry.classification}</span>
-              )}
-            </div>
-          ))}
+          {filtered.length === 0 ? (
+            <div style={{ padding: '10px', color: '#999', textAlign: 'center', fontSize: '13px' }}>No matches found</div>
+          ) : (
+            filtered.slice(0, 50).map((entry, idx) => (
+              <div
+                key={entry.employeeName}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => handleSelect(entry)}
+                onMouseEnter={() => setHighlightedIndex(idx)}
+                style={{
+                  padding: '10px 12px', cursor: 'pointer', fontSize: '13px',
+                  backgroundColor: idx === highlightedIndex ? '#e3f2fd' : entry.employeeName === value ? '#f5f5f5' : '#fff',
+                  borderBottom: idx < filtered.length - 1 ? '1px solid #f0f0f0' : 'none',
+                  display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                }}
+              >
+                <span>{entry.employeeName}</span>
+                {entry.classification && (
+                  <span style={{ fontSize: '11px', color: '#6b7280', marginLeft: 8 }}>{entry.classification}</span>
+                )}
+              </div>
+            ))
+          )}
         </div>
       )}
     </div>
