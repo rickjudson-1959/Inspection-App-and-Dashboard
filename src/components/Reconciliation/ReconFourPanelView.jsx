@@ -38,6 +38,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
   const [equipmentRates, setEquipmentRates] = useState([])
   const [aliases, setAliases] = useState([])
   const [showVariance, setShowVariance] = useState(false)
+  const [sameDayEntries, setSameDayEntries] = useState({ labour: [], equipment: [] })
 
   useEffect(() => {
     if (ticketNumber && organizationId) loadAllData()
@@ -89,6 +90,30 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
 
     setInspectorReport(foundReport)
     setMatchedBlock(foundBlock)
+
+    // --- Build same-day entries from other tickets for duplicate detection ---
+    const newSameDayEntries = { labour: [], equipment: [] }
+    if (foundReport && foundBlock) {
+      const reportDate = foundReport.date
+      for (const report of (reports || [])) {
+        if (report.date !== reportDate) continue
+        for (const b of (report.activity_blocks || [])) {
+          // Skip the current ticket's block
+          if (b.ticketNumber && String(b.ticketNumber).trim() === String(ticketNumber).trim()) continue
+          const otherTicket = b.ticketNumber || 'unknown'
+          for (const l of (b.labourEntries || [])) {
+            const name = (l.employeeName || l.employee_name || l.name || '').toLowerCase().trim()
+            if (name) newSameDayEntries.labour.push({ name, ticket: otherTicket })
+          }
+          for (const e of (b.equipmentEntries || [])) {
+            const type = (e.type || e.equipment_type || '').toLowerCase().trim()
+            const unit = (e.unitNumber || e.unit_number || '').toLowerCase().trim()
+            if (type) newSameDayEntries.equipment.push({ type, unit, ticket: otherTicket })
+          }
+        }
+      }
+    }
+    setSameDayEntries(newSameDayEntries)
 
     // --- Source 3: Inspector's ticket photo from the matched block ---
     if (foundBlock) {
@@ -213,6 +238,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
           equipmentRates={equipmentRates}
           aliases={aliases}
           organizationId={organizationId}
+          sameDayEntries={sameDayEntries}
           onBlockChange={async (updatedBlock, auditEntries) => {
             if (!inspectorReport) return
             const blocks = [...(inspectorReport.activity_blocks || [])]

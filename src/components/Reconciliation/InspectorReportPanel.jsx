@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import { supabase } from '../../supabase'
 
-export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated }) {
+export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated, sameDayEntries = { labour: [], equipment: [] } }) {
   const [editingCell, setEditingCell] = useState(null) // { section, rowIdx, field }
   const [editValue, setEditValue] = useState('')
   const [dropdownFilter, setDropdownFilter] = useState('')
@@ -143,6 +143,57 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     const dailyRate = parseFloat(rate.rate_daily || rate.rate_hourly || 0)
     const cost = dailyRate * qty
     return { rate: dailyRate, rateType: 'daily', cost }
+  }
+
+  // --- Duplicate detection ---
+  function getLabourDuplicateWarning(entry, rowIdx) {
+    const name = (entry.employeeName || entry.employee_name || entry.name || '').toLowerCase().trim()
+    if (!name) return null
+    const warnings = []
+
+    // Same ticket: check if this name appears elsewhere in this ticket's entries
+    labourEntries.forEach((other, otherIdx) => {
+      if (otherIdx === rowIdx) return
+      const otherName = (other.employeeName || other.employee_name || other.name || '').toLowerCase().trim()
+      if (otherName === name) warnings.push('Duplicate on this ticket')
+    })
+
+    // Cross-ticket same day
+    for (const other of sameDayEntries.labour) {
+      if (other.name === name) {
+        warnings.push(`Also on ticket #${other.ticket}`)
+        break
+      }
+    }
+
+    return warnings.length > 0 ? warnings.join(' | ') : null
+  }
+
+  function getEquipmentDuplicateWarning(entry, rowIdx) {
+    const type = (entry.type || entry.equipment_type || '').toLowerCase().trim()
+    const unit = (entry.unitNumber || entry.unit_number || '').toLowerCase().trim()
+    if (!type) return null
+    const warnings = []
+
+    // Same ticket: check for same type AND unit number (or just type if no unit)
+    equipmentEntries.forEach((other, otherIdx) => {
+      if (otherIdx === rowIdx) return
+      const otherType = (other.type || other.equipment_type || '').toLowerCase().trim()
+      const otherUnit = (other.unitNumber || other.unit_number || '').toLowerCase().trim()
+      if (otherType === type && (!unit || !otherUnit || otherUnit === unit)) {
+        warnings.push('Duplicate on this ticket')
+      }
+    })
+
+    // Cross-ticket same day
+    for (const other of sameDayEntries.equipment) {
+      if (other.type === type && (!unit || !other.unit || other.unit === unit)) {
+        warnings.push(`Also on ticket #${other.ticket}`)
+        break
+      }
+    }
+
+    return warnings.length > 0 ? warnings.join(' | ') : null
   }
 
   // --- Totals ---
@@ -487,39 +538,49 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
             <tbody>
               {labourEntries.map((e, i) => {
                 const lc = labourCosts[i]
+                const dupeWarning = getLabourDuplicateWarning(e, i)
                 return (
-                  <tr key={i}>
-                    {onBlockChange && (
-                      <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 28 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                          <button onClick={() => moveRow('labour', i, i - 1)} disabled={i === 0}
-                            style={{ border: 'none', background: 'none', cursor: i === 0 ? 'default' : 'pointer', fontSize: 10, color: i === 0 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9650;</button>
-                          <button onClick={() => moveRow('labour', i, i + 1)} disabled={i === labourEntries.length - 1}
-                            style={{ border: 'none', background: 'none', cursor: i === labourEntries.length - 1 ? 'default' : 'pointer', fontSize: 10, color: i === labourEntries.length - 1 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9660;</button>
-                        </div>
+                  <React.Fragment key={i}>
+                    <tr>
+                      {onBlockChange && (
+                        <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 28 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <button onClick={() => moveRow('labour', i, i - 1)} disabled={i === 0}
+                              style={{ border: 'none', background: 'none', cursor: i === 0 ? 'default' : 'pointer', fontSize: 10, color: i === 0 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9650;</button>
+                            <button onClick={() => moveRow('labour', i, i + 1)} disabled={i === labourEntries.length - 1}
+                              style={{ border: 'none', background: 'none', cursor: i === labourEntries.length - 1 ? 'default' : 'pointer', fontSize: 10, color: i === labourEntries.length - 1 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9660;</button>
+                          </div>
+                        </td>
+                      )}
+                      {renderCell('labour', i, 'name', e.employeeName || e.employee_name || e.name || '', cellStyle)}
+                      {renderCell('labour', i, 'classification', e.classification || '', { ...cellStyle, color: '#6b7280' }, true, labourRates, 'classification')}
+                      {renderCell('labour', i, 'rt', String(e.rt || e.hours || 0), { ...cellStyle, textAlign: 'right' })}
+                      <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: lc.rtRate != null ? '#166534' : '#9ca3af' }}>
+                        {lc.rtRate != null ? `${fmt(lc.rtRate)}${lc.rateType === 'weekly' ? '/day' : ''}` : '—'}
                       </td>
+                      {renderCell('labour', i, 'ot', String(e.ot || 0), { ...cellStyle, textAlign: 'right' })}
+                      <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: lc.otRate ? '#166534' : '#9ca3af' }}>
+                        {lc.otRate ? fmt(lc.otRate) : '—'}
+                      </td>
+                      {renderCell('labour', i, 'dt', String(e.dt || 0), { ...cellStyle, textAlign: 'right' })}
+                      <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: lc.dtRate ? '#166534' : '#9ca3af' }}>
+                        {lc.dtRate ? fmt(lc.dtRate) : '—'}
+                      </td>
+                      <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: '#166534' }}>
+                        {lc.subs ? fmt(lc.subs) : '—'}
+                      </td>
+                      <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', color: lc.rtRate != null ? '#166534' : '#9ca3af' }}>
+                        {fmt(lc.cost)}
+                      </td>
+                    </tr>
+                    {dupeWarning && (
+                      <tr>
+                        <td colSpan={onBlockChange ? 11 : 10} style={{ padding: '2px 6px', fontSize: 11, color: '#dc2626', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
+                          &#9888; {dupeWarning}
+                        </td>
+                      </tr>
                     )}
-                    {renderCell('labour', i, 'name', e.employeeName || e.employee_name || e.name || '', cellStyle)}
-                    {renderCell('labour', i, 'classification', e.classification || '', { ...cellStyle, color: '#6b7280' }, true, labourRates, 'classification')}
-                    {renderCell('labour', i, 'rt', String(e.rt || e.hours || 0), { ...cellStyle, textAlign: 'right' })}
-                    <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: lc.rtRate != null ? '#166534' : '#9ca3af' }}>
-                      {lc.rtRate != null ? `${fmt(lc.rtRate)}${lc.rateType === 'weekly' ? '/day' : ''}` : '—'}
-                    </td>
-                    {renderCell('labour', i, 'ot', String(e.ot || 0), { ...cellStyle, textAlign: 'right' })}
-                    <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: lc.otRate ? '#166534' : '#9ca3af' }}>
-                      {lc.otRate ? fmt(lc.otRate) : '—'}
-                    </td>
-                    {renderCell('labour', i, 'dt', String(e.dt || 0), { ...cellStyle, textAlign: 'right' })}
-                    <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: lc.dtRate ? '#166534' : '#9ca3af' }}>
-                      {lc.dtRate ? fmt(lc.dtRate) : '—'}
-                    </td>
-                    <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: '#166534' }}>
-                      {lc.subs ? fmt(lc.subs) : '—'}
-                    </td>
-                    <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', color: lc.rtRate != null ? '#166534' : '#9ca3af' }}>
-                      {fmt(lc.cost)}
-                    </td>
-                  </tr>
+                  </React.Fragment>
                 )
               })}
             </tbody>
@@ -580,28 +641,38 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
             <tbody>
               {equipmentEntries.map((e, i) => {
                 const { rate, cost } = equipmentCosts[i]
+                const dupeWarning = getEquipmentDuplicateWarning(e, i)
                 return (
-                  <tr key={i}>
-                    {onBlockChange && (
-                      <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 28 }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                          <button onClick={() => moveRow('equipment', i, i - 1)} disabled={i === 0}
-                            style={{ border: 'none', background: 'none', cursor: i === 0 ? 'default' : 'pointer', fontSize: 10, color: i === 0 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9650;</button>
-                          <button onClick={() => moveRow('equipment', i, i + 1)} disabled={i === equipmentEntries.length - 1}
-                            style={{ border: 'none', background: 'none', cursor: i === equipmentEntries.length - 1 ? 'default' : 'pointer', fontSize: 10, color: i === equipmentEntries.length - 1 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9660;</button>
-                        </div>
+                  <React.Fragment key={i}>
+                    <tr>
+                      {onBlockChange && (
+                        <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 28 }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                            <button onClick={() => moveRow('equipment', i, i - 1)} disabled={i === 0}
+                              style={{ border: 'none', background: 'none', cursor: i === 0 ? 'default' : 'pointer', fontSize: 10, color: i === 0 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9650;</button>
+                            <button onClick={() => moveRow('equipment', i, i + 1)} disabled={i === equipmentEntries.length - 1}
+                              style={{ border: 'none', background: 'none', cursor: i === equipmentEntries.length - 1 ? 'default' : 'pointer', fontSize: 10, color: i === equipmentEntries.length - 1 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9660;</button>
+                          </div>
+                        </td>
+                      )}
+                      {renderCell('equipment', i, 'type', e.type || e.equipment_type || '', cellStyle, true, equipmentRates, equipmentRates[0]?.equipment_type ? 'equipment_type' : 'type')}
+                      {renderCell('equipment', i, 'unitNumber', e.unitNumber || e.unit_number || '', cellStyle)}
+                      {renderCell('equipment', i, 'hours', String(e.hours || 0), { ...cellStyle, textAlign: 'right' })}
+                      <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: rate != null ? '#166534' : '#9ca3af', fontStyle: rate != null ? 'normal' : 'italic' }}>
+                        {rate != null ? `${fmt(rate)}/day` : 'No rate found'}
                       </td>
+                      <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', color: rate != null ? '#166534' : '#9ca3af' }}>
+                        {fmt(cost)}
+                      </td>
+                    </tr>
+                    {dupeWarning && (
+                      <tr>
+                        <td colSpan={onBlockChange ? 6 : 5} style={{ padding: '2px 6px', fontSize: 11, color: '#dc2626', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
+                          &#9888; {dupeWarning}
+                        </td>
+                      </tr>
                     )}
-                    {renderCell('equipment', i, 'type', e.type || e.equipment_type || '', cellStyle, true, equipmentRates, equipmentRates[0]?.equipment_type ? 'equipment_type' : 'type')}
-                    {renderCell('equipment', i, 'unitNumber', e.unitNumber || e.unit_number || '', cellStyle)}
-                    {renderCell('equipment', i, 'hours', String(e.hours || 0), { ...cellStyle, textAlign: 'right' })}
-                    <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: rate != null ? '#166534' : '#9ca3af', fontStyle: rate != null ? 'normal' : 'italic' }}>
-                      {rate != null ? `${fmt(rate)}/day` : 'No rate found'}
-                    </td>
-                    <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', color: rate != null ? '#166534' : '#9ca3af' }}>
-                      {fmt(cost)}
-                    </td>
-                  </tr>
+                  </React.Fragment>
                 )
               })}
             </tbody>

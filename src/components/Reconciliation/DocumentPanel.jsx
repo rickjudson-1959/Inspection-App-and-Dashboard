@@ -42,6 +42,7 @@ export default function DocumentPanel({
   organizationId,
   onBlockChange,
   onAliasCreated,
+  sameDayEntries,
 }) {
   const [currentPage, setCurrentPage] = useState(0)
   const [zoom, setZoom] = useState(1)
@@ -118,6 +119,7 @@ export default function DocumentPanel({
           organizationId={organizationId}
           onBlockChange={onBlockChange}
           onAliasCreated={onAliasCreated}
+          sameDayEntries={sameDayEntries || { labour: [], equipment: [] }}
         />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '180px', gap: '8px' }}>
