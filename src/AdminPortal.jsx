@@ -30,6 +30,7 @@ import { saveAs } from 'file-saver'
 import MeetingAgendaGenerator from './components/MeetingAgendaGenerator.jsx'
 import ProjectCalendar from './components/ProjectCalendar.jsx'
 import ContractorProfileWizard from './components/ContractorProfileWizard.jsx'
+import KMZUpload from './KMZUpload.jsx'
 
 function AdminPortal() {
   const navigate = useNavigate()
@@ -4436,6 +4437,22 @@ function AdminPortal() {
               }}>
                 <h3 style={{ margin: '0 0 15px 0', color: '#1976d2' }}>📊 Daily Progress Report Configuration</h3>
                 <DPRConfig />
+              </div>
+            )}
+
+            {/* Pipeline KMZ Files */}
+            {selectedOrgForSetup && (
+              <div style={{
+                backgroundColor: 'white',
+                padding: '20px',
+                borderRadius: '8px',
+                marginTop: '20px',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                border: '2px solid #17a2b8'
+              }}>
+                <h3 style={{ margin: '0 0 15px 0', color: '#17a2b8' }}>🗺️ Pipeline KMZ Files</h3>
+                <p style={{ color: '#666', fontSize: '13px', marginBottom: '15px' }}>Upload KMZ files for pipeline centerline, as-built, and KP reference data.</p>
+                <KMZUpload organizationId={selectedOrgForSetup} />
               </div>
             )}
 
