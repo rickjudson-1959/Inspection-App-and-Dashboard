@@ -565,6 +565,7 @@ export default async function handler(req, res) {
       route_name,
       organization_id: orgId,
       layer_type: rpcResult.layer_type,
+      superseded_route_id: rpcResult.superseded_route_id || null,
       counts: rpcResult.counts,
       metadata: parsed.metadata,
       summary: `Parsed ${totalClassified + parsed.unclassified.length} features. ${parsed.unclassified.length} unclassified${parsed.unclassified.length > 0 ? ' — review before using.' : '.'}`,
