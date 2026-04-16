@@ -8,6 +8,9 @@ export default function KMZUpload({ organizationId }) {
   const [error, setError] = useState('')
   const [dragOver, setDragOver] = useState(false)
   const [description, setDescription] = useState('')
+  const [groupName, setGroupName] = useState('')
+  const [selectedGroup, setSelectedGroup] = useState('__new__')
+  const [expandedGroups, setExpandedGroups] = useState({})
   const fileInputRef = useRef(null)
 
   useEffect(() => {
@@ -21,10 +24,20 @@ export default function KMZUpload({ organizationId }) {
       .select('*')
       .eq('organization_id', organizationId)
       .eq('is_active', true)
-      .order('uploaded_at', { ascending: false })
+      .order('group_name', { ascending: true })
+      .order('revision', { ascending: false })
     setFiles(data || [])
     setLoading(false)
   }
+
+  // Group files by group_name
+  const groups = {}
+  for (const f of files) {
+    const gn = f.group_name || f.filename
+    if (!groups[gn]) groups[gn] = []
+    groups[gn].push(f)
+  }
+  const groupNames = Object.keys(groups).sort()
 
   async function handleUpload(file) {
     if (!file || !file.name.toLowerCase().endsWith('.kmz')) {
@@ -32,11 +45,19 @@ export default function KMZUpload({ organizationId }) {
       return
     }
 
+    const isNewGroup = selectedGroup === '__new__'
+    const gn = isNewGroup ? (groupName.trim() || file.name.replace('.kmz', '')) : selectedGroup
+
+    if (!gn) {
+      setError('Please enter a group name or select an existing group')
+      return
+    }
+
     setUploading(true)
     setError('')
 
     try {
-      const path = `${organizationId}/${file.name}`
+      const path = `${organizationId}/${Date.now()}_${file.name}`
 
       // Upload to storage
       const { error: uploadError } = await supabase.storage
@@ -45,20 +66,37 @@ export default function KMZUpload({ organizationId }) {
 
       if (uploadError) throw uploadError
 
-      // Get public URL
-      const { data: urlData } = supabase.storage.from('kmz-files').getPublicUrl(path)
+      // Calculate next revision number
+      const existingInGroup = groups[gn] || []
+      const maxRev = existingInGroup.reduce((max, f) => Math.max(max, f.revision || 0), -1)
+      const nextRev = maxRev + 1
 
-      // Save record
+      // Mark all previous revisions in this group as not current
+      if (existingInGroup.length > 0) {
+        const ids = existingInGroup.filter(f => f.is_current).map(f => f.id)
+        if (ids.length > 0) {
+          for (const id of ids) {
+            await supabase.from('kmz_uploads').update({ is_current: false }).eq('id', id)
+          }
+        }
+      }
+
+      // Insert new record as current
       const { error: dbError } = await supabase.from('kmz_uploads').insert({
         organization_id: organizationId,
         filename: file.name,
         storage_path: path,
         description: description || file.name,
+        group_name: gn,
+        revision: nextRev,
+        is_current: true,
       })
 
       if (dbError) throw dbError
 
       setDescription('')
+      setGroupName('')
+      setSelectedGroup('__new__')
       await loadFiles()
     } catch (err) {
       setError('Upload failed: ' + err.message)
@@ -67,11 +105,24 @@ export default function KMZUpload({ organizationId }) {
   }
 
   async function handleDelete(kmzFile) {
-    if (!confirm(`Remove "${kmzFile.filename}"?`)) return
+    if (!confirm(`Remove "${kmzFile.filename}" (Rev ${kmzFile.revision})?`)) return
     await supabase.from('kmz_uploads')
       .update({ is_active: false })
       .eq('id', kmzFile.id)
+
+    // If this was the current revision, make the previous one current
+    if (kmzFile.is_current && kmzFile.group_name) {
+      const group = (groups[kmzFile.group_name] || []).filter(f => f.id !== kmzFile.id && f.is_active)
+      if (group.length > 0) {
+        const newest = group.sort((a, b) => (b.revision || 0) - (a.revision || 0))[0]
+        await supabase.from('kmz_uploads').update({ is_current: true }).eq('id', newest.id)
+      }
+    }
     await loadFiles()
+  }
+
+  function toggleGroup(gn) {
+    setExpandedGroups(prev => ({ ...prev, [gn]: !prev[gn] }))
   }
 
   function handleDrop(e) {
@@ -89,99 +140,179 @@ export default function KMZUpload({ organizationId }) {
 
   return (
     <div>
-      {/* Existing files */}
+      {/* Existing files grouped by group_name */}
       {loading ? (
         <p style={{ color: '#666', fontSize: '13px' }}>Loading KMZ files...</p>
-      ) : files.length > 0 ? (
+      ) : groupNames.length > 0 ? (
         <div style={{ marginBottom: '16px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#f8f9fa', borderBottom: '2px solid #dee2e6' }}>
-                <th style={{ padding: '8px', textAlign: 'left' }}>Filename</th>
-                <th style={{ padding: '8px', textAlign: 'left' }}>Description</th>
-                <th style={{ padding: '8px', textAlign: 'left' }}>Uploaded</th>
-                <th style={{ padding: '8px', textAlign: 'center', width: '80px' }}>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {files.map(f => {
-                const { data: urlData } = supabase.storage.from('kmz-files').getPublicUrl(f.storage_path)
-                return (
-                  <tr key={f.id} style={{ borderBottom: '1px solid #dee2e6' }}>
-                    <td style={{ padding: '8px' }}>
+          {groupNames.map(gn => {
+            const groupFiles = groups[gn]
+            const current = groupFiles.find(f => f.is_current) || groupFiles[0]
+            const history = groupFiles.filter(f => f.id !== current.id)
+            const isExpanded = expandedGroups[gn]
+            const { data: urlData } = supabase.storage.from('kmz-files').getPublicUrl(current.storage_path)
+
+            return (
+              <div key={gn} style={{ marginBottom: '8px', border: '1px solid #dee2e6', borderRadius: '6px', overflow: 'hidden' }}>
+                {/* Current revision header */}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 12px', backgroundColor: '#f8f9fa' }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: '600', fontSize: '13px', color: '#333' }}>{gn}</div>
+                    <div style={{ fontSize: '12px', color: '#666', marginTop: '2px' }}>
                       <a href={urlData?.publicUrl} download style={{ color: '#007bff', textDecoration: 'none' }}>
-                        {f.filename}
+                        {current.filename}
                       </a>
-                    </td>
-                    <td style={{ padding: '8px', color: '#666' }}>{f.description || '—'}</td>
-                    <td style={{ padding: '8px', color: '#666', fontSize: '12px' }}>
-                      {new Date(f.uploaded_at).toLocaleDateString()}
-                    </td>
-                    <td style={{ padding: '8px', textAlign: 'center' }}>
+                      <span style={{ marginLeft: '8px', padding: '1px 6px', borderRadius: '10px', backgroundColor: '#d4edda', color: '#155724', fontSize: '10px', fontWeight: '600' }}>
+                        Rev {current.revision}
+                      </span>
+                      <span style={{ marginLeft: '8px', color: '#999', fontSize: '11px' }}>
+                        {new Date(current.uploaded_at).toLocaleDateString()}
+                      </span>
+                    </div>
+                    {current.description && current.description !== current.filename && (
+                      <div style={{ fontSize: '11px', color: '#888', marginTop: '2px' }}>{current.description}</div>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    {history.length > 0 && (
                       <button
-                        onClick={() => handleDelete(f)}
-                        style={{ padding: '4px 8px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                        onClick={() => toggleGroup(gn)}
+                        style={{ padding: '4px 8px', backgroundColor: '#6c757d', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
                       >
-                        Remove
+                        {isExpanded ? 'Hide' : `${history.length} prev`}
                       </button>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                    )}
+                    <button
+                      onClick={() => handleDelete(current)}
+                      style={{ padding: '4px 8px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+
+                {/* Previous revisions (expandable) */}
+                {isExpanded && history.length > 0 && (
+                  <div style={{ borderTop: '1px solid #dee2e6' }}>
+                    {history.map(f => {
+                      const { data: hUrl } = supabase.storage.from('kmz-files').getPublicUrl(f.storage_path)
+                      return (
+                        <div key={f.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 12px 6px 24px', backgroundColor: '#fff', borderBottom: '1px solid #f0f0f0' }}>
+                          <div style={{ fontSize: '12px' }}>
+                            <a href={hUrl?.publicUrl} download style={{ color: '#6c757d', textDecoration: 'none' }}>
+                              {f.filename}
+                            </a>
+                            <span style={{ marginLeft: '8px', padding: '1px 6px', borderRadius: '10px', backgroundColor: '#e9ecef', color: '#6c757d', fontSize: '10px' }}>
+                              Rev {f.revision}
+                            </span>
+                            <span style={{ marginLeft: '8px', color: '#999', fontSize: '11px' }}>
+                              {new Date(f.uploaded_at).toLocaleDateString()}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleDelete(f)}
+                            style={{ padding: '2px 6px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '3px', cursor: 'pointer', fontSize: '10px' }}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
         </div>
       ) : (
         <p style={{ color: '#999', fontSize: '13px', fontStyle: 'italic', marginBottom: '16px' }}>No KMZ files uploaded yet</p>
       )}
 
-      {/* Description input */}
-      <div style={{ marginBottom: '10px' }}>
-        <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>Description (optional)</label>
-        <input
-          type="text"
-          value={description}
-          onChange={e => setDescription(e.target.value)}
-          placeholder="e.g., North Line As-Built April 2026"
-          style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box', fontSize: '13px' }}
-        />
-      </div>
+      {/* Upload section */}
+      <div style={{ backgroundColor: '#f8f9fa', padding: '14px', borderRadius: '6px', border: '1px solid #dee2e6' }}>
+        {/* Group selector */}
+        <div style={{ display: 'flex', gap: '10px', marginBottom: '10px', flexWrap: 'wrap', alignItems: 'end' }}>
+          <div style={{ flex: 1, minWidth: '200px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>
+              Add to group
+            </label>
+            <select
+              value={selectedGroup}
+              onChange={e => setSelectedGroup(e.target.value)}
+              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', fontSize: '13px', boxSizing: 'border-box' }}
+            >
+              <option value="__new__">+ New group...</option>
+              {groupNames.map(gn => (
+                <option key={gn} value={gn}>{gn} (Rev {(groups[gn]?.[0]?.revision || 0)})</option>
+              ))}
+            </select>
+          </div>
 
-      {/* Upload zone */}
-      <div
-        onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-        onClick={() => fileInputRef.current?.click()}
-        style={{
-          border: `2px dashed ${dragOver ? '#28a745' : '#ced4da'}`,
-          borderRadius: '8px',
-          padding: '30px 20px',
-          textAlign: 'center',
-          backgroundColor: dragOver ? '#f0fff0' : '#f8f9fa',
-          cursor: 'pointer',
-          transition: 'all 0.2s'
-        }}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".kmz"
-          onChange={handleFileSelect}
-          style={{ display: 'none' }}
-        />
-        {uploading ? (
-          <p style={{ color: '#28a745', fontWeight: '600', margin: 0 }}>Uploading...</p>
-        ) : (
-          <>
-            <p style={{ fontSize: '14px', color: '#333', margin: '0 0 4px 0', fontWeight: '600' }}>
-              Drop a .kmz file here or click to browse
-            </p>
-            <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>
-              Pipeline centerline, as-built, or KP reference files
-            </p>
-          </>
-        )}
+          {selectedGroup === '__new__' && (
+            <div style={{ flex: 1, minWidth: '200px' }}>
+              <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>
+                Group name
+              </label>
+              <input
+                type="text"
+                value={groupName}
+                onChange={e => setGroupName(e.target.value)}
+                placeholder="e.g., North Line As-Built"
+                style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box', fontSize: '13px' }}
+              />
+            </div>
+          )}
+
+          <div style={{ flex: 1, minWidth: '200px' }}>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>
+              Description (optional)
+            </label>
+            <input
+              type="text"
+              value={description}
+              onChange={e => setDescription(e.target.value)}
+              placeholder="e.g., Updated with crossings"
+              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box', fontSize: '13px' }}
+            />
+          </div>
+        </div>
+
+        {/* Drop zone */}
+        <div
+          onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+          onDragLeave={() => setDragOver(false)}
+          onDrop={handleDrop}
+          onClick={() => fileInputRef.current?.click()}
+          style={{
+            border: `2px dashed ${dragOver ? '#28a745' : '#ced4da'}`,
+            borderRadius: '8px',
+            padding: '24px 20px',
+            textAlign: 'center',
+            backgroundColor: dragOver ? '#f0fff0' : '#fff',
+            cursor: 'pointer',
+            transition: 'all 0.2s'
+          }}
+        >
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".kmz"
+            onChange={handleFileSelect}
+            style={{ display: 'none' }}
+          />
+          {uploading ? (
+            <p style={{ color: '#28a745', fontWeight: '600', margin: 0 }}>Uploading...</p>
+          ) : (
+            <>
+              <p style={{ fontSize: '14px', color: '#333', margin: '0 0 4px 0', fontWeight: '600' }}>
+                Drop a .kmz file here or click to browse
+              </p>
+              <p style={{ fontSize: '12px', color: '#666', margin: 0 }}>
+                {selectedGroup === '__new__' ? 'Creates a new file group' : `Adds as Rev ${((groups[selectedGroup]?.[0]?.revision || 0) + 1)} to "${selectedGroup}"`}
+              </p>
+            </>
+          )}
+        </div>
       </div>
 
       {error && (
