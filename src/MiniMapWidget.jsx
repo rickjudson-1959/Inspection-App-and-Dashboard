@@ -1,60 +1,204 @@
 // MiniMapWidget.jsx - Compact Pipeline Map for Inspector Report
-// Shows current work area and GPS location with REAL EGP survey data
+// Shows current work area and GPS location with pipeline route data from DB
 
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef, useCallback } from 'react'
 import { MapContainer, TileLayer, Marker, Popup, Polyline, Circle, CircleMarker, Polygon, useMap } from 'react-leaflet'
 import L from 'leaflet'
 import 'leaflet/dist/leaflet.css'
-
-// Import actual EGP route data extracted from FortisBC KMZ files
-import EGP_ROUTE_DATA from './egpRouteData.js'
+import { supabase } from './supabase'
+import { useOrgQuery } from './utils/queryHelpers.js'
 
 // Import regulatory zone data for overlay
 import { REGULATORY_ZONES, ZONE_TYPE_CONFIG } from './regulatoryZones.js'
 
-// =====================================================
-// EGP PIPELINE ROUTE DATA (from FortisBC Provisional Asbuilt KMZ)
-// North Line: KP 0+000 to KP 38+470
-// 774 centerline points, 367 KP markers, 451 welds, 248 bends
-// =====================================================
+// Empty defaults for route data while loading
+const EMPTY_ROUTE_DATA = {
+  centerline: [],
+  kpMarkers: [],
+  welds: [],
+  bends: [],
+  footprint: [],
+  openEnds: [],
+  boreFaces: [],
+  sagBends: [],
+  kpRoute: [],
+  defaultCenter: [49.60, -123.00],
+}
 
-// Convert route coordinates to format used by map
-const egpRouteCoordinates = EGP_ROUTE_DATA.route.coordinates
+// Hook: load pipeline route data from Supabase
+function useRouteData(organizationId) {
+  const cacheRef = useRef({ orgId: null, data: null })
+  const [routeData, setRouteData] = useState(EMPTY_ROUTE_DATA)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [alignmentStatus, setAlignmentStatus] = useState(null) // 'loaded' | 'missing'
+  const [constructionStatus, setConstructionStatus] = useState(null)
 
-// KP markers from survey data
-const egpKPMarkers = EGP_ROUTE_DATA.kpMarkers
+  useEffect(() => {
+    if (!organizationId) {
+      setLoading(false)
+      return
+    }
 
-// Welds and bends for display
-const egpWelds = EGP_ROUTE_DATA.welds
-const egpBends = EGP_ROUTE_DATA.bends
+    // Return cached data if same org
+    if (cacheRef.current.orgId === organizationId && cacheRef.current.data) {
+      setRouteData(cacheRef.current.data)
+      setLoading(false)
+      return
+    }
 
-// Actual construction footprint polygons from survey (248 polygons)
-const egpFootprint = EGP_ROUTE_DATA.footprint || []
+    let cancelled = false
 
-// Open ends from asbuilt survey (36 open ends)
-const egpOpenEnds = EGP_ROUTE_DATA.openEnds || []
+    async function loadRouteData() {
+      setLoading(true)
+      setError(null)
+      try {
+        // 1. Get active routes
+        const { data: routes, error: routesErr } = await supabase
+          .from('pipeline_routes')
+          .select('id, name, layer_type, default_center_lat, default_center_lng')
+          .eq('organization_id', organizationId)
+          .eq('is_active', true)
 
-// Bore faces - HDD entry/exit points (2 points)
-const egpBoreFaces = EGP_ROUTE_DATA.boreFaces || []
+        if (routesErr) throw routesErr
+        if (cancelled) return
 
-// Sag bends - vertical bends (108 bends)
-const egpSagBends = EGP_ROUTE_DATA.sagBends || []
+        const alignmentRoute = (routes || []).find(r => r.layer_type === 'alignment')
+        const constructionRoute = (routes || []).find(r => r.layer_type === 'construction')
 
-// Create route array with KP values for interpolation
-const egpFullRoute = egpKPMarkers.map(m => ({
-  lat: m.lat,
-  lon: m.lon,
-  kp: m.kp,
-  label: m.name
-}))
+        setAlignmentStatus(alignmentRoute ? 'loaded' : 'missing')
+        setConstructionStatus(constructionRoute ? 'loaded' : 'missing')
 
-// Legacy routes for backward compatibility
-const demoPipelineRoute = egpFullRoute
-const northernPipelineRoute = egpFullRoute
+        // If no routes at all, return empty
+        if (!alignmentRoute && !constructionRoute) {
+          const emptyResult = { ...EMPTY_ROUTE_DATA }
+          cacheRef.current = { orgId: organizationId, data: emptyResult }
+          setRouteData(emptyResult)
+          setLoading(false)
+          return
+        }
 
-// Get pipeline start and end points
-const pipelineStart = egpKPMarkers.length > 0 ? egpKPMarkers[0] : null
-const pipelineEnd = egpKPMarkers.length > 0 ? egpKPMarkers[egpKPMarkers.length - 1] : null
+        // 2. Load all features in parallel
+        const centerlineRouteId = (constructionRoute || alignmentRoute).id
+        const [clRes, kpRes, wRes, bRes, fpRes, oeRes, bfRes, sbRes] = await Promise.all([
+          // Centerline: prefer construction, fall back to alignment
+          supabase.from('route_centerline').select('lat, lng, elevation').eq('route_id', centerlineRouteId).order('seq'),
+          // KP markers: from alignment
+          alignmentRoute
+            ? supabase.from('route_kp_markers').select('kp, lat, lng, label').eq('route_id', alignmentRoute.id).order('kp')
+            : Promise.resolve({ data: [] }),
+          // Welds: from construction
+          constructionRoute
+            ? supabase.from('route_welds').select('weld_id, kp, lat, lng, weld_type, properties').eq('route_id', constructionRoute.id)
+            : Promise.resolve({ data: [] }),
+          // Bends: from construction
+          constructionRoute
+            ? supabase.from('route_bends').select('bend_id, kp, lat, lng, bend_type, properties').eq('route_id', constructionRoute.id)
+            : Promise.resolve({ data: [] }),
+          // Footprint: from alignment
+          alignmentRoute
+            ? supabase.from('route_footprint').select('name, polygon, properties').eq('route_id', alignmentRoute.id)
+            : Promise.resolve({ data: [] }),
+          // Open ends: from construction
+          constructionRoute
+            ? supabase.from('route_open_ends').select('name, kp, lat, lng, end_type, properties').eq('route_id', constructionRoute.id)
+            : Promise.resolve({ data: [] }),
+          // Bore faces: from construction
+          constructionRoute
+            ? supabase.from('route_bore_faces').select('name, kp, lat, lng, face_type, properties').eq('route_id', constructionRoute.id)
+            : Promise.resolve({ data: [] }),
+          // Sag bends: from construction
+          constructionRoute
+            ? supabase.from('route_sag_bends').select('name, kp, lat, lng, properties').eq('route_id', constructionRoute.id)
+            : Promise.resolve({ data: [] }),
+        ])
+
+        if (cancelled) return
+
+        // 3. Map DB fields to component fields (lng -> lon)
+        const kpMarkers = (kpRes.data || []).map(m => ({
+          name: m.label || `KP ${m.kp}`,
+          kp: m.kp,
+          lat: m.lat,
+          lon: m.lng
+        }))
+
+        const kpRoute = kpMarkers.map(m => ({
+          lat: m.lat,
+          lon: m.lon,
+          kp: m.kp,
+          label: m.name
+        }))
+
+        // Default center from the route row, or first KP marker, or fallback
+        const sourceRoute = constructionRoute || alignmentRoute
+        let defaultCenter = [49.60, -123.00]
+        if (sourceRoute?.default_center_lat && sourceRoute?.default_center_lng) {
+          defaultCenter = [sourceRoute.default_center_lat, sourceRoute.default_center_lng]
+        } else if (kpMarkers.length > 0) {
+          const mid = kpMarkers[Math.floor(kpMarkers.length / 2)]
+          defaultCenter = [mid.lat, mid.lon]
+        }
+
+        const result = {
+          centerline: (clRes.data || []).map(p => ({ lat: p.lat, lon: p.lng })),
+          kpMarkers,
+          welds: (wRes.data || []).map(w => ({
+            station: w.weld_id || '',
+            lat: w.lat,
+            lon: w.lng,
+            description: w.properties?.description || w.weld_type || '',
+            type: w.weld_type || ''
+          })),
+          bends: (bRes.data || []).map(b => ({
+            station: b.bend_id || '',
+            lat: b.lat,
+            lon: b.lng,
+            description: b.properties?.description || b.bend_type || '',
+            type: b.bend_type || ''
+          })),
+          footprint: (fpRes.data || []).map(f => f.polygon || []),
+          openEnds: (oeRes.data || []).map(o => ({
+            station: o.name || '',
+            lat: o.lat,
+            lon: o.lng,
+            description: o.properties?.description || '',
+            type: o.end_type || ''
+          })),
+          boreFaces: (bfRes.data || []).map(b => ({
+            station: b.name || '',
+            lat: b.lat,
+            lon: b.lng,
+            description: b.properties?.description || '',
+            type: b.face_type || ''
+          })),
+          sagBends: (sbRes.data || []).map(s => ({
+            station: s.name || '',
+            lat: s.lat,
+            lon: s.lng,
+            description: s.properties?.description || '',
+            type: 'Bend-Sag'
+          })),
+          kpRoute,
+          defaultCenter,
+        }
+
+        cacheRef.current = { orgId: organizationId, data: result }
+        setRouteData(result)
+      } catch (err) {
+        console.error('MiniMapWidget: failed to load route data', err)
+        if (!cancelled) setError(err.message || 'Failed to load route data')
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+
+    loadRouteData()
+    return () => { cancelled = true }
+  }, [organizationId])
+
+  return { routeData, loading, error, alignmentStatus, constructionStatus }
+}
 
 // Parse KP string to km value
 function parseKPToKm(kpString) {
@@ -148,6 +292,9 @@ export default function MiniMapWidget({
   height = '250px',
   regulatoryZones
 }) {
+  const { organizationId } = useOrgQuery()
+  const { routeData, loading: routeLoading, error: routeError, alignmentStatus, constructionStatus } = useRouteData(organizationId)
+
   const [expanded, setExpanded] = useState(true)
   const [userLocation, setUserLocation] = useState(null)
   const [locating, setLocating] = useState(false)
@@ -170,6 +317,12 @@ export default function MiniMapWidget({
 
   // Use prop zones if provided, fall back to static import
   const zones = regulatoryZones || REGULATORY_ZONES
+
+  // Derived data from DB route data
+  const route = routeData.kpRoute               // KP markers as route for interpolation
+  const routeCoords = routeData.centerline.map(p => [p.lat, p.lon])
+  const pipelineStart = routeData.kpMarkers.length > 0 ? routeData.kpMarkers[0] : null
+  const pipelineEnd = routeData.kpMarkers.length > 0 ? routeData.kpMarkers[routeData.kpMarkers.length - 1] : null
 
   // Create icons using useMemo to avoid recreation on each render
   const workAreaIcon = useMemo(() => L.divIcon({
@@ -197,21 +350,15 @@ export default function MiniMapWidget({
     popupAnchor: [0, -12]
   }), [])
 
-  // Select route based on pipeline (both use EGP data now)
-  const route = egpFullRoute
-  
-  // Use actual centerline coordinates for the polyline (774 points)
-  const routeCoords = egpRouteCoordinates.map(p => [p.lat, p.lon])
-
   // Calculate work area positions
   const startKPValue = parseKPToKm(startKP)
   const endKPValue = parseKPToKm(endKP)
-  
-  const startPosition = startKPValue !== null ? interpolatePosition(route, startKPValue) : null
-  const endPosition = endKPValue !== null ? interpolatePosition(route, endKPValue) : null
+
+  const startPosition = startKPValue !== null && route.length > 0 ? interpolatePosition(route, startKPValue) : null
+  const endPosition = endKPValue !== null && route.length > 0 ? interpolatePosition(route, endKPValue) : null
 
   // Calculate center and bounds
-  let center = [49.60, -123.00] // Default: EGP North Line mid-point
+  let center = routeData.defaultCenter
   let bounds = null
   
   if (startPosition && endPosition) {
@@ -342,8 +489,8 @@ export default function MiniMapWidget({
         }
         setUserLocation(loc)
         
-        // Find nearest KP
-        const nearest = findNearestKP(loc.lat, loc.lon, route)
+        // Find nearest KP (skip if route not loaded yet)
+        const nearest = route.length > 0 ? findNearestKP(loc.lat, loc.lon, route) : null
         setGpsKP(nearest)
         
         // Callback to parent
@@ -468,7 +615,7 @@ export default function MiniMapWidget({
                 checked={showKPMarkers} 
                 onChange={(e) => setShowKPMarkers(e.target.checked)}
               />
-              <span style={{ color: '#007bff' }}>KP ({egpKPMarkers.length})</span>
+              <span style={{ color: '#007bff' }}>KP ({routeData.kpMarkers.length})</span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <input 
@@ -476,7 +623,7 @@ export default function MiniMapWidget({
                 checked={showWelds} 
                 onChange={(e) => setShowWelds(e.target.checked)}
               />
-              <span style={{ color: '#dc3545' }}>Welds ({egpWelds.length})</span>
+              <span style={{ color: '#dc3545' }}>Welds ({routeData.welds.length})</span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <input 
@@ -484,7 +631,7 @@ export default function MiniMapWidget({
                 checked={showBends} 
                 onChange={(e) => setShowBends(e.target.checked)}
               />
-              <span style={{ color: '#fd7e14' }}>Bends ({egpBends.length})</span>
+              <span style={{ color: '#fd7e14' }}>Bends ({routeData.bends.length})</span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <input 
@@ -492,7 +639,7 @@ export default function MiniMapWidget({
                 checked={showROW} 
                 onChange={(e) => setShowROW(e.target.checked)}
               />
-              <span style={{ color: '#9b59b6' }}>Footprint ({egpFootprint.length})</span>
+              <span style={{ color: '#9b59b6' }}>Footprint ({routeData.footprint.length})</span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <input 
@@ -500,7 +647,7 @@ export default function MiniMapWidget({
                 checked={showOpenEnds} 
                 onChange={(e) => setShowOpenEnds(e.target.checked)}
               />
-              <span style={{ color: '#e74c3c' }}>Open Ends ({egpOpenEnds.length})</span>
+              <span style={{ color: '#e74c3c' }}>Open Ends ({routeData.openEnds.length})</span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <input 
@@ -508,7 +655,7 @@ export default function MiniMapWidget({
                 checked={showBoreFaces} 
                 onChange={(e) => setShowBoreFaces(e.target.checked)}
               />
-              <span style={{ color: '#00bcd4' }}>HDD ({egpBoreFaces.length})</span>
+              <span style={{ color: '#00bcd4' }}>HDD ({routeData.boreFaces.length})</span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
               <input
@@ -516,7 +663,7 @@ export default function MiniMapWidget({
                 checked={showSagBends}
                 onChange={(e) => setShowSagBends(e.target.checked)}
               />
-              <span style={{ color: '#795548' }}>Sag Bends ({egpSagBends.length})</span>
+              <span style={{ color: '#795548' }}>Sag Bends ({routeData.sagBends.length})</span>
             </label>
             <span style={{ borderLeft: '1px solid #ccc', height: '14px' }} />
             <label style={{ display: 'flex', alignItems: 'center', gap: '3px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
@@ -547,6 +694,32 @@ export default function MiniMapWidget({
             </div>
           ))}
 
+          {/* Loading overlay */}
+          {routeLoading && (
+            <div style={{
+              position: 'absolute',
+              top: 0, left: 0, right: 0, bottom: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              backgroundColor: 'rgba(255,255,255,0.7)',
+              zIndex: 1001,
+              pointerEvents: 'none'
+            }}>
+              <div style={{ textAlign: 'center' }}>
+                <div style={{
+                  width: '28px', height: '28px',
+                  border: '3px solid #dee2e6',
+                  borderTopColor: '#003366',
+                  borderRadius: '50%',
+                  animation: 'minimap-spin 0.8s linear infinite',
+                  margin: '0 auto 8px'
+                }} />
+                <span style={{ fontSize: '12px', color: '#666' }}>Loading route data...</span>
+              </div>
+            </div>
+          )}
+
           {/* Map */}
           <MapContainer
             center={center}
@@ -568,8 +741,8 @@ export default function MiniMapWidget({
             {/* Fit to work area */}
             {bounds && <FitBounds bounds={bounds} />}
 
-            {/* Construction Footprint / ROW Boundary (actual survey data - 248 polygons) */}
-            {showROW && egpFootprint.map((polygon, idx) => (
+            {/* Construction Footprint / ROW Boundary */}
+            {showROW && routeData.footprint.map((polygon, idx) => (
               <Polygon
                 key={`footprint-${idx}`}
                 positions={polygon}
@@ -731,7 +904,7 @@ export default function MiniMapWidget({
             )}
 
             {/* KP Markers from survey data */}
-            {showKPMarkers && egpKPMarkers
+            {showKPMarkers && routeData.kpMarkers
               .filter((_, idx) => idx % 10 === 0) // Show every 10th to avoid clutter (every 1km)
               .map((kp, idx) => (
                 <CircleMarker
@@ -765,7 +938,7 @@ export default function MiniMapWidget({
             }
 
             {/* Welds from asbuilt data */}
-            {showWelds && egpWelds.map((weld, idx) => {
+            {showWelds && routeData.welds.map((weld, idx) => {
               // Parse station to KP (e.g., "38+374.58" -> KP 38.374)
               const stationParts = weld.station.split('+')
               const kpValue = stationParts.length === 2 
@@ -810,7 +983,7 @@ export default function MiniMapWidget({
             })}
 
             {/* Bends from asbuilt data */}
-            {showBends && egpBends.map((bend, idx) => {
+            {showBends && routeData.bends.map((bend, idx) => {
               // Parse station to KP (e.g., "32+674.54" -> KP 32.674)
               const stationParts = bend.station.split('+')
               const kpValue = stationParts.length === 2 
@@ -861,7 +1034,7 @@ export default function MiniMapWidget({
             })}
 
             {/* Open Ends from asbuilt survey */}
-            {showOpenEnds && egpOpenEnds.map((openEnd, idx) => {
+            {showOpenEnds && routeData.openEnds.map((openEnd, idx) => {
               // Parse station to KP
               const stationParts = openEnd.station.split('+')
               const kpValue = stationParts.length === 2 
@@ -913,7 +1086,7 @@ export default function MiniMapWidget({
             })}
 
             {/* Bore Faces - HDD entry/exit points */}
-            {showBoreFaces && egpBoreFaces.map((bore, idx) => {
+            {showBoreFaces && routeData.boreFaces.map((bore, idx) => {
               // Parse station to KP
               const stationParts = bore.station.split('+')
               const kpValue = stationParts.length === 2 
@@ -966,7 +1139,7 @@ export default function MiniMapWidget({
             })}
 
             {/* Sag Bends - vertical bends */}
-            {showSagBends && egpSagBends.map((sag, idx) => {
+            {showSagBends && routeData.sagBends.map((sag, idx) => {
               // Parse station to KP
               const stationParts = sag.station.split('+')
               const kpValue = stationParts.length === 2 
@@ -1065,6 +1238,45 @@ export default function MiniMapWidget({
               </>
             )}
           </MapContainer>
+
+          {/* No data overlay — shown on top of the tile layer when no route data exists */}
+          {!routeLoading && alignmentStatus === 'missing' && constructionStatus === 'missing' && (
+            <div style={{
+              position: 'absolute',
+              top: '50%', left: '50%',
+              transform: 'translate(-50%, -50%)',
+              zIndex: 1000,
+              backgroundColor: 'rgba(255,255,255,0.92)',
+              padding: '16px 24px',
+              borderRadius: '8px',
+              textAlign: 'center',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+              pointerEvents: 'none',
+              maxWidth: '280px'
+            }}>
+              <div style={{ fontSize: '13px', fontWeight: 'bold', color: '#333', marginBottom: '6px' }}>
+                No pipeline route data uploaded
+              </div>
+              <div style={{ fontSize: '11px', color: '#666' }}>
+                Upload KMZ files in Admin Portal &gt; Setup
+              </div>
+            </div>
+          )}
+
+          {/* Missing layer indicators */}
+          {!routeLoading && (alignmentStatus === 'missing' || constructionStatus === 'missing') && !(alignmentStatus === 'missing' && constructionStatus === 'missing') && (
+            <div style={{ padding: '6px 10px', backgroundColor: '#fff8e1', borderBottom: '1px solid #ffe082', fontSize: '11px', color: '#6d4c00' }}>
+              {alignmentStatus === 'missing' && 'No alignment data uploaded — KP markers and footprint not available'}
+              {constructionStatus === 'missing' && 'No construction data uploaded — welds, bends, and as-built centerline not available'}
+            </div>
+          )}
+
+          {/* Route load error */}
+          {routeError && (
+            <div style={{ padding: '6px 10px', backgroundColor: '#f8d7da', fontSize: '11px', color: '#721c24' }}>
+              Route data error: {routeError}
+            </div>
+          )}
 
           {/* Floating Zone Legend (collapsible, bottom-right of map) */}
           {showZones && (
@@ -1184,6 +1396,9 @@ export default function MiniMapWidget({
         }
         .zone-pulse {
           animation: zonePulse 2s ease-in-out infinite;
+        }
+        @keyframes minimap-spin {
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>
