@@ -216,10 +216,11 @@ function parseKPToKm(kpString) {
 
 // Interpolate position along route for a given KP
 function interpolatePosition(route, targetKP) {
+  if (!route || route.length === 0) return null
   for (let i = 0; i < route.length - 1; i++) {
     const start = route[i]
     const end = route[i + 1]
-    
+
     if (targetKP >= start.kp && targetKP <= end.kp) {
       const ratio = (targetKP - start.kp) / (end.kp - start.kp)
       return {
@@ -236,9 +237,10 @@ function interpolatePosition(route, targetKP) {
 
 // Find nearest KP from GPS coordinates
 function findNearestKP(lat, lon, route) {
+  if (!route || route.length === 0) return null
   let nearestKP = null
   let minDistance = Infinity
-  
+
   for (let kp = 0; kp <= route[route.length - 1].kp; kp += 0.5) {
     const position = interpolatePosition(route, kp)
     if (position) {
