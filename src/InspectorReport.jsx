@@ -2284,7 +2284,7 @@ CRITICAL - Individual Entries Required:
 
   // Labour management for activity blocks
   // RT = Regular Time, OT = Overtime, JH = Jump Hours (bonus)
-  function addLabourToBlock(blockId, employeeName, classification, rt, ot, jh, count) {
+  function addLabourToBlock(blockId, employeeName, classification, rt, ot, jh, count, masterPersonnelId) {
     // Check if at least one hour field has a value entered (including 0)
     const hasRT = rt !== '' && rt !== null && rt !== undefined
     const hasOT = ot !== '' && ot !== null && ot !== undefined
@@ -2308,7 +2308,9 @@ CRITICAL - Individual Entries Required:
             rt: rtVal,
             ot: otVal,
             jh: jhVal,
-            count: parseInt(count) || 1
+            count: parseInt(count) || 1,
+            master_personnel_id: masterPersonnelId || null,
+            needs_master_resolution: !masterPersonnelId
           }]
         }
       }
@@ -2521,7 +2523,7 @@ CRITICAL - Individual Entries Required:
   }
 
   // Equipment management for activity blocks
-  function addEquipmentToBlock(blockId, type, hours, count, unitNumber) {
+  function addEquipmentToBlock(blockId, type, hours, count, unitNumber, masterEquipmentId) {
     if (!type) {
       alert('Please enter equipment type')
       return
@@ -2535,7 +2537,9 @@ CRITICAL - Individual Entries Required:
             type,
             hours: parseFloat(hours),
             count: parseInt(count) || 1,
-            unitNumber: unitNumber || ''
+            unitNumber: unitNumber || '',
+            master_equipment_id: masterEquipmentId || null,
+            needs_master_resolution: !masterEquipmentId
           }]
         }
       }

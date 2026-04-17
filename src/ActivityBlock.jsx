@@ -1,6 +1,6 @@
 // ActivityBlock.jsx - Extracted from InspectorReport.jsx
 // A single activity block component with all rendering logic
-import React, { useState, useEffect, useMemo, memo } from 'react'
+import React, { useState, useEffect, memo } from 'react'
 import { activityTypes, qualityFieldsByActivity, labourClassifications, equipmentTypes, timeLostReasons, productionStatuses, dragReasonCategories, impactScopes, responsiblePartyConfig } from './constants.js'
 import { syncKPFromGPS } from './kpUtils.js'
 import { supabase } from './supabase'
@@ -342,7 +342,7 @@ function SearchableSelect({
 // roster: array of { employeeName, classification } for auto-fill
 // SearchableNameInput - matches SearchableSelect styling and behavior
 // Shows roster with name + classification, auto-fills on selection
-function SearchableNameInput({ value, onChange, suggestions, roster = [], onSelectWithClassification, placeholder = 'Name', style = {} }) {
+function SearchableNameInput({ value, onChange, suggestions, roster = [], onSelectWithClassification, placeholder = 'Name', style = {}, unmatched = false }) {
   const [isOpen, setIsOpen] = useState(false)
   const [filterText, setFilterText] = useState('')
   const [highlightedIndex, setHighlightedIndex] = useState(0)
@@ -422,8 +422,8 @@ function SearchableNameInput({ value, onChange, suggestions, roster = [], onSele
           if (!isOpen && (e.key === 'Enter' || e.key === ' ')) { setIsOpen(true); e.preventDefault() }
         }}
         style={{
-          width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px',
-          backgroundColor: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center',
+          width: '100%', padding: '8px', border: `1px solid ${unmatched ? '#f59e0b' : '#ced4da'}`, borderRadius: '4px',
+          backgroundColor: unmatched ? '#fffbeb' : '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center',
           justifyContent: 'space-between', boxSizing: 'border-box', minHeight: '38px'
         }}
       >
@@ -475,6 +475,9 @@ function SearchableNameInput({ value, onChange, suggestions, roster = [], onSele
             ))
           )}
         </div>
+      )}
+      {unmatched && (
+        <div style={{ fontSize: '10px', color: '#b45309', marginTop: '2px' }}>⚠ Not in master</div>
       )}
     </div>
   )
@@ -566,106 +569,64 @@ function ActivityBlock({
   const [currentLabour, setCurrentLabour] = useState({
     employeeName: '',
     classification: '',
+    masterPersonnelId: null,
     rt: '',
     ot: '',
     jh: '',
     count: '1'
   })
-  const [currentEquipment, setCurrentEquipment] = useState({ type: '', hours: '', count: '', unitNumber: '' })
+  const [currentEquipment, setCurrentEquipment] = useState({ type: '', hours: '', count: '', unitNumber: '', masterEquipmentId: null })
   const [ocrProcessing, setOcrProcessing] = useState(false)
   const [ocrError, setOcrError] = useState(null)
   const [ocrSuccess, setOcrSuccess] = useState(false)
   const [showTicketPhoto, setShowTicketPhoto] = useState(false)
-  
-  // Build known crew names from all blocks + localStorage for autocomplete
-  const knownCrewNames = useMemo(() => {
-    const names = new Set()
-    // Collect from all activity blocks in this report
-    if (activityBlocks) {
-      activityBlocks.forEach(b => {
-        b.labourEntries?.forEach(e => {
-          if (e.employeeName?.trim()) names.add(e.employeeName.trim())
-        })
-      })
-    }
-    // Merge with saved crew roster from localStorage
-    try {
-      const saved = JSON.parse(localStorage.getItem('pipeup_crew_roster') || '[]')
-      saved.forEach(n => names.add(n))
-    } catch {}
-    return [...names].sort()
-  }, [activityBlocks])
 
-  // Persist new names to localStorage crew roster
-  useEffect(() => {
-    if (knownCrewNames.length > 0) {
-      try {
-        const saved = JSON.parse(localStorage.getItem('pipeup_crew_roster') || '[]')
-        const merged = [...new Set([...saved, ...knownCrewNames])].sort()
-        localStorage.setItem('pipeup_crew_roster', JSON.stringify(merged))
-      } catch {}
-    }
-  }, [knownCrewNames])
-
-  // Load employee + equipment rosters from uploaded CSV tables AND daily reports
+  // Load employee + equipment rosters from master tables ONLY (single source of truth)
   const [employeeRoster, setEmployeeRoster] = useState([])
   const [equipmentRoster, setEquipmentRoster] = useState([])
   useEffect(() => {
     if (!organizationId) return
-    async function loadRoster() {
-      // 1. Load from uploaded personnel_roster table (CSV data — takes priority)
+    async function loadMasterRoster() {
+      // Load ALL master_personnel (paginated past 1000-row default)
       const personnelMap = {}
-      try {
-        let pq = supabase.from('personnel_roster').select('employee_name, classification')
+      let pOffset = 0
+      while (true) {
+        let pq = supabase.from('master_personnel').select('id, name, classification')
+          .eq('active', true)
+          .range(pOffset, pOffset + 999)
         pq = addOrgFilter(pq, true)
         const { data: pData } = await pq
         for (const r of (pData || [])) {
-          const name = (r.employee_name || '').trim()
+          const name = (r.name || '').trim()
           const cls = (r.classification || '').trim()
-          if (name && cls) personnelMap[name.toUpperCase()] = { employeeName: name, classification: cls }
+          if (name) personnelMap[name.toUpperCase()] = { employeeName: name, classification: cls, masterId: r.id }
         }
-      } catch (e) { console.warn('personnel_roster not available:', e) }
+        if (!pData || pData.length < 1000) break
+        pOffset += 1000
+      }
 
-      // 2. Load from uploaded equipment_fleet table (CSV data — takes priority)
+      // Load ALL master_equipment (paginated)
       const fleetMap = {}
-      try {
-        let eq = supabase.from('equipment_fleet').select('unit_number, equipment_type')
+      let eOffset = 0
+      while (true) {
+        let eq = supabase.from('master_equipment').select('id, unit_number, classification')
+          .eq('active', true)
+          .range(eOffset, eOffset + 999)
         eq = addOrgFilter(eq, true)
         const { data: eData } = await eq
         for (const r of (eData || [])) {
           const unit = (r.unit_number || '').trim()
-          const etype = (r.equipment_type || '').trim()
-          if (unit && etype) fleetMap[unit.toUpperCase()] = { unitNumber: unit, equipmentType: etype }
+          const cls = (r.classification || '').trim()
+          if (unit) fleetMap[unit.toUpperCase()] = { unitNumber: unit, equipmentType: cls, masterId: r.id }
         }
-      } catch (e) { console.warn('equipment_fleet not available:', e) }
-
-      // 3. Supplement with daily_reports data (fills gaps not in uploaded CSVs)
-      let q = supabase.from('daily_reports').select('activity_blocks').order('date', { ascending: false }).limit(200)
-      q = addOrgFilter(q, true)
-      const { data } = await q
-      for (const r of (data || [])) {
-        for (const b of (r.activity_blocks || [])) {
-          for (const l of (b.labourEntries || [])) {
-            const name = (l.employeeName || l.employee_name || l.name || '').trim()
-            const cls = (l.classification || '').trim()
-            if (name && cls && !personnelMap[name.toUpperCase()]) {
-              personnelMap[name.toUpperCase()] = { employeeName: name, classification: cls }
-            }
-          }
-          for (const e of (b.equipmentEntries || [])) {
-            const unit = (e.unitNumber || e.unit_number || '').trim()
-            const etype = (e.type || e.equipment_type || '').trim()
-            if (unit && etype && !fleetMap[unit.toUpperCase()]) {
-              fleetMap[unit.toUpperCase()] = { unitNumber: unit, equipmentType: etype }
-            }
-          }
-        }
+        if (!eData || eData.length < 1000) break
+        eOffset += 1000
       }
 
       setEmployeeRoster(Object.values(personnelMap).sort((a, b) => a.employeeName.localeCompare(b.employeeName)))
       setEquipmentRoster(Object.values(fleetMap).sort((a, b) => a.unitNumber.localeCompare(b.unitNumber)))
     }
-    loadRoster()
+    loadMasterRoster()
   }, [organizationId])
 
   // Track which labour/equipment rows have their flag panel open
@@ -2785,12 +2746,21 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Employee Name</label>
             <SearchableNameInput
               value={currentLabour.employeeName}
-              onChange={(val) => setCurrentLabour({ ...currentLabour, employeeName: val })}
-              suggestions={knownCrewNames}
+              onChange={(val) => setCurrentLabour(prev => ({ ...prev, employeeName: val, masterPersonnelId: null }))}
+              suggestions={[]}
               roster={employeeRoster}
-              onSelectWithClassification={(name, cls) => setCurrentLabour(prev => ({ ...prev, employeeName: name, classification: cls }))}
+              onSelectWithClassification={(name, cls) => {
+                const rosterEntry = employeeRoster.find(r => r.employeeName === name)
+                setCurrentLabour(prev => ({
+                  ...prev,
+                  employeeName: name,
+                  classification: cls,
+                  masterPersonnelId: rosterEntry?.masterId || null
+                }))
+              }}
               placeholder="Name"
               style={{ width: '100%' }}
+              unmatched={currentLabour.employeeName.trim() !== '' && !currentLabour.masterPersonnelId}
             />
           </div>
           <div>
@@ -2848,8 +2818,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
           </div>
           <button
             onClick={() => {
-              addLabourToBlock(block.id, currentLabour.employeeName, currentLabour.classification, currentLabour.rt, currentLabour.ot, currentLabour.jh, currentLabour.count)
-              setCurrentLabour({ employeeName: '', classification: '', rt: '', ot: '', jh: '', count: '1' })
+              addLabourToBlock(block.id, currentLabour.employeeName, currentLabour.classification, currentLabour.rt, currentLabour.ot, currentLabour.jh, currentLabour.count, currentLabour.masterPersonnelId)
+              setCurrentLabour({ employeeName: '', classification: '', masterPersonnelId: null, rt: '', ot: '', jh: '', count: '1' })
             }}
             style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', height: '38px' }}
           >
@@ -2887,14 +2857,20 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                         <td style={{ padding: '2px 4px', borderBottom: '1px solid #dee2e6' }}>
                           <SearchableNameInput
                             value={entry.employeeName || ''}
-                            onChange={(val) => updateLabourField(block.id, entry.id, 'employeeName', val)}
-                            suggestions={knownCrewNames}
+                            onChange={(val) => {
+                              updateLabourField(block.id, entry.id, 'employeeName', val)
+                              updateLabourField(block.id, entry.id, 'master_personnel_id', null)
+                            }}
+                            suggestions={[]}
                             roster={employeeRoster}
                             onSelectWithClassification={(name, cls) => {
+                              const rosterEntry = employeeRoster.find(r => r.employeeName === name)
                               updateLabourField(block.id, entry.id, 'employeeName', name)
                               updateLabourField(block.id, entry.id, 'classification', cls)
+                              updateLabourField(block.id, entry.id, 'master_personnel_id', rosterEntry?.masterId || null)
                             }}
                             placeholder="Name"
+                            unmatched={!entry.master_personnel_id && (entry.employeeName || '').trim() !== ''}
                           />
                         </td>
                         <td style={{ padding: '2px 4px', borderBottom: '1px solid #dee2e6', fontSize: '12px' }}>
@@ -3101,12 +3077,21 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Unit #</label>
             <SearchableNameInput
               value={currentEquipment.unitNumber}
-              onChange={(val) => setCurrentEquipment({ ...currentEquipment, unitNumber: val })}
+              onChange={(val) => setCurrentEquipment(prev => ({ ...prev, unitNumber: val, masterEquipmentId: null }))}
               suggestions={[]}
-              roster={equipmentRoster.map(r => ({ employeeName: r.unitNumber, classification: r.equipmentType }))}
-              onSelectWithClassification={(unit, etype) => setCurrentEquipment(prev => ({ ...prev, unitNumber: unit, type: etype }))}
+              roster={equipmentRoster.map(r => ({ employeeName: r.unitNumber, classification: r.equipmentType, masterId: r.masterId }))}
+              onSelectWithClassification={(unit, etype) => {
+                const fleetEntry = equipmentRoster.find(r => r.unitNumber === unit)
+                setCurrentEquipment(prev => ({
+                  ...prev,
+                  unitNumber: unit,
+                  type: etype,
+                  masterEquipmentId: fleetEntry?.masterId || null
+                }))
+              }}
               placeholder="Unit #"
               style={{ width: '100%' }}
+              unmatched={currentEquipment.unitNumber.trim() !== '' && !currentEquipment.masterEquipmentId}
             />
           </div>
           <div>
@@ -3142,8 +3127,8 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
           </div>
           <button
             onClick={() => {
-              addEquipmentToBlock(block.id, currentEquipment.type, currentEquipment.hours, currentEquipment.count, currentEquipment.unitNumber)
-              setCurrentEquipment({ type: '', hours: '', count: '', unitNumber: '' })
+              addEquipmentToBlock(block.id, currentEquipment.type, currentEquipment.hours, currentEquipment.count, currentEquipment.unitNumber, currentEquipment.masterEquipmentId)
+              setCurrentEquipment({ type: '', hours: '', count: '', unitNumber: '', masterEquipmentId: null })
             }}
             style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', height: '38px' }}
           >
