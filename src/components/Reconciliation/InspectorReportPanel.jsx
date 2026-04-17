@@ -15,6 +15,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const [dropdownPos, setDropdownPos] = useState(null)
   const [masterModal, setMasterModal] = useState({ open: false, type: 'labour', prefill: '', rowIdx: null, section: null })
   const [toast, setToast] = useState(null)
+  const [dupeResolve, setDupeResolve] = useState(null) // { section, rowIdx, masterId, masterName, existingRowIdx, existingEntry, pendingAction }
 
   // Focus input and calculate dropdown position when editing starts
   useEffect(() => {
@@ -230,40 +231,116 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   function handleMasterAdded(result) {
     if (!onBlockChange || masterModal.rowIdx === null) return
     const { section, rowIdx } = masterModal
+
+    const doCommit = () => {
+      const entries = section === 'labour' ? [...labourEntries] : [...equipmentEntries]
+      const entry = { ...entries[rowIdx] }
+
+      if (section === 'labour') {
+        entry.employeeName = result.name
+        entry.classification = result.classification
+        entry.master_personnel_id = result.masterId
+        entry.needs_master_resolution = false
+      } else {
+        entry.unitNumber = result.unitNumber || result.name
+        entry.type = result.classification
+        entry.classification = result.classification
+        entry.master_equipment_id = result.masterId
+        entry.needs_master_resolution = false
+      }
+      entries[rowIdx] = entry
+
+      const updatedBlock = { ...block }
+      if (section === 'labour') updatedBlock.labourEntries = entries
+      else updatedBlock.equipmentEntries = entries
+
+      onBlockChange(updatedBlock, [{
+        field: `${section}[${rowIdx}].master_${section === 'labour' ? 'personnel' : 'equipment'}_id`,
+        oldValue: 'null',
+        newValue: result.masterId,
+      }])
+
+      if (onAliasCreated) {
+        onAliasCreated({ alias_type: section === 'labour' ? 'labour' : 'equipment', original_value: result.name, mapped_value: result.classification })
+      }
+
+      setToast(`✓ ${result.name} added to master and linked to this row`)
+      setTimeout(() => setToast(null), 4000)
+    }
+
+    // Check for duplicate master ID on this ticket
+    if (result.masterId && checkForDuplicateMaster(section, rowIdx, result.masterId, result.name, doCommit)) {
+      return
+    }
+    doCommit()
+  }
+
+  // --- Pre-resolution duplicate detection ---
+  // Check if resolving a row to a given master ID would create a duplicate on this ticket
+  function checkForDuplicateMaster(section, rowIdx, masterId, masterName, pendingAction) {
+    const entries = section === 'labour' ? labourEntries : equipmentEntries
+    const idField = section === 'labour' ? 'master_personnel_id' : 'master_equipment_id'
+    for (let i = 0; i < entries.length; i++) {
+      if (i === rowIdx) continue
+      if (entries[i][idField] === masterId) {
+        // Duplicate found — show resolution modal
+        setDupeResolve({ section, rowIdx, masterId, masterName, existingRowIdx: i, existingEntry: entries[i], pendingAction })
+        return true
+      }
+    }
+    return false
+  }
+
+  function handleDupeMerge() {
+    if (!dupeResolve || !onBlockChange) return
+    const { section, rowIdx, existingRowIdx, masterId, masterName } = dupeResolve
     const entries = section === 'labour' ? [...labourEntries] : [...equipmentEntries]
-    const entry = { ...entries[rowIdx] }
+    const sourceRow = entries[rowIdx]
+    const targetRow = { ...entries[existingRowIdx] }
 
     if (section === 'labour') {
-      entry.employeeName = result.name
-      entry.classification = result.classification
-      entry.master_personnel_id = result.masterId
-      entry.needs_master_resolution = false
+      // Sum hours onto existing row
+      targetRow.rt = (parseFloat(targetRow.rt || 0) + parseFloat(sourceRow.rt || sourceRow.hours || 0)).toString()
+      targetRow.ot = (parseFloat(targetRow.ot || 0) + parseFloat(sourceRow.ot || 0)).toString()
+      targetRow.dt = (parseFloat(targetRow.dt || 0) + parseFloat(sourceRow.dt || 0)).toString()
+      // Subs: keep the higher value (paid once per person per day)
+      const targetSubs = parseFloat(targetRow.subs || 0)
+      const sourceSubs = parseFloat(sourceRow.subs || 0)
+      if (sourceSubs > targetSubs) targetRow.subs = sourceSubs
     } else {
-      entry.unitNumber = result.unitNumber || result.name
-      entry.type = result.classification
-      entry.classification = result.classification
-      entry.master_equipment_id = result.masterId
-      entry.needs_master_resolution = false
+      // Equipment: sum hours
+      targetRow.hours = (parseFloat(targetRow.hours || 0) + parseFloat(sourceRow.hours || 0)).toString()
     }
-    entries[rowIdx] = entry
+
+    entries[existingRowIdx] = targetRow
+    // Remove the source row
+    entries.splice(rowIdx, 1)
 
     const updatedBlock = { ...block }
     if (section === 'labour') updatedBlock.labourEntries = entries
     else updatedBlock.equipmentEntries = entries
 
     onBlockChange(updatedBlock, [{
-      field: `${section}[${rowIdx}].master_${section === 'labour' ? 'personnel' : 'equipment'}_id`,
-      oldValue: 'null',
-      newValue: result.masterId,
+      field: `${section}[${rowIdx}]`,
+      oldValue: `merged into row ${existingRowIdx}`,
+      newValue: `duplicate_merged: ${masterName}`,
     }])
 
-    // Invalidate roster cache by triggering a re-render notification
-    if (onAliasCreated) {
-      onAliasCreated({ alias_type: section === 'labour' ? 'labour' : 'equipment', original_value: result.name, mapped_value: result.classification })
-    }
-
-    setToast(`✓ ${result.name} added to master and linked to this row`)
+    setDupeResolve(null)
+    setToast(`✓ Merged hours into existing ${masterName} row`)
     setTimeout(() => setToast(null), 4000)
+  }
+
+  function handleDupeKeepSeparate() {
+    if (!dupeResolve) return
+    const { pendingAction } = dupeResolve
+    setDupeResolve(null)
+    // Execute the original action that was pending
+    if (pendingAction) pendingAction()
+  }
+
+  function handleDupeCancel() {
+    setDupeResolve(null)
   }
 
   function fmt(n) { return n.toLocaleString('en-CA', { style: 'currency', currency: 'CAD' }) }
@@ -393,31 +470,41 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   }
 
   function handleEmployeeSelect(rowIdx, selectedName) {
-    // Find the employee in the roster to get their classification
     const rosterEntry = employeeRoster.find(r => r.employeeName === selectedName)
     if (!rosterEntry || !onBlockChange) {
       commitEdit(selectedName)
       return
     }
 
-    // Save name and auto-fill classification in one update
-    const entries = [...labourEntries]
-    const entry = { ...entries[rowIdx] }
-    const oldName = entry.employeeName || entry.employee_name || entry.name || ''
-    const oldClassification = entry.classification || ''
-    entry.employeeName = selectedName
-    entry.classification = rosterEntry.classification
-    entries[rowIdx] = entry
+    const masterId = rosterEntry.masterId
+    const doCommit = () => {
+      const entries = [...labourEntries]
+      const entry = { ...entries[rowIdx] }
+      const oldName = entry.employeeName || entry.employee_name || entry.name || ''
+      const oldClassification = entry.classification || ''
+      entry.employeeName = selectedName
+      entry.classification = rosterEntry.classification
+      entry.master_personnel_id = masterId || null
+      entry.needs_master_resolution = !masterId
+      entries[rowIdx] = entry
 
-    const updatedBlock = { ...block, labourEntries: entries }
-    const auditEntries = [
-      { field: `labour[${rowIdx}].name`, oldValue: oldName, newValue: selectedName },
-    ]
-    if (oldClassification !== rosterEntry.classification) {
-      auditEntries.push({ field: `labour[${rowIdx}].classification`, oldValue: oldClassification, newValue: rosterEntry.classification })
+      const updatedBlock = { ...block, labourEntries: entries }
+      const auditEntries = [
+        { field: `labour[${rowIdx}].name`, oldValue: oldName, newValue: selectedName },
+      ]
+      if (oldClassification !== rosterEntry.classification) {
+        auditEntries.push({ field: `labour[${rowIdx}].classification`, oldValue: oldClassification, newValue: rosterEntry.classification })
+      }
+      onBlockChange(updatedBlock, auditEntries)
+      setEditingCell(null)
     }
-    onBlockChange(updatedBlock, auditEntries)
-    setEditingCell(null)
+
+    // Check for duplicate master ID on this ticket before committing
+    if (masterId && checkForDuplicateMaster('labour', rowIdx, masterId, selectedName, doCommit)) {
+      setEditingCell(null) // Close the dropdown while modal is showing
+      return
+    }
+    doCommit()
   }
 
   function handleClassificationSelect(section, rowIdx, rateCardName) {
@@ -899,6 +986,66 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
         labourRates={labourRates}
         equipmentRates={equipmentRates}
       />
+
+      {/* Duplicate resolution modal */}
+      {dupeResolve && ReactDOM.createPortal(
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 20000,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }} onClick={handleDupeCancel}>
+          <div style={{
+            backgroundColor: 'white', borderRadius: 8, padding: 24,
+            maxWidth: 480, width: '90%', boxShadow: '0 8px 32px rgba(0,0,0,0.2)',
+          }} onClick={e => e.stopPropagation()}>
+            <h3 style={{ margin: '0 0 12px 0', fontSize: 16, color: '#b45309' }}>
+              &#9888; Duplicate Detected
+            </h3>
+            <p style={{ fontSize: 13, color: '#333', margin: '0 0 8px 0' }}>
+              <strong>"{dupeResolve.masterName}"</strong> is already entered on this ticket
+              {dupeResolve.section === 'labour' && dupeResolve.existingEntry && (
+                <span> ({dupeResolve.existingEntry.rt || 0} RT hrs, {dupeResolve.existingEntry.ot || 0} OT, {dupeResolve.existingEntry.dt || 0} DT)</span>
+              )}
+              {dupeResolve.section === 'equipment' && dupeResolve.existingEntry && (
+                <span> ({dupeResolve.existingEntry.hours || 0} hrs)</span>
+              )}
+              .
+            </p>
+            <p style={{ fontSize: 13, color: '#333', margin: '0 0 16px 0' }}>
+              This row would create a duplicate. What would you like to do?
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button onClick={handleDupeMerge} style={{
+                padding: '10px 16px', backgroundColor: '#059669', color: 'white',
+                border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13, fontWeight: 600, textAlign: 'left',
+              }}>
+                Merge hours into existing row
+                <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.9, marginTop: 2 }}>
+                  {dupeResolve.section === 'labour'
+                    ? 'Sums RT/OT/DT onto the existing row, keeps higher subs value. Deletes this row.'
+                    : 'Sums hours onto the existing row. Deletes this row.'}
+                </div>
+              </button>
+              <button onClick={handleDupeKeepSeparate} style={{
+                padding: '10px 16px', backgroundColor: '#2563eb', color: 'white',
+                border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13, fontWeight: 600, textAlign: 'left',
+              }}>
+                Keep as separate row
+                <div style={{ fontSize: 11, fontWeight: 400, opacity: 0.9, marginTop: 2 }}>
+                  Both rows will show a duplicate warning. Use this if the person worked two shifts.
+                </div>
+              </button>
+              <button onClick={handleDupeCancel} style={{
+                padding: '10px 16px', backgroundColor: '#e5e7eb', color: '#374151',
+                border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13,
+              }}>
+                Cancel — no change
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       {/* Toast notification */}
       {toast && (
