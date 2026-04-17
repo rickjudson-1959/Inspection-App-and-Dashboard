@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import { supabase } from '../../supabase'
+import AddToMasterModal from './AddToMasterModal.jsx'
 
 export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated, sameDayEntries = { labour: [], equipment: [] }, employeeRoster = [] }) {
   const [editingCell, setEditingCell] = useState(null) // { section, rowIdx, field }
@@ -12,6 +13,8 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const portalRef = useRef(null)
   const skipBlurRef = useRef(false)
   const [dropdownPos, setDropdownPos] = useState(null)
+  const [masterModal, setMasterModal] = useState({ open: false, type: 'labour', prefill: '', rowIdx: null, section: null })
+  const [toast, setToast] = useState(null)
 
   // Focus input and calculate dropdown position when editing starts
   useEffect(() => {
@@ -218,6 +221,50 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const unresolvedLabour = labourEntries.filter(e => e.needs_master_resolution).length
   const unresolvedEquip = equipmentEntries.filter(e => e.needs_master_resolution).length
   const hasUnresolved = unresolvedLabour > 0 || unresolvedEquip > 0
+
+  // --- Add to Master modal handlers ---
+  function openMasterModal(section, rowIdx, prefillValue) {
+    setMasterModal({ open: true, type: section === 'labour' ? 'labour' : 'equipment', prefill: prefillValue, rowIdx, section })
+  }
+
+  function handleMasterAdded(result) {
+    if (!onBlockChange || masterModal.rowIdx === null) return
+    const { section, rowIdx } = masterModal
+    const entries = section === 'labour' ? [...labourEntries] : [...equipmentEntries]
+    const entry = { ...entries[rowIdx] }
+
+    if (section === 'labour') {
+      entry.employeeName = result.name
+      entry.classification = result.classification
+      entry.master_personnel_id = result.masterId
+      entry.needs_master_resolution = false
+    } else {
+      entry.unitNumber = result.unitNumber || result.name
+      entry.type = result.classification
+      entry.classification = result.classification
+      entry.master_equipment_id = result.masterId
+      entry.needs_master_resolution = false
+    }
+    entries[rowIdx] = entry
+
+    const updatedBlock = { ...block }
+    if (section === 'labour') updatedBlock.labourEntries = entries
+    else updatedBlock.equipmentEntries = entries
+
+    onBlockChange(updatedBlock, [{
+      field: `${section}[${rowIdx}].master_${section === 'labour' ? 'personnel' : 'equipment'}_id`,
+      oldValue: 'null',
+      newValue: result.masterId,
+    }])
+
+    // Invalidate roster cache by triggering a re-render notification
+    if (onAliasCreated) {
+      onAliasCreated({ alias_type: section === 'labour' ? 'labour' : 'equipment', original_value: result.name, mapped_value: result.classification })
+    }
+
+    setToast(`✓ ${result.name} added to master and linked to this row`)
+    setTimeout(() => setToast(null), 4000)
+  }
 
   function fmt(n) { return n.toLocaleString('en-CA', { style: 'currency', currency: 'CAD' }) }
 
@@ -651,7 +698,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                       {isUnmatched
                         ? <td style={{ ...cellStyle, color: '#9ca3af', fontStyle: 'italic', fontSize: 11 }}>
                             — Pick from master —
-                            {onBlockChange && <button onClick={() => console.log('Add to master: labour', e.employeeName || e.name)} style={{ marginLeft: 6, padding: '1px 6px', fontSize: 10, backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer' }}>+ Add to Master</button>}
+                            {onBlockChange && <button onClick={() => openMasterModal('labour', i, e.employeeName || e.employee_name || e.name || '')} style={{ marginLeft: 6, padding: '1px 6px', fontSize: 10, backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer' }}>+ Add to Master</button>}
                           </td>
                         : renderCell('labour', i, 'classification', e.classification || '', { ...cellStyle, color: '#6b7280' }, true, labourRates, 'classification')}
                       {renderCell('labour', i, 'rt', String(e.rt || e.hours || 0), { ...cellStyle, textAlign: 'right' })}
@@ -766,7 +813,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                       {isUnmatched
                         ? <td style={{ ...cellStyle, color: '#9ca3af', fontStyle: 'italic', fontSize: 11 }}>
                             — Pick from master —
-                            {onBlockChange && <button onClick={() => console.log('Add to master: equipment', e.unitNumber || e.unit_number)} style={{ marginLeft: 6, padding: '1px 6px', fontSize: 10, backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer' }}>+ Add to Master</button>}
+                            {onBlockChange && <button onClick={() => openMasterModal('equipment', i, e.unitNumber || e.unit_number || '')} style={{ marginLeft: 6, padding: '1px 6px', fontSize: 10, backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer' }}>+ Add to Master</button>}
                           </td>
                         : renderCell('equipment', i, 'type', e.type || e.equipment_type || '', cellStyle, true, equipmentRates, equipmentRates[0]?.equipment_type ? 'equipment_type' : 'type')}
                       {renderCell('equipment', i, 'hours', String(e.hours || 0), { ...cellStyle, textAlign: 'right' })}
@@ -840,6 +887,30 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
       <div style={{ padding: '8px 12px', fontSize: 11, color: '#6b7280', fontStyle: 'italic', borderTop: '1px solid #e5e7eb' }}>
         Live data from inspector report — Report ID: {report.id} — Rate cards: {labourRates.length} labour, {equipmentRates.length} equipment
       </div>
+
+      {/* Add to Master modal */}
+      <AddToMasterModal
+        isOpen={masterModal.open}
+        onClose={() => setMasterModal({ open: false, type: 'labour', prefill: '', rowIdx: null, section: null })}
+        onAdded={handleMasterAdded}
+        type={masterModal.type}
+        prefillName={masterModal.prefill}
+        organizationId={organizationId}
+        labourRates={labourRates}
+        equipmentRates={equipmentRates}
+      />
+
+      {/* Toast notification */}
+      {toast && (
+        <div style={{
+          position: 'fixed', bottom: 20, left: '50%', transform: 'translateX(-50%)',
+          padding: '10px 20px', backgroundColor: '#059669', color: 'white',
+          borderRadius: 6, fontSize: 13, fontWeight: 600, zIndex: 20001,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+        }}>
+          {toast}
+        </div>
+      )}
     </div>
   )
 }
