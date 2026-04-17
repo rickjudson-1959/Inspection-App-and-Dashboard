@@ -175,36 +175,49 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   function getEquipmentDuplicateWarning(entry, rowIdx) {
     const type = (entry.type || entry.equipment_type || '').toLowerCase().trim()
     const unit = (entry.unitNumber || entry.unit_number || '').toLowerCase().trim()
-    if (!type) return null
+    if (!type && !unit) return null
     const warnings = []
 
-    // Same ticket: check for same type AND unit number (or just type if no unit)
+    // Same ticket: check by unit number (primary) or type+unit combo
     equipmentEntries.forEach((other, otherIdx) => {
       if (otherIdx === rowIdx) return
-      const otherType = (other.type || other.equipment_type || '').toLowerCase().trim()
       const otherUnit = (other.unitNumber || other.unit_number || '').toLowerCase().trim()
-      if (otherType === type && (!unit || !otherUnit || otherUnit === unit)) {
-        warnings.push('Duplicate on this ticket')
+      // Unit number match is the strongest signal for duplicate equipment
+      if (unit && otherUnit && otherUnit === unit) {
+        warnings.push('Duplicate unit on this ticket')
       }
     })
 
-    // Cross-ticket same day
-    for (const other of sameDayEntries.equipment) {
-      if (other.type === type && (!unit || !other.unit || other.unit === unit)) {
-        warnings.push(`Also on ticket #${other.ticket}`)
-        break
+    // Cross-ticket same day — by unit number
+    if (unit) {
+      for (const other of sameDayEntries.equipment) {
+        if (other.unit && other.unit === unit) {
+          warnings.push(`Also on ticket #${other.ticket}`)
+          break
+        }
       }
     }
 
     return warnings.length > 0 ? warnings.join(' | ') : null
   }
 
-  // --- Totals ---
-  const labourCosts = labourEntries.map(e => calcLabourCost(e))
-  const equipmentCosts = equipmentEntries.map(e => calcEquipmentCost(e))
+  // --- Totals (unmatched rows contribute $0) ---
+  const labourCosts = labourEntries.map(e => {
+    if (e.needs_master_resolution) return { rtRate: null, otRate: null, dtRate: null, rateType: null, subs: 0, cost: 0 }
+    return calcLabourCost(e)
+  })
+  const equipmentCosts = equipmentEntries.map(e => {
+    if (e.needs_master_resolution) return { rate: null, cost: 0 }
+    return calcEquipmentCost(e)
+  })
   const labourTotal = labourCosts.reduce((s, c) => s + c.cost, 0)
   const equipmentTotal = equipmentCosts.reduce((s, c) => s + c.cost, 0)
   const grandTotal = labourTotal + equipmentTotal
+
+  // --- Master resolution counts ---
+  const unresolvedLabour = labourEntries.filter(e => e.needs_master_resolution).length
+  const unresolvedEquip = equipmentEntries.filter(e => e.needs_master_resolution).length
+  const hasUnresolved = unresolvedLabour > 0 || unresolvedEquip > 0
 
   function fmt(n) { return n.toLocaleString('en-CA', { style: 'currency', currency: 'CAD' }) }
 
@@ -572,6 +585,19 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
         )}
       </div>
 
+      {/* Master resolution banner */}
+      {hasUnresolved && (
+        <div style={{ margin: '4px 12px', padding: '8px 12px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: 12, color: '#92400e', display: 'flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 14 }}>&#9888;</span>
+          <span>
+            {unresolvedLabour > 0 && `${unresolvedLabour} labour entr${unresolvedLabour === 1 ? 'y' : 'ies'}`}
+            {unresolvedLabour > 0 && unresolvedEquip > 0 && ' and '}
+            {unresolvedEquip > 0 && `${unresolvedEquip} equipment entr${unresolvedEquip === 1 ? 'y' : 'ies'}`}
+            {' '}need master resolution. Cost totals exclude these rows until resolved.
+          </span>
+        </div>
+      )}
+
       {/* Manpower table */}
       <div style={{ padding: '8px 12px' }}>
         <div style={{ fontWeight: '700', color: '#166534', fontSize: 12, marginBottom: 4 }}>
@@ -600,9 +626,11 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
               {labourEntries.map((e, i) => {
                 const lc = labourCosts[i]
                 const dupeWarning = getLabourDuplicateWarning(e, i)
+                const isUnmatched = e.needs_master_resolution
+                const rowBorder = isUnmatched ? { borderLeft: '4px solid #eab308' } : {}
                 return (
                   <React.Fragment key={i}>
-                    <tr>
+                    <tr style={rowBorder}>
                       {onBlockChange && (
                         <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 38 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -617,8 +645,15 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                           </div>
                         </td>
                       )}
-                      {renderCell('labour', i, 'name', e.employeeName || e.employee_name || e.name || '', cellStyle, true, employeeRoster, 'employeeName', handleEmployeeSelect)}
-                      {renderCell('labour', i, 'classification', e.classification || '', { ...cellStyle, color: '#6b7280' }, true, labourRates, 'classification')}
+                      {renderCell('labour', i, 'name', e.employeeName || e.employee_name || e.name || '',
+                        isUnmatched ? { ...cellStyle, backgroundColor: '#fffbeb' } : cellStyle,
+                        true, employeeRoster, 'employeeName', handleEmployeeSelect)}
+                      {isUnmatched
+                        ? <td style={{ ...cellStyle, color: '#9ca3af', fontStyle: 'italic', fontSize: 11 }}>
+                            — Pick from master —
+                            {onBlockChange && <button onClick={() => console.log('Add to master: labour', e.employeeName || e.name)} style={{ marginLeft: 6, padding: '1px 6px', fontSize: 10, backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer' }}>+ Add to Master</button>}
+                          </td>
+                        : renderCell('labour', i, 'classification', e.classification || '', { ...cellStyle, color: '#6b7280' }, true, labourRates, 'classification')}
                       {renderCell('labour', i, 'rt', String(e.rt || e.hours || 0), { ...cellStyle, textAlign: 'right' })}
                       <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: lc.rtRate != null ? '#166534' : '#9ca3af' }}>
                         {lc.rtRate != null ? `${fmt(lc.rtRate)}${lc.rateType === 'weekly' ? '/day' : ''}` : '—'}
@@ -696,8 +731,8 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
             <thead>
               <tr>
                 {onBlockChange && <th style={{ ...headerStyle, width: 28 }}></th>}
-                <th style={{ ...headerStyle, textAlign: 'left' }}>Type</th>
-                <th style={{ ...headerStyle, textAlign: 'left', width: 60 }}>Unit #</th>
+                <th style={{ ...headerStyle, textAlign: 'left', width: 70 }}>Unit #</th>
+                <th style={{ ...headerStyle, textAlign: 'left' }}>Classification</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 40 }}>Hrs</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 65 }}>Rate</th>
                 <th style={{ ...headerStyle, textAlign: 'right', width: 75 }}>Cost</th>
@@ -707,9 +742,11 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
               {equipmentEntries.map((e, i) => {
                 const { rate, cost } = equipmentCosts[i]
                 const dupeWarning = getEquipmentDuplicateWarning(e, i)
+                const isUnmatched = e.needs_master_resolution
+                const rowBorder = isUnmatched ? { borderLeft: '4px solid #eab308' } : {}
                 return (
                   <React.Fragment key={i}>
-                    <tr>
+                    <tr style={rowBorder}>
                       {onBlockChange && (
                         <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 38 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -724,11 +761,17 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                           </div>
                         </td>
                       )}
-                      {renderCell('equipment', i, 'type', e.type || e.equipment_type || '', cellStyle, true, equipmentRates, equipmentRates[0]?.equipment_type ? 'equipment_type' : 'type')}
-                      {renderCell('equipment', i, 'unitNumber', e.unitNumber || e.unit_number || '', cellStyle)}
+                      {renderCell('equipment', i, 'unitNumber', e.unitNumber || e.unit_number || '',
+                        isUnmatched ? { ...cellStyle, backgroundColor: '#fffbeb' } : cellStyle)}
+                      {isUnmatched
+                        ? <td style={{ ...cellStyle, color: '#9ca3af', fontStyle: 'italic', fontSize: 11 }}>
+                            — Pick from master —
+                            {onBlockChange && <button onClick={() => console.log('Add to master: equipment', e.unitNumber || e.unit_number)} style={{ marginLeft: 6, padding: '1px 6px', fontSize: 10, backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer' }}>+ Add to Master</button>}
+                          </td>
+                        : renderCell('equipment', i, 'type', e.type || e.equipment_type || '', cellStyle, true, equipmentRates, equipmentRates[0]?.equipment_type ? 'equipment_type' : 'type')}
                       {renderCell('equipment', i, 'hours', String(e.hours || 0), { ...cellStyle, textAlign: 'right' })}
                       <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: rate != null ? '#166534' : '#9ca3af', fontStyle: rate != null ? 'normal' : 'italic' }}>
-                        {rate != null ? `${fmt(rate)}/day` : 'No rate found'}
+                        {rate != null ? `${fmt(rate)}/day` : isUnmatched ? '$0.00' : 'No rate found'}
                       </td>
                       <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', color: rate != null ? '#166534' : '#9ca3af' }}>
                         {fmt(cost)}
