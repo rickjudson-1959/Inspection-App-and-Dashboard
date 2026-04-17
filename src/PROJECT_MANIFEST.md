@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - April 14, 2026 (v2)
+## Project Manifest - April 17, 2026
 
 ---
 
@@ -355,8 +355,32 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 - reconciled_by (FK to auth.users), reconciled_at
 - Organization-scoped with RLS
 
-### Storage Buckets (Reconciliation)
+### Pipeline Route Tables (NEW - April 16, 2026)
 
+**pipeline_routes** — Parent: one row per uploaded KMZ layer
+- organization_id, project_id (nullable), kmz_upload_id (FK to kmz_uploads)
+- name, description, layer_type (alignment/construction/environmental/row/other)
+- total_length_m, kp_start, kp_end, default_center_lat/lng, default_zoom
+- is_active (boolean), superseded_route_id (FK to self for reject-restore chain)
+- unclassified_features (JSONB — features the parser couldn't classify)
+
+**Child tables** (all have organization_id + route_id with ON DELETE CASCADE):
+- `route_centerline` — seq, lat, lng, elevation (3033 pts for March construction, 774 for alignment)
+- `route_kp_markers` — kp, lat, lng, label (367 from alignment layer)
+- `route_welds` — weld_id, kp, lat, lng, weld_type, properties JSONB (684 from March construction)
+- `route_bends` — bend_id, kp, lat, lng, bend_type, properties (188 from construction)
+- `route_footprint` — name, polygon JSONB, properties (248 from alignment)
+- `route_open_ends` — name, kp, lat, lng, end_type, properties (47 from construction)
+- `route_bore_faces` — name, kp, lat, lng, face_type, properties (2 from construction)
+- `route_sag_bends` — name, kp, lat, lng, properties (154 from construction)
+
+**RPC function**: `insert_pipeline_route(JSONB)` — single Postgres transaction for all inserts. Supersedes previous active route of same layer_type. Returns route_id, counts, superseded_route_id.
+
+**KMZ uploads tracking**: `kmz_uploads` table with group_name, revision, is_current for revision history.
+
+### Storage Buckets
+
+- **`kmz-files`** — KMZ file uploads. Path: `{org_id}/{timestamp}_{filename}`
 - **`reconciliation-docs`** — Uploaded contractor LEMs and daily tickets. Path: `{org_id}/{ticket_number}/{doc_type}/{filename}`
 
 ### FEED Intelligence Tables (NEW - March 2026, v2 - March 19, 2026)
@@ -553,6 +577,19 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
     ├── MapDashboard.jsx
     ├── OfflineStatusBar.jsx     # PWA status indicator (NEW - Jan 2026)
     └── [supporting components]
+│
+├── MiniMapWidget.jsx              # Pipeline map — loads route data from DB via useRouteData() hook, org-scoped, cached per org. Queries alignment layer (KP markers, footprint) + construction layer (welds, bends, centerline). Replaced static egpRouteData.js import. (Refactored Apr 16, 2026)
+├── KMZUpload.jsx                  # KMZ file upload with layer type selection, parse results, accept/reject flow, supersede warnings, revision history (NEW - Apr 16, 2026)
+├── DPRConfig.jsx                  # Daily Progress Report configuration (NEW - Apr 14, 2026)
+├── DPRTab.jsx                     # Daily Progress Report editor tab (NEW - Apr 14, 2026)
+├── AcceptInvite.jsx               # Custom 7-day invitation acceptance page (NEW - Apr 14, 2026)
+
+/api/                               # Vercel Serverless Functions
+├── rates.js                       # Rate card CRUD (labour, equipment, personnel roster, equipment fleet)
+├── parse-kmz.js                   # KMZ parser: auth-verified, org-scoped, calls insert_pipeline_route RPC. Handles alignment + construction layers, MultiGeometry, centerline stitching, unclassified safety net (NEW - Apr 16, 2026)
+├── send-dpr-email.js              # DPR PDF email via Resend (NEW - Apr 14, 2026)
+├── send-feedback-email.js         # User feedback email
+├── send-report-email.js           # Report email
 
 /pipe-up-automation/              # Regulatory Compliance Automation (NEW - Mar 2026)
 ├── generate.py                # Single-file script: PDF → HTML map + Word report
@@ -614,6 +651,44 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–April 2026)
+
+### Pipeline Route Database Refactor (April 16–17, 2026)
+
+**Replaced the 670KB static egpRouteData.js file with a multi-layer database architecture. Pipeline route data now loads from Supabase, supporting multiple KMZ uploads per project with distinct layer types.**
+
+1. **9 database tables** — `pipeline_routes` parent + 8 child tables (centerline, KP markers, welds, bends, footprint, open ends, bore faces, sag bends). All org-scoped with denormalized `organization_id` and RLS.
+
+2. **KMZ parser API route** (`/api/parse-kmz`) — Auth-verified, org-scoped. Downloads KMZ from storage, unzips, parses KML, classifies features via rule-based engine, inserts via `insert_pipeline_route` RPC (single Postgres transaction — full rollback on any failure).
+
+3. **Multi-layer architecture** — Projects can have one active KMZ per `layer_type` (alignment, construction, environmental, row, other). Map queries merge layers: KP markers + footprint from alignment, welds + bends + centerline from construction.
+
+4. **Superseding with history** — New upload of same layer type deactivates previous. `superseded_route_id` tracks the chain. Reject-with-restore: if admin rejects an upload, the previously superseded route is restored.
+
+5. **Unclassified safety net** — Features not matching classification rules are captured with full diagnostics. Admin must explicitly accept before route goes live.
+
+6. **KMZUpload.jsx** — Admin UI with layer type selector (required), parse results display, feature count badges, unclassified review table, accept/reject flow, supersede warnings with specific route name.
+
+7. **MiniMapWidget.jsx refactor** — `useRouteData()` hook queries alignment + construction layers, caches per org (one fetch per page load). Empty-route guards on `interpolatePosition` and `findNearestKP`.
+
+8. **Verified against 3 KMZ files**: alignment (774 centerline, 367 KP, 248 footprint), March construction (684 welds, 188 bends, 3033 centerline), December construction (451 welds, 140 bends). All counts match.
+
+**New files:**
+```
+api/parse-kmz.js                 # KMZ parser API
+src/KMZUpload.jsx                # Admin upload UI
+supabase/migrations/20260416_*   # 5 migration files (tables, RPC, layer_type, unclassified, superseded_route_id)
+```
+
+**Modified files:**
+```
+src/MiniMapWidget.jsx            # DB-backed route data (replaced static import)
+src/AdminPortal.jsx              # KMZ upload section in Setup tab
+```
+
+**Deleted files:**
+```
+src/egpRouteData.js              # 670KB static file — replaced by DB (pending Checkpoint 5)
+```
 
 ### Employee Roster Dropdown, Duplicate Detection, DPR Module & Invitation System (April 14, 2026)
 
