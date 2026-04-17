@@ -148,6 +148,7 @@ function SearchableSelect({
   const [highlightedIndex, setHighlightedIndex] = useState(0)
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 })
   const containerRef = React.useRef(null)
+  const selectDropdownRef = React.useRef(null)
 
   // Filter options based on debounced filter text - matches all words in any order
   const filteredOptions = options.filter(opt => {
@@ -165,8 +166,9 @@ function SearchableSelect({
         setFilterText('')
       }
     }
-    const handleScroll = () => {
-      if (isOpen) {
+    const handleScroll = (e) => {
+      // Don't close if scrolling inside the dropdown list itself
+      if (isOpen && selectDropdownRef.current && !selectDropdownRef.current.contains(e.target)) {
         setIsOpen(false)
         setFilterText('')
       }
@@ -295,7 +297,7 @@ function SearchableSelect({
       </div>
 
       {isOpen && (
-        <div style={{
+        <div ref={selectDropdownRef} style={{
           position: 'fixed',
           top: dropdownPos.top,
           left: dropdownPos.left,
@@ -348,6 +350,7 @@ function SearchableNameInput({ value, onChange, suggestions, roster = [], onSele
   const [highlightedIndex, setHighlightedIndex] = useState(0)
   const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 })
   const containerRef = React.useRef(null)
+  const dropdownListRef = React.useRef(null)
 
   const rosterNames = roster.length > 0 ? roster : suggestions.map(n => ({ employeeName: n, classification: '' }))
 
@@ -365,7 +368,13 @@ function SearchableNameInput({ value, onChange, suggestions, roster = [], onSele
         setFilterText('')
       }
     }
-    const handleScroll = () => { if (isOpen) { setIsOpen(false); setFilterText('') } }
+    const handleScroll = (e) => {
+      // Don't close if the scroll is inside the dropdown list itself
+      if (isOpen && dropdownListRef.current && !dropdownListRef.current.contains(e.target)) {
+        setIsOpen(false)
+        setFilterText('')
+      }
+    }
     document.addEventListener('mousedown', handleClickOutside)
     window.addEventListener('scroll', handleScroll, true)
     return () => {
@@ -446,7 +455,7 @@ function SearchableNameInput({ value, onChange, suggestions, roster = [], onSele
       </div>
 
       {isOpen && (
-        <div style={{
+        <div ref={dropdownListRef} style={{
           position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width,
           backgroundColor: '#fff', border: '1px solid #ced4da', borderRadius: '4px',
           boxShadow: '0 4px 12px rgba(0,0,0,0.15)', zIndex: 9999, maxHeight: '250px', overflowY: 'auto'
