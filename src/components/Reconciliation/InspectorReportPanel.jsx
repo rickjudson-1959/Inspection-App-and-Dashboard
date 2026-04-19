@@ -16,6 +16,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const [masterModal, setMasterModal] = useState({ open: false, type: 'labour', prefill: '', rowIdx: null, section: null })
   const [toast, setToast] = useState(null)
   const [dupeResolve, setDupeResolve] = useState(null) // { section, rowIdx, masterId, masterName, existingRowIdx, existingEntry, pendingAction }
+  const [dragState, setDragState] = useState({ section: null, fromIdx: null, overIdx: null })
 
   // Focus input and calculate dropdown position when editing starts
   useEffect(() => {
@@ -452,6 +453,28 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     onBlockChange(updatedBlock, [{ field: `${section}[${fromIdx}→${toIdx}]`, oldValue: `position ${fromIdx}`, newValue: `position ${toIdx}` }])
   }
 
+  // --- Drag-and-drop row reordering ---
+  function handleDragStart(section, idx, e) {
+    setDragState({ section, fromIdx: idx, overIdx: null })
+    e.dataTransfer.effectAllowed = 'move'
+    // Make the drag image slightly transparent
+    if (e.target) e.target.style.opacity = '0.5'
+  }
+  function handleDragEnd(e) {
+    if (e.target) e.target.style.opacity = '1'
+    if (dragState.section && dragState.fromIdx !== null && dragState.overIdx !== null && dragState.fromIdx !== dragState.overIdx) {
+      moveRow(dragState.section, dragState.fromIdx, dragState.overIdx)
+    }
+    setDragState({ section: null, fromIdx: null, overIdx: null })
+  }
+  function handleDragOver(section, idx, e) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (dragState.section === section && dragState.overIdx !== idx) {
+      setDragState(prev => ({ ...prev, overIdx: idx }))
+    }
+  }
+
   function addLabourEntry() {
     if (!onBlockChange) return
     const newEntry = { employeeName: '', classification: '', rt: '0', ot: '0', dt: '0', count: '1' }
@@ -764,16 +787,20 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 const rowBorder = isUnmatched ? { borderLeft: '4px solid #eab308' } : {}
                 return (
                   <React.Fragment key={i}>
-                    <tr style={rowBorder}>
+                    <tr
+                      style={{ ...rowBorder, ...(dragState.section === 'labour' && dragState.overIdx === i ? { borderTop: '3px solid #3b82f6' } : {}) }}
+                      onDragOver={e => handleDragOver('labour', i, e)}
+                    >
                       {onBlockChange && (
-                        <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 38 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                              <button onClick={() => moveRow('labour', i, i - 1)} disabled={i === 0}
-                                style={{ border: 'none', background: 'none', cursor: i === 0 ? 'default' : 'pointer', fontSize: 10, color: i === 0 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9650;</button>
-                              <button onClick={() => moveRow('labour', i, i + 1)} disabled={i === labourEntries.length - 1}
-                                style={{ border: 'none', background: 'none', cursor: i === labourEntries.length - 1 ? 'default' : 'pointer', fontSize: 10, color: i === labourEntries.length - 1 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9660;</button>
-                            </div>
+                        <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 32 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <span
+                              draggable
+                              onDragStart={e => handleDragStart('labour', i, e)}
+                              onDragEnd={handleDragEnd}
+                              style={{ cursor: 'grab', fontSize: 14, color: '#9ca3af', userSelect: 'none', lineHeight: 1 }}
+                              title="Drag to reorder"
+                            >&#9776;</span>
                             <button onClick={() => removeRow('labour', i)}
                               style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: '#dc2626', padding: 0, lineHeight: 1, fontWeight: 'bold' }} title="Remove row">&#10005;</button>
                           </div>
@@ -880,16 +907,20 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 const rowBorder = isUnmatched ? { borderLeft: '4px solid #eab308' } : {}
                 return (
                   <React.Fragment key={i}>
-                    <tr style={rowBorder}>
+                    <tr
+                      style={{ ...rowBorder, ...(dragState.section === 'equipment' && dragState.overIdx === i ? { borderTop: '3px solid #3b82f6' } : {}) }}
+                      onDragOver={e2 => handleDragOver('equipment', i, e2)}
+                    >
                       {onBlockChange && (
-                        <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 38 }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                              <button onClick={() => moveRow('equipment', i, i - 1)} disabled={i === 0}
-                                style={{ border: 'none', background: 'none', cursor: i === 0 ? 'default' : 'pointer', fontSize: 10, color: i === 0 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9650;</button>
-                              <button onClick={() => moveRow('equipment', i, i + 1)} disabled={i === equipmentEntries.length - 1}
-                                style={{ border: 'none', background: 'none', cursor: i === equipmentEntries.length - 1 ? 'default' : 'pointer', fontSize: 10, color: i === equipmentEntries.length - 1 ? '#d1d5db' : '#6b7280', padding: 0, lineHeight: 1 }}>&#9660;</button>
-                            </div>
+                        <td style={{ ...cellStyle, padding: '2px', textAlign: 'center', width: 32 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                            <span
+                              draggable
+                              onDragStart={ev => handleDragStart('equipment', i, ev)}
+                              onDragEnd={handleDragEnd}
+                              style={{ cursor: 'grab', fontSize: 14, color: '#9ca3af', userSelect: 'none', lineHeight: 1 }}
+                              title="Drag to reorder"
+                            >&#9776;</span>
                             <button onClick={() => removeRow('equipment', i)}
                               style={{ border: 'none', background: 'none', cursor: 'pointer', fontSize: 12, color: '#dc2626', padding: 0, lineHeight: 1, fontWeight: 'bold' }} title="Remove row">&#10005;</button>
                           </div>
