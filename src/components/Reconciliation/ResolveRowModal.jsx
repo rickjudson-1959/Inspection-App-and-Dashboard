@@ -458,7 +458,7 @@ export default function ResolveRowModal({
                   style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 14, boxSizing: 'border-box' }} />
               </div>
 
-              <div style={{ marginBottom: 12, position: 'relative' }}>
+              <div style={{ marginBottom: 16, position: 'relative' }}>
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, marginBottom: 4 }}>Classification *</label>
                 <div onClick={() => setShowClassDropdown(true)} style={{
                   width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 14,
@@ -496,16 +496,16 @@ export default function ResolveRowModal({
                 </div>
               )}
 
-              <div style={{ padding: '8px 10px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, fontSize: 11, color: '#92400e', marginBottom: 12 }}>
+              <div style={{ padding: '8px 10px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 4, fontSize: 11, color: '#92400e', marginBottom: 12, marginTop: 16 }}>
                 ⚠ This adds a permanent record to the project master.
               </div>
 
-              <div style={{ display: 'flex', gap: 8 }}>
+              <div style={{ display: 'flex', gap: 8, paddingTop: 4, borderTop: '1px solid #e5e7eb' }}>
                 <button onClick={handleAddNew} disabled={saving} style={{
-                  padding: '8px 14px', backgroundColor: saving ? '#9ca3af' : '#059669', color: 'white',
-                  border: 'none', borderRadius: 4, cursor: saving ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 600,
+                  padding: '10px 18px', backgroundColor: saving ? '#9ca3af' : '#059669', color: 'white',
+                  border: 'none', borderRadius: 4, cursor: saving ? 'not-allowed' : 'pointer', fontSize: 14, fontWeight: 600,
                 }}>{saving ? 'Adding...' : 'Add to Master'}</button>
-                <button onClick={() => setView('candidates')} style={{ padding: '8px 14px', backgroundColor: '#e5e7eb', color: '#374151', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 13 }}>Back</button>
+                <button onClick={() => setView('candidates')} style={{ padding: '10px 18px', backgroundColor: '#e5e7eb', color: '#374151', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 14 }}>Back</button>
               </div>
             </>
           )}
