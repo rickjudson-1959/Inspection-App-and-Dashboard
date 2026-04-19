@@ -22,6 +22,7 @@ import AssistantChiefDashboard from './AssistantChiefDashboard.jsx'
 import AuditorDashboard from './AuditorDashboard.jsx'
 import NDTAuditorDashboard from './NDTAuditorDashboard.jsx'
 import AdminPortal from './AdminPortal.jsx'
+import MasterGaps from './MasterGaps.jsx'
 import InspectorProfileView from './InspectorProfileView.jsx'
 import ChiefConstructionSummary from './ChiefConstructionSummary.jsx'
 import InspectorApp from './InspectorApp.jsx'
@@ -211,6 +212,12 @@ function OrgRoutes() {
       <Route path="admin" element={
         <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
           <AdminPortal />
+        </ProtectedRoute>
+      } />
+
+      <Route path="master-gaps" element={
+        <ProtectedRoute allowedRoles={['admin', 'super_admin']}>
+          <MasterGaps />
         </ProtectedRoute>
       } />
 

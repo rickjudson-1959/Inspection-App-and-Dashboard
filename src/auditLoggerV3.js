@@ -649,6 +649,64 @@ export async function logInspectorOverride({
   }
 }
 
+// ============================================================================
+// RESOLUTION AUDIT EVENTS (Phase R.5 — Master Sheet Authority)
+// ============================================================================
+
+/**
+ * Log a master resolution decision.
+ * Event types:
+ *   - row_resolved_picked_existing — user picked an existing master match
+ *   - row_resolved_added_new — user created a new master record
+ *   - row_flagged_for_review — user flagged the row
+ *   - row_resolution_cancelled — user opened modal and cancelled
+ *   - flagged_row_reviewed — someone resolved a previously-flagged row
+ */
+export async function logResolutionEvent({
+  eventType,
+  reportId,
+  organizationId,
+  sourceValue,
+  masterId = null,
+  candidatesShownCount = 0,
+  topCandidateScore = 0,
+  userRole = '',
+  entryType = 'labour',
+  notes = null
+}) {
+  try {
+    const auditEntry = {
+      report_id: reportId || null,
+      entity_type: 'resolution',
+      entity_id: masterId,
+      section: 'master_resolution',
+      field_name: entryType === 'labour' ? 'master_personnel_id' : 'master_equipment_id',
+      old_value: sourceValue,
+      new_value: masterId || eventType,
+      change_type: eventType,
+      is_critical: false,
+      metadata: {
+        source_value: sourceValue,
+        candidates_shown_count: candidatesShownCount,
+        top_candidate_score: topCandidateScore,
+        user_role: userRole,
+        entry_type: entryType,
+        notes: notes,
+      },
+      changed_at: new Date().toISOString(),
+      organization_id: organizationId
+    }
+
+    const { error } = await supabase
+      .from('report_audit_log')
+      .insert(auditEntry)
+
+    if (error) throw error
+  } catch (err) {
+    console.error(`Audit log error (${eventType}):`, err)
+  }
+}
+
 export default {
   PRECISION_MAP,
   getPrecision,
@@ -662,5 +720,6 @@ export default {
   logEntryDelete,
   logStatusChange,
   logInspectorOverride,
+  logResolutionEvent,
   createAuditHelpers
 }

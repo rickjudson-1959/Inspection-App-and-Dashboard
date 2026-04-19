@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 4.14 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-04-14
+## Version: 4.15.1 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-04-19
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -611,6 +611,20 @@ type (from 334 equipmentTypes e.g. Backhoe - Cat 330, Sideboom - Cat 583, Dozer 
 
 ### RT/OT Auto-Split from OCR
 When OCR extracts total hours from a ticket, the app auto-splits: RT = min(totalHours, 8), OT = max(0, totalHours - 8).
+
+### Resolving Unmatched Rows (v4.15.1)
+
+When a name or unit number on your report isn't in the master, the row shows in amber with a "Resolve" button.
+
+Click Resolve to open the resolve modal. The system shows the top 5 closest matches from the master.
+
+**If one of the candidates is the right person/unit:** Click "This one." The row auto-fills with the canonical master spelling, classification, and rate.
+
+**If none of the candidates match and this is genuinely a new person/unit:** Only admins can add new master records. Inspectors should pick from the candidates if possible, or flag the row for review.
+
+**If you're not sure which candidate is right, or none look close enough:** Click "Flag for review." The row will be marked purple and appear in the admin Master Gaps / Flagged Rows view for follow-up. You can optionally type a note explaining why you flagged it.
+
+Flagged rows are NOT resolved — they still show $0 cost and are excluded from billing totals until someone reviews them.
 
 ---
 
