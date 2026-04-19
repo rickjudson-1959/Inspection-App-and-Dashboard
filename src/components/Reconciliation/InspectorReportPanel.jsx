@@ -267,21 +267,28 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
       return
     }
 
+    // Normalize field names — ResolveRowModal sends snake_case, old AddToMasterModal sent camelCase
+    const masterId = result.master_id || result.masterId
+    const masterName = result.master_name || result.name
+    const masterClassification = result.master_classification || result.classification
+
     const doCommit = () => {
       const entries = section === 'labour' ? [...labourEntries] : [...equipmentEntries]
       const entry = { ...entries[rowIdx] }
 
       if (section === 'labour') {
-        entry.employeeName = result.name
-        entry.classification = result.classification
-        entry.master_personnel_id = result.masterId
+        entry.employeeName = masterName
+        entry.classification = masterClassification
+        entry.master_personnel_id = masterId
         entry.needs_master_resolution = false
+        entry.flagged_for_review = false
       } else {
-        entry.unitNumber = result.unitNumber || result.name
-        entry.type = result.classification
-        entry.classification = result.classification
-        entry.master_equipment_id = result.masterId
+        entry.unitNumber = result.unitNumber || masterName
+        entry.type = masterClassification
+        entry.classification = masterClassification
+        entry.master_equipment_id = masterId
         entry.needs_master_resolution = false
+        entry.flagged_for_review = false
       }
       entries[rowIdx] = entry
 
@@ -292,19 +299,19 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
       onBlockChange(updatedBlock, [{
         field: `${section}[${rowIdx}].master_${section === 'labour' ? 'personnel' : 'equipment'}_id`,
         oldValue: 'null',
-        newValue: result.masterId,
+        newValue: masterId,
       }])
 
       if (onAliasCreated) {
-        onAliasCreated({ alias_type: section === 'labour' ? 'labour' : 'equipment', original_value: result.name, mapped_value: result.classification })
+        onAliasCreated({ alias_type: section === 'labour' ? 'labour' : 'equipment', original_value: masterName, mapped_value: masterClassification })
       }
 
-      setToast(`✓ ${result.name} added to master and linked to this row`)
+      setToast(`✓ Resolved to ${masterName}`)
       setTimeout(() => setToast(null), 4000)
     }
 
     // Check for duplicate master ID on this ticket
-    if (result.masterId && checkForDuplicateMaster(section, rowIdx, result.masterId, result.name, doCommit)) {
+    if (masterId && checkForDuplicateMaster(section, rowIdx, masterId, masterName, doCommit)) {
       return
     }
     doCommit()
