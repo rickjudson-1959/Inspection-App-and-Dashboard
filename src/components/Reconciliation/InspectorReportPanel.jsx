@@ -1,7 +1,8 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react'
 import ReactDOM from 'react-dom'
 import { supabase } from '../../supabase'
-import AddToMasterModal from './AddToMasterModal.jsx'
+import { useAuth } from '../../AuthContext.jsx'
+import ResolveRowModal from './ResolveRowModal.jsx'
 
 export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated, sameDayEntries = { labour: [], equipment: [] }, employeeRoster = [] }) {
   const [editingCell, setEditingCell] = useState(null) // { section, rowIdx, field }
@@ -13,6 +14,18 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const portalRef = useRef(null)
   const skipBlurRef = useRef(false)
   const [dropdownPos, setDropdownPos] = useState(null)
+  const { userProfile } = useAuth()
+  const currentUserRole = userProfile?.role || ''
+  const [projectId, setProjectId] = useState(null)
+
+  // Load project ID for this org
+  useEffect(() => {
+    if (!organizationId) return
+    supabase.from('projects').select('id').limit(1).then(({ data }) => {
+      if (data?.[0]) setProjectId(data[0].id)
+    })
+  }, [organizationId])
+
   const [masterModal, setMasterModal] = useState({ open: false, type: 'labour', prefill: '', rowIdx: null, section: null })
   const [toast, setToast] = useState(null)
   const [dupeResolve, setDupeResolve] = useState(null) // { section, rowIdx, masterId, masterName, existingRowIdx, existingEntry, pendingAction }
@@ -220,9 +233,12 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const grandTotal = labourTotal + equipmentTotal
 
   // --- Master resolution counts ---
-  const unresolvedLabour = labourEntries.filter(e => e.needs_master_resolution).length
-  const unresolvedEquip = equipmentEntries.filter(e => e.needs_master_resolution).length
-  const hasUnresolved = unresolvedLabour > 0 || unresolvedEquip > 0
+  const unresolvedLabour = labourEntries.filter(e => e.needs_master_resolution && !e.flagged_for_review).length
+  const unresolvedEquip = equipmentEntries.filter(e => e.needs_master_resolution && !e.flagged_for_review).length
+  const flaggedLabour = labourEntries.filter(e => e.flagged_for_review).length
+  const flaggedEquip = equipmentEntries.filter(e => e.flagged_for_review).length
+  const totalFlagged = flaggedLabour + flaggedEquip
+  const hasUnresolved = unresolvedLabour > 0 || unresolvedEquip > 0 || totalFlagged > 0
 
   // --- Add to Master modal handlers ---
   function openMasterModal(section, rowIdx, prefillValue) {
@@ -232,6 +248,24 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   function handleMasterAdded(result) {
     if (!onBlockChange || masterModal.rowIdx === null) return
     const { section, rowIdx } = masterModal
+
+    // Handle flagged resolution
+    if (result.type === 'flagged') {
+      const entries = section === 'labour' ? [...labourEntries] : [...equipmentEntries]
+      const entry = { ...entries[rowIdx] }
+      entry.flagged_for_review = true
+      entry.flagged_by = result.flaggedBy || null
+      entry.flagged_at = new Date().toISOString()
+      entry.flagged_reason = result.reason || null
+      entries[rowIdx] = entry
+      const updatedBlock = { ...block }
+      if (section === 'labour') updatedBlock.labourEntries = entries
+      else updatedBlock.equipmentEntries = entries
+      onBlockChange(updatedBlock, [{ field: `${section}[${rowIdx}].flagged_for_review`, oldValue: 'false', newValue: 'true' }])
+      setToast('🔖 Flagged for review')
+      setTimeout(() => setToast(null), 4000)
+      return
+    }
 
     const doCommit = () => {
       const entries = section === 'labour' ? [...labourEntries] : [...equipmentEntries]
@@ -747,10 +781,10 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
         <div style={{ margin: '4px 12px', padding: '8px 12px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: 12, color: '#92400e', display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 14 }}>&#9888;</span>
           <span>
-            {unresolvedLabour > 0 && `${unresolvedLabour} labour entr${unresolvedLabour === 1 ? 'y' : 'ies'}`}
-            {unresolvedLabour > 0 && unresolvedEquip > 0 && ' and '}
-            {unresolvedEquip > 0 && `${unresolvedEquip} equipment entr${unresolvedEquip === 1 ? 'y' : 'ies'}`}
-            {' '}need master resolution. Cost totals exclude these rows until resolved.
+            {(unresolvedLabour + unresolvedEquip) > 0 && `${unresolvedLabour + unresolvedEquip} need resolution`}
+            {(unresolvedLabour + unresolvedEquip) > 0 && totalFlagged > 0 && ' · '}
+            {totalFlagged > 0 && `${totalFlagged} flagged for review`}
+            {' '}· Cost totals exclude these rows until resolved.
           </span>
         </div>
       )}
@@ -784,7 +818,8 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 const lc = labourCosts[i]
                 const dupeWarning = getLabourDuplicateWarning(e, i)
                 const isUnmatched = e.needs_master_resolution
-                const rowBorder = isUnmatched ? { borderLeft: '4px solid #eab308' } : {}
+                const isFlagged = e.flagged_for_review
+                const rowBorder = isFlagged ? { borderLeft: '4px solid #7c3aed' } : isUnmatched ? { borderLeft: '4px solid #eab308' } : {}
                 return (
                   <React.Fragment key={i}>
                     <tr
@@ -812,7 +847,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                       {isUnmatched
                         ? <td style={{ ...cellStyle, color: '#9ca3af', fontStyle: 'italic', fontSize: 11 }}>
                             — Pick from master —
-                            {onBlockChange && <button onClick={() => openMasterModal('labour', i, e.employeeName || e.employee_name || e.name || '')} style={{ marginLeft: 6, padding: '1px 6px', fontSize: 10, backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer' }}>+ Add to Master</button>}
+                            {onBlockChange && <button onClick={() => openMasterModal('labour', i, e.employeeName || e.employee_name || e.name || '')} style={{ marginLeft: 6, padding: '1px 6px', fontSize: 10, backgroundColor: e.flagged_for_review ? '#7c3aed' : '#f59e0b', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer' }}>{e.flagged_for_review ? 'Review Flag' : 'Resolve'}</button>}
                           </td>
                         : renderCell('labour', i, 'classification', e.classification || '', { ...cellStyle, color: '#6b7280' }, true, labourRates, 'classification')}
                       {renderCell('labour', i, 'rt', String(e.rt || e.hours || 0), { ...cellStyle, textAlign: 'right' })}
@@ -904,7 +939,8 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 const { rate, cost } = equipmentCosts[i]
                 const dupeWarning = getEquipmentDuplicateWarning(e, i)
                 const isUnmatched = e.needs_master_resolution
-                const rowBorder = isUnmatched ? { borderLeft: '4px solid #eab308' } : {}
+                const isFlagged = e.flagged_for_review
+                const rowBorder = isFlagged ? { borderLeft: '4px solid #7c3aed' } : isUnmatched ? { borderLeft: '4px solid #eab308' } : {}
                 return (
                   <React.Fragment key={i}>
                     <tr
@@ -931,7 +967,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                       {isUnmatched
                         ? <td style={{ ...cellStyle, color: '#9ca3af', fontStyle: 'italic', fontSize: 11 }}>
                             — Pick from master —
-                            {onBlockChange && <button onClick={() => openMasterModal('equipment', i, e.unitNumber || e.unit_number || '')} style={{ marginLeft: 6, padding: '1px 6px', fontSize: 10, backgroundColor: '#f59e0b', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer' }}>+ Add to Master</button>}
+                            {onBlockChange && <button onClick={() => openMasterModal('equipment', i, e.unitNumber || e.unit_number || '')} style={{ marginLeft: 6, padding: '1px 6px', fontSize: 10, backgroundColor: e.flagged_for_review ? '#7c3aed' : '#f59e0b', color: 'white', border: 'none', borderRadius: 3, cursor: 'pointer' }}>{e.flagged_for_review ? 'Review Flag' : 'Resolve'}</button>}
                           </td>
                         : renderCell('equipment', i, 'type', e.type || e.equipment_type || '', cellStyle, true, equipmentRates, equipmentRates[0]?.equipment_type ? 'equipment_type' : 'type')}
                       {renderCell('equipment', i, 'hours', String(e.hours || 0), { ...cellStyle, textAlign: 'right' })}
@@ -1006,14 +1042,26 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
         Live data from inspector report — Report ID: {report.id} — Rate cards: {labourRates.length} labour, {equipmentRates.length} equipment
       </div>
 
-      {/* Add to Master modal */}
-      <AddToMasterModal
-        isOpen={masterModal.open}
+      {/* Resolve Row modal */}
+      <ResolveRowModal
+        open={masterModal.open}
         onClose={() => setMasterModal({ open: false, type: 'labour', prefill: '', rowIdx: null, section: null })}
-        onAdded={handleMasterAdded}
-        type={masterModal.type}
-        prefillName={masterModal.prefill}
+        onResolved={handleMasterAdded}
+        entryType={masterModal.type}
+        sourceValue={masterModal.prefill}
+        projectId={projectId}
         organizationId={organizationId}
+        dailyReportId={report?.id}
+        rowContext={{
+          blockId: block?.id,
+          entryIndex: masterModal.rowIdx,
+          currentHours: masterModal.section === 'labour'
+            ? parseFloat(labourEntries[masterModal.rowIdx]?.rt || 0) + parseFloat(labourEntries[masterModal.rowIdx]?.ot || 0)
+            : parseFloat(equipmentEntries[masterModal.rowIdx]?.hours || 0),
+          reportDate: report?.date,
+          ticketNumber: block?.ticketNumber,
+        }}
+        currentUserRole={currentUserRole}
         labourRates={labourRates}
         equipmentRates={equipmentRates}
       />
