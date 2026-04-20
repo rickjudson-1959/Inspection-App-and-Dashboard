@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - April 17, 2026
+## Project Manifest - April 19, 2026
 
 ---
 
@@ -579,6 +579,10 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
     └── [supporting components]
 │
 ├── MiniMapWidget.jsx              # Pipeline map — loads route data from DB via useRouteData() hook, org-scoped, cached per org. Queries alignment layer (KP markers, footprint) + construction layer (welds, bends, centerline). Replaced static egpRouteData.js import. (Refactored Apr 16, 2026)
+├── MasterGaps.jsx                 # Admin view for unresolved + flagged rows. Two tabs: Unresolved (grouped by name/unit) and Flagged for Review. Route: /:orgSlug/master-gaps (NEW - Apr 19, 2026)
+│
+├── lib/
+│   └── contractCompliance.js      # Contract Compliance Engine: calculateSplit (weekday/Saturday/Sunday/holiday rules), calculateCost, calculateVariance. Province-aware holiday lookups. (NEW - Apr 19, 2026)
 ├── KMZUpload.jsx                  # KMZ file upload with layer type selection, parse results, accept/reject flow, supersede warnings, revision history (NEW - Apr 16, 2026)
 ├── DPRConfig.jsx                  # Daily Progress Report configuration (NEW - Apr 14, 2026)
 ├── DPRTab.jsx                     # Daily Progress Report editor tab (NEW - Apr 14, 2026)
@@ -651,6 +655,65 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–April 2026)
+
+### Contract Compliance Engine + Total Hours Entry (April 19, 2026)
+
+**Added contract-aware RT/OT/DT auto-splitting and the foundation for variance comparison.**
+
+1. **Contract Compliance Engine** (`src/lib/contractCompliance.js`) — Pure calculation module with 5 functions: `loadProjectRules()`, `getHolidayForDate()`, `calculateSplit()`, `calculateCost()`, `calculateVariance()`. Standard Canadian pipeline rules: weekday (first 8 RT, remainder OT), Saturday (all OT), Sunday (all DT), statutory holiday (all DT, takes precedence). 13 unit tests pass.
+
+2. **Project contract configuration** — Added `base_hours_per_day`, `ot_multiplier`, `dt_multiplier`, `province` columns to `projects` table. CLX-2 set to Alberta, 8/1.5x/2.0x.
+
+3. **Statutory holidays table** — `statutory_holidays` with 3006 entries covering all Canadian federal + provincial holidays 2014–2030. Province-scoped: AB Family Day fires for Alberta, not Quebec.
+
+4. **Total Hours inspector entry** — `ActivityBlock.jsx` refactored: inspectors enter one "Total Hours" field. RT/OT/DT auto-calculated via `calculateSplit()` based on report date + contract rules. Split preview shows below form. RT/OT/DT columns are read-only display. Existing CLX-2 entries keep stored values.
+
+5. **Reconciliation line items** — `reconciliation_line_items` table created with variance tracking columns: `variance_category`, `dollar_impact`, `contract_rt/ot/dt`, `lem_rt/ot/dt`.
+
+**New files:**
+```
+src/lib/contractCompliance.js              # Contract compliance engine
+supabase/migrations/20260417_seed_statutory_holidays.sql  # Holiday seed data
+```
+
+**Modified files:**
+```
+src/ActivityBlock.jsx                      # Total Hours entry, auto-split
+```
+
+**New DB tables/columns:**
+- `statutory_holidays` — 3006 rows, federal + provincial, 2014–2030
+- `projects.base_hours_per_day`, `ot_multiplier`, `dt_multiplier`, `province`
+- `reconciliation_line_items` — with variance tracking extensions
+
+### Resolve Button Rebuild + Master Gaps (April 19, 2026)
+
+**Replaced "+ Add to Master" with a diagnostic-first "Resolve" workflow. Fuzzy matching surfaces candidates before creation.**
+
+1. **ResolveRowModal.jsx** — New component replacing `AddToMasterModal.jsx`. Shows top 5 fuzzy-matched candidates from master (7-pass name matching, equipment token overlap). Match strength dots: green ≥85%, yellow 60–84%, orange 40–59%. Four actions: "This one" (pick existing), "Add as new" (admin-only), "Flag for review" (all roles), "Cancel".
+
+2. **Resolution decisions table** — `resolution_decisions` captures every resolve action with `source_value`, `resolution_type` (picked_existing/added_new/flagged/cancelled), `candidates_shown` JSONB, `master_id_resolved`. Training data for future automated alias system.
+
+3. **Row color states** — Amber = unmatched, Purple = flagged for review. "Resolve" button on amber rows, "Review Flag" on purple rows. Summary banner shows separate counts.
+
+4. **Master Gaps admin page** — `src/MasterGaps.jsx` at `/:orgSlug/master-gaps`. Two tabs: Unresolved (grouped by name/unit with count + ticket list) and Flagged for Review (with flag reason + date).
+
+5. **Pre-resolution duplicate detection** — When resolving an amber row to a master entry already on the ticket, shows merge/keep-separate/cancel modal. Merge sums hours (keeps higher subs). Keep-separate triggers existing duplicate warning.
+
+6. **Drag-and-drop row reordering** — Replaced up/down arrow buttons with ≡ grip handles on labour and equipment rows. HTML5 drag-and-drop with blue drop indicator.
+
+7. **Audit logging** — `logResolutionEvent()` in `auditLoggerV3.js` with 5 event types. Field guide updated to v4.15.1.
+
+**New files:**
+```
+src/Components/Reconciliation/ResolveRowModal.jsx  # Fuzzy candidate + resolve workflow
+src/MasterGaps.jsx                                  # Admin gaps/flagged view
+```
+
+**Deleted files:**
+```
+src/Components/Reconciliation/AddToMasterModal.jsx  # Replaced by ResolveRowModal
+```
 
 ### Pipeline Route Database Refactor (April 16–17, 2026)
 
