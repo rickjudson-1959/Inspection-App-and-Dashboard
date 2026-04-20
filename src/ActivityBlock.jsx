@@ -1,11 +1,12 @@
 // ActivityBlock.jsx - Extracted from InspectorReport.jsx
 // A single activity block component with all rendering logic
-import React, { useState, useEffect, memo } from 'react'
+import React, { useState, useEffect, memo, useMemo } from 'react'
 import { activityTypes, qualityFieldsByActivity, labourClassifications, equipmentTypes, timeLostReasons, productionStatuses, dragReasonCategories, impactScopes, responsiblePartyConfig } from './constants.js'
 import { syncKPFromGPS } from './kpUtils.js'
 import { supabase } from './supabase'
 import { useOrgQuery } from './utils/queryHelpers.js'
 import { calculateShadowHours, calculateTotalBilledHours, calculateTotalShadowHours, calculateInertiaRatio, hasSystemicDelay, getDelayType } from './shadowAuditUtils.js'
+import { calculateSplit, getHolidayForDate } from './lib/contractCompliance.js'
 
 // Specialized log components
 import MainlineWeldData from './MainlineWeldData.jsx'
@@ -579,11 +580,14 @@ function ActivityBlock({
     employeeName: '',
     classification: '',
     masterPersonnelId: null,
-    rt: '',
-    ot: '',
-    jh: '',
+    totalHours: '',
     count: '1'
   })
+  // Contract compliance: project rules + holiday for this date
+  const [projectRules, setProjectRules] = useState({ base_hours_per_day: 8, ot_multiplier: 1.5, dt_multiplier: 2.0, province: 'AB' })
+  const [holiday, setHoliday] = useState(null)
+  const isAdminRole = ['admin', 'super_admin'].includes(currentUser?.role)
+
   const [currentEquipment, setCurrentEquipment] = useState({ type: '', hours: '', count: '', unitNumber: '', masterEquipmentId: null })
   const [ocrProcessing, setOcrProcessing] = useState(false)
   const [ocrError, setOcrError] = useState(null)
@@ -637,6 +641,35 @@ function ActivityBlock({
     }
     loadMasterRoster()
   }, [organizationId])
+
+  useEffect(() => {
+    if (!organizationId || !selectedDate) return
+    async function loadContractContext() {
+      try {
+        // Load project rules
+        const { data: proj } = await supabase.from('projects').select('base_hours_per_day, ot_multiplier, dt_multiplier, province').limit(1).single()
+        if (proj) setProjectRules(proj)
+
+        // Check if report date is a holiday
+        const province = proj?.province || 'AB'
+        const { data: hol } = await supabase.from('statutory_holidays')
+          .select('id, name, jurisdiction, province')
+          .eq('holiday_date', selectedDate)
+          .or(`jurisdiction.eq.federal,and(jurisdiction.eq.provincial,province.eq.${province})`)
+          .limit(1)
+          .maybeSingle()
+        setHoliday(hol || null)
+      } catch (e) { console.warn('Failed to load contract context:', e) }
+    }
+    loadContractContext()
+  }, [organizationId, selectedDate])
+
+  // Auto-calculate RT/OT/DT split from total hours
+  const currentSplit = useMemo(() => {
+    const total = parseFloat(currentLabour.totalHours) || 0
+    if (total <= 0 || !selectedDate) return { rt_hours: 0, ot_hours: 0, dt_hours: 0, rule_applied: '', rule_description: '' }
+    return calculateSplit(total, selectedDate, projectRules, holiday)
+  }, [currentLabour.totalHours, selectedDate, projectRules, holiday])
 
   // Track which labour/equipment rows have their flag panel open
   const [openFlagRows, setOpenFlagRows] = useState({})
@@ -2748,9 +2781,9 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
       <div style={{ marginBottom: '20px', padding: '15px', backgroundColor: '#d4edda', borderRadius: '8px' }}>
         <h4 style={{ margin: '0 0 10px 0', color: '#155724' }}>👷 Manpower</h4>
         <p style={{ margin: '0 0 15px 0', fontSize: '12px', color: '#155724' }}>
-          RT = Regular Time | OT = Overtime | JH = Jump Hours (bonus)
+          Enter total hours worked. RT/OT/DT is calculated automatically based on the report date.
         </p>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 70px 70px 70px 70px auto', gap: '10px', marginBottom: '15px', alignItems: 'end' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr 80px 70px auto', gap: '10px', marginBottom: '15px', alignItems: 'end' }}>
           <div>
             <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Employee Name</label>
             <SearchableNameInput
@@ -2782,36 +2815,14 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
             />
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#155724' }}>RT</label>
+            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#155724' }}>Total Hrs</label>
             <input
               type="text"
-              inputMode="numeric"
-              placeholder="8"
-              value={currentLabour.rt}
-              onChange={(e) => setCurrentLabour({ ...currentLabour, rt: e.target.value })}
+              inputMode="decimal"
+              placeholder="12"
+              value={currentLabour.totalHours}
+              onChange={(e) => setCurrentLabour({ ...currentLabour, totalHours: e.target.value })}
               style={{ width: '100%', padding: '8px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#d4edda', boxSizing: 'border-box' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#856404' }}>OT</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="0"
-              value={currentLabour.ot}
-              onChange={(e) => setCurrentLabour({ ...currentLabour, ot: e.target.value })}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ffc107', borderRadius: '4px', backgroundColor: '#fff3cd', boxSizing: 'border-box' }}
-            />
-          </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px', color: '#004085' }}>JH</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="0"
-              value={currentLabour.jh}
-              onChange={(e) => setCurrentLabour({ ...currentLabour, jh: e.target.value })}
-              style={{ width: '100%', padding: '8px', border: '1px solid #007bff', borderRadius: '4px', backgroundColor: '#cce5ff', boxSizing: 'border-box' }}
             />
           </div>
           <div>
@@ -2827,14 +2838,21 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
           </div>
           <button
             onClick={() => {
-              addLabourToBlock(block.id, currentLabour.employeeName, currentLabour.classification, currentLabour.rt, currentLabour.ot, currentLabour.jh, currentLabour.count, currentLabour.masterPersonnelId)
-              setCurrentLabour({ employeeName: '', classification: '', masterPersonnelId: null, rt: '', ot: '', jh: '', count: '1' })
+              addLabourToBlock(block.id, currentLabour.employeeName, currentLabour.classification, currentSplit.rt_hours, currentSplit.ot_hours, 0, currentLabour.count, currentLabour.masterPersonnelId)
+              setCurrentLabour({ employeeName: '', classification: '', masterPersonnelId: null, totalHours: '', count: '1' })
             }}
             style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', height: '38px' }}
           >
             Add
           </button>
         </div>
+
+        {parseFloat(currentLabour.totalHours) > 0 && (
+          <div style={{ marginBottom: '10px', padding: '6px 10px', backgroundColor: '#e8f5e9', borderRadius: '4px', fontSize: '11px', color: '#2e7d32' }}>
+            <strong>Split:</strong> {currentSplit.rt_hours} RT · {currentSplit.ot_hours} OT · {currentSplit.dt_hours} DT
+            <span style={{ marginLeft: '8px', fontStyle: 'italic', color: '#558b2f' }}>— {currentSplit.rule_description}</span>
+          </div>
+        )}
 
         {block.labourEntries.length > 0 && (
           <div style={{ overflowX: 'auto' }}>
@@ -2843,9 +2861,10 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                 <tr style={{ backgroundColor: '#c3e6cb' }}>
                   <th style={{ padding: '8px', textAlign: 'left' }}>Employee</th>
                   <th style={{ padding: '8px', textAlign: 'left' }}>Classification</th>
-                  <th style={{ padding: '8px', textAlign: 'center', width: '45px' }}>RT</th>
-                  <th style={{ padding: '8px', textAlign: 'center', width: '45px' }}>OT</th>
-                  <th style={{ padding: '8px', textAlign: 'center', width: '55px' }}>JH</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '45px' }}>Total</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}>RT</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}>OT</th>
+                  <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}>DT</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}>Cnt</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
@@ -2893,31 +2912,28 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                         <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: '#d4edda' }}>
                           <input
                             type="text"
-                            inputMode="numeric"
-                            value={rt || ''}
-                            onChange={(e) => updateLabourField(block.id, entry.id, 'rt', parseFloat(e.target.value) || 0)}
+                            inputMode="decimal"
+                            value={entry.total_hours != null ? entry.total_hours : (parseFloat(entry.rt || 0) + parseFloat(entry.ot || 0) + parseFloat(entry.dt || entry.jh || 0))}
+                            onChange={(e) => {
+                              const total = parseFloat(e.target.value) || 0
+                              const split = calculateSplit(total, selectedDate, projectRules, holiday)
+                              updateLabourField(block.id, entry.id, 'total_hours', total)
+                              updateLabourField(block.id, entry.id, 'rt', split.rt_hours)
+                              updateLabourField(block.id, entry.id, 'ot', split.ot_hours)
+                              updateLabourField(block.id, entry.id, 'dt', split.dt_hours)
+                              updateLabourField(block.id, entry.id, 'rule_applied', split.rule_applied)
+                            }}
                             style={{ width: '40px', padding: '4px', border: '1px solid #28a745', borderRadius: '3px', textAlign: 'center', fontSize: '12px', backgroundColor: '#d4edda' }}
                           />
                         </td>
-                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: ot > 0 ? '#fff3cd' : '#fff' }}>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={ot || ''}
-                            onChange={(e) => updateLabourField(block.id, entry.id, 'ot', parseFloat(e.target.value) || 0)}
-                            placeholder="0"
-                            style={{ width: '40px', padding: '4px', border: '1px solid #ffc107', borderRadius: '3px', textAlign: 'center', fontSize: '12px', backgroundColor: ot > 0 ? '#fff3cd' : '#fff' }}
-                          />
+                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', fontSize: '12px', color: '#155724' }}>
+                          {parseFloat(entry.rt || 0)}
                         </td>
-                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', backgroundColor: jh > 0 ? '#cce5ff' : '#fff' }}>
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={jh || ''}
-                            onChange={(e) => updateLabourJH(block.id, entry.id, e.target.value)}
-                            placeholder="0"
-                            style={{ width: '40px', padding: '4px', border: '1px solid #ced4da', borderRadius: '3px', textAlign: 'center', fontSize: '12px' }}
-                          />
+                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', fontSize: '12px', color: entry.ot > 0 ? '#856404' : '#999' }}>
+                          {parseFloat(entry.ot || 0)}
+                        </td>
+                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', fontSize: '12px', color: entry.dt > 0 ? '#004085' : '#999' }}>
+                          {parseFloat(entry.dt || 0)}
                         </td>
                         <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
                           <input
@@ -2965,7 +2981,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                       {/* Flag Detail Row - shown when flag button is clicked or entry is already flagged */}
                       {(openFlagRows[entry.id] || prodStatus !== 'ACTIVE') && (
                         <tr style={{ backgroundColor: prodStatus === 'MANAGEMENT_DRAG' ? '#fff5f5' : prodStatus === 'SYNC_DELAY' ? '#fffbf0' : '#f8f9fa' }}>
-                          <td colSpan={8} style={{ padding: '10px 12px', borderBottom: '1px solid #dee2e6' }}>
+                          <td colSpan={9} style={{ padding: '10px 12px', borderBottom: '1px solid #dee2e6' }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                               <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
                                 <span style={{ fontSize: '12px', fontWeight: 'bold', color: '#333' }}>Status:</span>
