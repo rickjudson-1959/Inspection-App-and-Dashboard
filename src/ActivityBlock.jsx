@@ -1067,7 +1067,14 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                      (e.classification || '').toLowerCase() === (l.classification || '').toLowerCase()
               )
               if (!isDuplicate) {
-                addLabourToBlock(blockId, resolvedName, l.classification, l.rt || 0, l.ot || 0, 0, 1, resolvedMasterId)
+                // Calculate total hours from OCR data, then auto-split via contract compliance
+                const ocrTotal = (parseFloat(l.rt) || 0) + (parseFloat(l.ot) || 0)
+                if (ocrTotal > 0 && selectedDate) {
+                  const split = calculateSplit(ocrTotal, selectedDate, projectRules, holiday)
+                  addLabourToBlock(blockId, resolvedName, l.classification, split.rt_hours, split.ot_hours, 0, 1, resolvedMasterId, split.dt_hours)
+                } else {
+                  addLabourToBlock(blockId, resolvedName, l.classification, l.rt || 0, l.ot || 0, 0, 1, resolvedMasterId, 0)
+                }
               }
             }
           })
@@ -2848,7 +2855,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
           </div>
           <button
             onClick={() => {
-              addLabourToBlock(block.id, currentLabour.employeeName, currentLabour.classification, currentSplit.rt_hours, currentSplit.ot_hours, 0, currentLabour.count, currentLabour.masterPersonnelId)
+              addLabourToBlock(block.id, currentLabour.employeeName, currentLabour.classification, currentSplit.rt_hours, currentSplit.ot_hours, 0, currentLabour.count, currentLabour.masterPersonnelId, currentSplit.dt_hours)
               setCurrentLabour({ employeeName: '', classification: '', masterPersonnelId: null, totalHours: '', count: '1' })
             }}
             style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', height: '38px' }}

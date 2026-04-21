@@ -2284,17 +2284,19 @@ CRITICAL - Individual Entries Required:
 
   // Labour management for activity blocks
   // RT = Regular Time, OT = Overtime, JH = Jump Hours (bonus)
-  function addLabourToBlock(blockId, employeeName, classification, rt, ot, jh, count, masterPersonnelId) {
+  function addLabourToBlock(blockId, employeeName, classification, rt, ot, jh, count, masterPersonnelId, dt) {
     // Check if at least one hour field has a value entered (including 0)
     const hasRT = rt !== '' && rt !== null && rt !== undefined
     const hasOT = ot !== '' && ot !== null && ot !== undefined
     const hasJH = jh !== '' && jh !== null && jh !== undefined
-    if (!classification || (!hasRT && !hasOT && !hasJH)) {
-      alert('Please enter classification and at least one hour type (RT, OT, or JH)')
+    const hasDT = dt !== '' && dt !== null && dt !== undefined
+    if (!classification || (!hasRT && !hasOT && !hasJH && !hasDT)) {
+      alert('Please enter classification and at least one hour type (RT, OT, DT, or JH)')
       return
     }
     const rtVal = parseFloat(rt) || 0
     const otVal = parseFloat(ot) || 0
+    const dtVal = parseFloat(dt) || 0
     const jhVal = parseFloat(jh) || 0
     setActivityBlocks(prev => prev.map(block => {
       if (block.id === blockId) {
@@ -2304,9 +2306,10 @@ CRITICAL - Individual Entries Required:
             id: Date.now() + Math.random(),
             employeeName: employeeName || '',
             classification,
-            hours: rtVal + otVal, // Keep total for backwards compatibility
+            hours: rtVal + otVal + dtVal, // Keep total for backwards compatibility
             rt: rtVal,
             ot: otVal,
+            dt: dtVal,
             jh: jhVal,
             count: parseInt(count) || 1,
             master_personnel_id: masterPersonnelId || null,

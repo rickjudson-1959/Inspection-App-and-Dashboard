@@ -658,36 +658,31 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–April 2026)
 
-### Merged Reconciliation Workspace (April 21, 2026)
+### Reconciliation Workspace Rebuild (April 21, 2026)
 
-**Merged variance comparison into Panel 2. Deleted the separate VarianceComparisonPanel. Single workspace design: clear rows = done, red rows = click to see detail.**
+**Simplified variance logic: red rows compare inspector vs LEM (not contract vs LEM). Inline reason text, no popovers. Auto-populate classification on personnel/equipment selection. OCR auto-split via contract compliance engine.**
 
-1. **VarianceComparisonPanel deleted** — Removed VarianceComparisonPanel.jsx (838 lines), VarianceSummaryBar.jsx, VarianceRow.jsx. Variance information now lives directly in Panel 2 (InspectorReportPanel).
+1. **Red row logic simplified** — A row is red when inspector values don't match LEM: total hours mismatch, RT/OT/DT breakdown mismatch, missing on LEM, or ghost on LEM. Contract compliance engine still auto-fills the split but doesn't drive the red/clear decision. Categories: `hours_mismatch`, `split_mismatch`, `missing_on_lem`, `ghost_on_lem`, `reconciled`.
 
-2. **Variance-aware Panel 2** — Each labour row internally computes a variance category (reconciled/contract_violation/hours_dispute/missing_on_lem) by comparing LEM claimed split vs contract-correct split. Red left border + light red background on non-reconciled rows. Precedence: flagged (purple) > unmatched master (amber) > red variance > clear. Silence = correctness.
+2. **Inline variance reason text** — Red rows show a one-line reason below the name field (e.g., "⚠ LEM: 12 RT 0 OT, inspector: 8 RT 4 OT"). Always visible, no click required. Same pattern as amber "Not in master" text.
 
-3. **VarianceDetailPopover** — Click a red row → portal-rendered popover shows three-line detail (LEM claimed / Contract rules / Inspector record) with dollar amounts, rule description, and dollar variance. Accept LEM as-is / Dispute buttons write to `reconciliation_line_items`.
+3. **VarianceDetailPopover deleted** — Removed entirely. No popover, no tooltip, no click handler on red rows. Red rows behave exactly like normal rows for clicking and editing. Fixes dropdown blocking bug permanently.
 
 4. **Ghost rows section** — "ON LEM BUT NOT REPORTED" table below equipment, showing LEM entries with no matching inspector entry. Red styling.
 
-5. **AdminOverridePopover** — Pencil icon on Subs and Cost cells (admin/super_admin only). Override form requires reason (min 10 chars). Blue dot indicator on overridden cells with hover tooltip. Remove override reverts to original value. Override metadata stored in JSONB.
+5. **Auto-populate classification** — Selecting a name from the personnel roster dropdown auto-fills classification and master_personnel_id. Selecting a unit number from the equipment fleet dropdown auto-fills equipment type and master_equipment_id. Equipment fleet now loaded from `equipment_fleet` table.
 
-6. **LEM extraction prompt** — Moved from ReconFourPanelView to Panel 2. Shows when LEM PDF uploaded but structured data not extracted. "Extract now" button triggers OCR.
+6. **OCR auto-split** — When a ticket is OCR'd, total hours are automatically split into RT/OT/DT via `calculateSplit()` based on the report date. The `addLabourToBlock` function now accepts a `dt` parameter. Backfill applied to 244 existing entries.
 
-7. **Summary banner** — Shows 4 counters: unresolved master, flagged for review, red variance, ghosts. Disappears when all zero.
+7. **OCR case normalization** — OCR'd names converted from ALL CAPS to title case and matched against master roster for canonical names. Backfill resolved 122 labour + 42 equipment rows from unmatched to matched.
 
-8. **Audit events** — `logWorkspaceEvent()` in auditLoggerV3.js: variance_popover_opened, variance_accepted, variance_disputed, admin_override_applied, admin_override_removed, ghost_row_added_to_report, ghost_row_disputed.
+8. **AdminOverridePopover** — Pencil icon on Subs and Cost cells (admin/super_admin only). Override form requires reason (min 10 chars). Blue dot indicator on overridden cells with hover tooltip.
 
-9. **Field guide v4.17** — Reconciliation in Panel 2, admin overrides, what makes a row red.
-
-**New files:**
-```
-src/Components/Reconciliation/VarianceDetailPopover.jsx   # Three-line variance popover
-src/Components/Reconciliation/AdminOverridePopover.jsx    # Admin override form
-```
+9. **Summary banner** — Shows 4 counters: unresolved master, flagged for review, red variance, ghosts. Disappears when all zero.
 
 **Deleted files:**
 ```
+src/Components/Reconciliation/VarianceDetailPopover.jsx    # Replaced by inline text
 src/Components/Reconciliation/VarianceComparisonPanel.jsx  # Replaced by Panel 2 integration
 src/Components/Reconciliation/VarianceSummaryBar.jsx       # No longer needed
 src/Components/Reconciliation/VarianceRow.jsx              # No longer needed
@@ -695,11 +690,12 @@ src/Components/Reconciliation/VarianceRow.jsx              # No longer needed
 
 **Modified files:**
 ```
-src/Components/Reconciliation/InspectorReportPanel.jsx     # Variance awareness, red rows, ghost section, override
-src/Components/Reconciliation/ReconFourPanelView.jsx       # Removed variance panel, passes lemData to Panel 2
-src/Components/Reconciliation/DocumentPanel.jsx            # Props pass-through
-src/auditLoggerV3.js                                       # logWorkspaceEvent
-pipe-up-field-guide-agent-kb.md                            # v4.17
+src/Components/Reconciliation/InspectorReportPanel.jsx     # Simplified variance, inline reasons, equipment roster
+src/Components/Reconciliation/ReconFourPanelView.jsx       # Equipment fleet loading, personnel roster id
+src/Components/Reconciliation/DocumentPanel.jsx            # equipmentRoster prop pass-through
+src/InspectorReport.jsx                                    # addLabourToBlock dt parameter
+src/ActivityBlock.jsx                                      # OCR auto-split, case normalization
+src/utils/lemParser.js                                     # OCR name title-casing
 ```
 
 ### Contract Compliance Engine + Total Hours Entry (April 19, 2026)
