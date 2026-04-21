@@ -232,6 +232,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
           </button>
           <div>
             <span style={{ fontSize: '18px', fontWeight: '700', color: '#1e3a5f' }}>Ticket #{ticketNumber}</span>
+            {inspectorReport?.id && <span style={{ marginLeft: '10px', fontSize: '12px', color: '#9ca3af', fontFamily: 'monospace' }}>Report #{inspectorReport.id}</span>}
             {meta.foreman && <span style={{ marginLeft: '12px', fontSize: '14px', color: '#6b7280' }}>{meta.foreman}</span>}
             {meta.date && <span style={{ marginLeft: '12px', fontSize: '14px', color: '#6b7280' }}>{meta.date}</span>}
           </div>

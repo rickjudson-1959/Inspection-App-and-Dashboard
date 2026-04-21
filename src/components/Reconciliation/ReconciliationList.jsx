@@ -66,7 +66,8 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
               hasPhoto: photos.filter(Boolean).length > 0,
               date: report.date,
               foreman: block.foreman || null,
-              inspector: report.inspector_name
+              inspector: report.inspector_name,
+              report_id: report.id
             }
           }
         }
@@ -84,6 +85,7 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
         const inspector = inspectorMap[tn] || {}
         return {
           ticket_number: tn,
+          report_id: inspector.report_id || null,
           date: uploaded.date || inspector.date || null,
           foreman: uploaded.foreman || inspector.foreman || null,
           has_lem: uploaded.has_lem || 0,
@@ -383,6 +385,7 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
           <table style={styles.table}>
             <thead>
               <tr>
+                <th style={{ ...styles.th, width: '50px', fontFamily: 'monospace', color: '#9ca3af' }}>ID</th>
                 <th style={styles.th}>Ticket #</th>
                 <th style={styles.th}>Date</th>
                 <th style={styles.th}>Foreman</th>
@@ -409,6 +412,9 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
                         idx % 2 === 0 ? BRAND.white : BRAND.lightGray
                     }}
                   >
+                    <td style={{ ...styles.td, fontFamily: 'monospace', fontSize: '11px', color: '#9ca3af' }}>
+                      {pkg.report_id || '\u2014'}
+                    </td>
                     <td style={{ ...styles.td, fontWeight: '600' }}>
                       {pkg.ticket_number}
                     </td>

@@ -6064,7 +6064,7 @@ function AdminPortal() {
                     type="text"
                     value={reportSearch}
                     onChange={e => setReportSearch(e.target.value)}
-                    placeholder="Search by name, date, spread, or activity..."
+                    placeholder="Search by report ID, name, date, spread, or activity..."
                     style={{ flex: 1, maxWidth: '500px', padding: '10px 14px', border: '1px solid #d1d5db', borderRadius: '6px', fontSize: '14px' }}
                   />
                   {reportSearch && (
@@ -6075,12 +6075,13 @@ function AdminPortal() {
                       const s = reportSearch.toLowerCase().trim()
                       if (!s) return `${allReports.length} reports`
                       const count = allReports.filter(r => {
+                        const id = String(r.id || '')
                         const name = (r.inspector_name || '').toLowerCase()
                         const date = (r.date || '').toLowerCase()
                         const spread = (r.spread || '').toLowerCase()
                         const activities = (r.activity_blocks || []).map(b => (b.activityType || '') + ' ' + (b.contractor || '')).join(' ').toLowerCase()
                         const tickets = (r.activity_blocks || []).map(b => b.ticketNumber || '').join(' ').toLowerCase()
-                        return name.includes(s) || date.includes(s) || spread.includes(s) || activities.includes(s) || tickets.includes(s)
+                        return id.includes(s) || name.includes(s) || date.includes(s) || spread.includes(s) || activities.includes(s) || tickets.includes(s)
                       }).length
                       return `${count} of ${allReports.length} reports`
                     })()}
@@ -6090,6 +6091,7 @@ function AdminPortal() {
                 <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '900px' }}>
                   <thead>
                     <tr style={{ backgroundColor: '#f8f9fa' }}>
+                      <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd', width: '55px', fontFamily: 'monospace', color: '#9ca3af', fontSize: '12px' }}>ID</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Date</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Inspector</th>
                       <th style={{ padding: '12px', textAlign: 'left', borderBottom: '1px solid #ddd' }}>Spread</th>
@@ -6107,11 +6109,12 @@ function AdminPortal() {
                       if (s) {
                         // Score each report: name match ranked highest, then date, then spread/activity
                         filtered = allReports.filter(r => {
+                          const id = String(r.id || '')
                           const name = (r.inspector_name || '').toLowerCase()
                           const date = (r.date || '').toLowerCase()
                           const spread = (r.spread || '').toLowerCase()
                           const activities = (r.activity_blocks || []).map(b => (b.activityType || '') + ' ' + (b.contractor || '')).join(' ').toLowerCase()
-                          return name.includes(s) || date.includes(s) || spread.includes(s) || activities.includes(s)
+                          return id.includes(s) || name.includes(s) || date.includes(s) || spread.includes(s) || activities.includes(s)
                         })
                         // Sort: name matches first, then by date descending
                         filtered.sort((a, b) => {
@@ -6124,6 +6127,7 @@ function AdminPortal() {
                       return filtered
                     })().map(report => (
                       <tr key={report.id}>
+                        <td style={{ padding: '12px', borderBottom: '1px solid #eee', fontFamily: 'monospace', fontSize: '11px', color: '#9ca3af' }}>{report.id}</td>
                         <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{report.date}</td>
                         <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{report.inspector_name}</td>
                         <td style={{ padding: '12px', borderBottom: '1px solid #eee' }}>{report.spread || '-'}</td>
