@@ -21,6 +21,22 @@ const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || ''
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)) }
 
+/** Convert OCR'd ALL-CAPS name to Title Case ("JOHN SMITH" → "John Smith") */
+function toTitleCase(s) {
+  if (!s || typeof s !== 'string') return s
+  return s.trim().replace(/\s+/g, ' ').toLowerCase()
+    .replace(/\b\w/g, c => c.toUpperCase())
+}
+
+/** Normalize labour entries from OCR: title-case employee_name */
+function normalizeOcrLabour(labourArr) {
+  if (!Array.isArray(labourArr)) return labourArr
+  return labourArr.map(l => ({
+    ...l,
+    employee_name: toTitleCase(l.employee_name || ''),
+  }))
+}
+
 function base64ToBlob(base64, mimeType = 'image/jpeg') {
   const bytes = atob(base64)
   const arr = new Uint8Array(bytes.length)
@@ -1120,7 +1136,7 @@ Rules:
 
       const parsed = JSON.parse(jsonMatch[0])
       return {
-        labour: parsed.labour || [],
+        labour: normalizeOcrLabour(parsed.labour || []),
         equipment: parsed.equipment || [],
         totals: parsed.totals || {},
         raw_text: text
@@ -1246,7 +1262,7 @@ Rules:
       const parsed = JSON.parse(jsonMatch[0])
       console.log(`[LEM OCR] Extracted: ${parsed.labour?.length || 0} labour, ${parsed.equipment?.length || 0} equipment`)
       return {
-        labour: parsed.labour || [],
+        labour: normalizeOcrLabour(parsed.labour || []),
         equipment: parsed.equipment || [],
         totals: parsed.totals || {},
         raw_text: text

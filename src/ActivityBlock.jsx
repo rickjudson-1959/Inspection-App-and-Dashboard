@@ -1051,13 +1051,23 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
         if (data.labour && Array.isArray(data.labour)) {
           data.labour.forEach(l => {
             if (l.classification) {
+              // Normalize OCR name: title-case and try to resolve against master roster
+              const ocrName = (l.name || '').trim().replace(/\s+/g, ' ')
+              const titleCased = ocrName.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+              // Try exact case-insensitive match against master roster for canonical name
+              const rosterMatch = employeeRoster.find(r =>
+                (r.employeeName || '').toLowerCase().trim() === titleCased.toLowerCase()
+              )
+              const resolvedName = rosterMatch ? rosterMatch.employeeName : titleCased
+              const resolvedMasterId = rosterMatch ? (rosterMatch.masterId || null) : null
+
               // Skip if an entry with same name + classification already exists
               const isDuplicate = existingLabour.some(
-                e => (e.employeeName || '').toLowerCase() === (l.name || '').toLowerCase() &&
+                e => (e.employeeName || '').toLowerCase() === resolvedName.toLowerCase() &&
                      (e.classification || '').toLowerCase() === (l.classification || '').toLowerCase()
               )
               if (!isDuplicate) {
-                addLabourToBlock(blockId, l.name || '', l.classification, l.rt || 0, l.ot || 0, 0, 1)
+                addLabourToBlock(blockId, resolvedName, l.classification, l.rt || 0, l.ot || 0, 0, 1, resolvedMasterId)
               }
             }
           })
