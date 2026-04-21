@@ -44,6 +44,11 @@ export default function DocumentPanel({
   onAliasCreated,
   sameDayEntries,
   employeeRoster,
+  lemData,
+  reportDate,
+  hasLemPdf,
+  lemPdfUrls,
+  onLemExtracted,
 }) {
   const [currentPage, setCurrentPage] = useState(0)
   const [zoom, setZoom] = useState(1)
@@ -122,6 +127,11 @@ export default function DocumentPanel({
           onAliasCreated={onAliasCreated}
           sameDayEntries={sameDayEntries || { labour: [], equipment: [] }}
           employeeRoster={employeeRoster || []}
+          lemData={lemData || null}
+          reportDate={reportDate || null}
+          hasLemPdf={hasLemPdf || false}
+          lemPdfUrls={lemPdfUrls || []}
+          onLemExtracted={onLemExtracted}
         />
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', minHeight: '180px', gap: '8px' }}>

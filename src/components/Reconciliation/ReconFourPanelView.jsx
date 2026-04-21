@@ -4,7 +4,6 @@ import { supabase } from '../../supabase'
 import { useOrgQuery } from '../../utils/queryHelpers.js'
 import { useOrgPath } from '../../contexts/OrgContext.jsx'
 import DocumentPanel from './DocumentPanel.jsx'
-import VarianceComparisonPanel from './VarianceComparisonPanel.jsx'
 
 /**
  * ReconFourPanelView — 4-panel document comparison keyed by ticket_number.
@@ -269,6 +268,11 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
           organizationId={organizationId}
           sameDayEntries={sameDayEntries}
           employeeRoster={employeeRoster}
+          lemData={lemData}
+          reportDate={inspectorReport?.date}
+          hasLemPdf={!!panels.lem}
+          lemPdfUrls={panels.lem?.file_urls || []}
+          onLemExtracted={() => loadAllData()}
           onBlockChange={async (updatedBlock, auditEntries) => {
             if (!inspectorReport) return
             const blocks = [...(inspectorReport.activity_blocks || [])]
@@ -328,96 +332,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
         />
       </div>
 
-      {/* LEM Variance Panel — three states: extracted data, needs extraction, no LEM */}
-      {(() => {
-        if (lemData) {
-          // State 1: Structured LEM data exists → render variance panel
-          return null // rendered below
-        }
-        if (panels.lem && !lemData) {
-          // State 2: LEM PDF uploaded but no structured data extracted
-          console.log(`[ReconView] LEM PDF exists for ticket ${ticketNumber} but lemData is null — OCR extraction needed`)
-          return (
-            <div style={{ padding: '16px', margin: '12px 0', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px' }}>
-              <div style={{ fontSize: '14px', fontWeight: '600', color: '#92400e', marginBottom: '8px' }}>
-                &#9888; LEM uploaded but structured data not yet extracted
-              </div>
-              <p style={{ fontSize: '13px', color: '#78716c', margin: '0 0 12px 0' }}>
-                The variance comparison requires OCR'd labour and equipment data from the LEM PDF.
-              </p>
-              <button
-                onClick={async () => {
-                  try {
-                    const { extractLEMFromUrl } = await import('../../utils/lemParser.js')
-                    const urls = panels.lem?.file_urls || []
-                    if (!urls.length) return
-                    const result = await extractLEMFromUrl(urls[0])
-                    if (result && (result.labour?.length || result.equipment?.length)) {
-                      const record = {
-                        organization_id: organizationId,
-                        field_log_id: ticketNumber,
-                        date: inspectorReport?.date || meta.date || null,
-                        labour_entries: result.labour || [],
-                        equipment_entries: result.equipment || [],
-                        total_labour_cost: result.totals?.total_labour_cost || 0,
-                        total_equipment_cost: result.totals?.total_equipment_cost || 0,
-                        reconciliation_status: 'pending',
-                        billing_status: 'open',
-                      }
-                      await supabase.from('contractor_lems').upsert(record, { onConflict: 'field_log_id,organization_id' })
-                      loadAllData()
-                    }
-                  } catch (err) { console.error('LEM extraction failed:', err) }
-                }}
-                style={{ padding: '8px 16px', backgroundColor: '#1e3a5f', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}
-              >
-                Extract now
-              </button>
-            </div>
-          )
-        }
-        // State 3: No LEM at all → nothing
-        return null
-      })()}
-      {lemData && (
-        <VarianceComparisonPanel
-          ticketNumber={ticketNumber}
-          lemData={lemData}
-          inspectorBlock={matchedBlock}
-          organizationId={organizationId}
-          reportDate={inspectorReport?.date}
-          onInspectorBlockChange={async (updatedBlock) => {
-            if (!inspectorReport) return
-            const blocks = [...(inspectorReport.activity_blocks || [])]
-            const blockIdx = blocks.findIndex(b =>
-              b.ticketNumber && String(b.ticketNumber).trim() === String(ticketNumber).trim()
-            )
-            if (blockIdx >= 0) {
-              blocks[blockIdx] = updatedBlock
-              await supabase.from('daily_reports')
-                .update({ activity_blocks: blocks })
-                .eq('id', inspectorReport.id)
-              await supabase.from('report_audit_log').insert({
-                report_id: inspectorReport.id,
-                report_date: inspectorReport.date,
-                changed_by_name: 'Cost Control',
-                changed_by_role: 'admin',
-                change_type: 'reconciliation_edit',
-                section: 'Reconciliation Variance',
-                field_name: `Ticket #${ticketNumber} inspector data`,
-                new_value: 'Edited from variance comparison panel',
-                organization_id: organizationId
-              })
-              setMatchedBlock(updatedBlock)
-              setInspectorReport(prev => ({ ...prev, activity_blocks: blocks }))
-            }
-          }}
-          uploadedLemUrls={panels.lem?.file_urls || []}
-          uploadedLemDate={panels.lem?.date || meta.date || null}
-          uploadedLemForeman={panels.lem?.foreman || meta.foreman || null}
-          onLemDataExtracted={() => loadAllData()}
-        />
-      )}
+      {/* Variance panel removed in M.1 — variance info now lives in Panel 2 (InspectorReportPanel) */}
     </div>
   )
 }
