@@ -37,7 +37,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
   const [labourRates, setLabourRates] = useState([])
   const [equipmentRates, setEquipmentRates] = useState([])
   const [aliases, setAliases] = useState([])
-  const [showVariance, setShowVariance] = useState(false)
+  // showVariance toggle removed in 4.4.5 — panel always shows when lemData exists
   const [sameDayEntries, setSameDayEntries] = useState({ labour: [], equipment: [] })
   const [employeeRoster, setEmployeeRoster] = useState([])
 
@@ -327,33 +327,14 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
         />
       </div>
 
-      {/* LEM Comparison toggle — only show button when LEM data exists */}
+      {/* LEM Variance Panel — always shown when LEM data exists */}
       {lemData && (
-        <div style={{ textAlign: 'center' }}>
-          <button
-            onClick={() => setShowVariance(v => !v)}
-            style={{
-              padding: '6px 16px',
-              backgroundColor: showVariance ? '#6b7280' : '#1e3a5f',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '13px',
-              fontWeight: '600',
-            }}
-          >
-            {showVariance ? 'Hide LEM Comparison' : 'Show LEM Comparison'}
-          </button>
-        </div>
-      )}
-
-      {showVariance && (
         <VarianceComparisonPanel
           ticketNumber={ticketNumber}
           lemData={lemData}
           inspectorBlock={matchedBlock}
           organizationId={organizationId}
+          reportDate={inspectorReport?.date}
           onInspectorBlockChange={async (updatedBlock) => {
             if (!inspectorReport) return
             const blocks = [...(inspectorReport.activity_blocks || [])]

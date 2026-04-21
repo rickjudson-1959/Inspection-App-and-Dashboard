@@ -1,1182 +1,838 @@
-import React, { useState, useEffect, useCallback } from 'react'
-import { matchWorkers, matchEquipment, getWorkerName, getEquipmentName } from '../../utils/nameMatchingUtils.js'
-import { calculateWorkerVariance, calculateEquipmentVariance, calculateTotals } from '../../utils/varianceCalculation.js'
-import { extractLEMFromUrl } from '../../utils/lemParser.js'
-import VarianceSummaryBar from './VarianceSummaryBar.jsx'
-import VarianceRow from './VarianceRow.jsx'
+import React, { useState, useEffect, useMemo, useCallback } from 'react'
 import { supabase } from '../../supabase'
+import { calculateSplit, calculateCost, calculateVariance, loadProjectRules, getHolidayForDate } from '../../lib/contractCompliance.js'
+import { normalizeName, extractNameParts, levenshtein } from '../../utils/nameMatchingUtils.js'
 
 /**
- * VarianceComparisonPanel — Main variance comparison panel that goes below
- * the 4-panel document viewer.
+ * VarianceComparisonPanel — Phase 4.4.5 Rebuild
  *
- * FUNDAMENTAL PRINCIPLE: The inspector report is the source of truth.
- * It ALWAYS displays, even without LEM data. The LEM is an overlay
- * for comparison when available.
+ * Master-anchored, three-way comparison per labour/equipment line:
+ *   1. Contractor's claim (LEM) — raw OCR'd values
+ *   2. Contract's requirement — what calculateSplit() returns for total hours + date
+ *   3. Inspector's record — inspector's entry (post-4.4.4, equals contract requirement)
+ *
+ * Matching is by master_personnel_id / master_equipment_id — never by string.
  *
  * Props:
- *   ticketNumber          — string
- *   lemData               — contractor_lems row (with labour_entries, equipment_entries), or null
- *   inspectorBlock        — activity_blocks entry (with labourEntries, equipmentEntries)
- *   organizationId        — for DB operations
- *   onInspectorBlockChange — callback when inspector data is edited
- *   uploadedLemUrls       — array of uploaded LEM PDF URLs (for extraction)
- *   onLemDataExtracted    — callback after LEM data is extracted from uploads
+ *   ticketNumber, lemData, inspectorBlock, organizationId, reportDate,
+ *   onInspectorBlockChange, uploadedLemUrls, uploadedLemDate, uploadedLemForeman, onLemDataExtracted
  */
 
-const sectionHeaderStyle = {
-  padding: '10px 16px',
-  fontSize: '13px',
-  fontWeight: '700',
-  color: '#1e3a5f',
-  textTransform: 'uppercase',
-  letterSpacing: '0.5px',
-  backgroundColor: '#f8fafc',
-  borderBottom: '2px solid #1e3a5f',
-  display: 'flex',
-  justifyContent: 'space-between',
-  alignItems: 'center',
-}
-
-const tableHeaderStyle = {
-  display: 'grid',
-  gridTemplateColumns: '32px 1fr 120px 80px 80px 80px 80px 32px 60px',
-  alignItems: 'center',
-  backgroundColor: '#f1f5f9',
-  borderBottom: '1px solid #cbd5e1',
-  fontSize: '11px',
-  fontWeight: '600',
-  color: '#475569',
-  textTransform: 'uppercase',
-  letterSpacing: '0.3px',
-}
-
-// Simpler grid for inspector-only mode (no LEM comparison)
-const inspectorOnlyTableHeaderStyle = {
-  display: 'grid',
-  gridTemplateColumns: '32px 1fr 120px 80px 80px 80px',
-  alignItems: 'center',
-  backgroundColor: '#f1f5f9',
-  borderBottom: '1px solid #cbd5e1',
-  fontSize: '11px',
-  fontWeight: '600',
-  color: '#475569',
-  textTransform: 'uppercase',
-  letterSpacing: '0.3px',
-}
-
-const thCell = {
-  padding: '6px 10px',
-}
-
-// Editable cell styles for inspector-only mode
-const inspectorOnlyCellStyle = {
-  padding: '6px 10px',
-  fontSize: '12px',
-}
-
-const inspectorOnlyInputStyle = {
-  padding: '4px 6px',
-  fontSize: '12px',
-  border: '1px solid #d1d5db',
-  borderRadius: '3px',
-  fontFamily: 'inherit',
-  width: '100%',
-  boxSizing: 'border-box',
-}
-
-const inspectorOnlyNumberInputStyle = {
-  padding: '4px 6px',
-  fontSize: '12px',
-  border: '1px solid #d1d5db',
-  borderRadius: '3px',
-  fontFamily: 'inherit',
-  width: '68px',
-  textAlign: 'right',
-  boxSizing: 'border-box',
-}
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 function num(v) {
   const n = Number(v)
   return Number.isFinite(n) ? n : 0
 }
 
-function formatCurrency(value) {
-  return num(value).toLocaleString('en-CA', { style: 'currency', currency: 'CAD' })
+function formatCurrency(n) {
+  return num(n).toLocaleString('en-CA', { style: 'currency', currency: 'CAD' })
 }
 
-export default function VarianceComparisonPanel({ ticketNumber, lemData, inspectorBlock, organizationId, onInspectorBlockChange, uploadedLemUrls, uploadedLemDate, uploadedLemForeman, onLemDataExtracted }) {
-  const [labourResults, setLabourResults] = useState([])
-  const [labourVariances, setLabourVariances] = useState([])
-  const [equipmentResults, setEquipmentResults] = useState([])
-  const [equipmentVariances, setEquipmentVariances] = useState([])
-  const [totals, setTotals] = useState(null)
-  const [savedStatuses, setSavedStatuses] = useState({}) // keyed by `${type}-${index}`
-  const [processing, setProcessing] = useState(false)
+/** Strip trailing parenthetical suffixes like (EP), (PB), lowercase, trim */
+function normalizeLemName(raw) {
+  if (!raw || typeof raw !== 'string') return ''
+  return raw.toLowerCase().trim().replace(/\s*\([^)]*\)\s*$/, '').trim()
+}
 
-  // Rate cards for cost calculation
+const CATEGORY_COLORS = {
+  reconciled: '#16a34a',
+  contract_violation: '#dc2626',
+  hours_dispute: '#eab308',
+  missing_on_lem: '#ea580c',
+  ghost_on_lem: '#dc2626',
+}
+
+const CATEGORY_ICONS = {
+  reconciled: '\u2713',
+  contract_violation: '\uD83D\uDD34',
+  hours_dispute: '\uD83D\uDFE1',
+  missing_on_lem: '\uD83D\uDFE0',
+  ghost_on_lem: '\uD83D\uDD34',
+}
+
+const CATEGORY_LABELS = {
+  reconciled: 'Reconciled',
+  contract_violation: 'Contract Violation',
+  hours_dispute: 'Hours Dispute',
+  missing_on_lem: 'Missing on LEM',
+  ghost_on_lem: 'Ghost on LEM',
+}
+
+// ─── Component ────────────────────────────────────────────────────────────────
+
+export default function VarianceComparisonPanel({
+  ticketNumber,
+  lemData,
+  inspectorBlock,
+  organizationId,
+  reportDate,
+  onInspectorBlockChange,
+  uploadedLemUrls,
+  uploadedLemDate,
+  uploadedLemForeman,
+  onLemDataExtracted,
+}) {
+  // ── Data loading state ──
+  const [masterPersonnel, setMasterPersonnel] = useState([])
+  const [masterEquipment, setMasterEquipment] = useState([])
+  const [projectRules, setProjectRules] = useState(null)
+  const [holiday, setHoliday] = useState(null)
   const [labourRates, setLabourRates] = useState([])
   const [equipmentRates, setEquipmentRates] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
 
-  // Load rate cards
+  // ── Reconciliation state ──
+  const [lineStatuses, setLineStatuses] = useState({}) // key → { status, notes }
+  const [saving, setSaving] = useState({})
+
+  // ── Load reference data ──
   useEffect(() => {
     if (!organizationId) return
-    async function loadRates() {
+    let cancelled = false
+
+    async function loadData() {
+      setLoading(true)
+      setError(null)
       try {
-        const lr = await fetch(`/api/rates?table=labour_rates&organization_id=${organizationId}`)
-        if (lr.ok) { const d = await lr.json(); if (Array.isArray(d)) setLabourRates(d) }
-        const er = await fetch(`/api/rates?table=equipment_rates&organization_id=${organizationId}`)
-        if (er.ok) { const d = await er.json(); if (Array.isArray(d)) setEquipmentRates(d) }
-      } catch (e) { console.error('Failed to load rate cards:', e) }
-    }
-    loadRates()
-  }, [organizationId])
+        // Load master personnel (paginated)
+        const allPersonnel = []
+        let pOffset = 0
+        while (true) {
+          const { data, error: pErr } = await supabase
+            .from('master_personnel')
+            .select('id, name, classification')
+            .eq('active', true)
+            .range(pOffset, pOffset + 999)
+          if (pErr) throw pErr
+          if (!data || data.length === 0) break
+          allPersonnel.push(...data)
+          if (data.length < 1000) break
+          pOffset += 1000
+        }
 
-  // Pipeline classification alias map — common field variations → rate card names
-  const CLASSIFICATION_ALIASES = {
-    'fe welder': 'Front-End/Tie-In Welder on Stick Weld Spread',
-    'fe welder (auto)': 'Front-End/Tie-In Welder on Auto Weld Spread',
-    'fe welder operator': 'Front-End/Tie-In Welder on Stick Weld Spread',
-    'straw operator': 'Apprentice Oper/Oiler',
-    'straw (operator)': 'Apprentice Oper/Oiler',
-    'straw (operating)': 'Apprentice Oper/Oiler',
-    'straw - operator': 'Apprentice Oper/Oiler',
-    'straw (labourer)': 'General Labourer',
-    'straw fitter': 'Non-Welder Journeyman/Fitter on Stick Weld Spread',
-    'straw (filter - auto)': 'Non-Welder Journeyman/Fitter on Auto Weld Spread',
-    'straw (filter-auto)': 'Non-Welder Journeyman/Fitter on Auto Weld Spread',
-    'shaw (filter - auto)': 'Non-Welder Journeyman/Fitter on Auto Weld Spread',
-    'skew operator': 'Apprentice Oper/Oiler',
-    'shew operator': 'Apprentice Oper/Oiler',
-    'spray operator': 'Apprentice Oper/Oiler',
-    'jnt welder-foreman': 'UA Welder Foreman',
-    'pipe-in foreman': 'UA Pipe Foreman',
-    'uls-tileth foreman': 'UA Tie-In Foreman',
-    'mechanic ( nite )': 'Mechanic/Serviceman/Lubeman (Night Shift)',
-    'security (7 days/wk)': 'Night Watchman/Security',
-    'warehouseman class': 'Warehouseman 1',
-  }
+        // Load master equipment (paginated)
+        const allEquipment = []
+        let eOffset = 0
+        while (true) {
+          const { data, error: eErr } = await supabase
+            .from('master_equipment')
+            .select('id, unit_number, classification')
+            .eq('active', true)
+            .range(eOffset, eOffset + 999)
+          if (eErr) throw eErr
+          if (!data || data.length === 0) break
+          allEquipment.push(...data)
+          if (data.length < 1000) break
+          eOffset += 1000
+        }
 
-  // Equipment type alias map — common inspector names → rate card names
-  const EQUIPMENT_ALIASES = {
-    'hydrovac truck': 'Hydrovac',
-    'backhoe cat 420f': 'Rubber Tired Hoe - Cat 420/430 (or equivalent)',
-    'backhoe cat 938': 'Loader - Cat 930',
-    'backhoe cat 966h/l/c': 'Loader - Cat 966',
-    'backhoe cat': 'Backhoe - Cat 330 (or equivalent)',
-    'track hoe': 'Backhoe - Cat 330 (or equivalent)',
-    'longnose excavator': 'Backhoe - Cat 345 Longstick',
-    'bus': 'Bus',
-    'bus/crewcab driver': 'Bus',
-    'suv': 'SUV - Expedition/ Lexus/ Denali/ Yukon/ Navigator',
-    'tahoe/yukon/expedition': 'SUV - Expedition/ Lexus/ Denali/ Yukon/ Navigator',
-    'welder': 'Lincoln Welder',
-    'welding machine': 'Lincoln Welder',
-    'welding rig': 'Welding Rig',
-    'generator': 'Generator - 60 kW',
-    'light tower': 'Light Tower - 6 kW',
-    'loader': 'Loader - Cat 966',
-    'grader': 'Grader - Cat G14',
-    'dozer': 'Dozer - D6T LGP (or equivalent)',
-    'skid steer': 'Skid Steer Loader',
-    'skid steer loader': 'Skid Steer Loader',
-    'fuel truck': 'Fuel Truck - Single Axle',
-    'service truck': 'Service Truck',
-    'water pump': 'Water Pump - 4"',
-    'wash unit': 'Wash Unit - Steam, Water Truck',
-    'steamwater truck': 'Wash Unit - Steam, Water Truck',
-    'fork lift': 'Fork Lift - Zoom Boom',
-    'athey wagon': 'Athey Track Wagon',
-  }
+        // Load project rules — use first project in org
+        let rules = { base_hours_per_day: 8, ot_multiplier: 1.5, dt_multiplier: 2.0, province: 'AB' }
+        try {
+          const { data: proj } = await supabase
+            .from('projects')
+            .select('id, province, base_hours_per_day, ot_multiplier, dt_multiplier')
+            .limit(1)
+            .single()
+          if (proj) rules = proj
+        } catch (e) { console.warn('Could not load project rules, using defaults:', e) }
 
-  // Rate card matching — multi-strategy fuzzy match for classification or equipment type
-  function findRate(name, rates, nameField) {
-    if (!name || !rates?.length) return null
-    const s = name.toLowerCase().trim()
+        // Load holiday for report date
+        let hol = null
+        if (reportDate && rules.province) {
+          try {
+            hol = await getHolidayForDate(reportDate, rules.province)
+          } catch (e) { console.warn('Holiday check failed:', e) }
+        }
 
-    // Pass 0: Check alias maps first (labour classifications + equipment types)
-    const alias = CLASSIFICATION_ALIASES[s] || EQUIPMENT_ALIASES[s]
-    if (alias) {
-      const aliasMatch = rates.find(r => (r[nameField] || '').toLowerCase().includes(alias.toLowerCase()))
-      if (aliasMatch) return aliasMatch
-    }
+        // Load rate cards
+        let lr = [], er = []
+        try {
+          const lRes = await fetch(`/api/rates?table=labour_rates&organization_id=${organizationId}`)
+          if (lRes.ok) { const d = await lRes.json(); if (Array.isArray(d)) lr = d }
+          const eRes = await fetch(`/api/rates?table=equipment_rates&organization_id=${organizationId}`)
+          if (eRes.ok) { const d = await eRes.json(); if (Array.isArray(d)) er = d }
+        } catch (e) { console.warn('Rate card load failed:', e) }
 
-    // Also try stripping parenthetical suffixes: "General Foreman (LAB)" → "General Foreman"
-    const stripped = s.replace(/\s*\([^)]*\)\s*$/, '').trim()
-    if (stripped !== s) {
-      const strippedMatch = rates.find(r => (r[nameField] || '').toLowerCase().trim() === stripped)
-      if (strippedMatch) return strippedMatch
-    }
+        // Load saved line item statuses
+        const savedMap = {}
+        try {
+          const { data: savedItems } = await supabase
+            .from('reconciliation_line_items')
+            .select('*')
+            .eq('organization_id', organizationId)
+            .eq('ticket_number', ticketNumber)
+          for (const item of (savedItems || [])) {
+            const key = `${item.item_type}-${item.lem_worker_name || item.inspector_worker_name || ''}`
+            savedMap[key] = { status: item.status, notes: item.dispute_notes || '' }
+          }
+        } catch (e) { console.warn('Could not load saved statuses:', e) }
 
-    // Pass 1: Exact match (case-insensitive)
-    const exact = rates.find(r => (r[nameField] || '').toLowerCase().trim() === s)
-    if (exact) return exact
-
-    // Pass 2: Contains match (either direction)
-    const contains = rates.find(r => {
-      const k = (r[nameField] || '').toLowerCase().trim()
-      return k.includes(s) || s.includes(k)
-    })
-    if (contains) return contains
-
-    // Pass 3: Token overlap match — tokenize both and find best overlap
-    // "PRINCIPAL OPERATOR 1" → ["principal", "operator", "1"]
-    // "Principal Oper 1" → ["principal", "oper", "1"]
-    // Shared tokens or partial token matches count
-    function tokenize(str) {
-      return str.toLowerCase().replace(/[^a-z0-9\s]/g, ' ').split(/\s+/).filter(t => t.length > 0)
+        if (!cancelled) {
+          setMasterPersonnel(allPersonnel)
+          setMasterEquipment(allEquipment)
+          setProjectRules(rules)
+          setHoliday(hol)
+          setLabourRates(lr)
+          setEquipmentRates(er)
+          setLineStatuses(savedMap)
+          setLoading(false)
+        }
+      } catch (e) {
+        console.error('VarianceComparisonPanel load error:', e)
+        if (!cancelled) {
+          setError(e.message)
+          setLoading(false)
+        }
+      }
     }
 
-    const sTokens = tokenize(s)
-    let bestRate = null
-    let bestScore = 0
+    loadData()
+    return () => { cancelled = true }
+  }, [organizationId, reportDate, ticketNumber])
 
-    for (const r of rates) {
-      const k = (r[nameField] || '').toLowerCase().trim()
-      const kTokens = tokenize(k)
-      if (kTokens.length === 0) continue
+  // ── Resolve LEM labour entries to master IDs ──
+  const resolvedLabour = useMemo(() => {
+    if (!lemData?.labour_entries?.length || !masterPersonnel.length) return []
 
-      let score = 0
-      for (const st of sTokens) {
-        for (const kt of kTokens) {
-          if (st === kt) { score += 2; break }                    // exact token match
-          if (st.length >= 3 && kt.startsWith(st)) { score += 1.5; break }  // "oper" matches "operator"
-          if (kt.length >= 3 && st.startsWith(kt)) { score += 1.5; break }  // "operator" matches "oper"
-          if (st.length >= 4 && kt.includes(st)) { score += 1; break }      // substring
-          if (kt.length >= 4 && st.includes(kt)) { score += 1; break }
+    // Build lookup maps
+    const byNameExact = new Map() // lowercase name → master record
+    for (const mp of masterPersonnel) {
+      if (mp.name) byNameExact.set(mp.name.toLowerCase().trim(), mp)
+    }
+
+    return lemData.labour_entries.map(lemEntry => {
+      const rawName = lemEntry.employee_name || lemEntry.name || ''
+      const normalized = normalizeLemName(rawName)
+      if (!normalized) {
+        return { lemEntry, masterId: null, masterName: rawName, masterClassification: lemEntry.classification || '', matchMethod: 'none', confidence: 0 }
+      }
+
+      // Exact match
+      if (byNameExact.has(normalized)) {
+        const mp = byNameExact.get(normalized)
+        return { lemEntry, masterId: mp.id, masterName: mp.name, masterClassification: mp.classification, matchMethod: 'exact', confidence: 1.0 }
+      }
+
+      // Fuzzy match — try extracting name parts and matching
+      const lemParts = extractNameParts(normalizeName(rawName))
+      let bestMatch = null
+      let bestScore = Infinity
+
+      for (const mp of masterPersonnel) {
+        const mpParts = extractNameParts(normalizeName(mp.name))
+        // Last name must match closely
+        if (lemParts.last && mpParts.last) {
+          const lastDist = levenshtein(lemParts.last, mpParts.last)
+          if (lastDist <= 1) {
+            // Check first name/initial
+            if (lemParts.first && mpParts.first) {
+              if (lemParts.first[0] === mpParts.first[0]) {
+                const firstDist = levenshtein(lemParts.first, mpParts.first)
+                const score = lastDist + firstDist
+                if (score < bestScore) {
+                  bestScore = score
+                  bestMatch = mp
+                }
+              }
+            }
+          }
         }
       }
 
-      // Normalize by the SHORTER name's token count — inspector names are often
-      // abbreviated ("JOURNEYMAN / FITTER") while rate cards are long
-      // ("Non-Welder Journeyman/Fitter on Stick Weld Spread (QI Applies)")
-      const normalizedScore = score / Math.min(sTokens.length, kTokens.length)
+      if (bestMatch && bestScore <= 3) {
+        return { lemEntry, masterId: bestMatch.id, masterName: bestMatch.name, masterClassification: bestMatch.classification, matchMethod: 'fuzzy', confidence: Math.max(0.6, 1 - bestScore * 0.1) }
+      }
 
-      if (normalizedScore > bestScore) {
-        bestScore = normalizedScore
-        bestRate = r
+      return { lemEntry, masterId: null, masterName: rawName, masterClassification: lemEntry.classification || '', matchMethod: 'none', confidence: 0 }
+    })
+  }, [lemData, masterPersonnel])
+
+  // ── Build matched rows ──
+  const matchedRows = useMemo(() => {
+    if (!projectRules || !reportDate) return []
+
+    const inspLabour = inspectorBlock?.labourEntries || []
+    const rows = []
+
+    // Build inspector lookup by master_personnel_id
+    const inspByMaster = new Map()
+    for (const entry of inspLabour) {
+      if (entry.master_personnel_id) {
+        inspByMaster.set(entry.master_personnel_id, entry)
       }
     }
 
-    // Require most inspector tokens to have a match (≥ 1.5 per token on average)
-    if (bestRate && bestScore >= 1.5) return bestRate
+    // Also build inspector lookup by normalized name for fallback
+    const inspByName = new Map()
+    for (const entry of inspLabour) {
+      const name = (entry.employeeName || entry.employee_name || entry.name || '').toLowerCase().trim()
+      if (name) inspByName.set(name, entry)
+    }
+
+    const matchedInspectorIds = new Set()
+    const matchedInspectorNames = new Set()
+
+    // For each resolved LEM entry, find the inspector match
+    for (const resolved of resolvedLabour) {
+      const { lemEntry, masterId, masterName, masterClassification, matchMethod, confidence } = resolved
+      let inspEntry = null
+
+      // Match by master ID first
+      if (masterId && inspByMaster.has(masterId)) {
+        inspEntry = inspByMaster.get(masterId)
+        matchedInspectorIds.add(masterId)
+      }
+
+      // Fallback: match by normalized name
+      if (!inspEntry) {
+        const normalized = normalizeLemName(lemEntry.employee_name || lemEntry.name || '')
+        if (normalized && inspByName.has(normalized)) {
+          inspEntry = inspByName.get(normalized)
+          matchedInspectorNames.add(normalized)
+        }
+      }
+
+      // Get hours
+      const lemRt = num(lemEntry.rt_hours)
+      const lemOt = num(lemEntry.ot_hours)
+      const lemDt = num(lemEntry.dt_hours)
+      const lemTotal = lemRt + lemOt + lemDt
+
+      // Inspector hours
+      const inspRt = inspEntry ? num(inspEntry.rt ?? inspEntry.rtHours ?? 0) : 0
+      const inspOt = inspEntry ? num(inspEntry.ot ?? inspEntry.otHours ?? 0) : 0
+      const inspDt = inspEntry ? num(inspEntry.dt ?? inspEntry.dtHours ?? 0) : 0
+      const inspTotal = inspEntry
+        ? num(inspEntry.total_hours ?? inspEntry.totalHours ?? (inspRt + inspOt + inspDt))
+        : 0
+
+      // Contract split from inspector's total hours
+      const contractSplit = inspEntry
+        ? calculateSplit(inspTotal, reportDate, projectRules, holiday)
+        : calculateSplit(lemTotal, reportDate, projectRules, holiday)
+
+      // Find rate card
+      const classification = masterClassification || lemEntry.classification || ''
+      const rateCard = findRateCard(classification, labourRates) || { rate_st: 0, rate_ot: 0, rate_dt: 0 }
+
+      const lemSplit = { rt_hours: lemRt, ot_hours: lemOt, dt_hours: lemDt }
+      const lemCost = calculateCost(lemSplit, rateCard)
+      const contractCost = calculateCost(contractSplit, rateCard)
+      const dollarImpact = lemCost - contractCost
+
+      // Categorize
+      let category = 'reconciled'
+      if (!inspEntry) {
+        category = 'ghost_on_lem'
+      } else if (Math.abs(lemTotal - inspTotal) > 0.25) {
+        category = 'hours_dispute'
+      } else if (Math.abs(lemRt - contractSplit.rt_hours) > 0.01 ||
+                 Math.abs(lemOt - contractSplit.ot_hours) > 0.01 ||
+                 Math.abs(lemDt - contractSplit.dt_hours) > 0.01) {
+        category = 'contract_violation'
+      }
+
+      rows.push({
+        type: 'labour',
+        masterId,
+        name: masterName,
+        classification: masterClassification || classification,
+        matchMethod,
+        confidence,
+        category,
+        lemEntry,
+        inspEntry,
+        lemSplit,
+        contractSplit,
+        inspectorSplit: { rt_hours: inspRt, ot_hours: inspOt, dt_hours: inspDt },
+        lemCost,
+        contractCost,
+        dollarImpact,
+        ruleDescription: contractSplit.rule_description,
+      })
+    }
+
+    // Inspector-only entries (missing on LEM)
+    for (const entry of inspLabour) {
+      const masterId = entry.master_personnel_id
+      const name = (entry.employeeName || entry.employee_name || entry.name || '').toLowerCase().trim()
+
+      if (masterId && matchedInspectorIds.has(masterId)) continue
+      if (!masterId && name && matchedInspectorNames.has(name)) continue
+
+      const inspRt = num(entry.rt ?? entry.rtHours ?? 0)
+      const inspOt = num(entry.ot ?? entry.otHours ?? 0)
+      const inspDt = num(entry.dt ?? entry.dtHours ?? 0)
+      const inspTotal = num(entry.total_hours ?? entry.totalHours ?? (inspRt + inspOt + inspDt))
+
+      const contractSplit = calculateSplit(inspTotal, reportDate, projectRules, holiday)
+      const classification = entry.classification || ''
+      const rateCard = findRateCard(classification, labourRates) || { rate_st: 0, rate_ot: 0, rate_dt: 0 }
+      const contractCost = calculateCost(contractSplit, rateCard)
+
+      rows.push({
+        type: 'labour',
+        masterId: masterId || null,
+        name: entry.employeeName || entry.employee_name || entry.name || 'Unknown',
+        classification,
+        matchMethod: 'none',
+        confidence: 0,
+        category: 'missing_on_lem',
+        lemEntry: null,
+        inspEntry: entry,
+        lemSplit: { rt_hours: 0, ot_hours: 0, dt_hours: 0 },
+        contractSplit,
+        inspectorSplit: { rt_hours: inspRt, ot_hours: inspOt, dt_hours: inspDt },
+        lemCost: 0,
+        contractCost,
+        dollarImpact: -contractCost, // Missing = underbilled
+        ruleDescription: contractSplit.rule_description,
+      })
+    }
+
+    return rows
+  }, [resolvedLabour, inspectorBlock, projectRules, holiday, reportDate, labourRates])
+
+  // ── Summary calculations ──
+  const summary = useMemo(() => {
+    const counts = { reconciled: 0, contract_violation: 0, hours_dispute: 0, missing_on_lem: 0, ghost_on_lem: 0 }
+    const costs = { reconciled: 0, contract_violation: 0, hours_dispute: 0, missing_on_lem: 0, ghost_on_lem: 0 }
+    let totalLemCost = 0
+    let totalContractCost = 0
+
+    for (const row of matchedRows) {
+      counts[row.category]++
+      costs[row.category] += row.dollarImpact
+      totalLemCost += row.lemCost
+      totalContractCost += row.contractCost
+    }
+
+    const needsReview = counts.contract_violation + counts.hours_dispute + counts.missing_on_lem + counts.ghost_on_lem
+    const netVariance = totalLemCost - totalContractCost
+
+    return { counts, costs, totalLemCost, totalContractCost, netVariance, needsReview, totalItems: matchedRows.length }
+  }, [matchedRows])
+
+  // ── Find rate card by classification ──
+  function findRateCard(classification, rates) {
+    if (!classification || !rates?.length) return null
+    const s = classification.toLowerCase().trim()
+
+    // Exact match
+    for (const r of rates) {
+      if ((r.classification || '').toLowerCase().trim() === s) return r
+    }
+
+    // Contains match
+    for (const r of rates) {
+      const rc = (r.classification || '').toLowerCase().trim()
+      if (rc.includes(s) || s.includes(rc)) return r
+    }
 
     return null
   }
 
-  function calcInspectorLabourCost(entry) {
-    const classification = entry.classification || ''
-    const rate = findRate(classification, labourRates, 'classification')
-    if (!rate) return 0
-    const rt = num(entry.rt ?? entry.rtHours ?? entry.hours ?? 0)
-    const ot = num(entry.ot ?? entry.otHours ?? 0)
-    return (rt * num(rate.rate_st)) + (ot * num(rate.rate_ot || rate.rate_st))
-  }
-
-  function calcInspectorEquipCost(entry) {
-    const type = entry.type || entry.equipment_type || ''
-    const rate = findRate(type, equipmentRates, 'equipment_type')
-    if (!rate) return 0
-    const hours = num(entry.hours ?? 0)
-    return hours * num(rate.rate_hourly || rate.rate)
-  }
-
-  // Local copy of inspector block for edits
-  const [editableBlock, setEditableBlock] = useState(null)
-
-  // Additional costs (small tools, per diem, etc.)
-  const [additionalCosts, setAdditionalCosts] = useState([])
-  const ADDITIONAL_COST_TYPES = [
-    { value: 'small_tools', label: 'Small Tools' },
-    { value: 'per_diem', label: 'Per Diem / Subsistence' },
-    { value: 'travel', label: 'Travel' },
-    { value: 'consumables', label: 'Consumables' },
-    { value: 'ppe', label: 'PPE' },
-    { value: 'other', label: 'Other' },
-  ]
-
-  const hasLem = !!lemData
-
-  // Initialize editable block when inspector data changes
-  useEffect(() => {
-    if (inspectorBlock) {
-      setEditableBlock(JSON.parse(JSON.stringify(inspectorBlock)))
-    }
-  }, [inspectorBlock])
-
-  // Load additional costs from LEM
-  useEffect(() => {
-    const lemAdditional = lemData?.additional_costs || lemData?.small_tools ? [{
-      type: 'small_tools',
-      label: 'Small Tools',
-      lemAmount: parseFloat(lemData.small_tools || 0),
-      inspectorAmount: 0,
-      inspectorNotes: ''
-    }] : []
-    setAdditionalCosts(lemAdditional)
-  }, [lemData])
-
-  // Load existing reconciliation line items from DB
-  const loadSavedStatuses = useCallback(async () => {
-    if (!ticketNumber || !organizationId) return
-
-    const { data } = await supabase
-      .from('reconciliation_line_items')
-      .select('item_key, status')
-      .eq('ticket_number', ticketNumber)
-      .eq('organization_id', organizationId)
-
-    if (data) {
-      const map = {}
-      for (const row of data) {
-        map[row.item_key] = row.status
-      }
-      setSavedStatuses(map)
-    }
-  }, [ticketNumber, organizationId])
-
-  // Run matching and variance calculations when BOTH lemData and editableBlock exist
-  // When inspector-only, we still calculate inspector totals for the summary bar
-  useEffect(() => {
-    if (!editableBlock) return
-
-    const inspLabour = editableBlock?.labourEntries || []
-    const inspEquip = editableBlock?.equipmentEntries || []
-
-    if (hasLem) {
-      // FULL COMPARISON MODE — match and calculate variances
-      const lemLabour = lemData?.labour_entries || []
-      const lemEquip = lemData?.equipment_entries || []
-
-      // Debug: log raw data structures
-      if (lemLabour.length > 0) console.log('[Variance] LEM labour sample:', Object.keys(lemLabour[0]))
-      if (inspLabour.length > 0) console.log('[Variance] Inspector labour sample:', Object.keys(inspLabour[0]))
-      if (lemEquip.length > 0) console.log('[Variance] LEM equip sample:', Object.keys(lemEquip[0]))
-      if (inspEquip.length > 0) console.log('[Variance] Inspector equip sample:', Object.keys(inspEquip[0]))
-
-      // Match workers
-      const workerMatches = matchWorkers(lemLabour, inspLabour)
-      setLabourResults(workerMatches)
-
-      // Calculate variance for each worker match
-      const workerVars = workerMatches.map(match =>
-        calculateWorkerVariance(match.lemEntry, match.inspectorEntry)
-      )
-      setLabourVariances(workerVars)
-
-      // Match equipment
-      const equipMatches = matchEquipment(lemEquip, inspEquip)
-      setEquipmentResults(equipMatches)
-
-      // Calculate variance for each equipment match
-      const equipVars = equipMatches.map(match =>
-        calculateEquipmentVariance(match.lemEntry, match.inspectorEntry)
-      )
-      setEquipmentVariances(equipVars)
-
-      // Combine all variances for totals calculation
-      const allVariances = [...workerVars, ...equipVars]
-      const combinedResults = allVariances.map((v, i) => ({
-        lemCost: v.lemCost,
-        variance: v.variance,
-        status: i < workerVars.length
-          ? workerMatches[i]?.status
-          : equipMatches[i - workerVars.length]?.status,
-      }))
-      setTotals(calculateTotals(combinedResults))
-
-      // Load saved statuses
-      loadSavedStatuses()
-    } else {
-      // INSPECTOR-ONLY MODE — calculate inspector totals using rate cards
-      let inspectorTotalCost = 0
-
-      for (const entry of inspLabour) {
-        inspectorTotalCost += calcInspectorLabourCost(entry) * num(entry.count ?? 1)
-      }
-
-      for (const entry of inspEquip) {
-        inspectorTotalCost += calcInspectorEquipCost(entry) * num(entry.count ?? 1)
-      }
-
-      setTotals({
-        inspectorTotal: inspectorTotalCost,
-        lemTotal: 0,
-        varianceTotal: 0,
-        matchedCount: 0,
-        unmatchedLemCount: 0,
-        unmatchedInspectorCount: inspLabour.length + inspEquip.length,
-      })
-
-      // Clear comparison data
-      setLabourResults([])
-      setLabourVariances([])
-      setEquipmentResults([])
-      setEquipmentVariances([])
-    }
-  }, [lemData, editableBlock, hasLem, loadSavedStatuses, labourRates, equipmentRates])
-
-  // Handle inspector data edit — updates local editable block and notifies parent
-  function handleInspectorEdit(itemType, index, field, value) {
-    setEditableBlock(prev => {
-      if (!prev) return prev
-      const updated = JSON.parse(JSON.stringify(prev))
-      const entries = itemType === 'labour' ? updated.labourEntries : updated.equipmentEntries
-
-      if (hasLem) {
-        // In comparison mode, use match results to find the correct entry
-        const matchResult = itemType === 'labour' ? labourResults[index] : equipmentResults[index]
-
-        if (matchResult?.inspectorEntry && entries) {
-          const origEntry = matchResult.inspectorEntry
-          const entryIdx = entries.findIndex(e => e === origEntry || (
-            (e.employeeName === origEntry.employeeName || e.employee_name === origEntry.employee_name) &&
-            (e.rt === origEntry.rt || e.hours === origEntry.hours)
-          ))
-
-          if (entryIdx >= 0) {
-            applyFieldEdit(entries, entryIdx, itemType, field, value)
-          }
-        } else if (!matchResult?.inspectorEntry && value) {
-          // LEM-only row — admin is adding a new inspector entry
-          if (itemType === 'labour' && field === 'name') {
-            updated.labourEntries = updated.labourEntries || []
-            updated.labourEntries.push({ employeeName: value, classification: '', rt: 0, ot: 0, count: 1 })
-          }
-        }
-      } else {
-        // In inspector-only mode, index maps directly to the entries array
-        if (entries && entries[index]) {
-          applyFieldEdit(entries, index, itemType, field, value)
-        }
-      }
-
-      // Notify parent to persist
-      if (onInspectorBlockChange) {
-        onInspectorBlockChange(updated)
-      }
-      return updated
-    })
-  }
-
-  // Shared field edit logic
-  function applyFieldEdit(entries, entryIdx, itemType, field, value) {
-    const fieldMap = {
-      name: itemType === 'labour' ? (entries[entryIdx].employeeName !== undefined ? 'employeeName' : 'employee_name') : null,
-      classification: 'classification',
-      rt: entries[entryIdx].rt !== undefined ? 'rt' : 'rtHours',
-      ot: entries[entryIdx].ot !== undefined ? 'ot' : 'otHours',
-      dt: entries[entryIdx].dt !== undefined ? 'dt' : 'dtHours',
-      hours: 'hours',
-      type: entries[entryIdx].type !== undefined ? 'type' : 'equipment_type',
-      unitNumber: entries[entryIdx].unitNumber !== undefined ? 'unitNumber' : 'unit_number',
-    }
-    const actualField = fieldMap[field]
-    if (actualField) {
-      const isNumeric = ['rt', 'ot', 'dt', 'hours'].includes(field)
-      entries[entryIdx][actualField] = isNumeric ? parseFloat(value) || 0 : value
-    }
-  }
-
-  // Handle additional cost edit
-  function handleAdditionalCostEdit(index, field, value) {
-    setAdditionalCosts(prev => {
-      const updated = [...prev]
-      updated[index] = { ...updated[index], [field]: field === 'inspectorAmount' ? parseFloat(value) || 0 : value }
-      return updated
-    })
-  }
-
-  function addAdditionalCost() {
-    setAdditionalCosts(prev => [...prev, { type: 'small_tools', label: 'Small Tools', lemAmount: 0, inspectorAmount: 0, inspectorNotes: '' }])
-  }
-
-  // Handle accept/dispute/adjust action for a line item
-  async function handleAction(itemType, index, action, notes) {
-    const itemKey = `${itemType}-${index}`
-    setProcessing(true)
+  // ── Save line item decision ──
+  const saveDecision = useCallback(async (row, status, notes = '') => {
+    const key = `${row.type}-${row.name}`
+    setSaving(prev => ({ ...prev, [key]: true }))
 
     try {
-      // Determine the entry details for audit logging
-      const result = itemType === 'labour' ? labourResults[index] : equipmentResults[index]
-      const variance = itemType === 'labour' ? labourVariances[index] : equipmentVariances[index]
-      const entryName = itemType === 'labour'
-        ? (getWorkerName(result?.lemEntry) || getWorkerName(result?.inspectorEntry) || 'Unknown')
-        : (getEquipmentName(result?.lemEntry) || getEquipmentName(result?.inspectorEntry) || 'Unknown')
+      const { data: { user } } = await supabase.auth.getUser()
 
-      // Upsert into reconciliation_line_items
-      const { error: upsertError } = await supabase
+      const record = {
+        organization_id: organizationId,
+        ticket_number: ticketNumber,
+        item_type: row.type,
+        lem_worker_name: row.lemEntry ? (row.lemEntry.employee_name || row.lemEntry.name || '') : null,
+        inspector_worker_name: row.inspEntry ? (row.inspEntry.employeeName || row.inspEntry.employee_name || '') : null,
+        match_confidence: row.confidence,
+        match_method: row.matchMethod,
+        lem_rt_hours: num(row.lemSplit.rt_hours),
+        lem_ot_hours: num(row.lemSplit.ot_hours),
+        lem_dt_hours: num(row.lemSplit.dt_hours),
+        lem_total_hours: num(row.lemSplit.rt_hours) + num(row.lemSplit.ot_hours) + num(row.lemSplit.dt_hours),
+        lem_cost: row.lemCost,
+        inspector_rt_hours: num(row.inspectorSplit.rt_hours),
+        inspector_ot_hours: num(row.inspectorSplit.ot_hours),
+        inspector_dt_hours: num(row.inspectorSplit.dt_hours),
+        inspector_total_hours: num(row.inspectorSplit.rt_hours) + num(row.inspectorSplit.ot_hours) + num(row.inspectorSplit.dt_hours),
+        variance_hours: (num(row.lemSplit.rt_hours) + num(row.lemSplit.ot_hours) + num(row.lemSplit.dt_hours)) -
+                        (num(row.inspectorSplit.rt_hours) + num(row.inspectorSplit.ot_hours) + num(row.inspectorSplit.dt_hours)),
+        variance_cost: row.dollarImpact,
+        status,
+        dispute_notes: notes || null,
+        reconciled_by: user?.id || null,
+        reconciled_at: new Date().toISOString(),
+      }
+
+      // Upsert — use ticket_number + item_type + worker name as natural key
+      const { error: upsertErr } = await supabase
         .from('reconciliation_line_items')
-        .upsert({
-          ticket_number: ticketNumber,
-          organization_id: organizationId,
-          item_key: itemKey,
-          item_type: itemType,
-          item_name: entryName,
-          status: action,
-          notes: notes || null,
-          lem_cost: variance?.lemCost ?? 0,
-          variance_cost: variance?.variance?.cost?.total ?? 0,
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'ticket_number,organization_id,item_key',
+        .upsert(record, {
+          onConflict: 'organization_id,ticket_number,item_type,lem_worker_name',
+          ignoreDuplicates: false,
         })
 
-      if (upsertError) {
-        console.error('Failed to save reconciliation status:', upsertError)
+      if (upsertErr) {
+        // Fallback: try insert
+        const { error: insertErr } = await supabase
+          .from('reconciliation_line_items')
+          .insert(record)
+        if (insertErr) throw insertErr
       }
 
-      // Audit log
-      await supabase.from('report_audit_log').insert({
-        organization_id: organizationId,
-        action: `reconciliation_${action}`,
-        entity_type: 'reconciliation_line_item',
-        entity_id: ticketNumber,
-        details: {
-          ticket_number: ticketNumber,
-          item_key: itemKey,
-          item_type: itemType,
-          item_name: entryName,
-          status: action,
-          notes: notes || null,
-          variance_cost: variance?.variance?.cost?.total ?? 0,
-        },
-        created_at: new Date().toISOString(),
-      })
-
-      // Update local state
-      setSavedStatuses(prev => ({ ...prev, [itemKey]: action }))
-    } catch (err) {
-      console.error('Error saving reconciliation action:', err)
+      setLineStatuses(prev => ({ ...prev, [key]: { status, notes } }))
+    } catch (e) {
+      console.error('Failed to save reconciliation decision:', e)
+      alert('Failed to save decision: ' + e.message)
     } finally {
-      setProcessing(false)
+      setSaving(prev => ({ ...prev, [key]: false }))
     }
-  }
+  }, [organizationId, ticketNumber])
 
-  // Bulk accept all matched items
-  async function handleBulkAccept() {
-    setProcessing(true)
-    try {
-      for (let i = 0; i < labourResults.length; i++) {
-        if (labourResults[i].status === 'matched') {
-          await handleAction('labour', i, 'accepted', '')
-        }
+  // ── Bulk actions ──
+  const bulkAcceptReconciled = useCallback(async () => {
+    const reconciled = matchedRows.filter(r => r.category === 'reconciled')
+    for (const row of reconciled) {
+      const key = `${row.type}-${row.name}`
+      if (!lineStatuses[key]?.status) {
+        await saveDecision(row, 'accepted')
       }
-      for (let i = 0; i < equipmentResults.length; i++) {
-        if (equipmentResults[i].status === 'matched') {
-          await handleAction('equipment', i, 'accepted', '')
-        }
-      }
-    } finally {
-      setProcessing(false)
     }
-  }
+  }, [matchedRows, lineStatuses, saveDecision])
 
-  // Bulk flag all variances
-  async function handleBulkFlag() {
-    setProcessing(true)
-    try {
-      for (let i = 0; i < labourResults.length; i++) {
-        const v = labourVariances[i]
-        if (v && (v.status === 'review' || v.status === 'minor')) {
-          await handleAction('labour', i, 'disputed', 'Bulk flagged for review')
-        }
+  const bulkDisputeViolations = useCallback(async () => {
+    const violations = matchedRows.filter(r => r.category === 'contract_violation')
+    for (const row of violations) {
+      const key = `${row.type}-${row.name}`
+      if (!lineStatuses[key]?.status) {
+        await saveDecision(row, 'disputed', 'Contract violation — split does not match contract rules')
       }
-      for (let i = 0; i < equipmentResults.length; i++) {
-        const v = equipmentVariances[i]
-        if (v && (v.status === 'review' || v.status === 'minor')) {
-          await handleAction('equipment', i, 'disputed', 'Bulk flagged for review')
-        }
-      }
-    } finally {
-      setProcessing(false)
     }
-  }
+  }, [matchedRows, lineStatuses, saveDecision])
 
-  // Extract LEM data from uploaded PDF (for LEMs uploaded before OCR was wired up)
-  async function handleExtractFromUpload() {
-    if (!uploadedLemUrls?.length) { alert('No uploaded LEM URLs found'); return }
-    setProcessing(true)
-    console.log('[Extract] Starting extraction for URLs:', uploadedLemUrls)
-    try {
-      const allLabour = []
-      const allEquipment = []
-      let totalLabourCost = 0
-      let totalEquipCost = 0
-
-      for (const url of uploadedLemUrls) {
-        console.log('[Extract] Processing URL:', url)
-        let extracted
-        try {
-          extracted = await extractLEMFromUrl(url)
-          console.log('[Extract] Result:', JSON.stringify(extracted).substring(0, 300))
-        } catch (ocrError) {
-          console.error('[Extract] extractLEMFromUrl threw:', ocrError)
-          alert('OCR error: ' + ocrError.message)
-          setProcessing(false)
-          return
-        }
-        if (extracted.labour) {
-          for (const l of extracted.labour) {
-            allLabour.push({
-              name: l.employee_name || '', type: l.classification || '', employee_id: '',
-              rt_hours: l.rt_hours || 0, ot_hours: l.ot_hours || 0, dt_hours: 0,
-              rt_rate: l.rt_rate || 0, ot_rate: l.ot_rate || 0, dt_rate: 0,
-              sub: 0, total: l.line_total || 0
-            })
-            totalLabourCost += l.line_total || 0
-          }
-        }
-        if (extracted.equipment) {
-          for (const e of extracted.equipment) {
-            allEquipment.push({
-              type: e.equipment_type || '', equipment_id: e.unit_number || '',
-              hours: e.hours || 0, rate: e.rate || 0, total: e.line_total || 0
-            })
-            totalEquipCost += e.line_total || 0
-          }
-        }
+  const bulkFlagGhosts = useCallback(async () => {
+    const ghosts = matchedRows.filter(r => r.category === 'ghost_on_lem')
+    for (const row of ghosts) {
+      const key = `${row.type}-${row.name}`
+      if (!lineStatuses[key]?.status) {
+        await saveDecision(row, 'disputed', 'Ghost worker — not on inspector report')
       }
-
-      console.log(`[Extract] TOTAL: ${allLabour.length} labour, ${allEquipment.length} equipment, labourCost=$${totalLabourCost}, equipCost=$${totalEquipCost}`)
-
-      if (allLabour.length > 0 || allEquipment.length > 0) {
-        const lemRecord = {
-          organization_id: organizationId,
-          field_log_id: ticketNumber,
-          date: uploadedLemDate || new Date().toISOString().split('T')[0],
-          foreman: uploadedLemForeman || null,
-          labour_entries: allLabour,
-          equipment_entries: allEquipment,
-          total_labour_cost: totalLabourCost,
-          total_equipment_cost: totalEquipCost,
-        }
-
-        // Check if record exists, then update or insert
-        const { data: existing } = await supabase.from('contractor_lems')
-          .select('id')
-          .eq('organization_id', organizationId)
-          .eq('field_log_id', ticketNumber)
-          .limit(1)
-
-        let saveErr
-        if (existing && existing.length > 0) {
-          const { error } = await supabase.from('contractor_lems')
-            .update(lemRecord).eq('id', existing[0].id)
-          saveErr = error
-        } else {
-          const { error } = await supabase.from('contractor_lems')
-            .insert(lemRecord)
-          saveErr = error
-        }
-        if (saveErr) {
-          console.error('[LEM OCR] Save failed:', saveErr)
-          alert('Extraction succeeded but save failed: ' + saveErr.message)
-        } else {
-          console.log('[LEM OCR] Saved successfully')
-        }
-
-        if (onLemDataExtracted) onLemDataExtracted()
-      } else {
-        alert('OCR could not extract any labour or equipment data from the uploaded LEM.')
-      }
-    } catch (err) {
-      console.error('[LEM OCR] Extraction failed:', err)
-      alert('Extraction failed: ' + err.message)
     }
-    setProcessing(false)
-  }
+  }, [matchedRows, lineStatuses, saveDecision])
 
-  // =========================================================================
-  // RENDER: No inspector block at all
-  // =========================================================================
-  if (!inspectorBlock) {
+  // ── Rendering ──
+
+  if (loading) {
     return (
-      <div style={{
-        padding: '32px',
-        textAlign: 'center',
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        border: '1px solid #e5e7eb',
-        marginTop: '12px',
-      }}>
-        <p style={{ color: '#6b7280', fontSize: '14px', margin: 0 }}>
-          No inspector report found for this ticket. The inspector must submit a daily report with this ticket number.
-        </p>
+      <div style={{ padding: '24px', textAlign: 'center', color: '#6b7280', fontSize: '14px' }}>
+        Loading variance comparison data...
       </div>
     )
   }
 
-  // =========================================================================
-  // RENDER: Inspector data exists — always render it as primary
-  // =========================================================================
-
-  const inspLabour = editableBlock?.labourEntries || []
-  const inspEquip = editableBlock?.equipmentEntries || []
-
-  // Compute inspector-only cost using rate cards (not from entry — inspector doesn't enter rates)
-  function getInspectorLabourCost(entry) {
-    return calcInspectorLabourCost(entry) * num(entry.count ?? 1)
+  if (error) {
+    return (
+      <div style={{ padding: '16px', backgroundColor: '#fef2f2', border: '1px solid #fca5a5', borderRadius: '8px', color: '#dc2626', fontSize: '13px' }}>
+        Error loading variance data: {error}
+      </div>
+    )
   }
 
-  function getInspectorEquipCost(entry) {
-    return calcInspectorEquipCost(entry) * num(entry.count ?? 1)
-  }
-
-  // Get the matched rate for display purposes
-  function getLabourRate(entry) {
-    const classification = entry.classification || ''
-    return findRate(classification, labourRates, 'classification')
-  }
-
-  function getEquipRate(entry) {
-    const type = entry.type || entry.equipment_type || ''
-    return findRate(type, equipmentRates, 'equipment_type')
+  if (!matchedRows.length) {
+    return (
+      <div style={{ padding: '16px', backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', color: '#6b7280', fontSize: '13px', textAlign: 'center' }}>
+        No labour data to compare. Upload a LEM and ensure the inspector report has labour entries for this ticket.
+      </div>
+    )
   }
 
   return (
-    <div style={{
-      marginTop: '12px',
-      backgroundColor: 'white',
-      borderRadius: '8px',
-      border: '1px solid #e5e7eb',
-      overflow: 'hidden',
-    }}>
-      {/* Summary bar */}
-      <div style={{ padding: '16px' }}>
-        <VarianceSummaryBar totals={totals} hasLem={hasLem} />
-      </div>
+    <div style={{ border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden', backgroundColor: '#fff' }}>
+      {/* ── Summary Banner ── */}
+      <div style={{ padding: '16px 20px', backgroundColor: '#f8fafc', borderBottom: '2px solid #1e3a5f' }}>
+        <div style={{ fontSize: '15px', fontWeight: '700', color: '#1e3a5f', marginBottom: '10px' }}>
+          LEM Variance Analysis — Ticket #{ticketNumber}
+          {reportDate && <span style={{ fontWeight: '400', fontSize: '13px', color: '#6b7280', marginLeft: '12px' }}>{reportDate}</span>}
+          {projectRules?.province && <span style={{ fontWeight: '400', fontSize: '13px', color: '#6b7280', marginLeft: '8px' }}>({projectRules.province})</span>}
+          {holiday && <span style={{ fontWeight: '400', fontSize: '12px', color: '#dc2626', marginLeft: '8px' }}>Stat Holiday: {holiday.name}</span>}
+        </div>
 
-      {/* Awaiting LEM banner (inspector-only mode) */}
-      {!hasLem && (
-        <div style={{
-          margin: '0 16px 16px 16px',
-          padding: '12px 16px',
-          backgroundColor: '#f0f9ff',
-          border: '1px solid #bae6fd',
-          borderRadius: '6px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: '12px',
-        }}>
-          <div>
-            <div style={{ fontSize: '13px', fontWeight: '600', color: '#0c4a6e', marginBottom: '4px' }}>
-              Awaiting Contractor LEM
-            </div>
-            <div style={{ fontSize: '12px', color: '#475569' }}>
-              Inspector data is the current baseline. When the LEM arrives, variances will be calculated.
-            </div>
+        {summary.needsReview > 0 && (
+          <div style={{ fontSize: '14px', fontWeight: '600', color: '#92400e', marginBottom: '8px' }}>
+            {summary.needsReview} item{summary.needsReview !== 1 ? 's' : ''} need review before this LEM can be approved
           </div>
-          {uploadedLemUrls?.length > 0 && (
-            <button onClick={handleExtractFromUpload} disabled={processing}
-              style={{
-                padding: '8px 20px',
-                backgroundColor: processing ? '#9ca3af' : '#0ea5e9',
-                color: 'white',
-                border: 'none',
-                borderRadius: '6px',
-                cursor: processing ? 'not-allowed' : 'pointer',
-                fontWeight: '600',
-                fontSize: '13px',
-                whiteSpace: 'nowrap',
-              }}>
-              {processing ? 'Extracting...' : 'Extract LEM Data'}
-            </button>
+        )}
+
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '12px', fontSize: '13px', marginBottom: '12px' }}>
+          {summary.counts.contract_violation > 0 && (
+            <span style={{ color: CATEGORY_COLORS.contract_violation }}>
+              {CATEGORY_ICONS.contract_violation} {summary.counts.contract_violation} contract violation{summary.counts.contract_violation !== 1 ? 's' : ''} (net {formatCurrency(summary.costs.contract_violation)})
+            </span>
+          )}
+          {summary.counts.hours_dispute > 0 && (
+            <span style={{ color: CATEGORY_COLORS.hours_dispute }}>
+              {CATEGORY_ICONS.hours_dispute} {summary.counts.hours_dispute} hours dispute{summary.counts.hours_dispute !== 1 ? 's' : ''} (net {formatCurrency(summary.costs.hours_dispute)})
+            </span>
+          )}
+          {summary.counts.missing_on_lem > 0 && (
+            <span style={{ color: CATEGORY_COLORS.missing_on_lem }}>
+              {CATEGORY_ICONS.missing_on_lem} {summary.counts.missing_on_lem} missing on LEM ({formatCurrency(summary.costs.missing_on_lem)})
+            </span>
+          )}
+          {summary.counts.ghost_on_lem > 0 && (
+            <span style={{ color: CATEGORY_COLORS.ghost_on_lem }}>
+              {CATEGORY_ICONS.ghost_on_lem} {summary.counts.ghost_on_lem} ghost worker{summary.counts.ghost_on_lem !== 1 ? 's' : ''} on LEM ({formatCurrency(summary.costs.ghost_on_lem)})
+            </span>
+          )}
+          {summary.counts.reconciled > 0 && (
+            <span style={{ color: CATEGORY_COLORS.reconciled }}>
+              {CATEGORY_ICONS.reconciled} {summary.counts.reconciled} reconciled
+            </span>
           )}
         </div>
-      )}
 
-      {/* ================================================================= */}
-      {/* LABOUR SECTION                                                     */}
-      {/* ================================================================= */}
-      <div>
-        <div style={sectionHeaderStyle}>
-          <span>{hasLem ? 'Labour Comparison' : "Inspector's Recorded Labour"}</span>
-          <span style={{ fontSize: '12px', fontWeight: '500', color: '#6b7280' }}>
-            {hasLem
-              ? `${labourResults.length} ${labourResults.length === 1 ? 'entry' : 'entries'}`
-              : `${inspLabour.length} ${inspLabour.length === 1 ? 'entry' : 'entries'}`
-            }
-          </span>
-        </div>
-
-        {hasLem ? (
-          <>
-            {/* COMPARISON MODE — full table header */}
-            <div style={tableHeaderStyle}>
-              <div style={thCell}></div>
-              <div style={thCell}>Name</div>
-              <div style={thCell}>Classification</div>
-              <div style={{ ...thCell, textAlign: 'right' }}>Insp. Hrs</div>
-              <div style={{ ...thCell, textAlign: 'right' }}>Insp. Cost</div>
-              <div style={{ ...thCell, textAlign: 'right' }}>LEM Hrs</div>
-              <div style={{ ...thCell, textAlign: 'right' }}>LEM Cost</div>
-              <div style={{ ...thCell, textAlign: 'center' }}>Conf</div>
-              <div style={{ ...thCell, textAlign: 'center' }}>Status</div>
-            </div>
-
-            {labourResults.length === 0 ? (
-              <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af', fontSize: '12px', fontStyle: 'italic' }}>
-                No labour entries to compare
-              </div>
-            ) : (
-              labourResults.map((result, idx) => (
-                <VarianceRow
-                  key={`labour-${idx}`}
-                  result={result}
-                  itemType="labour"
-                  variance={labourVariances[idx]}
-                  onAction={(action, notes) => handleAction('labour', idx, action, notes)}
-                  onInspectorEdit={(field, value) => handleInspectorEdit('labour', idx, field, value)}
-                  savedStatus={savedStatuses[`labour-${idx}`]}
-                />
-              ))
-            )}
-          </>
-        ) : (
-          <>
-            {/* INSPECTOR-ONLY MODE — simpler editable table */}
-            <div style={inspectorOnlyTableHeaderStyle}>
-              <div style={thCell}></div>
-              <div style={thCell}>Name</div>
-              <div style={thCell}>Classification</div>
-              <div style={{ ...thCell, textAlign: 'right' }}>RT</div>
-              <div style={{ ...thCell, textAlign: 'right' }}>OT</div>
-              <div style={{ ...thCell, textAlign: 'right' }}>Cost</div>
-            </div>
-
-            {inspLabour.length === 0 ? (
-              <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af', fontSize: '12px', fontStyle: 'italic' }}>
-                No labour entries recorded by inspector
-              </div>
-            ) : (
-              inspLabour.map((entry, idx) => {
-                const entryName = getWorkerName(entry)
-                const classification = entry.classification || entry.type || ''
-                const rt = num(entry.rtHours ?? entry.rt_hours ?? entry.rt ?? entry.hours ?? entry.jh ?? 0)
-                const ot = num(entry.otHours ?? entry.ot_hours ?? entry.ot ?? 0)
-                const cost = getInspectorLabourCost(entry)
-
-                return (
-                  <div
-                    key={`labour-insp-${idx}`}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '32px 1fr 120px 80px 80px 80px',
-                      alignItems: 'center',
-                      borderBottom: '1px solid #e5e7eb',
-                      backgroundColor: idx % 2 === 0 ? 'white' : '#fafbfc',
-                    }}
-                  >
-                    {/* Edit icon */}
-                    <div style={{ ...inspectorOnlyCellStyle, textAlign: 'center', color: '#94a3b8', fontSize: '14px', cursor: 'default' }}>
-                      <span title="Editable">&#9998;</span>
-                    </div>
-
-                    {/* Name — editable */}
-                    <div style={inspectorOnlyCellStyle}>
-                      <input
-                        type="text"
-                        value={entryName}
-                        onChange={(e) => handleInspectorEdit('labour', idx, 'name', e.target.value)}
-                        style={inspectorOnlyInputStyle}
-                      />
-                    </div>
-
-                    {/* Classification — editable */}
-                    <div style={inspectorOnlyCellStyle}>
-                      <input
-                        type="text"
-                        value={classification}
-                        onChange={(e) => handleInspectorEdit('labour', idx, 'classification', e.target.value)}
-                        style={{ ...inspectorOnlyInputStyle, fontSize: '11px' }}
-                      />
-                    </div>
-
-                    {/* RT — editable */}
-                    <div style={{ ...inspectorOnlyCellStyle, textAlign: 'right' }}>
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={rt}
-                        onChange={(e) => handleInspectorEdit('labour', idx, 'rt', e.target.value)}
-                        style={inspectorOnlyNumberInputStyle}
-                      />
-                    </div>
-
-                    {/* OT — editable */}
-                    <div style={{ ...inspectorOnlyCellStyle, textAlign: 'right' }}>
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={ot}
-                        onChange={(e) => handleInspectorEdit('labour', idx, 'ot', e.target.value)}
-                        style={inspectorOnlyNumberInputStyle}
-                      />
-                    </div>
-
-                    {/* Cost — calculated, read-only */}
-                    <div style={{
-                      ...inspectorOnlyCellStyle,
-                      textAlign: 'right',
-                      fontWeight: '600',
-                      color: cost > 0 ? '#166534' : '#6b7280',
-                    }}>
-                      {cost > 0 ? formatCurrency(cost) : '--'}
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </>
-        )}
-      </div>
-
-      {/* ================================================================= */}
-      {/* EQUIPMENT SECTION                                                  */}
-      {/* ================================================================= */}
-      <div style={{ marginTop: '8px' }}>
-        <div style={sectionHeaderStyle}>
-          <span>{hasLem ? 'Equipment Comparison' : "Inspector's Recorded Equipment"}</span>
-          <span style={{ fontSize: '12px', fontWeight: '500', color: '#6b7280' }}>
-            {hasLem
-              ? `${equipmentResults.length} ${equipmentResults.length === 1 ? 'entry' : 'entries'}`
-              : `${inspEquip.length} ${inspEquip.length === 1 ? 'entry' : 'entries'}`
-            }
-          </span>
-        </div>
-
-        {hasLem ? (
-          <>
-            {/* COMPARISON MODE — full table header */}
-            <div style={tableHeaderStyle}>
-              <div style={thCell}></div>
-              <div style={thCell}>Equipment</div>
-              <div style={thCell}>Type</div>
-              <div style={{ ...thCell, textAlign: 'right' }}>Insp. Hrs</div>
-              <div style={{ ...thCell, textAlign: 'right' }}>Insp. Cost</div>
-              <div style={{ ...thCell, textAlign: 'right' }}>LEM Hrs</div>
-              <div style={{ ...thCell, textAlign: 'right' }}>LEM Cost</div>
-              <div style={{ ...thCell, textAlign: 'center' }}>Conf</div>
-              <div style={{ ...thCell, textAlign: 'center' }}>Status</div>
-            </div>
-
-            {equipmentResults.length === 0 ? (
-              <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af', fontSize: '12px', fontStyle: 'italic' }}>
-                No equipment entries to compare
-              </div>
-            ) : (
-              equipmentResults.map((result, idx) => (
-                <VarianceRow
-                  key={`equipment-${idx}`}
-                  result={result}
-                  itemType="equipment"
-                  variance={equipmentVariances[idx]}
-                  onAction={(action, notes) => handleAction('equipment', idx, action, notes)}
-                  onInspectorEdit={(field, value) => handleInspectorEdit('equipment', idx, field, value)}
-                  savedStatus={savedStatuses[`equipment-${idx}`]}
-                />
-              ))
-            )}
-          </>
-        ) : (
-          <>
-            {/* INSPECTOR-ONLY MODE — simpler editable table */}
-            <div style={inspectorOnlyTableHeaderStyle}>
-              <div style={thCell}></div>
-              <div style={thCell}>Equipment</div>
-              <div style={thCell}>Type / Unit #</div>
-              <div style={{ ...thCell, textAlign: 'right' }}>Hours</div>
-              <div style={{ ...thCell, textAlign: 'right' }}>Rate</div>
-              <div style={{ ...thCell, textAlign: 'right' }}>Cost</div>
-            </div>
-
-            {inspEquip.length === 0 ? (
-              <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af', fontSize: '12px', fontStyle: 'italic' }}>
-                No equipment entries recorded by inspector
-              </div>
-            ) : (
-              inspEquip.map((entry, idx) => {
-                const equipName = getEquipmentName(entry)
-                const unitNumber = entry.unitNumber || entry.unit_number || entry.equipment_id || ''
-                const hours = num(entry.hours ?? entry.count ?? 0)
-                const matchedRate = getEquipRate(entry)
-                const rate = num(matchedRate?.rate_hourly || matchedRate?.rate || 0)
-                const cost = getInspectorEquipCost(entry)
-
-                return (
-                  <div
-                    key={`equip-insp-${idx}`}
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: '32px 1fr 120px 80px 80px 80px',
-                      alignItems: 'center',
-                      borderBottom: '1px solid #e5e7eb',
-                      backgroundColor: idx % 2 === 0 ? 'white' : '#fafbfc',
-                    }}
-                  >
-                    {/* Edit icon */}
-                    <div style={{ ...inspectorOnlyCellStyle, textAlign: 'center', color: '#94a3b8', fontSize: '14px', cursor: 'default' }}>
-                      <span title="Editable">&#9998;</span>
-                    </div>
-
-                    {/* Equipment name — editable */}
-                    <div style={inspectorOnlyCellStyle}>
-                      <input
-                        type="text"
-                        value={equipName}
-                        onChange={(e) => handleInspectorEdit('equipment', idx, 'type', e.target.value)}
-                        style={inspectorOnlyInputStyle}
-                      />
-                    </div>
-
-                    {/* Unit # — editable */}
-                    <div style={inspectorOnlyCellStyle}>
-                      <input
-                        type="text"
-                        value={unitNumber}
-                        onChange={(e) => handleInspectorEdit('equipment', idx, 'unitNumber', e.target.value)}
-                        style={{ ...inspectorOnlyInputStyle, fontSize: '11px' }}
-                      />
-                    </div>
-
-                    {/* Hours — editable */}
-                    <div style={{ ...inspectorOnlyCellStyle, textAlign: 'right' }}>
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={hours}
-                        onChange={(e) => handleInspectorEdit('equipment', idx, 'hours', e.target.value)}
-                        style={inspectorOnlyNumberInputStyle}
-                      />
-                    </div>
-
-                    {/* Rate — read-only display */}
-                    <div style={{
-                      ...inspectorOnlyCellStyle,
-                      textAlign: 'right',
-                      fontSize: '11px',
-                      color: '#6b7280',
-                    }}>
-                      {rate > 0 ? `${formatCurrency(rate)}/hr` : '--'}
-                    </div>
-
-                    {/* Cost — calculated, read-only */}
-                    <div style={{
-                      ...inspectorOnlyCellStyle,
-                      textAlign: 'right',
-                      fontWeight: '600',
-                      color: cost > 0 ? '#166534' : '#6b7280',
-                    }}>
-                      {cost > 0 ? formatCurrency(cost) : '--'}
-                    </div>
-                  </div>
-                )
-              })
-            )}
-          </>
-        )}
-      </div>
-
-      {/* ================================================================= */}
-      {/* ADDITIONAL COSTS SECTION                                           */}
-      {/* ================================================================= */}
-      <div style={{ marginTop: '8px' }}>
-        <div style={sectionHeaderStyle}>
-          <span>Additional Costs</span>
-          <button onClick={addAdditionalCost} style={{ padding: '2px 10px', fontSize: '11px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>+ Add</button>
-        </div>
-        {additionalCosts.length === 0 ? (
-          <div style={{ padding: '16px', textAlign: 'center', color: '#9ca3af', fontSize: '12px', fontStyle: 'italic' }}>
-            No additional costs. Click "+ Add" for small tools, per diem, travel, etc.
+        <div style={{ display: 'flex', gap: '24px', fontSize: '13px', color: '#475569' }}>
+          <div>Total LEM cost if accepted as-is: <strong>{formatCurrency(summary.totalLemCost)}</strong></div>
+          <div>Total cost per contract rules: <strong>{formatCurrency(summary.totalContractCost)}</strong></div>
+          <div style={{ fontWeight: '700', color: summary.netVariance > 0.01 ? '#dc2626' : summary.netVariance < -0.01 ? '#ea580c' : '#16a34a' }}>
+            Net variance: {summary.netVariance > 0.01 ? `LEM overbilled by ${formatCurrency(summary.netVariance)}` :
+                          summary.netVariance < -0.01 ? `LEM underbilled by ${formatCurrency(Math.abs(summary.netVariance))}` :
+                          'No variance'}
           </div>
-        ) : (
-          <div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px 120px 1fr', gap: '0', backgroundColor: '#f1f5f9', borderBottom: '1px solid #cbd5e1', fontSize: '11px', fontWeight: '600', color: '#475569', textTransform: 'uppercase' }}>
-              <div style={{ padding: '6px 10px' }}>Type</div>
-              <div style={{ padding: '6px 10px', textAlign: 'right' }}>LEM Amount</div>
-              <div style={{ padding: '6px 10px', textAlign: 'right' }}>Inspector Amount</div>
-              <div style={{ padding: '6px 10px', textAlign: 'right' }}>Variance</div>
-              <div style={{ padding: '6px 10px' }}>Notes</div>
-            </div>
-            {additionalCosts.map((cost, idx) => {
-              const variance = (cost.lemAmount || 0) - (cost.inspectorAmount || 0)
-              return (
-                <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 120px 120px 120px 1fr', gap: '0', borderBottom: '1px solid #e5e7eb', backgroundColor: variance === 0 ? '#dcfce7' : variance > 0 ? '#fef2f2' : '#eff6ff' }}>
-                  <div style={{ padding: '6px 10px' }}>
-                    <select value={cost.type} onChange={e => { const t = ADDITIONAL_COST_TYPES.find(c => c.value === e.target.value); handleAdditionalCostEdit(idx, 'type', e.target.value); if (t) handleAdditionalCostEdit(idx, 'label', t.label) }}
-                      style={{ padding: '3px 6px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '3px', width: '100%' }}>
-                      {ADDITIONAL_COST_TYPES.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ padding: '6px 10px', textAlign: 'right', fontSize: '12px', fontWeight: '500' }}>
-                    ${(cost.lemAmount || 0).toLocaleString(undefined, { minimumFractionDigits: 2 })}
-                  </div>
-                  <div style={{ padding: '4px 10px' }}>
-                    <input type="number" value={cost.inspectorAmount || ''} onChange={e => handleAdditionalCostEdit(idx, 'inspectorAmount', e.target.value)}
-                      placeholder="0.00" style={{ width: '100%', padding: '3px 6px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '3px', textAlign: 'right' }} />
-                  </div>
-                  <div style={{ padding: '6px 10px', textAlign: 'right', fontSize: '12px', fontWeight: '700', color: variance === 0 ? '#16a34a' : variance > 0 ? '#dc2626' : '#3b82f6' }}>
-                    {variance > 0 ? '+' : ''}${variance.toFixed(2)}
-                  </div>
-                  <div style={{ padding: '4px 10px' }}>
-                    <input type="text" value={cost.inspectorNotes || ''} onChange={e => handleAdditionalCostEdit(idx, 'inspectorNotes', e.target.value)}
-                      placeholder="Notes..." style={{ width: '100%', padding: '3px 6px', fontSize: '12px', border: '1px solid #d1d5db', borderRadius: '3px' }} />
-                  </div>
+        </div>
+      </div>
+
+      {/* ── Bulk Actions ── */}
+      <div style={{ padding: '10px 20px', backgroundColor: '#f1f5f9', borderBottom: '1px solid #e2e8f0', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+        {summary.counts.reconciled > 0 && (
+          <button onClick={bulkAcceptReconciled} style={bulkBtnStyle('#16a34a')}>
+            Accept All Reconciled ({summary.counts.reconciled})
+          </button>
+        )}
+        {summary.counts.contract_violation > 0 && (
+          <button onClick={bulkDisputeViolations} style={bulkBtnStyle('#dc2626')}>
+            Dispute All Contract Violations ({summary.counts.contract_violation})
+          </button>
+        )}
+        {summary.counts.ghost_on_lem > 0 && (
+          <button onClick={bulkFlagGhosts} style={bulkBtnStyle('#dc2626')}>
+            Flag All Ghost Workers ({summary.counts.ghost_on_lem})
+          </button>
+        )}
+      </div>
+
+      {/* ── Per-Row Display ── */}
+      <div style={{ padding: '8px 0' }}>
+        {matchedRows.map((row, idx) => {
+          const key = `${row.type}-${row.name}`
+          const savedStatus = lineStatuses[key]
+          const isSaving = saving[key]
+          const borderColor = CATEGORY_COLORS[row.category] || '#e2e8f0'
+
+          return (
+            <div
+              key={idx}
+              style={{
+                margin: '6px 16px',
+                padding: '12px 16px',
+                borderLeft: `4px solid ${borderColor}`,
+                borderRadius: '6px',
+                backgroundColor: savedStatus?.status ? '#f8fafc' : '#fff',
+                border: `1px solid ${borderColor}20`,
+                borderLeftWidth: '4px',
+                borderLeftColor: borderColor,
+              }}
+            >
+              {/* Row header */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <div style={{ fontSize: '14px', fontWeight: '600', color: '#1e3a5f' }}>
+                  <span style={{ marginRight: '6px' }}>{CATEGORY_ICONS[row.category]}</span>
+                  {row.name}
+                  {row.classification && (
+                    <span style={{ fontWeight: '400', color: '#6b7280', marginLeft: '8px', fontSize: '12px' }}>
+                      ({row.classification})
+                    </span>
+                  )}
                 </div>
-              )
-            })}
-          </div>
-        )}
-      </div>
+                <div style={{ fontSize: '11px', color: '#9ca3af' }}>
+                  <span style={{ backgroundColor: `${borderColor}15`, color: borderColor, padding: '2px 8px', borderRadius: '10px', fontWeight: '600' }}>
+                    {CATEGORY_LABELS[row.category]}
+                  </span>
+                  {row.matchMethod !== 'none' && row.matchMethod !== 'exact' && (
+                    <span style={{ marginLeft: '6px' }}>Match: {row.matchMethod} ({Math.round(row.confidence * 100)}%)</span>
+                  )}
+                </div>
+              </div>
 
-      {/* ================================================================= */}
-      {/* BULK ACTION BAR (only shown when LEM comparison is active)         */}
-      {/* ================================================================= */}
-      {hasLem && (
-        <div style={{
-          padding: '12px 16px',
-          display: 'flex',
-          justifyContent: 'flex-end',
-          gap: '8px',
-          borderTop: '2px solid #e5e7eb',
-          backgroundColor: '#f8fafc',
-        }}>
-          <button
-            onClick={handleBulkAccept}
-            disabled={processing}
-            style={{
-              padding: '8px 20px',
-              backgroundColor: processing ? '#86efac' : '#16a34a',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: processing ? 'not-allowed' : 'pointer',
-              fontSize: '13px',
-              fontWeight: '600',
-            }}
-          >
-            {processing ? 'Processing...' : 'Accept All Matches'}
-          </button>
-          <button
-            onClick={handleBulkFlag}
-            disabled={processing}
-            style={{
-              padding: '8px 20px',
-              backgroundColor: processing ? '#fca5a5' : '#dc2626',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: processing ? 'not-allowed' : 'pointer',
-              fontSize: '13px',
-              fontWeight: '600',
-            }}
-          >
-            {processing ? 'Processing...' : 'Flag All Variances'}
-          </button>
-        </div>
-      )}
+              {/* Three-line comparison */}
+              <div style={{ fontSize: '13px', fontFamily: 'monospace', lineHeight: '1.8' }}>
+                {/* LEM line */}
+                {row.lemEntry && (
+                  <div style={{ color: '#475569' }}>
+                    <span style={{ display: 'inline-block', width: '130px', fontWeight: '600', fontFamily: 'inherit' }}>LEM claims:</span>
+                    <span style={{ display: 'inline-block', width: '80px', textAlign: 'right' }}>{num(row.lemSplit.rt_hours).toFixed(1)} RT</span>
+                    <span style={{ display: 'inline-block', width: '80px', textAlign: 'right' }}>{num(row.lemSplit.ot_hours).toFixed(1)} OT</span>
+                    <span style={{ display: 'inline-block', width: '80px', textAlign: 'right' }}>{num(row.lemSplit.dt_hours).toFixed(1)} DT</span>
+                    <span style={{ marginLeft: '16px', fontWeight: '600' }}>{formatCurrency(row.lemCost)}</span>
+                  </div>
+                )}
+
+                {/* Contract line */}
+                <div style={{ color: '#1e3a5f' }}>
+                  <span style={{ display: 'inline-block', width: '130px', fontWeight: '600', fontFamily: 'inherit' }}>Contract rules:</span>
+                  <span style={{ display: 'inline-block', width: '80px', textAlign: 'right' }}>{num(row.contractSplit.rt_hours).toFixed(1)} RT</span>
+                  <span style={{ display: 'inline-block', width: '80px', textAlign: 'right' }}>{num(row.contractSplit.ot_hours).toFixed(1)} OT</span>
+                  <span style={{ display: 'inline-block', width: '80px', textAlign: 'right' }}>{num(row.contractSplit.dt_hours).toFixed(1)} DT</span>
+                  <span style={{ marginLeft: '16px', fontWeight: '600' }}>{formatCurrency(row.contractCost)}</span>
+                </div>
+
+                {/* Inspector line */}
+                {row.inspEntry && (
+                  <div style={{ color: '#059669' }}>
+                    <span style={{ display: 'inline-block', width: '130px', fontWeight: '600', fontFamily: 'inherit' }}>Inspector:</span>
+                    <span style={{ display: 'inline-block', width: '80px', textAlign: 'right' }}>{num(row.inspectorSplit.rt_hours).toFixed(1)} RT</span>
+                    <span style={{ display: 'inline-block', width: '80px', textAlign: 'right' }}>{num(row.inspectorSplit.ot_hours).toFixed(1)} OT</span>
+                    <span style={{ display: 'inline-block', width: '80px', textAlign: 'right' }}>{num(row.inspectorSplit.dt_hours).toFixed(1)} DT</span>
+                    {row.category === 'reconciled' && <span style={{ marginLeft: '16px', color: '#16a34a' }}>{CATEGORY_ICONS.reconciled} matches contract</span>}
+                  </div>
+                )}
+              </div>
+
+              {/* Rule description */}
+              {row.ruleDescription && (
+                <div style={{ fontSize: '12px', color: '#6b7280', fontStyle: 'italic', marginTop: '4px' }}>
+                  Rule: {row.ruleDescription}
+                </div>
+              )}
+
+              {/* Dollar impact */}
+              {Math.abs(row.dollarImpact) > 0.01 && (
+                <div style={{
+                  fontSize: '13px', fontWeight: '600', marginTop: '4px',
+                  color: row.dollarImpact > 0 ? '#dc2626' : '#ea580c',
+                }}>
+                  Variance: LEM {row.dollarImpact > 0 ? 'overbilled' : 'underbilled'} by {formatCurrency(Math.abs(row.dollarImpact))}
+                </div>
+              )}
+
+              {/* Status badge if already decided */}
+              {savedStatus?.status && (
+                <div style={{ marginTop: '6px', fontSize: '12px', color: savedStatus.status === 'accepted' ? '#16a34a' : '#dc2626', fontWeight: '600' }}>
+                  {savedStatus.status === 'accepted' ? 'ACCEPTED' : 'DISPUTED'}
+                  {savedStatus.notes && <span style={{ fontWeight: '400', color: '#6b7280', marginLeft: '8px' }}>— {savedStatus.notes}</span>}
+                </div>
+              )}
+
+              {/* Action buttons */}
+              {!savedStatus?.status && (
+                <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                  {row.category === 'reconciled' && (
+                    <button
+                      onClick={() => saveDecision(row, 'accepted')}
+                      disabled={isSaving}
+                      style={actionBtnStyle('#16a34a', isSaving)}
+                    >
+                      {isSaving ? 'Saving...' : 'Accept'}
+                    </button>
+                  )}
+
+                  {row.category === 'contract_violation' && (
+                    <>
+                      <button
+                        onClick={() => saveDecision(row, 'accepted', 'Accepted LEM as-is despite contract violation')}
+                        disabled={isSaving}
+                        style={actionBtnStyle('#6b7280', isSaving)}
+                      >
+                        Accept LEM as-is
+                      </button>
+                      <button
+                        onClick={() => saveDecision(row, 'disputed', 'Contract violation — split does not match contract rules')}
+                        disabled={isSaving}
+                        style={actionBtnStyle('#dc2626', isSaving)}
+                      >
+                        Dispute — request correction
+                      </button>
+                    </>
+                  )}
+
+                  {row.category === 'hours_dispute' && (
+                    <>
+                      <button
+                        onClick={() => saveDecision(row, 'accepted', 'Accepted LEM hours despite inspector discrepancy')}
+                        disabled={isSaving}
+                        style={actionBtnStyle('#6b7280', isSaving)}
+                      >
+                        Accept LEM as-is
+                      </button>
+                      <button
+                        onClick={() => saveDecision(row, 'disputed', 'Hours dispute — LEM hours do not match inspector record')}
+                        disabled={isSaving}
+                        style={actionBtnStyle('#eab308', isSaving)}
+                      >
+                        Dispute — request correction
+                      </button>
+                    </>
+                  )}
+
+                  {row.category === 'missing_on_lem' && (
+                    <button
+                      onClick={() => saveDecision(row, 'disputed', 'Worker present on inspector report but missing on LEM')}
+                      disabled={isSaving}
+                      style={actionBtnStyle('#ea580c', isSaving)}
+                    >
+                      Dispute — not on LEM
+                    </button>
+                  )}
+
+                  {row.category === 'ghost_on_lem' && (
+                    <button
+                      onClick={() => saveDecision(row, 'disputed', 'Ghost worker — not on inspector report')}
+                      disabled={isSaving}
+                      style={actionBtnStyle('#dc2626', isSaving)}
+                    >
+                      Dispute — ghost worker
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
     </div>
   )
+}
+
+// ── Style helpers ──
+
+function bulkBtnStyle(color) {
+  return {
+    padding: '6px 14px',
+    backgroundColor: color,
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer',
+    fontSize: '12px',
+    fontWeight: '600',
+  }
+}
+
+function actionBtnStyle(color, disabled) {
+  return {
+    padding: '5px 12px',
+    backgroundColor: disabled ? '#d1d5db' : color,
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: disabled ? 'not-allowed' : 'pointer',
+    fontSize: '12px',
+    fontWeight: '600',
+    opacity: disabled ? 0.6 : 1,
+  }
 }
