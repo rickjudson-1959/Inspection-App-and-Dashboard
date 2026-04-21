@@ -546,68 +546,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     setDupeResolve(null)
   }
 
-  // --- Variance popover actions ---
-  async function handleVarianceAccept() {
-    if (!variancePopover) return
-    const { rowIdx, variance } = variancePopover
-    try {
-      const entry = labourEntries[rowIdx]
-      const { data: { user } } = await supabase.auth.getUser()
-      await supabase.from('reconciliation_line_items').upsert({
-        organization_id: organizationId,
-        ticket_number: block?.ticketNumber || '',
-        item_type: 'labour',
-        variance_category: variance.category,
-        dollar_impact: variance.dollarImpact || 0,
-        contract_rt: variance.contractSplit?.rt_hours,
-        contract_ot: variance.contractSplit?.ot_hours,
-        contract_dt: variance.contractSplit?.dt_hours,
-        lem_rt: variance.lemSplit?.rt_hours,
-        lem_ot: variance.lemSplit?.ot_hours,
-        lem_dt: variance.lemSplit?.dt_hours,
-        lem_worker_name: variance.lemName || '',
-        inspector_worker_name: entry?.employeeName || entry?.name || '',
-        status: 'accepted',
-        reconciled_by: user?.id,
-        reconciled_at: new Date().toISOString(),
-      }, { onConflict: 'organization_id,ticket_number' })
-    } catch (e) { console.error('Accept failed:', e) }
-    setVariancePopover(null)
-    setToast('✓ Accepted LEM as-is')
-    setTimeout(() => setToast(null), 3000)
-  }
-
-  async function handleVarianceDispute() {
-    if (!variancePopover) return
-    const { rowIdx, variance } = variancePopover
-    try {
-      const entry = labourEntries[rowIdx]
-      const { data: { user } } = await supabase.auth.getUser()
-      await supabase.from('reconciliation_line_items').upsert({
-        organization_id: organizationId,
-        ticket_number: block?.ticketNumber || '',
-        item_type: 'labour',
-        variance_category: variance.category,
-        dollar_impact: variance.dollarImpact || 0,
-        contract_rt: variance.contractSplit?.rt_hours,
-        contract_ot: variance.contractSplit?.ot_hours,
-        contract_dt: variance.contractSplit?.dt_hours,
-        lem_rt: variance.lemSplit?.rt_hours,
-        lem_ot: variance.lemSplit?.ot_hours,
-        lem_dt: variance.lemSplit?.dt_hours,
-        lem_worker_name: variance.lemName || '',
-        inspector_worker_name: entry?.employeeName || entry?.name || '',
-        status: 'disputed',
-        dispute_notes: `${variance.category}: ${variance.ruleDescription || ''}`,
-        reconciled_by: user?.id,
-        reconciled_at: new Date().toISOString(),
-      }, { onConflict: 'organization_id,ticket_number' })
-    } catch (e) { console.error('Dispute failed:', e) }
-    setVariancePopover(null)
-    setToast('Disputed — correction requested')
-    setTimeout(() => setToast(null), 3000)
-  }
-
+  // --- Variance tooltip ---
   function openVariancePopover(section, rowIdx, variance, event) {
     const rect = event.currentTarget.getBoundingClientRect()
     setPopoverAnchorRect(rect)
@@ -1496,16 +1435,12 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
         document.body
       )}
 
-      {/* Variance detail popover */}
+      {/* Variance tooltip */}
       <VarianceDetailPopover
         open={!!variancePopover}
         onClose={() => { setVariancePopover(null); setPopoverAnchorRect(null) }}
         anchorRect={popoverAnchorRect}
         variance={variancePopover?.variance}
-        workerName={variancePopover ? (labourEntries[variancePopover.rowIdx]?.employeeName || labourEntries[variancePopover.rowIdx]?.name || '') : ''}
-        classification={variancePopover ? (labourEntries[variancePopover.rowIdx]?.classification || '') : ''}
-        onAccept={handleVarianceAccept}
-        onDispute={handleVarianceDispute}
       />
 
       {/* Admin override popover */}
