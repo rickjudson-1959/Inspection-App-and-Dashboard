@@ -328,7 +328,57 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
         />
       </div>
 
-      {/* LEM Variance Panel — always shown when LEM data exists */}
+      {/* LEM Variance Panel — three states: extracted data, needs extraction, no LEM */}
+      {(() => {
+        if (lemData) {
+          // State 1: Structured LEM data exists → render variance panel
+          return null // rendered below
+        }
+        if (panels.lem && !lemData) {
+          // State 2: LEM PDF uploaded but no structured data extracted
+          console.log(`[ReconView] LEM PDF exists for ticket ${ticketNumber} but lemData is null — OCR extraction needed`)
+          return (
+            <div style={{ padding: '16px', margin: '12px 0', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px' }}>
+              <div style={{ fontSize: '14px', fontWeight: '600', color: '#92400e', marginBottom: '8px' }}>
+                &#9888; LEM uploaded but structured data not yet extracted
+              </div>
+              <p style={{ fontSize: '13px', color: '#78716c', margin: '0 0 12px 0' }}>
+                The variance comparison requires OCR'd labour and equipment data from the LEM PDF.
+              </p>
+              <button
+                onClick={async () => {
+                  try {
+                    const { extractLEMFromUrl } = await import('../../utils/lemParser.js')
+                    const urls = panels.lem?.file_urls || []
+                    if (!urls.length) return
+                    const result = await extractLEMFromUrl(urls[0])
+                    if (result && (result.labour?.length || result.equipment?.length)) {
+                      const record = {
+                        organization_id: organizationId,
+                        field_log_id: ticketNumber,
+                        date: inspectorReport?.date || meta.date || null,
+                        labour_entries: result.labour || [],
+                        equipment_entries: result.equipment || [],
+                        total_labour_cost: result.totals?.total_labour_cost || 0,
+                        total_equipment_cost: result.totals?.total_equipment_cost || 0,
+                        reconciliation_status: 'pending',
+                        billing_status: 'open',
+                      }
+                      await supabase.from('contractor_lems').upsert(record, { onConflict: 'field_log_id,organization_id' })
+                      loadAllData()
+                    }
+                  } catch (err) { console.error('LEM extraction failed:', err) }
+                }}
+                style={{ padding: '8px 16px', backgroundColor: '#1e3a5f', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontSize: '13px', fontWeight: '600' }}
+              >
+                Extract now
+              </button>
+            </div>
+          )
+        }
+        // State 3: No LEM at all → nothing
+        return null
+      })()}
       {lemData && (
         <VarianceComparisonPanel
           ticketNumber={ticketNumber}
