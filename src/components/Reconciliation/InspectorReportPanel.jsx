@@ -269,17 +269,17 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const totalFlagged = flaggedLabour + flaggedEquip
   const hasUnresolved = unresolvedLabour > 0 || unresolvedEquip > 0 || totalFlagged > 0
 
+  // Normalize name for variance comparison: lowercase, trim, collapse whitespace, strip suffixes like (PB)/(EP)/(TI)
+  function normV(s) {
+    return (s || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)\s*$/, '')
+  }
+
   // --- Per-row variance when LEM data exists ---
   const labourVarianceMap = useMemo(() => {
     if (!lemData || !projectRules || !reportDate) return {}
 
     const lemLabour = lemData.labour_entries || []
     const map = {} // keyed by row index
-
-    // Normalize helper
-    function normV(s) {
-      return (s || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)\s*$/, '')
-    }
 
     for (let i = 0; i < labourEntries.length; i++) {
       const entry = labourEntries[i]
@@ -383,17 +383,17 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     if (!lemData || !projectRules || !reportDate) return []
     const lemLabour = lemData.labour_entries || []
     const inspNames = new Set(labourEntries.map(e =>
-      (e.employeeName || e.employee_name || e.name || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)\s*$/, '')
+      normV(e.employeeName || e.employee_name || e.name || '')
     ).filter(Boolean))
 
     return lemLabour.filter(l => {
-      const lemName = (l.employee_name || l.name || '').toLowerCase().trim().replace(/\s+/g, ' ')
+      const lemName = normV(l.employee_name || l.name || '')
       if (!lemName) return false
-      // Check if any inspector name is close enough
+      // Check if any inspector name is close enough (case-insensitive)
       for (const inspName of inspNames) {
         if (inspName === lemName) return false
         const maxLen = Math.max(lemName.length, inspName.length)
-        if (maxLen > 0 && (1 - levenshtein(lemName.toUpperCase(), inspName.toUpperCase()) / maxLen) >= 0.8) return false
+        if (maxLen > 0 && (1 - levenshtein(lemName, inspName) / maxLen) >= 0.8) return false
       }
       return true
     })
