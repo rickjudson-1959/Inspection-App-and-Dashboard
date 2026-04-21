@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - April 19, 2026
+## Project Manifest - April 21, 2026
 
 ---
 
@@ -571,9 +571,11 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
     │   ├── InspectorReportPanel.jsx # Costed inspector panel: Name, Classification (searchable dropdown), RT Hrs/Rate, OT Hrs/Rate, DT Hrs/Rate, Subs, Cost. Inline click-to-edit with audit logging, learning alias system (classification_aliases table), rate lookup with whitespace normalization + token matching. Weekly/daily salaried rates and hourly Red Book rates. Portal-rendered dropdown. (Rewritten Apr 6–10, 2026)
     │   ├── PdfViewer.jsx            # pdf.js canvas renderer with page navigation
     │   ├── ImageViewer.jsx          # Image renderer with ctrl+scroll zoom, click-to-fullscreen
-    │   ├── VarianceComparisonPanel.jsx  # Line-by-line variance comparison: inspector is source of truth (always shows even without LEM), fuzzy name matching, classification alias map (22 entries), equipment alias map, auto-OCR LEM uploads into contractor_lems, editable inspector data, rate card cost calculation, bulk actions, saves to reconciliation_line_items (Updated Apr 4, 2026)
-    │   ├── VarianceSummaryBar.jsx       # Three-card summary: LEM claimed, inspector verified, total variance with color-coded status (NEW - Mar 23, 2026)
-    │   └── VarianceRow.jsx              # Expandable row: name/hours/cost/confidence, RT/OT/DT breakdown, accept/dispute/adjust actions (NEW - Mar 23, 2026)
+    │   ├── VarianceDetailPopover.jsx     # Three-line variance detail popover (LEM/Contract/Inspector), accept/dispute buttons, portal-rendered below clicked row (NEW - Apr 21, 2026)
+    │   ├── AdminOverridePopover.jsx     # Admin override form with required reason, blue dot indicator, remove override option (NEW - Apr 21, 2026)
+    │   ├── VarianceComparisonPanel.jsx  # DELETED Apr 21 — variance merged into InspectorReportPanel
+    │   ├── VarianceSummaryBar.jsx       # DELETED Apr 21 — no longer needed
+    │   └── VarianceRow.jsx              # DELETED Apr 21 — no longer needed
     ├── MapDashboard.jsx
     ├── OfflineStatusBar.jsx     # PWA status indicator (NEW - Jan 2026)
     └── [supporting components]
@@ -655,6 +657,50 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–April 2026)
+
+### Merged Reconciliation Workspace (April 21, 2026)
+
+**Merged variance comparison into Panel 2. Deleted the separate VarianceComparisonPanel. Single workspace design: clear rows = done, red rows = click to see detail.**
+
+1. **VarianceComparisonPanel deleted** — Removed VarianceComparisonPanel.jsx (838 lines), VarianceSummaryBar.jsx, VarianceRow.jsx. Variance information now lives directly in Panel 2 (InspectorReportPanel).
+
+2. **Variance-aware Panel 2** — Each labour row internally computes a variance category (reconciled/contract_violation/hours_dispute/missing_on_lem) by comparing LEM claimed split vs contract-correct split. Red left border + light red background on non-reconciled rows. Precedence: flagged (purple) > unmatched master (amber) > red variance > clear. Silence = correctness.
+
+3. **VarianceDetailPopover** — Click a red row → portal-rendered popover shows three-line detail (LEM claimed / Contract rules / Inspector record) with dollar amounts, rule description, and dollar variance. Accept LEM as-is / Dispute buttons write to `reconciliation_line_items`.
+
+4. **Ghost rows section** — "ON LEM BUT NOT REPORTED" table below equipment, showing LEM entries with no matching inspector entry. Red styling.
+
+5. **AdminOverridePopover** — Pencil icon on Subs and Cost cells (admin/super_admin only). Override form requires reason (min 10 chars). Blue dot indicator on overridden cells with hover tooltip. Remove override reverts to original value. Override metadata stored in JSONB.
+
+6. **LEM extraction prompt** — Moved from ReconFourPanelView to Panel 2. Shows when LEM PDF uploaded but structured data not extracted. "Extract now" button triggers OCR.
+
+7. **Summary banner** — Shows 4 counters: unresolved master, flagged for review, red variance, ghosts. Disappears when all zero.
+
+8. **Audit events** — `logWorkspaceEvent()` in auditLoggerV3.js: variance_popover_opened, variance_accepted, variance_disputed, admin_override_applied, admin_override_removed, ghost_row_added_to_report, ghost_row_disputed.
+
+9. **Field guide v4.17** — Reconciliation in Panel 2, admin overrides, what makes a row red.
+
+**New files:**
+```
+src/Components/Reconciliation/VarianceDetailPopover.jsx   # Three-line variance popover
+src/Components/Reconciliation/AdminOverridePopover.jsx    # Admin override form
+```
+
+**Deleted files:**
+```
+src/Components/Reconciliation/VarianceComparisonPanel.jsx  # Replaced by Panel 2 integration
+src/Components/Reconciliation/VarianceSummaryBar.jsx       # No longer needed
+src/Components/Reconciliation/VarianceRow.jsx              # No longer needed
+```
+
+**Modified files:**
+```
+src/Components/Reconciliation/InspectorReportPanel.jsx     # Variance awareness, red rows, ghost section, override
+src/Components/Reconciliation/ReconFourPanelView.jsx       # Removed variance panel, passes lemData to Panel 2
+src/Components/Reconciliation/DocumentPanel.jsx            # Props pass-through
+src/auditLoggerV3.js                                       # logWorkspaceEvent
+pipe-up-field-guide-agent-kb.md                            # v4.17
+```
 
 ### Contract Compliance Engine + Total Hours Entry (April 19, 2026)
 
