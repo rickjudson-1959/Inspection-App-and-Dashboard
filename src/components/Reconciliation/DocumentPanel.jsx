@@ -44,6 +44,7 @@ export default function DocumentPanel({
   onAliasCreated,
   sameDayEntries,
   employeeRoster,
+  equipmentRoster,
   lemData,
   reportDate,
   hasLemPdf,
@@ -127,6 +128,7 @@ export default function DocumentPanel({
           onAliasCreated={onAliasCreated}
           sameDayEntries={sameDayEntries || { labour: [], equipment: [] }}
           employeeRoster={employeeRoster || []}
+          equipmentRoster={equipmentRoster || []}
           lemData={lemData || null}
           reportDate={reportDate || null}
           hasLemPdf={hasLemPdf || false}

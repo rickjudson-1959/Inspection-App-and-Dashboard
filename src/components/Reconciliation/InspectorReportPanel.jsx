@@ -7,7 +7,7 @@ import AdminOverridePopover from './AdminOverridePopover.jsx'
 import { calculateSplit, calculateCost, calculateVariance } from '../../lib/contractCompliance.js'
 import { normalizeName, levenshtein } from '../../utils/nameMatchingUtils.js'
 
-export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated, sameDayEntries = { labour: [], equipment: [] }, employeeRoster = [], lemData = null, reportDate = null, hasLemPdf = false, lemPdfUrls = [], onLemExtracted }) {
+export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated, sameDayEntries = { labour: [], equipment: [] }, employeeRoster = [], equipmentRoster = [], lemData = null, reportDate = null, hasLemPdf = false, lemPdfUrls = [], onLemExtracted }) {
   const [editingCell, setEditingCell] = useState(null) // { section, rowIdx, field }
   const [editValue, setEditValue] = useState('')
   const [dropdownFilter, setDropdownFilter] = useState('')
@@ -803,6 +803,47 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     doCommit()
   }
 
+  function handleEquipmentUnitSelect(rowIdx, selectedUnit) {
+    const fleetEntry = equipmentRoster.find(r => r.unitNumber === selectedUnit)
+    if (!fleetEntry || !onBlockChange) {
+      commitEdit(selectedUnit)
+      return
+    }
+
+    const masterId = fleetEntry.masterId
+    const doCommit = () => {
+      const entries = [...equipmentEntries]
+      const entry = { ...entries[rowIdx] }
+      const oldUnit = entry.unitNumber || entry.unit_number || ''
+      const oldType = entry.type || entry.equipment_type || ''
+      entry.unitNumber = selectedUnit
+      entry.unit_number = selectedUnit
+      if (fleetEntry.equipmentType) {
+        entry.type = fleetEntry.equipmentType
+        entry.equipment_type = fleetEntry.equipmentType
+      }
+      entry.master_equipment_id = masterId || null
+      entry.needs_master_resolution = !masterId
+      entries[rowIdx] = entry
+
+      const updatedBlock = { ...block, equipmentEntries: entries }
+      const auditEntries = [
+        { field: `equipment[${rowIdx}].unitNumber`, oldValue: oldUnit, newValue: selectedUnit },
+      ]
+      if (oldType !== (fleetEntry.equipmentType || '')) {
+        auditEntries.push({ field: `equipment[${rowIdx}].type`, oldValue: oldType, newValue: fleetEntry.equipmentType })
+      }
+      onBlockChange(updatedBlock, auditEntries)
+      setEditingCell(null)
+    }
+
+    if (masterId && checkForDuplicateMaster('equipment', rowIdx, masterId, selectedUnit, doCommit)) {
+      setEditingCell(null)
+      return
+    }
+    doCommit()
+  }
+
   function handleClassificationSelect(section, rowIdx, rateCardName) {
     const entries = section === 'labour' ? labourEntries : equipmentEntries
     const entry = entries[rowIdx]
@@ -1251,7 +1292,8 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                         </td>
                       )}
                       {renderCell('equipment', i, 'unitNumber', e.unitNumber || e.unit_number || '',
-                        isUnmatched ? { ...cellStyle, backgroundColor: '#fffbeb' } : cellStyle)}
+                        isUnmatched ? { ...cellStyle, backgroundColor: '#fffbeb' } : cellStyle,
+                        true, equipmentRoster, 'unitNumber', handleEquipmentUnitSelect)}
                       {isUnmatched
                         ? <td style={{ ...cellStyle, color: '#9ca3af', fontStyle: 'italic', fontSize: 11 }}>
                             — Pick from master —

@@ -39,6 +39,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
   // showVariance toggle removed in 4.4.5 — panel always shows when lemData exists
   const [sameDayEntries, setSameDayEntries] = useState({ labour: [], equipment: [] })
   const [employeeRoster, setEmployeeRoster] = useState([])
+  const [equipmentRoster, setEquipmentRoster] = useState([])
 
   useEffect(() => {
     if (ticketNumber && organizationId) loadAllData()
@@ -119,13 +120,13 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
     const rosterMap = {}
     // Load from personnel_roster table first (CSV upload — takes priority)
     try {
-      let pq = supabase.from('personnel_roster').select('employee_name, classification')
+      let pq = supabase.from('personnel_roster').select('id, employee_name, classification')
       pq = addOrgFilter(pq, true)
       const { data: pData } = await pq
       for (const r of (pData || [])) {
         const name = (r.employee_name || '').trim()
         const cls = (r.classification || '').trim()
-        if (name && cls) rosterMap[name.toUpperCase()] = { employeeName: name, classification: cls }
+        if (name && cls) rosterMap[name.toUpperCase()] = { employeeName: name, classification: cls, masterId: r.id }
       }
     } catch (e) { console.warn('personnel_roster not available:', e) }
     // Supplement with daily_reports data
@@ -141,6 +142,20 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
       }
     }
     setEmployeeRoster(Object.values(rosterMap).sort((a, b) => a.employeeName.localeCompare(b.employeeName)))
+
+    // --- Build equipment roster from equipment_fleet table ---
+    const equipMap = {}
+    try {
+      let eq = supabase.from('equipment_fleet').select('id, unit_number, equipment_type')
+      eq = addOrgFilter(eq, true)
+      const { data: eData } = await eq
+      for (const r of (eData || [])) {
+        const unit = (r.unit_number || '').trim()
+        const type = (r.equipment_type || '').trim()
+        if (unit) equipMap[unit.toUpperCase()] = { unitNumber: unit, equipmentType: type, masterId: r.id }
+      }
+    } catch (e) { console.warn('equipment_fleet not available:', e) }
+    setEquipmentRoster(Object.values(equipMap).sort((a, b) => a.unitNumber.localeCompare(b.unitNumber)))
 
     // --- Source 3: Inspector's ticket photo from the matched block ---
     if (foundBlock) {
@@ -268,6 +283,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
           organizationId={organizationId}
           sameDayEntries={sameDayEntries}
           employeeRoster={employeeRoster}
+          equipmentRoster={equipmentRoster}
           lemData={lemData}
           reportDate={inspectorReport?.date}
           hasLemPdf={!!panels.lem}
