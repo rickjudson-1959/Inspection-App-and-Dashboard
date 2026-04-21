@@ -3,7 +3,6 @@ import ReactDOM from 'react-dom'
 import { supabase } from '../../supabase'
 import { useAuth } from '../../AuthContext.jsx'
 import ResolveRowModal from './ResolveRowModal.jsx'
-import VarianceDetailPopover from './VarianceDetailPopover.jsx'
 import AdminOverridePopover from './AdminOverridePopover.jsx'
 import { calculateSplit, calculateCost, calculateVariance } from '../../lib/contractCompliance.js'
 import { normalizeName, levenshtein } from '../../utils/nameMatchingUtils.js'
@@ -53,8 +52,6 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const [toast, setToast] = useState(null)
   const [dupeResolve, setDupeResolve] = useState(null) // { section, rowIdx, masterId, masterName, existingRowIdx, existingEntry, pendingAction }
   const [dragState, setDragState] = useState({ section: null, fromIdx: null, overIdx: null })
-  const [variancePopover, setVariancePopover] = useState(null) // { section, rowIdx, variance }
-  const [popoverAnchorRect, setPopoverAnchorRect] = useState(null)
   const [overridePopover, setOverridePopover] = useState(null) // { section, rowIdx, field, fieldLabel, currentValue, inputType, anchorRect }
   const isAdminRole = ['admin', 'super_admin'].includes(currentUserRole)
   const [projectRules, setProjectRules] = useState(null)
@@ -272,6 +269,22 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   // Normalize name for variance comparison: lowercase, trim, collapse whitespace, strip suffixes like (PB)/(EP)/(TI)
   function normV(s) {
     return (s || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)\s*$/, '')
+  }
+
+  // Generate inline reason text for red variance rows
+  function varianceReasonText(v) {
+    if (!v || !v.isRed) return null
+    if (v.category === 'missing_on_lem') return '\u26A0 Not on LEM'
+    if (v.category === 'ghost_on_lem') return '\u26A0 On LEM, not on report'
+    const lemTotal = (v.lemSplit?.rt_hours || 0) + (v.lemSplit?.ot_hours || 0) + (v.lemSplit?.dt_hours || 0)
+    const inspTotal = (v.inspectorSplit?.rt_hours || 0) + (v.inspectorSplit?.ot_hours || 0) + (v.inspectorSplit?.dt_hours || 0)
+    if (v.category === 'hours_dispute') return `\u26A0 LEM: ${lemTotal} hrs, inspector: ${inspTotal} hrs`
+    if (v.category === 'contract_violation' && v.contractSplit) {
+      const lRT = v.lemSplit?.rt_hours || 0, lOT = v.lemSplit?.ot_hours || 0
+      const cRT = v.contractSplit.rt_hours || 0, cOT = v.contractSplit.ot_hours || 0
+      return `\u26A0 LEM: ${lRT} RT / ${lOT} OT \u2014 contract requires ${cRT} RT / ${cOT} OT`
+    }
+    return '\u26A0 Variance detected'
   }
 
   // --- Per-row variance when LEM data exists ---
@@ -544,13 +557,6 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
 
   function handleDupeCancel() {
     setDupeResolve(null)
-  }
-
-  // --- Variance tooltip ---
-  function openVariancePopover(section, rowIdx, variance, event) {
-    const rect = event.currentTarget.getBoundingClientRect()
-    setPopoverAnchorRect(rect)
-    setVariancePopover({ section, rowIdx, variance })
   }
 
   // --- Admin override handlers ---
@@ -1096,8 +1102,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 return (
                   <React.Fragment key={i}>
                     <tr
-                      onClick={isRedVariance ? (e) => openVariancePopover('labour', i, variance, e) : undefined}
-                      style={{ ...rowBorder, cursor: isRedVariance ? 'pointer' : undefined, ...(dragState.section === 'labour' && dragState.overIdx === i ? { borderTop: '3px solid #3b82f6' } : {}) }}
+                      style={{ ...rowBorder, ...(dragState.section === 'labour' && dragState.overIdx === i ? { borderTop: '3px solid #3b82f6' } : {}) }}
                       onDragOver={e => handleDragOver('labour', i, e)}
                     >
                       {onBlockChange && (
@@ -1149,6 +1154,13 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                       <tr>
                         <td colSpan={onBlockChange ? 11 : 10} style={{ padding: '2px 6px', fontSize: 11, color: '#dc2626', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
                           &#9888; {dupeWarning}
+                        </td>
+                      </tr>
+                    )}
+                    {isRedVariance && varianceReasonText(variance) && (
+                      <tr>
+                        <td colSpan={onBlockChange ? 11 : 10} style={{ padding: '2px 6px', fontSize: 11, color: '#b91c1c', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
+                          {varianceReasonText(variance)}
                         </td>
                       </tr>
                     )}
@@ -1434,14 +1446,6 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
         </div>,
         document.body
       )}
-
-      {/* Variance tooltip */}
-      <VarianceDetailPopover
-        open={!!variancePopover}
-        onClose={() => { setVariancePopover(null); setPopoverAnchorRect(null) }}
-        anchorRect={popoverAnchorRect}
-        variance={variancePopover?.variance}
-      />
 
       {/* Admin override popover */}
       {overridePopover && (
