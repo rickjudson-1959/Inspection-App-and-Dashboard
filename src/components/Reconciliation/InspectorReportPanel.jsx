@@ -4,8 +4,7 @@ import { supabase } from '../../supabase'
 import { useAuth } from '../../AuthContext.jsx'
 import ResolveRowModal from './ResolveRowModal.jsx'
 import AdminOverridePopover from './AdminOverridePopover.jsx'
-import { calculateSplit, calculateCost, calculateVariance } from '../../lib/contractCompliance.js'
-import { normalizeName, levenshtein } from '../../utils/nameMatchingUtils.js'
+import { levenshtein } from '../../utils/nameMatchingUtils.js'
 
 export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated, sameDayEntries = { labour: [], equipment: [] }, employeeRoster = [], equipmentRoster = [], lemData = null, reportDate = null, hasLemPdf = false, lemPdfUrls = [], onLemExtracted }) {
   const [editingCell, setEditingCell] = useState(null) // { section, rowIdx, field }
@@ -29,33 +28,12 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     })
   }, [organizationId])
 
-  // Load contract context (project rules + holiday) for variance calculations
-  useEffect(() => {
-    if (!organizationId || !reportDate) return
-    async function loadContractContext() {
-      try {
-        const { data: proj } = await supabase.from('projects').select('base_hours_per_day, ot_multiplier, dt_multiplier, province').limit(1).single()
-        if (proj) setProjectRules(proj)
-        const province = proj?.province || 'AB'
-        const { data: hol } = await supabase.from('statutory_holidays')
-          .select('id, name, jurisdiction, province')
-          .eq('holiday_date', reportDate)
-          .or(`jurisdiction.eq.federal,and(jurisdiction.eq.provincial,province.eq.${province})`)
-          .limit(1).maybeSingle()
-        setHoliday(hol || null)
-      } catch (e) { console.warn('Contract context load failed:', e) }
-    }
-    loadContractContext()
-  }, [organizationId, reportDate])
-
   const [masterModal, setMasterModal] = useState({ open: false, type: 'labour', prefill: '', rowIdx: null, section: null })
   const [toast, setToast] = useState(null)
   const [dupeResolve, setDupeResolve] = useState(null) // { section, rowIdx, masterId, masterName, existingRowIdx, existingEntry, pendingAction }
   const [dragState, setDragState] = useState({ section: null, fromIdx: null, overIdx: null })
   const [overridePopover, setOverridePopover] = useState(null) // { section, rowIdx, field, fieldLabel, currentValue, inputType, anchorRect }
   const isAdminRole = ['admin', 'super_admin'].includes(currentUserRole)
-  const [projectRules, setProjectRules] = useState(null)
-  const [holiday, setHoliday] = useState(null)
 
   // Focus input and calculate dropdown position when editing starts
   useEffect(() => {
@@ -276,79 +254,52 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     if (!v || !v.isRed) return null
     if (v.category === 'missing_on_lem') return '\u26A0 Not on LEM'
     if (v.category === 'ghost_on_lem') return '\u26A0 On LEM, not on report'
-    const lemTotal = (v.lemSplit?.rt_hours || 0) + (v.lemSplit?.ot_hours || 0) + (v.lemSplit?.dt_hours || 0)
-    const inspTotal = (v.inspectorSplit?.rt_hours || 0) + (v.inspectorSplit?.ot_hours || 0) + (v.inspectorSplit?.dt_hours || 0)
-    if (v.category === 'hours_dispute') return `\u26A0 LEM: ${lemTotal} hrs, inspector: ${inspTotal} hrs`
-    if (v.category === 'contract_violation' && v.contractSplit) {
-      const lRT = v.lemSplit?.rt_hours || 0, lOT = v.lemSplit?.ot_hours || 0
-      const cRT = v.contractSplit.rt_hours || 0, cOT = v.contractSplit.ot_hours || 0
-      return `\u26A0 LEM: ${lRT} RT / ${lOT} OT \u2014 contract requires ${cRT} RT / ${cOT} OT`
-    }
+    const lemRT = v.lemSplit?.rt_hours || 0, lemOT = v.lemSplit?.ot_hours || 0, lemDT = v.lemSplit?.dt_hours || 0
+    const iRT = v.inspectorSplit?.rt_hours || 0, iOT = v.inspectorSplit?.ot_hours || 0, iDT = v.inspectorSplit?.dt_hours || 0
+    const lemTotal = lemRT + lemOT + lemDT
+    const inspTotal = iRT + iOT + iDT
+    if (v.category === 'hours_mismatch') return `\u26A0 LEM: ${lemTotal} hrs, inspector: ${inspTotal} hrs`
+    if (v.category === 'split_mismatch') return `\u26A0 LEM: ${lemRT} RT ${lemOT} OT${lemDT ? ` ${lemDT} DT` : ''}, inspector: ${iRT} RT ${iOT} OT${iDT ? ` ${iDT} DT` : ''}`
     return '\u26A0 Variance detected'
   }
 
-  // --- Per-row variance when LEM data exists ---
+  // --- Per-row variance: inspector vs LEM comparison ---
   const labourVarianceMap = useMemo(() => {
-    if (!lemData || !projectRules || !reportDate) return {}
+    if (!lemData) return {}
 
     const lemLabour = lemData.labour_entries || []
-    const map = {} // keyed by row index
+    const map = {}
 
     for (let i = 0; i < labourEntries.length; i++) {
       const entry = labourEntries[i]
       const inspName = normV(entry.employeeName || entry.employee_name || entry.name || '')
       if (!inspName) continue
 
-      // Find matching LEM row by master_personnel_id first, then by normalized name
-      let lemMatch = null
-      const masterId = entry.master_personnel_id
-
-      if (masterId) {
-        // Try to find LEM row that resolves to same master
-        // LEM rows don't have master IDs — match by normalized name
-        lemMatch = lemLabour.find(l => {
-          const lemName = normV(l.employee_name || l.name || '')
-          return lemName === inspName
-        })
-      }
+      // Find matching LEM row by normalized name, then fuzzy fallback
+      let lemMatch = lemLabour.find(l => normV(l.employee_name || l.name || '') === inspName)
 
       if (!lemMatch) {
-        // Fuzzy fallback
         lemMatch = lemLabour.find(l => {
           const lemName = normV(l.employee_name || l.name || '')
           if (!lemName) return false
           const maxLen = Math.max(lemName.length, inspName.length)
           if (maxLen === 0) return false
-          const dist = levenshtein(lemName.toUpperCase(), inspName.toUpperCase())
-          return (1 - dist / maxLen) >= 0.8
+          return (1 - levenshtein(lemName, inspName) / maxLen) >= 0.8
         })
       }
 
-      // Calculate inspector's total and contract split
-      const inspTotal = parseFloat(entry.total_hours || 0) || (parseFloat(entry.rt || 0) + parseFloat(entry.ot || 0) + parseFloat(entry.dt || 0))
-      const contractSplit = calculateSplit(inspTotal, reportDate, projectRules, holiday)
-
-      // Find rate for cost calculation
-      const rate = findLabourRate(entry.classification)
-      const rateCard = rate ? { rate_st: parseFloat(rate.rate_st || 0), rate_ot: parseFloat(rate.rate_ot || 0), rate_dt: parseFloat(rate.rate_dt || 0) } : { rate_st: 0, rate_ot: 0, rate_dt: 0 }
+      const inspSplit = {
+        rt_hours: parseFloat(entry.rt || 0),
+        ot_hours: parseFloat(entry.ot || 0),
+        dt_hours: parseFloat(entry.dt || 0),
+      }
+      const inspTotal = inspSplit.rt_hours + inspSplit.ot_hours + inspSplit.dt_hours
 
       if (!lemMatch) {
-        // Missing on LEM
-        map[i] = {
-          category: 'missing_on_lem',
-          isRed: true,
-          lemSplit: null,
-          contractSplit,
-          inspectorSplit: { rt_hours: parseFloat(entry.rt || 0), ot_hours: parseFloat(entry.ot || 0), dt_hours: parseFloat(entry.dt || 0) },
-          ruleDescription: contractSplit.rule_description,
-          dollarImpact: 0,
-          lemCost: 0,
-          contractCost: calculateCost(contractSplit, rateCard),
-        }
+        map[i] = { category: 'missing_on_lem', isRed: true, lemSplit: null, inspectorSplit: inspSplit }
         continue
       }
 
-      // LEM split
       const lemSplit = {
         rt_hours: parseFloat(lemMatch.rt_hours || lemMatch.rt || 0),
         ot_hours: parseFloat(lemMatch.ot_hours || lemMatch.ot || 0),
@@ -356,44 +307,33 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
       }
       const lemTotal = lemSplit.rt_hours + lemSplit.ot_hours + lemSplit.dt_hours
 
-      const lemCost = calculateCost(lemSplit, rateCard)
-      const contractCost = calculateCost(contractSplit, rateCard)
-      const dollarImpact = lemCost - contractCost
-
-      // Categorize
+      // Compare inspector vs LEM
       let category = 'reconciled'
-
-      // Check hours dispute first
       if (Math.abs(lemTotal - inspTotal) > 0.01) {
-        category = 'hours_dispute'
-      }
-      // Check contract violation (split mismatch)
-      else if (Math.abs(lemSplit.rt_hours - contractSplit.rt_hours) > 0.01 ||
-               Math.abs(lemSplit.ot_hours - contractSplit.ot_hours) > 0.01 ||
-               Math.abs(lemSplit.dt_hours - contractSplit.dt_hours) > 0.01) {
-        category = 'contract_violation'
+        category = 'hours_mismatch'
+      } else if (
+        Math.abs(lemSplit.rt_hours - inspSplit.rt_hours) > 0.01 ||
+        Math.abs(lemSplit.ot_hours - inspSplit.ot_hours) > 0.01 ||
+        Math.abs(lemSplit.dt_hours - inspSplit.dt_hours) > 0.01
+      ) {
+        category = 'split_mismatch'
       }
 
       map[i] = {
         category,
         isRed: category !== 'reconciled',
         lemSplit,
-        contractSplit,
-        inspectorSplit: { rt_hours: parseFloat(entry.rt || 0), ot_hours: parseFloat(entry.ot || 0), dt_hours: parseFloat(entry.dt || 0) },
-        ruleDescription: contractSplit.rule_description,
-        dollarImpact,
-        lemCost,
-        contractCost,
+        inspectorSplit: inspSplit,
         lemName: lemMatch.employee_name || lemMatch.name || '',
       }
     }
 
     return map
-  }, [labourEntries, lemData, projectRules, holiday, reportDate])
+  }, [labourEntries, lemData])
 
   // Ghost rows — on LEM but not on inspector report
   const ghostLabourRows = useMemo(() => {
-    if (!lemData || !projectRules || !reportDate) return []
+    if (!lemData) return []
     const lemLabour = lemData.labour_entries || []
     const inspNames = new Set(labourEntries.map(e =>
       normV(e.employeeName || e.employee_name || e.name || '')
@@ -410,7 +350,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
       }
       return true
     })
-  }, [lemData, labourEntries, reportDate, projectRules])
+  }, [lemData, labourEntries])
 
   const redVarianceCount = Object.values(labourVarianceMap).filter(v => v.isRed).length
 
