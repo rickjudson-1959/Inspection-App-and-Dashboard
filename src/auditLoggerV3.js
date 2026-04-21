@@ -707,6 +707,54 @@ export async function logResolutionEvent({
   }
 }
 
+// ============================================================================
+// MERGED RECONCILIATION WORKSPACE EVENTS (Phase M.6)
+// ============================================================================
+
+/**
+ * Log merged workspace events.
+ * Types: variance_popover_opened, variance_accepted, variance_disputed,
+ *        admin_override_applied, admin_override_removed,
+ *        ghost_row_added_to_report, ghost_row_disputed
+ */
+export async function logWorkspaceEvent({
+  eventType,
+  reportId,
+  organizationId,
+  ticketNumber,
+  entryName,
+  field,
+  oldValue,
+  newValue,
+  reason,
+  dollarImpact,
+  varianceCategory,
+}) {
+  try {
+    await supabase.from('report_audit_log').insert({
+      report_id: reportId || null,
+      entity_type: 'reconciliation',
+      section: 'merged_workspace',
+      field_name: field || entryName || eventType,
+      old_value: String(oldValue || ''),
+      new_value: String(newValue || ''),
+      change_type: eventType,
+      is_critical: ['admin_override_applied', 'variance_disputed'].includes(eventType),
+      metadata: {
+        ticket_number: ticketNumber,
+        entry_name: entryName,
+        reason,
+        dollar_impact: dollarImpact,
+        variance_category: varianceCategory,
+      },
+      changed_at: new Date().toISOString(),
+      organization_id: organizationId,
+    })
+  } catch (err) {
+    console.error(`Audit log error (${eventType}):`, err)
+  }
+}
+
 export default {
   PRECISION_MAP,
   getPrecision,
@@ -721,5 +769,6 @@ export default {
   logStatusChange,
   logInspectorOverride,
   logResolutionEvent,
+  logWorkspaceEvent,
   createAuditHelpers
 }

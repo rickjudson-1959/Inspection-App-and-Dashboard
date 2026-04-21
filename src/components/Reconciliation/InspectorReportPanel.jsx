@@ -4,6 +4,7 @@ import { supabase } from '../../supabase'
 import { useAuth } from '../../AuthContext.jsx'
 import ResolveRowModal from './ResolveRowModal.jsx'
 import VarianceDetailPopover from './VarianceDetailPopover.jsx'
+import AdminOverridePopover from './AdminOverridePopover.jsx'
 import { calculateSplit, calculateCost, calculateVariance } from '../../lib/contractCompliance.js'
 import { normalizeName, levenshtein } from '../../utils/nameMatchingUtils.js'
 
@@ -54,6 +55,8 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const [dragState, setDragState] = useState({ section: null, fromIdx: null, overIdx: null })
   const [variancePopover, setVariancePopover] = useState(null) // { section, rowIdx, variance }
   const [popoverAnchorRect, setPopoverAnchorRect] = useState(null)
+  const [overridePopover, setOverridePopover] = useState(null) // { section, rowIdx, field, fieldLabel, currentValue, inputType, anchorRect }
+  const isAdminRole = ['admin', 'super_admin'].includes(currentUserRole)
   const [projectRules, setProjectRules] = useState(null)
   const [holiday, setHoliday] = useState(null)
 
@@ -611,6 +614,64 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     setVariancePopover({ section, rowIdx, variance })
   }
 
+  // --- Admin override handlers ---
+  async function handleOverrideSave({ value, reason }) {
+    if (!overridePopover || !onBlockChange) return
+    const { section, rowIdx, field } = overridePopover
+    const entries = section === 'labour' ? [...labourEntries] : [...equipmentEntries]
+    const entry = { ...entries[rowIdx] }
+    const oldValue = entry[field]
+    entry[field] = value
+    entry[`${field}_override`] = { by: currentUserRole, at: new Date().toISOString(), reason, oldValue }
+    entries[rowIdx] = entry
+    const updatedBlock = { ...block }
+    if (section === 'labour') updatedBlock.labourEntries = entries
+    else updatedBlock.equipmentEntries = entries
+    onBlockChange(updatedBlock, [{ field: `${section}[${rowIdx}].${field}`, oldValue: String(oldValue), newValue: String(value) }])
+    setToast(`✓ Override applied: ${overridePopover.fieldLabel}`)
+    setTimeout(() => setToast(null), 3000)
+    setOverridePopover(null)
+  }
+
+  function handleOverrideRemove() {
+    if (!overridePopover || !onBlockChange) return
+    const { section, rowIdx, field } = overridePopover
+    const entries = section === 'labour' ? [...labourEntries] : [...equipmentEntries]
+    const entry = { ...entries[rowIdx] }
+    const overrideInfo = entry[`${field}_override`]
+    if (overrideInfo?.oldValue !== undefined) entry[field] = overrideInfo.oldValue
+    delete entry[`${field}_override`]
+    entries[rowIdx] = entry
+    const updatedBlock = { ...block }
+    if (section === 'labour') updatedBlock.labourEntries = entries
+    else updatedBlock.equipmentEntries = entries
+    onBlockChange(updatedBlock, [{ field: `${section}[${rowIdx}].${field}`, oldValue: 'override', newValue: 'reverted' }])
+    setToast('Override removed')
+    setTimeout(() => setToast(null), 3000)
+    setOverridePopover(null)
+  }
+
+  // Pencil icon for admin override — renders inline next to a cell value
+  function PencilIcon({ section, rowIdx, field, fieldLabel, currentValue, inputType = 'text' }) {
+    if (!isAdminRole || !onBlockChange) return null
+    const entry = (section === 'labour' ? labourEntries : equipmentEntries)[rowIdx]
+    const hasOverride = !!entry?.[`${field}_override`]
+    return (
+      <span
+        onClick={(e) => {
+          e.stopPropagation()
+          const rect = e.currentTarget.getBoundingClientRect()
+          setOverridePopover({ section, rowIdx, field, fieldLabel, currentValue, inputType, anchorRect: rect })
+        }}
+        style={{ cursor: 'pointer', fontSize: 10, color: hasOverride ? '#2563eb' : '#d1d5db', marginLeft: 3, position: 'relative', display: 'inline-block' }}
+        title={hasOverride ? `Overridden: ${entry[`${field}_override`]?.reason || ''}` : `Override ${fieldLabel}`}
+      >
+        &#9998;
+        {hasOverride && <span style={{ position: 'absolute', top: -2, right: -4, width: 5, height: 5, borderRadius: '50%', backgroundColor: '#2563eb' }} />}
+      </span>
+    )
+  }
+
   function fmt(n) { return n.toLocaleString('en-CA', { style: 'currency', currency: 'CAD' }) }
 
   // --- Inline editing ---
@@ -1138,9 +1199,11 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                       </td>
                       <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: '#166534' }}>
                         {lc.subs ? fmt(lc.subs) : '—'}
+                        <PencilIcon section="labour" rowIdx={i} field="subs" fieldLabel="Subsistence" currentValue={lc.subs || 0} inputType="number" />
                       </td>
                       <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', color: lc.rtRate != null ? '#166534' : '#9ca3af' }}>
                         {fmt(lc.cost)}
+                        <PencilIcon section="labour" rowIdx={i} field="cost" fieldLabel="Cost" currentValue={lc.cost || 0} inputType="number" />
                       </td>
                     </tr>
                     {dupeWarning && (
@@ -1444,6 +1507,28 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
         onAccept={handleVarianceAccept}
         onDispute={handleVarianceDispute}
       />
+
+      {/* Admin override popover */}
+      {overridePopover && (
+        <AdminOverridePopover
+          open={!!overridePopover}
+          onClose={() => setOverridePopover(null)}
+          anchorRect={overridePopover.anchorRect}
+          fieldLabel={overridePopover.fieldLabel}
+          currentValue={overridePopover.currentValue}
+          inputType={overridePopover.inputType}
+          onSave={handleOverrideSave}
+          onRemoveOverride={handleOverrideRemove}
+          hasExistingOverride={!!(
+            (overridePopover.section === 'labour' ? labourEntries : equipmentEntries)
+            [overridePopover.rowIdx]?.[`${overridePopover.field}_override`]
+          )}
+          existingOverrideInfo={
+            (overridePopover.section === 'labour' ? labourEntries : equipmentEntries)
+            [overridePopover.rowIdx]?.[`${overridePopover.field}_override`] || null
+          }
+        />
+      )}
 
       {/* Toast notification */}
       {toast && (

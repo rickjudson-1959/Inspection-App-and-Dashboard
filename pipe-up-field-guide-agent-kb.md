@@ -1,5 +1,5 @@
 # PIPE-UP FIELD INSPECTION GUIDE — AGENT KNOWLEDGE BASE
-## Version: 4.15.1 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-04-19
+## Version: 4.17 | Standard: API 1169 | Source: InspectorReport.jsx + ActivityBlock.jsx | Updated: 2026-04-21
 
 > This document is the authoritative reference for the Pipe-Up AI Agent. It is derived directly from the application source code and reflects the exact fields, logic, activity types, and workflows an inspector encounters in the app.
 
@@ -625,6 +625,33 @@ Click Resolve to open the resolve modal. The system shows the top 5 closest matc
 **If you're not sure which candidate is right, or none look close enough:** Click "Flag for review." The row will be marked purple and appear in the admin Master Gaps / Flagged Rows view for follow-up. You can optionally type a note explaining why you flagged it.
 
 Flagged rows are NOT resolved — they still show $0 cost and are excluded from billing totals until someone reviews them.
+
+### Reconciliation in Panel 2 (v4.17)
+
+Panel 2 is the reconciliation workspace. Each row is either clear (no action needed) or red (doesn't match the LEM).
+
+To fix a red row:
+1. Click the row. A detail window shows LEM claim vs contract rules vs inspector record, with the dollar variance.
+2. Click "Accept LEM as-is" if the contractor is correct, or "Dispute — request fix" if not.
+3. Fix any underlying row data (hours, classification) as needed.
+
+When all rows are clear, reconciliation is done.
+
+Rows on the LEM but not on the inspector report appear at the bottom under "On LEM but not reported." Either add them to the report or dispute them.
+
+### Admin Overrides (v4.17)
+
+Admins can override any value on any row with a required reason. Overrides are permanently audit-logged. Click the pencil icon next to any cell to override.
+
+### What Makes a Row Red
+
+Any of:
+- LEM claims different RT/OT/DT than contract rules require for the date
+- Total hours differ between LEM and inspector
+- Row is on inspector report but missing from LEM
+- Row is on LEM but has no matching entry on inspector report
+
+You don't need to know the cause — just click to see the detail.
 
 ---
 
