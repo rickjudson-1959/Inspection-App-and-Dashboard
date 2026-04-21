@@ -1,10 +1,12 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react'
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import ReactDOM from 'react-dom'
 import { supabase } from '../../supabase'
 import { useAuth } from '../../AuthContext.jsx'
 import ResolveRowModal from './ResolveRowModal.jsx'
+import { calculateSplit, calculateCost, calculateVariance } from '../../lib/contractCompliance.js'
+import { normalizeName, levenshtein } from '../../utils/nameMatchingUtils.js'
 
-export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated, sameDayEntries = { labour: [], equipment: [] }, employeeRoster = [] }) {
+export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated, sameDayEntries = { labour: [], equipment: [] }, employeeRoster = [], lemData = null, reportDate = null, hasLemPdf = false, lemPdfUrls = [], onLemExtracted }) {
   const [editingCell, setEditingCell] = useState(null) // { section, rowIdx, field }
   const [editValue, setEditValue] = useState('')
   const [dropdownFilter, setDropdownFilter] = useState('')
@@ -26,10 +28,32 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     })
   }, [organizationId])
 
+  // Load contract context (project rules + holiday) for variance calculations
+  useEffect(() => {
+    if (!organizationId || !reportDate) return
+    async function loadContractContext() {
+      try {
+        const { data: proj } = await supabase.from('projects').select('base_hours_per_day, ot_multiplier, dt_multiplier, province').limit(1).single()
+        if (proj) setProjectRules(proj)
+        const province = proj?.province || 'AB'
+        const { data: hol } = await supabase.from('statutory_holidays')
+          .select('id, name, jurisdiction, province')
+          .eq('holiday_date', reportDate)
+          .or(`jurisdiction.eq.federal,and(jurisdiction.eq.provincial,province.eq.${province})`)
+          .limit(1).maybeSingle()
+        setHoliday(hol || null)
+      } catch (e) { console.warn('Contract context load failed:', e) }
+    }
+    loadContractContext()
+  }, [organizationId, reportDate])
+
   const [masterModal, setMasterModal] = useState({ open: false, type: 'labour', prefill: '', rowIdx: null, section: null })
   const [toast, setToast] = useState(null)
   const [dupeResolve, setDupeResolve] = useState(null) // { section, rowIdx, masterId, masterName, existingRowIdx, existingEntry, pendingAction }
   const [dragState, setDragState] = useState({ section: null, fromIdx: null, overIdx: null })
+  const [variancePopover, setVariancePopover] = useState(null) // { section, rowIdx, variance }
+  const [projectRules, setProjectRules] = useState(null)
+  const [holiday, setHoliday] = useState(null)
 
   // Focus input and calculate dropdown position when editing starts
   useEffect(() => {
@@ -239,6 +263,138 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const flaggedEquip = equipmentEntries.filter(e => e.flagged_for_review).length
   const totalFlagged = flaggedLabour + flaggedEquip
   const hasUnresolved = unresolvedLabour > 0 || unresolvedEquip > 0 || totalFlagged > 0
+
+  // --- Per-row variance when LEM data exists ---
+  const labourVarianceMap = useMemo(() => {
+    if (!lemData || !projectRules || !reportDate) return {}
+
+    const lemLabour = lemData.labour_entries || []
+    const map = {} // keyed by row index
+
+    // Normalize helper
+    function normV(s) {
+      return (s || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)\s*$/, '')
+    }
+
+    for (let i = 0; i < labourEntries.length; i++) {
+      const entry = labourEntries[i]
+      const inspName = normV(entry.employeeName || entry.employee_name || entry.name || '')
+      if (!inspName) continue
+
+      // Find matching LEM row by master_personnel_id first, then by normalized name
+      let lemMatch = null
+      const masterId = entry.master_personnel_id
+
+      if (masterId) {
+        // Try to find LEM row that resolves to same master
+        // LEM rows don't have master IDs — match by normalized name
+        lemMatch = lemLabour.find(l => {
+          const lemName = normV(l.employee_name || l.name || '')
+          return lemName === inspName
+        })
+      }
+
+      if (!lemMatch) {
+        // Fuzzy fallback
+        lemMatch = lemLabour.find(l => {
+          const lemName = normV(l.employee_name || l.name || '')
+          if (!lemName) return false
+          const maxLen = Math.max(lemName.length, inspName.length)
+          if (maxLen === 0) return false
+          const dist = levenshtein(lemName.toUpperCase(), inspName.toUpperCase())
+          return (1 - dist / maxLen) >= 0.8
+        })
+      }
+
+      // Calculate inspector's total and contract split
+      const inspTotal = parseFloat(entry.total_hours || 0) || (parseFloat(entry.rt || 0) + parseFloat(entry.ot || 0) + parseFloat(entry.dt || 0))
+      const contractSplit = calculateSplit(inspTotal, reportDate, projectRules, holiday)
+
+      // Find rate for cost calculation
+      const rate = findLabourRate(entry.classification)
+      const rateCard = rate ? { rate_st: parseFloat(rate.rate_st || 0), rate_ot: parseFloat(rate.rate_ot || 0), rate_dt: parseFloat(rate.rate_dt || 0) } : { rate_st: 0, rate_ot: 0, rate_dt: 0 }
+
+      if (!lemMatch) {
+        // Missing on LEM
+        map[i] = {
+          category: 'missing_on_lem',
+          isRed: true,
+          lemSplit: null,
+          contractSplit,
+          inspectorSplit: { rt_hours: parseFloat(entry.rt || 0), ot_hours: parseFloat(entry.ot || 0), dt_hours: parseFloat(entry.dt || 0) },
+          ruleDescription: contractSplit.rule_description,
+          dollarImpact: 0,
+          lemCost: 0,
+          contractCost: calculateCost(contractSplit, rateCard),
+        }
+        continue
+      }
+
+      // LEM split
+      const lemSplit = {
+        rt_hours: parseFloat(lemMatch.rt_hours || lemMatch.rt || 0),
+        ot_hours: parseFloat(lemMatch.ot_hours || lemMatch.ot || 0),
+        dt_hours: parseFloat(lemMatch.dt_hours || lemMatch.dt || 0),
+      }
+      const lemTotal = lemSplit.rt_hours + lemSplit.ot_hours + lemSplit.dt_hours
+
+      const lemCost = calculateCost(lemSplit, rateCard)
+      const contractCost = calculateCost(contractSplit, rateCard)
+      const dollarImpact = lemCost - contractCost
+
+      // Categorize
+      let category = 'reconciled'
+
+      // Check hours dispute first
+      if (Math.abs(lemTotal - inspTotal) > 0.01) {
+        category = 'hours_dispute'
+      }
+      // Check contract violation (split mismatch)
+      else if (Math.abs(lemSplit.rt_hours - contractSplit.rt_hours) > 0.01 ||
+               Math.abs(lemSplit.ot_hours - contractSplit.ot_hours) > 0.01 ||
+               Math.abs(lemSplit.dt_hours - contractSplit.dt_hours) > 0.01) {
+        category = 'contract_violation'
+      }
+
+      map[i] = {
+        category,
+        isRed: category !== 'reconciled',
+        lemSplit,
+        contractSplit,
+        inspectorSplit: { rt_hours: parseFloat(entry.rt || 0), ot_hours: parseFloat(entry.ot || 0), dt_hours: parseFloat(entry.dt || 0) },
+        ruleDescription: contractSplit.rule_description,
+        dollarImpact,
+        lemCost,
+        contractCost,
+        lemName: lemMatch.employee_name || lemMatch.name || '',
+      }
+    }
+
+    return map
+  }, [labourEntries, lemData, projectRules, holiday, reportDate])
+
+  // Ghost rows — on LEM but not on inspector report
+  const ghostLabourRows = useMemo(() => {
+    if (!lemData || !projectRules || !reportDate) return []
+    const lemLabour = lemData.labour_entries || []
+    const inspNames = new Set(labourEntries.map(e =>
+      (e.employeeName || e.employee_name || e.name || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)\s*$/, '')
+    ).filter(Boolean))
+
+    return lemLabour.filter(l => {
+      const lemName = (l.employee_name || l.name || '').toLowerCase().trim().replace(/\s+/g, ' ')
+      if (!lemName) return false
+      // Check if any inspector name is close enough
+      for (const inspName of inspNames) {
+        if (inspName === lemName) return false
+        const maxLen = Math.max(lemName.length, inspName.length)
+        if (maxLen > 0 && (1 - levenshtein(lemName.toUpperCase(), inspName.toUpperCase()) / maxLen) >= 0.8) return false
+      }
+      return true
+    })
+  }, [lemData, labourEntries, reportDate, projectRules])
+
+  const redVarianceCount = Object.values(labourVarianceMap).filter(v => v.isRed).length
 
   // --- Add to Master modal handlers ---
   function openMasterModal(section, rowIdx, prefillValue) {
@@ -783,15 +939,50 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
         )}
       </div>
 
+      {/* LEM extraction prompt */}
+      {hasLemPdf && !lemData && (
+        <div style={{ margin: '4px 12px', padding: '8px 12px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: 12, color: '#92400e' }}>
+          <strong>&#9888; LEM uploaded but structured data not yet extracted.</strong>
+          <button
+            onClick={async () => {
+              try {
+                const { extractLEMFromUrl } = await import('../../utils/lemParser.js')
+                if (!lemPdfUrls.length) return
+                const result = await extractLEMFromUrl(lemPdfUrls[0])
+                if (result && (result.labour?.length || result.equipment?.length)) {
+                  await supabase.from('contractor_lems').upsert({
+                    organization_id: organizationId,
+                    field_log_id: block?.ticketNumber,
+                    date: reportDate,
+                    labour_entries: result.labour || [],
+                    equipment_entries: result.equipment || [],
+                    total_labour_cost: result.totals?.total_labour_cost || 0,
+                    total_equipment_cost: result.totals?.total_equipment_cost || 0,
+                    reconciliation_status: 'pending',
+                    billing_status: 'open',
+                  }, { onConflict: 'field_log_id,organization_id' })
+                  if (onLemExtracted) onLemExtracted()
+                }
+              } catch (err) { console.error('LEM extraction failed:', err) }
+            }}
+            style={{ marginLeft: 8, padding: '4px 12px', backgroundColor: '#1e3a5f', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: '600' }}
+          >
+            Extract now
+          </button>
+        </div>
+      )}
+
       {/* Master resolution banner */}
-      {hasUnresolved && (
+      {(hasUnresolved || redVarianceCount > 0 || ghostLabourRows.length > 0) && (
         <div style={{ margin: '4px 12px', padding: '8px 12px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: 12, color: '#92400e', display: 'flex', alignItems: 'center', gap: 6 }}>
           <span style={{ fontSize: 14 }}>&#9888;</span>
           <span>
             {(unresolvedLabour + unresolvedEquip) > 0 && `${unresolvedLabour + unresolvedEquip} need resolution`}
             {(unresolvedLabour + unresolvedEquip) > 0 && totalFlagged > 0 && ' · '}
             {totalFlagged > 0 && `${totalFlagged} flagged for review`}
-            {' '}· Cost totals exclude these rows until resolved.
+            {(hasUnresolved) && ' · Cost totals exclude these rows until resolved.'}
+            {redVarianceCount > 0 && `${hasUnresolved ? ' · ' : ''}${redVarianceCount} red (variance with LEM)`}
+            {ghostLabourRows.length > 0 && `${hasUnresolved || redVarianceCount > 0 ? ' · ' : ''}${ghostLabourRows.length} on LEM but not reported`}
           </span>
         </div>
       )}
@@ -826,11 +1017,17 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 const dupeWarning = getLabourDuplicateWarning(e, i)
                 const isUnmatched = e.needs_master_resolution
                 const isFlagged = e.flagged_for_review
-                const rowBorder = isFlagged ? { borderLeft: '4px solid #7c3aed' } : isUnmatched ? { borderLeft: '4px solid #eab308' } : {}
+                const variance = labourVarianceMap[i]
+                const isRedVariance = variance?.isRed && !isUnmatched && !isFlagged
+                const rowBorder = isFlagged ? { borderLeft: '4px solid #7c3aed' }
+                  : isUnmatched ? { borderLeft: '4px solid #eab308' }
+                  : isRedVariance ? { borderLeft: '4px solid #ef4444', backgroundColor: '#fef2f2' }
+                  : {}
                 return (
                   <React.Fragment key={i}>
                     <tr
-                      style={{ ...rowBorder, ...(dragState.section === 'labour' && dragState.overIdx === i ? { borderTop: '3px solid #3b82f6' } : {}) }}
+                      onClick={isRedVariance ? () => setVariancePopover({ section: 'labour', rowIdx: i, variance }) : undefined}
+                      style={{ ...rowBorder, cursor: isRedVariance ? 'pointer' : undefined, ...(dragState.section === 'labour' && dragState.overIdx === i ? { borderTop: '3px solid #3b82f6' } : {}) }}
                       onDragOver={e => handleDragOver('labour', i, e)}
                     >
                       {onBlockChange && (
@@ -1019,6 +1216,39 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
           </button>
         )}
       </div>
+
+      {/* Ghost rows — on LEM but not reported */}
+      {ghostLabourRows.length > 0 && (
+        <div style={{ padding: '8px 12px', marginTop: '8px' }}>
+          <div style={{ fontWeight: '700', color: '#dc2626', fontSize: 12, marginBottom: 4 }}>
+            ON LEM BUT NOT REPORTED ({ghostLabourRows.length})
+          </div>
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={{ ...headerStyle, textAlign: 'left', backgroundColor: '#fef2f2', color: '#dc2626' }}>Name</th>
+                <th style={{ ...headerStyle, textAlign: 'left', backgroundColor: '#fef2f2', color: '#dc2626' }}>Classification</th>
+                <th style={{ ...headerStyle, textAlign: 'right', width: 40, backgroundColor: '#fef2f2', color: '#dc2626' }}>RT</th>
+                <th style={{ ...headerStyle, textAlign: 'right', width: 40, backgroundColor: '#fef2f2', color: '#dc2626' }}>OT</th>
+                <th style={{ ...headerStyle, textAlign: 'right', width: 40, backgroundColor: '#fef2f2', color: '#dc2626' }}>DT</th>
+                <th style={{ ...headerStyle, textAlign: 'right', width: 70, backgroundColor: '#fef2f2', color: '#dc2626' }}>LEM Cost</th>
+              </tr>
+            </thead>
+            <tbody>
+              {ghostLabourRows.map((g, i) => (
+                <tr key={`ghost-${i}`} style={{ borderLeft: '4px solid #ef4444', backgroundColor: '#fef2f2' }}>
+                  <td style={cellStyle}>{g.employee_name || g.name || '\u2014'}</td>
+                  <td style={{ ...cellStyle, color: '#6b7280' }}>{g.classification || '\u2014'}</td>
+                  <td style={{ ...cellStyle, textAlign: 'right' }}>{g.rt_hours || g.rt || 0}</td>
+                  <td style={{ ...cellStyle, textAlign: 'right' }}>{g.ot_hours || g.ot || 0}</td>
+                  <td style={{ ...cellStyle, textAlign: 'right' }}>{g.dt_hours || g.dt || 0}</td>
+                  <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600' }}>{fmt(parseFloat(g.line_total || 0))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
 
       {/* Grand total summary */}
       <div style={{
