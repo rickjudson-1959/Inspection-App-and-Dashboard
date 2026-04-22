@@ -581,14 +581,13 @@ function ActivityBlock({
     classification: '',
     masterPersonnelId: null,
     totalHours: '',
-    count: '1'
   })
   // Contract compliance: project rules + holiday for this date
   const [projectRules, setProjectRules] = useState({ base_hours_per_day: 8, ot_multiplier: 1.5, dt_multiplier: 2.0, province: 'AB' })
   const [holiday, setHoliday] = useState(null)
   const isAdminRole = ['admin', 'super_admin'].includes(currentUser?.role)
 
-  const [currentEquipment, setCurrentEquipment] = useState({ type: '', hours: '', count: '', unitNumber: '', masterEquipmentId: null })
+  const [currentEquipment, setCurrentEquipment] = useState({ type: '', hours: '', unitNumber: '', masterEquipmentId: null })
   const [ocrProcessing, setOcrProcessing] = useState(false)
   const [ocrError, setOcrError] = useState(null)
   const [ocrSuccess, setOcrSuccess] = useState(false)
@@ -2842,21 +2841,10 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
               style={{ width: '100%', padding: '8px', border: '1px solid #28a745', borderRadius: '4px', backgroundColor: '#d4edda', boxSizing: 'border-box' }}
             />
           </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Count</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="1"
-              value={currentLabour.count}
-              onChange={(e) => setCurrentLabour({ ...currentLabour, count: e.target.value })}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
-            />
-          </div>
           <button
             onClick={() => {
-              addLabourToBlock(block.id, currentLabour.employeeName, currentLabour.classification, currentSplit.rt_hours, currentSplit.ot_hours, 0, currentLabour.count, currentLabour.masterPersonnelId, currentSplit.dt_hours)
-              setCurrentLabour({ employeeName: '', classification: '', masterPersonnelId: null, totalHours: '', count: '1' })
+              addLabourToBlock(block.id, currentLabour.employeeName, currentLabour.classification, currentSplit.rt_hours, currentSplit.ot_hours, 0, 1, currentLabour.masterPersonnelId, currentSplit.dt_hours)
+              setCurrentLabour({ employeeName: '', classification: '', masterPersonnelId: null, totalHours: '' })
             }}
             style={{ padding: '8px 16px', backgroundColor: '#28a745', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', height: '38px' }}
           >
@@ -2882,7 +2870,6 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}>RT</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}>OT</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}>DT</th>
-                  <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}>Cnt</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
                 </tr>
@@ -2892,7 +2879,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                   const rt = entry.rt !== undefined ? entry.rt : Math.min(entry.hours || 0, 8)
                   const ot = entry.ot !== undefined ? entry.ot : Math.max(0, (entry.hours || 0) - 8)
                   const jh = entry.jh !== undefined ? entry.jh : 0
-                  const billedHours = (rt + ot) * (entry.count || 1)
+                  const billedHours = rt + ot
                   const prodStatus = entry.productionStatus || 'ACTIVE'
                   const shadowHours = calculateShadowHours(billedHours, prodStatus, entry.shadowEffectiveHours)
                   const statusConfig = productionStatuses.find(s => s.value === prodStatus)
@@ -2951,22 +2938,6 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                         </td>
                         <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6', fontSize: '12px', color: entry.dt > 0 ? '#004085' : '#999' }}>
                           {parseFloat(entry.dt || 0)}
-                        </td>
-                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                          <input
-                            type="number"
-                            value={entry.count || ''}
-                            onChange={(e) => updateLabourField(block.id, entry.id, 'count', parseInt(e.target.value) || 0)}
-                            placeholder="0"
-                            style={{
-                              width: '50px',
-                              padding: '4px',
-                              border: '1px solid #ced4da',
-                              borderRadius: '3px',
-                              textAlign: 'center',
-                              fontSize: '12px'
-                            }}
-                          />
                         </td>
                         <td style={{ padding: '4px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
                           <button
@@ -3156,21 +3127,10 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
               style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
             />
           </div>
-          <div>
-            <label style={{ display: 'block', fontSize: '11px', fontWeight: 'bold', marginBottom: '4px' }}>Count</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              placeholder="Count"
-              value={currentEquipment.count}
-              onChange={(e) => setCurrentEquipment({ ...currentEquipment, count: e.target.value })}
-              style={{ width: '100%', padding: '8px', border: '1px solid #ced4da', borderRadius: '4px', boxSizing: 'border-box' }}
-            />
-          </div>
           <button
             onClick={() => {
-              addEquipmentToBlock(block.id, currentEquipment.type, currentEquipment.hours, currentEquipment.count, currentEquipment.unitNumber, currentEquipment.masterEquipmentId)
-              setCurrentEquipment({ type: '', hours: '', count: '', unitNumber: '', masterEquipmentId: null })
+              addEquipmentToBlock(block.id, currentEquipment.type, currentEquipment.hours, 1, currentEquipment.unitNumber, currentEquipment.masterEquipmentId)
+              setCurrentEquipment({ type: '', hours: '', unitNumber: '', masterEquipmentId: null })
             }}
             style={{ padding: '8px 16px', backgroundColor: '#007bff', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', height: '38px' }}
           >
@@ -3186,14 +3146,13 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                   <th style={{ padding: '8px', textAlign: 'center', width: '100px' }}>Unit #</th>
                   <th style={{ padding: '8px', textAlign: 'left' }}>Equipment</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '60px' }}>Hours</th>
-                  <th style={{ padding: '8px', textAlign: 'center', width: '50px' }}>Count</th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
                   <th style={{ padding: '8px', textAlign: 'center', width: '40px' }}></th>
                 </tr>
               </thead>
               <tbody>
                 {block.equipmentEntries.map(entry => {
-                  const billedHours = (parseFloat(entry.hours) || 0) * (entry.count || 1)
+                  const billedHours = parseFloat(entry.hours) || 0
                   const prodStatus = entry.productionStatus || 'ACTIVE'
                   const shadowHours = calculateShadowHours(billedHours, prodStatus, entry.shadowEffectiveHours)
                   const statusConfig = productionStatuses.find(s => s.value === prodStatus)
@@ -3226,22 +3185,6 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
                             type="number"
                             value={entry.hours || ''}
                             onChange={(e) => updateEquipmentField(block.id, entry.id, 'hours', e.target.value)}
-                            placeholder="0"
-                            style={{
-                              width: '60px',
-                              padding: '4px',
-                              border: '1px solid #ced4da',
-                              borderRadius: '3px',
-                              textAlign: 'center',
-                              fontSize: '12px'
-                            }}
-                          />
-                        </td>
-                        <td style={{ padding: '2px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
-                          <input
-                            type="number"
-                            value={entry.count || ''}
-                            onChange={(e) => updateEquipmentField(block.id, entry.id, 'count', e.target.value)}
                             placeholder="0"
                             style={{
                               width: '60px',
