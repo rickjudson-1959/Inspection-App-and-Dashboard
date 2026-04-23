@@ -118,18 +118,20 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     // 2. Exact match (normalized whitespace)
     let found = equipmentRates.find(r => norm(r.equipment_type || r.type) === en)
     if (found) return found
-    // 3. Contains match
+    // 3. Contains match — full lookup name in rate card OR full rate card name in lookup
     found = equipmentRates.find(r => {
       const rc = norm(r.equipment_type || r.type)
       return rc.includes(en) || en.includes(rc)
     })
     if (found) return found
-    // 4. Token overlap
+    // 4. Token overlap — ALL lookup tokens must match AND at least 50% of rate card tokens must be covered
     const lookupTokens = tokens(lookupName)
     if (lookupTokens.length >= 2) {
       found = equipmentRates.find(r => {
         const rateTokens = tokens(r.equipment_type || r.type)
-        return lookupTokens.every(t => rateTokens.some(rt => rt.includes(t) || t.includes(rt)))
+        const matchedLookup = lookupTokens.filter(t => rateTokens.some(rt => rt.includes(t) || t.includes(rt)))
+        const matchedRate = rateTokens.filter(rt => lookupTokens.some(t => rt.includes(t) || t.includes(rt)))
+        return matchedLookup.length === lookupTokens.length && matchedRate.length >= Math.ceil(rateTokens.length * 0.5)
       })
     }
     return found || null
@@ -161,13 +163,18 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   }
 
   function calcEquipmentCost(entry) {
+    const hours = parseFloat(entry.hours || 0)
+    if (hours <= 0) return { rate: null, cost: 0 }
     const rate = findEquipmentRate(entry.type || entry.equipment_type)
     if (!rate) return { rate: null, cost: 0 }
-    const qty = parseInt(entry.count || 1)
-    // Equipment is a daily all-in rate — cost = daily rate per day, not multiplied by hours
+    const rateType = rate.rate_type || 'daily'
+    if (rateType === 'hourly') {
+      const hourlyRate = parseFloat(rate.rate_hourly || 0)
+      return { rate: hourlyRate, rateType: 'hourly', cost: hourlyRate * hours }
+    }
+    // Daily all-in rate — cost = daily rate per day
     const dailyRate = parseFloat(rate.rate_daily || rate.rate_hourly || 0)
-    const cost = dailyRate * qty
-    return { rate: dailyRate, rateType: 'daily', cost }
+    return { rate: dailyRate, rateType: 'daily', cost: dailyRate }
   }
 
   // --- Duplicate detection ---

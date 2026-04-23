@@ -135,6 +135,7 @@ The sheet has TWO sections:
 
 Return ONLY a JSON array. Each object must have: classification (string), rate_type (string — "weekly" or "hourly"), rate_st (number — Column V as-is, do NOT convert), rate_ot (number — Column W), rate_dt (number — Column X), rate_subs (number — Column Y, 0 if blank).
 Skip header rows, subtotal rows, blank rows, and MAX rate lines for indirect positions.
+IMPORTANT: Some classifications (e.g., STRAW - OPERATOR, STRAW - LABOURER) have empty early columns (scale, weekly hours, earnings) but DO have rates in columns V/W/X/Y. Include these rows — a row is valid if it has a classification name AND at least one rate value in columns V, W, or X. Do NOT skip rows just because early columns are empty.
 
 Example: [{"classification": "General Foreman", "rate_type": "weekly", "rate_st": 5871.00, "rate_ot": 273.63, "rate_dt": 364.84, "rate_subs": 175.00}, {"classification": "General Labourer", "rate_type": "hourly", "rate_st": 48.10, "rate_ot": 72.15, "rate_dt": 96.20, "rate_subs": 175.00}]
 
@@ -212,7 +213,7 @@ ${textContent}`
 Use these SPECIFIC COLUMNS: V = "DAILY or ST RATE HR" (weekly or hourly rate), W = "OT (1.5) HR", X = "OT (2.0) HR", Y = "SUBS" (subsistence).
 TWO sections: (1) SALARIED/INDIRECT with WEEKLY rates ($1,000+) — use MIN rate only if min/max shown, skip max lines; (2) HOURLY field workers ($30-$90/hr).
 Return ONLY a JSON array. Each object: classification (string), rate_type ("weekly" or "hourly"), rate_st (number — Col V as-is), rate_ot (number — Col W), rate_dt (number — Col X), rate_subs (number — Col Y, 0 if blank).
-Skip headers/subtotals/blanks/max rate lines.
+Skip headers/subtotals/blanks/max rate lines. IMPORTANT: Include rows where early columns are empty but rate columns (V/W/X) have values (e.g., STRAW classifications). A row is valid if it has a classification name and at least one rate in V/W/X.
 Example: [{"classification": "General Foreman", "rate_type": "weekly", "rate_st": 5871.00, "rate_ot": 273.63, "rate_dt": 364.84, "rate_subs": 175.00}]
 Return ONLY the JSON array.`
       : `Extract ALL equipment rates from this pipeline construction rate sheet.
