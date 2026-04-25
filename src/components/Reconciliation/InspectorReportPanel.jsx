@@ -33,6 +33,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const [dupeResolve, setDupeResolve] = useState(null) // { section, rowIdx, masterId, masterName, existingRowIdx, existingEntry, pendingAction }
   const [dragState, setDragState] = useState({ section: null, fromIdx: null, overIdx: null })
   const [overridePopover, setOverridePopover] = useState(null) // { section, rowIdx, field, fieldLabel, currentValue, inputType, anchorRect }
+  const [lemExtracting, setLemExtracting] = useState(false)
   const isAdminRole = ['admin', 'super_admin'].includes(currentUserRole)
 
   // Focus input and calculate dropdown position when editing starts
@@ -1014,30 +1015,46 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
         <div style={{ margin: '4px 12px', padding: '8px 12px', backgroundColor: '#fffbeb', border: '1px solid #fde68a', borderRadius: 6, fontSize: 12, color: '#92400e' }}>
           <strong>&#9888; LEM uploaded but structured data not yet extracted.</strong>
           <button
+            disabled={lemExtracting}
             onClick={async () => {
+              if (lemExtracting) return
+              setLemExtracting(true)
               try {
                 const { extractLEMFromUrl } = await import('../../utils/lemParser.js')
-                if (!lemPdfUrls.length) return
+                if (!lemPdfUrls.length) { setToast('No LEM PDF URL found'); setLemExtracting(false); return }
                 const result = await extractLEMFromUrl(lemPdfUrls[0])
-                if (result && (result.labour?.length || result.equipment?.length)) {
-                  await supabase.from('contractor_lems').upsert({
-                    organization_id: organizationId,
-                    field_log_id: block?.ticketNumber,
-                    date: reportDate,
-                    labour_entries: result.labour || [],
-                    equipment_entries: result.equipment || [],
-                    total_labour_cost: result.totals?.total_labour_cost || 0,
-                    total_equipment_cost: result.totals?.total_equipment_cost || 0,
-                    reconciliation_status: 'pending',
-                    billing_status: 'open',
-                  }, { onConflict: 'field_log_id,organization_id' })
-                  if (onLemExtracted) onLemExtracted()
+                if (!result || (!result.labour?.length && !result.equipment?.length)) {
+                  setToast('OCR returned no data — check the PDF'); setLemExtracting(false); return
                 }
-              } catch (err) { console.error('LEM extraction failed:', err) }
+                const record = {
+                  organization_id: organizationId,
+                  field_log_id: String(block?.ticketNumber || ''),
+                  date: reportDate,
+                  labour_entries: result.labour || [],
+                  equipment_entries: result.equipment || [],
+                  total_labour_cost: result.totals?.total_labour_cost || 0,
+                  total_equipment_cost: result.totals?.total_equipment_cost || 0,
+                  reconciliation_status: 'pending',
+                  billing_status: 'open',
+                }
+                // Check if row already exists, then update or insert
+                const { data: existing } = await supabase.from('contractor_lems')
+                  .select('id').eq('field_log_id', record.field_log_id).eq('organization_id', organizationId).maybeSingle()
+                const { error: saveErr } = existing?.id
+                  ? await supabase.from('contractor_lems').update(record).eq('id', existing.id)
+                  : await supabase.from('contractor_lems').insert(record)
+                if (saveErr) { setToast('Save failed: ' + saveErr.message); setLemExtracting(false); return }
+                setToast(`Extracted ${result.labour?.length || 0} labour + ${result.equipment?.length || 0} equipment`)
+                if (onLemExtracted) onLemExtracted()
+              } catch (err) {
+                console.error('LEM extraction failed:', err)
+                setToast('Extraction failed: ' + (err.message || 'unknown error'))
+              }
+              setLemExtracting(false)
             }}
-            style={{ marginLeft: 8, padding: '4px 12px', backgroundColor: '#1e3a5f', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 11, fontWeight: '600' }}
+            style={{ marginLeft: 8, padding: '4px 12px', backgroundColor: lemExtracting ? '#9ca3af' : '#1e3a5f', color: 'white', border: 'none', borderRadius: 4, cursor: lemExtracting ? 'wait' : 'pointer', fontSize: 11, fontWeight: '600' }}
           >
-            Extract now
+            {lemExtracting ? 'Extracting...' : 'Extract now'}
           </button>
         </div>
       )}
