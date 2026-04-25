@@ -152,10 +152,11 @@ The sheet has these key columns:
 - Allowance for Parts & Repairs per hour (column 6)
 - All-in daily rate (column 10) — this is the final costing number
 
-Extract every equipment type with ALL of these rates. Return ONLY a JSON array.
-Each object must have: equipment_type (string), rate_monthly (number — monthly rate), rate_base (number — base hourly rate from col 5), rate_parts (number — parts/repairs allowance from col 6), rate_hourly (number — rate_base + rate_parts), rate_daily (number — the all-in daily rate from col 10, extract as-is).
+Extract every equipment type with rates. Return ONLY a JSON array.
+Each object must have: equipment_type (string), rate_monthly (number — monthly rate, 0 if empty), rate_base (number — base hourly rate from col 5, 0 if empty), rate_parts (number — parts/repairs allowance from col 6, 0 if empty), rate_hourly (number — rate_base + rate_parts), rate_daily (number — the all-in daily rate from col 10, extract as-is).
 If only a daily rate is visible, use it for rate_daily and calculate rate_hourly = rate_daily / 10.
-Skip any header rows, subtotal rows, or blank rows. Only include actual equipment with rates.
+IMPORTANT: A row is valid if it has an equipment description AND at least one rate value (daily, hourly, or monthly). Do NOT skip rows just because the monthly rate column is empty — some equipment (welding rigs, mechanic rigs, storage trailers) only has a daily or hourly rate. Include those rows with rate_monthly=0.
+Skip header rows, subtotal rows, and truly blank rows only.
 
 Example: [{"equipment_type": "Excavator 200", "rate_monthly": 4500.00, "rate_base": 15.50, "rate_parts": 3.25, "rate_hourly": 18.75, "rate_daily": 187.50}]
 
@@ -218,8 +219,8 @@ Example: [{"classification": "General Foreman", "rate_type": "weekly", "rate_st"
 Return ONLY the JSON array.`
       : `Extract ALL equipment rates from this pipeline construction rate sheet.
 Key columns: equipment description (col 1), monthly rate (col 3), base hourly rate (col 5), parts/repairs allowance hourly (col 6), all-in daily rate (col 10).
-Return ONLY a JSON array. Each object: equipment_type (string), rate_monthly (number), rate_base (number — col 5), rate_parts (number — col 6), rate_hourly (number — base + parts), rate_daily (number — col 10 as-is).
-If only daily visible, rate_hourly = daily/10. Skip headers/subtotals/blanks.
+Return ONLY a JSON array. Each object: equipment_type (string), rate_monthly (number, 0 if empty), rate_base (number — col 5, 0 if empty), rate_parts (number — col 6, 0 if empty), rate_hourly (number — base + parts), rate_daily (number — col 10 as-is).
+If only daily visible, rate_hourly = daily/10. A row is valid if it has an equipment name and at least one rate value. Do NOT skip rows with empty monthly rate — include them with rate_monthly=0. Skip only headers/subtotals/truly blank rows.
 Example: [{"equipment_type": "Excavator 200", "rate_monthly": 4500.00, "rate_base": 15.50, "rate_parts": 3.25, "rate_hourly": 18.75, "rate_daily": 187.50}]
 Return ONLY the JSON array.`
 
