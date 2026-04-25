@@ -144,7 +144,13 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     const otHrs = parseFloat(entry.ot || 0)
     const dtHrs = parseFloat(entry.dt || 0)
     const rateType = rate.rate_type || (parseFloat(rate.rate_st || 0) >= 100 ? 'weekly' : 'hourly')
-    const subs = parseFloat(rate.rate_subs || 0)
+    // Per-person subs override from personnel_roster takes priority over classification rate
+    const rosterEntry = entry.master_personnel_id
+      ? employeeRoster.find(r => r.masterId === entry.master_personnel_id)
+      : null
+    const subs = rosterEntry?.rateSubsOverride != null
+      ? parseFloat(rosterEntry.rateSubsOverride)
+      : parseFloat(rate.rate_subs || 0)
 
     if (rateType === 'weekly') {
       // rate_st is the daily rate for salaried/indirect workers — use as-is

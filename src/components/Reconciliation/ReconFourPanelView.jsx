@@ -120,13 +120,13 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
     const rosterMap = {}
     // Load from personnel_roster table first (CSV upload — takes priority)
     try {
-      let pq = supabase.from('personnel_roster').select('id, employee_name, classification')
+      let pq = supabase.from('personnel_roster').select('id, employee_name, classification, rate_subs_override')
       pq = addOrgFilter(pq, true)
       const { data: pData } = await pq
       for (const r of (pData || [])) {
         const name = (r.employee_name || '').trim()
         const cls = (r.classification || '').trim()
-        if (name && cls) rosterMap[name.toUpperCase()] = { employeeName: name, classification: cls, masterId: r.id }
+        if (name && cls) rosterMap[name.toUpperCase()] = { employeeName: name, classification: cls, masterId: r.id, rateSubsOverride: r.rate_subs_override }
       }
     } catch (e) { console.warn('personnel_roster not available:', e) }
     // Supplement with daily_reports data
