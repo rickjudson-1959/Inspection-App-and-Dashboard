@@ -961,7 +961,7 @@ export async function extractLEMFromUrl(docUrl) {
       console.log('[LEM OCR] pdf.js loaded')
     } catch (e) {
       console.error('[LEM OCR] Failed to load pdf.js:', e)
-      return { labour: [], equipment: [], totals: {}, raw_text: '' }
+      return { labour: [], equipment: [], totals: {}, raw_text: '', error: 'Failed to load PDF renderer' }
     }
 
     let resp
@@ -970,11 +970,11 @@ export async function extractLEMFromUrl(docUrl) {
       console.log(`[LEM OCR] PDF fetch status: ${resp.status} ${resp.statusText}`)
       if (!resp.ok) {
         console.error(`[LEM OCR] PDF fetch failed: ${resp.status}`)
-        return { labour: [], equipment: [], totals: {}, raw_text: '' }
+        return { labour: [], equipment: [], totals: {}, raw_text: '', error: `PDF download failed (${resp.status})` }
       }
     } catch (e) {
       console.error('[LEM OCR] PDF fetch error (likely CORS):', e)
-      return { labour: [], equipment: [], totals: {}, raw_text: '' }
+      return { labour: [], equipment: [], totals: {}, raw_text: '', error: 'PDF download failed (CORS or network)' }
     }
 
     let pdf
@@ -984,7 +984,7 @@ export async function extractLEMFromUrl(docUrl) {
       pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
     } catch (e) {
       console.error('[LEM OCR] pdf.js getDocument failed:', e)
-      return { labour: [], equipment: [], totals: {}, raw_text: '' }
+      return { labour: [], equipment: [], totals: {}, raw_text: '', error: 'PDF parsing failed — file may be corrupted' }
     }
 
     const numPages = pdf.numPages
@@ -1125,14 +1125,17 @@ Rules:
       }
 
       if (!response.ok) {
-        console.error(`[LEM OCR] API error: ${response.status}`)
-        return { labour: [], equipment: [], totals: {}, raw_text: '' }
+        const errBody = await response.text().catch(() => '')
+        const errMsg = errBody.includes('credit balance') ? 'Anthropic API credit balance too low'
+          : `API error ${response.status}`
+        console.error(`[LEM OCR] ${errMsg}`)
+        return { labour: [], equipment: [], totals: {}, raw_text: '', error: errMsg }
       }
 
       const data = await response.json()
       const text = data.content?.[0]?.text || ''
       const jsonMatch = text.match(/\{[\s\S]*\}/)
-      if (!jsonMatch) return { labour: [], equipment: [], totals: {}, raw_text: text }
+      if (!jsonMatch) return { labour: [], equipment: [], totals: {}, raw_text: text, error: 'No JSON in API response' }
 
       const parsed = JSON.parse(jsonMatch[0])
       return {
@@ -1143,11 +1146,11 @@ Rules:
       }
     } catch (err) {
       console.error(`[LEM OCR] Attempt ${attempt + 1} failed:`, err)
-      if (attempt === MAX_RETRIES - 1) return { labour: [], equipment: [], totals: {}, raw_text: '' }
+      if (attempt === MAX_RETRIES - 1) return { labour: [], equipment: [], totals: {}, raw_text: '', error: err.message || 'Extraction failed' }
       await sleep(2000)
     }
   }
-  return { labour: [], equipment: [], totals: {}, raw_text: '' }
+  return { labour: [], equipment: [], totals: {}, raw_text: '', error: 'Max retries exceeded' }
 }
 
 /**

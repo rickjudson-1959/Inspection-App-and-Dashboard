@@ -1023,6 +1023,9 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 const { extractLEMFromUrl } = await import('../../utils/lemParser.js')
                 if (!lemPdfUrls.length) { setToast('No LEM PDF URL found'); setLemExtracting(false); return }
                 const result = await extractLEMFromUrl(lemPdfUrls[0])
+                if (result?.error) {
+                  setToast('Extraction error: ' + result.error); setLemExtracting(false); return
+                }
                 if (!result || (!result.labour?.length && !result.equipment?.length)) {
                   setToast('OCR returned no data — check the PDF'); setLemExtracting(false); return
                 }
