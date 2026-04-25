@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - April 21, 2026
+## Project Manifest - April 25, 2026
 
 ---
 
@@ -657,6 +657,41 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–April 2026)
+
+### Rate Lookup Bug Fixes + Missing STRAW/Equipment Data (April 22, 2026)
+
+**Fixed rate resolution failures from Corry's bug list. Root cause: CSV import skipped rows with empty early columns (STRAW classifications, Automatic Welding Tractor).**
+
+1. **5 STRAW labour rates inserted** — STRAW - OPERATOR (ST=64.24), STRAW - LABOURER (ST=48.10), STRAW - FITTER ON STICK WELD SPREAD (ST=82.81), STRAW - FITTER ON AUTO WELD SPREAD (ST=82.81), STRAW - GRADED HELPER (ST=54.74). All hourly with Subs=$85. 26 personnel in roster, 15 existing activity_block entries now resolve.
+
+2. **Automatic Welding Tractor rate inserted** — daily=1345. 24 fleet units (OR1551–OR1560, OR2225, OR2245, OR2341, SB201D–SB211, U651Q units) were hitting fuzzy match to "Weld - Quad Welder/Tack Rig" (768/day) instead.
+
+3. **Welding Rig rate_type fixed** — Changed from "daily" to "hourly". Rate is $4.80/hr (monthly=$48). App now multiplies by actual hours worked instead of applying flat daily rate.
+
+4. **Zero-hours equipment cost bug fixed** — `calcEquipmentCost` now returns cost=0 when hours=0. Previously showed a daily rate even for 0-hour entries (OR1299 bug).
+
+5. **Equipment rate_type "hourly" support** — `calcEquipmentCost` now checks `rate_type`: hourly rates multiply by hours, daily rates use flat daily amount. Previously ignored rate_type entirely.
+
+6. **Fuzzy equipment rate matcher tightened** — Token overlap now requires all lookup tokens match AND at least 50% of rate card tokens are covered. Prevents false positives like "Flow Through" matching "Snowplow/Sander" via substring overlap.
+
+7. **Import prompt updated** — Both text and Vision extraction prompts in `RateImport.jsx` now explicitly say to include rows with empty early columns if rate columns V/W/X have values. Prevents future imports from dropping STRAW-style rows.
+
+8. **Count/Cnt fields removed** — Removed Count input from labour/equipment "Add" forms and Cnt/Count columns from both tables. Each person/equipment is always count=1 (listed individually).
+
+**Modified files:**
+```
+src/Components/Reconciliation/InspectorReportPanel.jsx     # calcEquipmentCost, findEquipmentRate fixes
+src/RateImport.jsx                                         # Import prompt fix for empty early columns
+src/ActivityBlock.jsx                                      # Count field removal
+```
+
+**Open rate items (need CSV verification):**
+- Transition Machine: DB has 1202 (correct), Corry sees 899.58 — source unknown
+- Crew Cab 1 Ton: DB has 163 per CSV, Corry expects 489
+- Sideboom 587T: DB has 1323 per CSV, Corry expects 5292 (= 1323 × 4)
+- OR1309 Storage/Trailer Van: No rate row in equipment_rates CSV
+- STRAW - TEAMSTER: CSV line 230 not yet imported
+- Allan Vanwelleghem subs ($295) and Julie Tolley subs ($230): match CSV values
 
 ### Reconciliation Workspace Rebuild (April 21, 2026)
 
