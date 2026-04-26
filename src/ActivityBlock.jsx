@@ -987,24 +987,7 @@ function ActivityBlock({
         ? `\n\nThis ticket spans ${files.length} pages/photos. Combine ALL labour and equipment from ALL pages into a single unified list. Do not duplicate entries that appear on multiple pages.`
         : ''
 
-      const response = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': anthropicApiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true'
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 4000,
-          messages: [{
-            role: 'user',
-            content: [
-              ...imageContents,
-              {
-                type: 'text',
-                text: `Extract labour and equipment data from this contractor daily ticket. Return JSON only:
+      const ocrPrompt = `Extract labour and equipment data from this contractor daily ticket. Return JSON only:
 {
   "ticketNumber": "string or null",
   "contractor": "string or null",
@@ -1024,81 +1007,120 @@ For equipment unitNumber, extract the unit number, asset ID, or fleet number if 
 
 Match classifications to: ${labourClassifications.slice(0, 20).join(', ')}...
 Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
-              }
-            ]
-          }]
+
+      // Retry loop with rate-limit handling (matches lemParser.js pattern)
+      let text = ''
+      const MAX_OCR_RETRIES = 3
+      for (let attempt = 0; attempt < MAX_OCR_RETRIES; attempt++) {
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': anthropicApiKey,
+            'anthropic-version': '2023-06-01',
+            'anthropic-dangerous-direct-browser-access': 'true'
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 4000,
+            messages: [{ role: 'user', content: [...imageContents, { type: 'text', text: ocrPrompt }] }]
+          })
         })
-      })
-      
-      if (!response.ok) throw new Error('API request failed')
-      
-      const result = await response.json()
-      const text = result.content[0].text
+
+        if (response.status === 429) {
+          console.warn(`[Ticket OCR] Rate limited (attempt ${attempt + 1}) — retrying in ${(attempt + 1) * 5}s`)
+          if (attempt < MAX_OCR_RETRIES - 1) { await new Promise(r => setTimeout(r, (attempt + 1) * 5000)); continue }
+          setOcrError('API rate limit exceeded. Wait a moment and try again.')
+          return
+        }
+
+        if (!response.ok) {
+          const errBody = await response.text().catch(() => '')
+          if (errBody.includes('credit balance')) {
+            setOcrError('Anthropic API credit balance too low. Contact admin.')
+            return
+          }
+          if (attempt < MAX_OCR_RETRIES - 1) { await new Promise(r => setTimeout(r, 2000)); continue }
+          setOcrError(`API error (${response.status}). Try again or enter data manually.`)
+          return
+        }
+
+        const result = await response.json()
+        text = result.content?.[0]?.text || ''
+        break
+      }
+
       const jsonMatch = text.match(/\{[\s\S]*\}/)
-      
-      if (jsonMatch) {
-        const data = JSON.parse(jsonMatch[0])
 
-        if (data.ticketNumber) updateBlock(blockId, 'ticketNumber', data.ticketNumber)
-        if (data.contractor) updateBlock(blockId, 'contractor', data.contractor)
-        if (data.foreman) updateBlock(blockId, 'foreman', data.foreman)
+      if (!jsonMatch) {
+        setOcrError('OCR could not read this document. Try re-uploading or use a clearer scan.')
+        return
+      }
 
-        // Dedup: check existing entries to avoid doubling when same ticket is scanned twice
-        const existingLabour = block.labourEntries || []
-        const existingEquipment = block.equipmentEntries || []
+      const data = JSON.parse(jsonMatch[0])
 
-        if (data.labour && Array.isArray(data.labour)) {
-          data.labour.forEach(l => {
-            if (l.classification) {
-              // Normalize OCR name: title-case and try to resolve against master roster
-              const ocrName = (l.name || '').trim().replace(/\s+/g, ' ')
-              const titleCased = ocrName.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
-              // Try exact case-insensitive match against master roster for canonical name
-              const rosterMatch = employeeRoster.find(r =>
-                (r.employeeName || '').toLowerCase().trim() === titleCased.toLowerCase()
-              )
-              const resolvedName = rosterMatch ? rosterMatch.employeeName : titleCased
-              const resolvedMasterId = rosterMatch ? (rosterMatch.masterId || null) : null
+      if (data.ticketNumber) updateBlock(blockId, 'ticketNumber', data.ticketNumber)
+      if (data.contractor) updateBlock(blockId, 'contractor', data.contractor)
+      if (data.foreman) updateBlock(blockId, 'foreman', data.foreman)
 
-              // Skip if an entry with same name + classification already exists
-              const isDuplicate = existingLabour.some(
-                e => (e.employeeName || '').toLowerCase() === resolvedName.toLowerCase() &&
-                     (e.classification || '').toLowerCase() === (l.classification || '').toLowerCase()
-              )
-              if (!isDuplicate) {
-                // Calculate total hours from OCR data, then auto-split via contract compliance
-                const ocrTotal = (parseFloat(l.rt) || 0) + (parseFloat(l.ot) || 0)
-                if (ocrTotal > 0 && selectedDate) {
-                  const split = calculateSplit(ocrTotal, selectedDate, projectRules, holiday)
-                  addLabourToBlock(blockId, resolvedName, l.classification, split.rt_hours, split.ot_hours, 0, 1, resolvedMasterId, split.dt_hours)
-                } else {
-                  addLabourToBlock(blockId, resolvedName, l.classification, l.rt || 0, l.ot || 0, 0, 1, resolvedMasterId, 0)
-                }
+      // Dedup: check existing entries to avoid doubling when same ticket is scanned twice
+      const existingLabour = block.labourEntries || []
+      const existingEquipment = block.equipmentEntries || []
+      let labourAdded = 0, equipAdded = 0
+
+      if (data.labour && Array.isArray(data.labour)) {
+        data.labour.forEach(l => {
+          if (l.classification) {
+            // Normalize OCR name: title-case and try to resolve against master roster
+            const ocrName = (l.name || '').trim().replace(/\s+/g, ' ')
+            const titleCased = ocrName.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
+            const rosterMatch = employeeRoster.find(r =>
+              (r.employeeName || '').toLowerCase().trim() === titleCased.toLowerCase()
+            )
+            const resolvedName = rosterMatch ? rosterMatch.employeeName : titleCased
+            const resolvedMasterId = rosterMatch ? (rosterMatch.masterId || null) : null
+
+            const isDuplicate = existingLabour.some(
+              e => (e.employeeName || '').toLowerCase() === resolvedName.toLowerCase() &&
+                   (e.classification || '').toLowerCase() === (l.classification || '').toLowerCase()
+            )
+            if (!isDuplicate) {
+              const ocrTotal = (parseFloat(l.rt) || 0) + (parseFloat(l.ot) || 0)
+              if (ocrTotal > 0 && selectedDate) {
+                const split = calculateSplit(ocrTotal, selectedDate, projectRules, holiday)
+                addLabourToBlock(blockId, resolvedName, l.classification, split.rt_hours, split.ot_hours, 0, 1, resolvedMasterId, split.dt_hours)
+              } else {
+                addLabourToBlock(blockId, resolvedName, l.classification, l.rt || 0, l.ot || 0, 0, 1, resolvedMasterId, 0)
               }
+              labourAdded++
             }
-          })
-        }
+          }
+        })
+      }
 
-        if (data.equipment && Array.isArray(data.equipment)) {
-          data.equipment.forEach(e => {
-            if (e.type) {
-              // Skip if an entry with same type + unit number already exists
-              const isDuplicate = existingEquipment.some(
-                ex => (ex.type || '').toLowerCase() === (e.type || '').toLowerCase() &&
-                      (ex.unitNumber || '').toLowerCase() === (e.unitNumber || '').toLowerCase()
-              )
-              if (!isDuplicate) {
-                addEquipmentToBlock(blockId, e.type, e.hours || 0, 1, e.unitNumber || '')
-              }
+      if (data.equipment && Array.isArray(data.equipment)) {
+        data.equipment.forEach(e => {
+          if (e.type) {
+            const isDuplicate = existingEquipment.some(
+              ex => (ex.type || '').toLowerCase() === (e.type || '').toLowerCase() &&
+                    (ex.unitNumber || '').toLowerCase() === (e.unitNumber || '').toLowerCase()
+            )
+            if (!isDuplicate) {
+              addEquipmentToBlock(blockId, e.type, e.hours || 0, 1, e.unitNumber || '')
+              equipAdded++
             }
-          })
-        }
+          }
+        })
+      }
 
-        setOcrSuccess(true)
+      if (labourAdded === 0 && equipAdded === 0) {
+        setOcrError('OCR could not read this document. Try re-uploading or use a clearer scan.')
+      } else {
+        setOcrSuccess(`Extracted ${labourAdded} worker${labourAdded !== 1 ? 's' : ''} and ${equipAdded} equipment. Review for completeness.`)
       }
     } catch (err) {
       console.error('OCR Error:', err)
-      setOcrError('Failed to process ticket. Please enter data manually.')
+      setOcrError('OCR failed: ' + (err.message || 'Unknown error') + '. Try again or enter data manually.')
     } finally {
       setOcrProcessing(false)
     }
@@ -2453,7 +2475,7 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
         )}
         {ocrSuccess && !ocrProcessing && (
           <div style={{ padding: '10px', backgroundColor: '#d4edda', borderRadius: '6px', border: '1px solid #c3e6cb', margin: '10px 0' }}>
-            <span style={{ color: '#155724', fontSize: '13px', fontWeight: 'bold' }}>✓ Ticket scanned — labour and equipment data added below. Review and correct if needed.</span>
+            <span style={{ color: '#155724', fontSize: '13px', fontWeight: 'bold' }}>&#10003; {typeof ocrSuccess === 'string' ? ocrSuccess : 'Ticket scanned — labour and equipment data added below. Review and correct if needed.'}</span>
           </div>
         )}
 
