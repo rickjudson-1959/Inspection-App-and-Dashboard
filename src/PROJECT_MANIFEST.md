@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - April 25, 2026
+## Project Manifest - April 26, 2026
 
 ---
 
@@ -658,6 +658,40 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–April 2026)
 
+### LEM Batch Extraction + Extract Now Fix + Per-Person Subs Override (April 25, 2026)
+
+**Fixed Extract Now button, batch-extracted all 28 LEM PDFs, added per-person subsistence override.**
+
+1. **Extract Now button fixed** — Root cause: `contractor_lems` had no unique constraint on `(field_log_id, organization_id)`, causing the upsert to fail silently (error 42P10). Replaced with check-then-insert/update pattern. Added loading state ("Extracting..."), disabled button during OCR, toast messages for all error paths (API credit balance, PDF download failure, empty OCR, save errors).
+
+2. **Error propagation in lemParser.js** — `extractLEMFromUrl` and `extractLEMLineItemsFromBase64` now return an `error` field with specific messages instead of silently returning empty arrays. Button shows the actual failure reason.
+
+3. **Batch LEM extraction** — Extracted all 28 LEM PDFs via Claude Vision (5 previously done + 23 new). Total: 364 labour entries + 579 equipment entries across all tickets, $644,088.10 in claimed LEM costs. All tickets now have structured data in `contractor_lems` for variance comparison.
+
+4. **Per-person subsistence override** — Added `rate_subs_override` column (nullable NUMERIC) to `personnel_roster`. When set, `calcLabourCost` uses the override instead of the classification's `rate_subs` from `labour_rates`. Allan Van Wallegham: EQUIPMENT MANAGER $295 overridden to $230. Julie Tolley: OFFICE CLERK (LOCAL HIRE) $230 overridden to $85.
+
+5. **Equipment rate gap fill** — Inserted 4 missing equipment rate rows: Hoe - Chuck Blade Attachment (daily=$79.38), Track Morooka (daily=$973.67), Transition Machine Without Power Unit (daily=$899.58 — solves Corry's mystery #2), Storage Trailer/Van (daily=$64). Fixed Mechanic's Rig and Utility Welder Rig rate_type to "hourly" ($48/hr).
+
+6. **STRAW - TEAMSTER labour rate inserted** — ST=$64.85, OT=$97.28, DT=$129.70, Subs=$85. Completes all 6 STRAW classifications.
+
+**Modified files:**
+```
+src/Components/Reconciliation/InspectorReportPanel.jsx     # Extract Now fix, subs override, error display
+src/Components/Reconciliation/ReconFourPanelView.jsx       # rate_subs_override in roster query
+src/utils/lemParser.js                                     # Error propagation from OCR failures
+src/RateImport.jsx                                         # Equipment import prompt fix
+```
+
+**New migrations:**
+```
+supabase/migrations/20260425_add_rate_subs_override.sql
+supabase/migrations/20260425_contractor_lems_unique_constraint.sql
+```
+
+**Open rate items (from Corry's list):**
+- Crew Cab 1 Ton: DB has $163/day per CSV, Corry expects $489
+- Sideboom 587T: DB has $1,323/day per CSV, Corry expects $5,292 (= $1,323 x 4)
+
 ### Rate Lookup Bug Fixes + Missing STRAW/Equipment Data (April 22, 2026)
 
 **Fixed rate resolution failures from Corry's bug list. Root cause: CSV import skipped rows with empty early columns (STRAW classifications, Automatic Welding Tractor).**
@@ -685,13 +719,7 @@ src/RateImport.jsx                                         # Import prompt fix f
 src/ActivityBlock.jsx                                      # Count field removal
 ```
 
-**Open rate items (need CSV verification):**
-- Transition Machine: DB has 1202 (correct), Corry sees 899.58 — source unknown
-- Crew Cab 1 Ton: DB has 163 per CSV, Corry expects 489
-- Sideboom 587T: DB has 1323 per CSV, Corry expects 5292 (= 1323 × 4)
-- OR1309 Storage/Trailer Van: No rate row in equipment_rates CSV
-- STRAW - TEAMSTER: CSV line 230 not yet imported
-- Allan Vanwelleghem subs ($295) and Julie Tolley subs ($230): match CSV values
+**Resolved in April 25 update:** Transition Machine (was "Without Power Unit" variant at $899.58), OR1309 Storage Trailer/Van (rate inserted), STRAW - TEAMSTER (rate inserted), Allan Vanwelleghem subs (override to $230), Julie Tolley subs (override to $85).
 
 ### Reconciliation Workspace Rebuild (April 21, 2026)
 
