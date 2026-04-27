@@ -997,26 +997,24 @@ function ActivityBlock({
         ? `\n\nThis ticket spans ${files.length} pages/photos. Combine ALL labour and equipment from ALL pages into a single unified list. Do not duplicate entries that appear on multiple pages.`
         : ''
 
-      const ocrPrompt = `Extract labour and equipment data from this contractor daily ticket. Return JSON only:
+      const ocrPrompt = `Extract data from this contractor daily ticket. Return JSON only:
 {
   "ticketNumber": "string or null",
+  "date": "YYYY-MM-DD or null",
   "contractor": "string or null",
   "foreman": "string or null",
-  "labour": [{"name": "employee full name", "classification": "string", "rt": number, "ot": number, "count": 1}],
-  "equipment": [{"type": "string", "hours": number, "count": 1, "unitNumber": "string or null"}]
+  "spread": "string or null",
+  "labour": [{"name": "full name as written", "hours": number}],
+  "equipment": [{"unitNumber": "unit/fleet ID as written", "hours": number}]
 }
 
-CRITICAL - Individual Entries Required:
-- List EVERY person as a SEPARATE entry with their full name. Do NOT group workers together.
-- If the ticket shows "John Smith - Labourer - 10hrs" and "Mike Jones - Labourer - 10hrs", return TWO separate entries, not one entry with count: 2.
-- List EVERY piece of equipment as a SEPARATE entry. Do NOT group equipment together.
-- Each entry must have count: 1. Never use count > 1.
-- Extract the employee's full name exactly as written on the ticket.
-
-For equipment unitNumber, extract the unit number, asset ID, or fleet number if visible on the ticket (e.g., "U-1234", "EQ-507", "Unit 42").
-
-Match classifications to: ${labourClassifications.slice(0, 20).join(', ')}...
-Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
+Rules:
+- List EVERY person as a SEPARATE entry. Do NOT group workers.
+- List EVERY piece of equipment as a SEPARATE entry. Do NOT group equipment.
+- For personnel: extract the name exactly as written and total hours worked. Nothing else.
+- For equipment: extract the unit number, asset ID, or fleet number exactly as written (e.g., "OR1551", "DL2507", "496T") and hours. Nothing else.
+- Do NOT extract classifications, rates, costs, or RT/OT breakdowns — only names/units and hours.
+- Extract ticket header info: ticket number, date, contractor, foreman, spread/crew if visible.${pageNote}`
 
       // Retry loop with rate-limit handling (matches lemParser.js pattern)
       let text = ''
@@ -1080,61 +1078,72 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
 
       if (data.labour && Array.isArray(data.labour)) {
         data.labour.forEach(l => {
-          if (l.classification) {
-            // Normalize OCR name: title-case and try to resolve against master roster
-            const ocrName = (l.name || '').trim().replace(/\s+/g, ' ')
-            const titleCased = ocrName.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
-            // 1. Exact case-insensitive match
-            let rosterMatch = employeeRoster.find(r =>
-              (r.employeeName || '').toLowerCase().trim() === titleCased.toLowerCase()
-            )
-            // 2. Nickname match — e.g. "Bob Smith" resolves to "Robert Smith"
-            if (!rosterMatch) {
-              const ocrParts = titleCased.split(/\s+/)
-              const ocrFirst = (ocrParts[0] || '').toUpperCase()
-              const ocrLast = ocrParts.slice(1).join(' ').toLowerCase()
-              if (ocrFirst && ocrLast) {
-                const firstVariants = getAllVariants(ocrFirst)
-                rosterMatch = employeeRoster.find(r => {
-                  const rParts = (r.employeeName || '').split(/\s+/)
-                  const rFirst = (rParts[0] || '').toUpperCase()
-                  const rLast = rParts.slice(1).join(' ').toLowerCase()
-                  return rLast === ocrLast && (firstVariants.has(rFirst) || getAllVariants(rFirst).has(ocrFirst))
-                })
-              }
-            }
-            const resolvedName = rosterMatch ? rosterMatch.employeeName : titleCased
-            const resolvedMasterId = rosterMatch ? (rosterMatch.masterId || null) : null
+          const rawName = (l.name || '').trim().replace(/\s+/g, ' ')
+          if (!rawName) return
+          const titleCased = rawName.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
 
-            const isDuplicate = existingLabour.some(
-              e => (e.employeeName || '').toLowerCase() === resolvedName.toLowerCase() &&
-                   (e.classification || '').toLowerCase() === (l.classification || '').toLowerCase()
-            )
-            if (!isDuplicate) {
-              const ocrTotal = (parseFloat(l.rt) || 0) + (parseFloat(l.ot) || 0)
-              if (ocrTotal > 0 && selectedDate) {
-                const split = calculateSplit(ocrTotal, selectedDate, projectRules, holiday)
-                addLabourToBlock(blockId, resolvedName, l.classification, split.rt_hours, split.ot_hours, 0, 1, resolvedMasterId, split.dt_hours)
-              } else {
-                addLabourToBlock(blockId, resolvedName, l.classification, l.rt || 0, l.ot || 0, 0, 1, resolvedMasterId, 0)
-              }
-              labourAdded++
+          // Resolve against master roster: exact match → nickname match
+          let rosterMatch = employeeRoster.find(r =>
+            (r.employeeName || '').toLowerCase().trim() === titleCased.toLowerCase()
+          )
+          if (!rosterMatch) {
+            const ocrParts = titleCased.split(/\s+/)
+            const ocrFirst = (ocrParts[0] || '').toUpperCase()
+            const ocrLast = ocrParts.slice(1).join(' ').toLowerCase()
+            if (ocrFirst && ocrLast) {
+              const firstVariants = getAllVariants(ocrFirst)
+              rosterMatch = employeeRoster.find(r => {
+                const rParts = (r.employeeName || '').split(/\s+/)
+                const rFirst = (rParts[0] || '').toUpperCase()
+                const rLast = rParts.slice(1).join(' ').toLowerCase()
+                return rLast === ocrLast && (firstVariants.has(rFirst) || getAllVariants(rFirst).has(ocrFirst))
+              })
             }
           }
+
+          const resolvedName = rosterMatch ? rosterMatch.employeeName : titleCased
+          const resolvedMasterId = rosterMatch ? (rosterMatch.masterId || null) : null
+          const resolvedClassification = rosterMatch ? (rosterMatch.classification || '') : ''
+
+          // Dedup by name (classification may not be known yet for unmatched rows)
+          const isDuplicate = existingLabour.some(
+            e => (e.employeeName || '').toLowerCase() === resolvedName.toLowerCase()
+          )
+          if (isDuplicate) return
+
+          // Auto-split total hours via contract compliance
+          const totalHours = parseFloat(l.hours) || 0
+          if (totalHours > 0 && selectedDate && resolvedClassification) {
+            const split = calculateSplit(totalHours, selectedDate, projectRules, holiday)
+            addLabourToBlock(blockId, resolvedName, resolvedClassification, split.rt_hours, split.ot_hours, 0, 1, resolvedMasterId, split.dt_hours)
+          } else if (resolvedClassification) {
+            addLabourToBlock(blockId, resolvedName, resolvedClassification, totalHours, 0, 0, 1, resolvedMasterId, 0)
+          } else {
+            // No master match — add with empty classification (shows amber "Not in master")
+            addLabourToBlock(blockId, resolvedName, '', totalHours, 0, 0, 1, null, 0)
+          }
+          labourAdded++
         })
       }
 
       if (data.equipment && Array.isArray(data.equipment)) {
         data.equipment.forEach(e => {
-          if (e.type) {
-            const isDuplicate = existingEquipment.some(
-              ex => (ex.type || '').toLowerCase() === (e.type || '').toLowerCase() &&
-                    (ex.unitNumber || '').toLowerCase() === (e.unitNumber || '').toLowerCase()
-            )
-            if (!isDuplicate) {
-              addEquipmentToBlock(blockId, e.type, e.hours || 0, 1, e.unitNumber || '')
-              equipAdded++
-            }
+          const unitNumber = (e.unitNumber || '').trim()
+          if (!unitNumber) return
+
+          // Resolve unit number against equipment fleet
+          const fleetMatch = equipmentRoster.find(r =>
+            (r.unitNumber || '').toLowerCase().trim() === unitNumber.toLowerCase()
+          )
+          const resolvedType = fleetMatch ? (fleetMatch.equipmentType || 'Unknown') : 'Unknown'
+          const resolvedMasterId = fleetMatch ? (fleetMatch.masterId || null) : null
+
+          const isDuplicate = existingEquipment.some(
+            ex => (ex.unitNumber || '').toLowerCase() === unitNumber.toLowerCase()
+          )
+          if (!isDuplicate) {
+            addEquipmentToBlock(blockId, resolvedType, e.hours || 0, 1, unitNumber, resolvedMasterId)
+            equipAdded++
           }
         })
       }

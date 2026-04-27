@@ -2290,8 +2290,10 @@ CRITICAL - Individual Entries Required:
     const hasOT = ot !== '' && ot !== null && ot !== undefined
     const hasJH = jh !== '' && jh !== null && jh !== undefined
     const hasDT = dt !== '' && dt !== null && dt !== undefined
-    if (!classification || (!hasRT && !hasOT && !hasJH && !hasDT)) {
-      alert('Please enter classification and at least one hour type (RT, OT, DT, or JH)')
+    // Allow empty classification for OCR-imported unmatched rows (shows amber "Not in master")
+    if (!employeeName && !classification) return
+    if (classification && !hasRT && !hasOT && !hasJH && !hasDT) {
+      alert('Please enter at least one hour type (RT, OT, DT, or JH)')
       return
     }
     const rtVal = parseFloat(rt) || 0
