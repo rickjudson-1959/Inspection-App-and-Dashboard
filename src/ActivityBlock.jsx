@@ -7,6 +7,7 @@ import { supabase } from './supabase'
 import { useOrgQuery } from './utils/queryHelpers.js'
 import { calculateShadowHours, calculateTotalBilledHours, calculateTotalShadowHours, calculateInertiaRatio, hasSystemicDelay, getDelayType } from './shadowAuditUtils.js'
 import { calculateSplit, getHolidayForDate } from './lib/contractCompliance.js'
+import { getAllVariants } from './utils/nameMatchingUtils.js'
 
 // Specialized log components
 import MainlineWeldData from './MainlineWeldData.jsx'
@@ -359,7 +360,16 @@ function SearchableNameInput({ value, onChange, suggestions, roster = [], onSele
     if (!filterText.trim()) return true
     const searchWords = filterText.toLowerCase().split(/\s+/).filter(w => w)
     const nameLC = entry.employeeName.toLowerCase()
-    return searchWords.every(word => nameLC.includes(word))
+    // Check each search word: direct substring match OR nickname variant match
+    return searchWords.every(word => {
+      if (nameLC.includes(word)) return true
+      // Check if the search word is a nickname variant of any word in the roster name
+      const variants = getAllVariants(word.toUpperCase())
+      if (variants.size > 1) {
+        return [...variants].some(v => nameLC.includes(v.toLowerCase()))
+      }
+      return false
+    })
   })
 
   useEffect(() => {
@@ -1074,9 +1084,25 @@ Match equipment to: ${equipmentTypes.slice(0, 20).join(', ')}...${pageNote}`
             // Normalize OCR name: title-case and try to resolve against master roster
             const ocrName = (l.name || '').trim().replace(/\s+/g, ' ')
             const titleCased = ocrName.toLowerCase().replace(/\b\w/g, c => c.toUpperCase())
-            const rosterMatch = employeeRoster.find(r =>
+            // 1. Exact case-insensitive match
+            let rosterMatch = employeeRoster.find(r =>
               (r.employeeName || '').toLowerCase().trim() === titleCased.toLowerCase()
             )
+            // 2. Nickname match — e.g. "Bob Smith" resolves to "Robert Smith"
+            if (!rosterMatch) {
+              const ocrParts = titleCased.split(/\s+/)
+              const ocrFirst = (ocrParts[0] || '').toUpperCase()
+              const ocrLast = ocrParts.slice(1).join(' ').toLowerCase()
+              if (ocrFirst && ocrLast) {
+                const firstVariants = getAllVariants(ocrFirst)
+                rosterMatch = employeeRoster.find(r => {
+                  const rParts = (r.employeeName || '').split(/\s+/)
+                  const rFirst = (rParts[0] || '').toUpperCase()
+                  const rLast = rParts.slice(1).join(' ').toLowerCase()
+                  return rLast === ocrLast && (firstVariants.has(rFirst) || getAllVariants(rFirst).has(ocrFirst))
+                })
+              }
+            }
             const resolvedName = rosterMatch ? rosterMatch.employeeName : titleCased
             const resolvedMasterId = rosterMatch ? (rosterMatch.masterId || null) : null
 

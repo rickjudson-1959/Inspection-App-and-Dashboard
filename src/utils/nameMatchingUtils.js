@@ -193,7 +193,7 @@ function getCanonicalNames(firstName) {
  * Return all nicknames for a given first name (including the canonical form
  * and the name itself).
  */
-function getAllVariants(firstName) {
+export function getAllVariants(firstName) {
   const variants = new Set([firstName]);
 
   // If canonical, add its nicknames
