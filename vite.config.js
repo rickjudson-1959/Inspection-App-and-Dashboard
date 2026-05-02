@@ -49,6 +49,9 @@ export default defineConfig({
     })
   ],
   build: {
+    // Sourcemaps in production so runtime errors point to real source lines.
+    // Helps debug minified TDZ errors etc. without re-deploying.
+    sourcemap: true,
     rollupOptions: {
       output: {
         manualChunks: {

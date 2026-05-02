@@ -5,6 +5,7 @@ import MyReports from './MyReports'
 import { supabase } from './supabase'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 import { useOrgQuery } from './utils/queryHelpers.js'
+import ReportErrorBoundary from './components/ReportErrorBoundary.jsx'
 
 /**
  * InspectorApp - Main wrapper for the inspector interface
@@ -313,14 +314,18 @@ function InspectorApp({ user, onSignOut }) {
         </div>
       )}
 
-      {/* Inspector Report Form */}
-      <InspectorReport
-        user={user}
-        editMode={view === 'edit'}
-        editReportId={editReportId}
-        editReportData={editReportData}
-        onSaveComplete={handleSaveComplete}
-      />
+      {/* Inspector Report Form (wrapped so any render error surfaces with
+          a real stack trace + sourcemap-resolved file/line, not a white
+          screen). */}
+      <ReportErrorBoundary>
+        <InspectorReport
+          user={user}
+          editMode={view === 'edit'}
+          editReportId={editReportId}
+          editReportData={editReportData}
+          onSaveComplete={handleSaveComplete}
+        />
+      </ReportErrorBoundary>
     </div>
   )
 }

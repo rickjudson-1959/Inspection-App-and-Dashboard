@@ -15,6 +15,7 @@ import UpdatePrompt from './components/UpdatePrompt.jsx'
 // Import your existing components
 import Login from './Login.jsx'
 import InspectorReport from './InspectorReport.jsx'
+import ReportErrorBoundary from './components/ReportErrorBoundary.jsx'
 import Dashboard from './Dashboard.jsx'                    // CMT Dashboard
 import EVMDashboard from './EVMDashboard.jsx'
 import ChiefDashboard from './ChiefDashboard.jsx'
@@ -143,7 +144,9 @@ function OrgRoutes() {
       {/* Field Entry - Inspector */}
       <Route path="field-entry" element={
         <ProtectedRoute allowedRoles={['inspector', 'chief', 'chief_inspector', 'asst_chief', 'admin', 'super_admin']}>
-          <InspectorReport />
+          <ReportErrorBoundary>
+            <InspectorReport />
+          </ReportErrorBoundary>
         </ProtectedRoute>
       } />
 
