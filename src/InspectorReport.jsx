@@ -282,23 +282,32 @@ function InspectorReport({
 
   // Photo upload status subscription — flips badge state as uploads complete.
   useEffect(() => {
-    const unsub = photoManager.subscribeToPhotoStatus(({ photoId, status, filename, error }) => {
-      setActivityBlocks(prev => prev.map(block => {
-        let touched = false
-        const newWork = (block.workPhotos || []).map(p => {
-          if (!p || p.photoId !== photoId) return p
-          touched = true
-          return { ...p, uploadStatus: status, filename: filename || p.filename, uploadError: error || null }
-        })
-        const newTicket = (block.ticketPhotos || []).map(p => {
-          if (!p || p.photoId !== photoId) return p
-          touched = true
-          return { ...p, uploadStatus: status, filename: filename || p.filename, uploadError: error || null }
-        })
-        if (!touched) return block
-        return { ...block, workPhotos: newWork, ticketPhotos: newTicket }
-      }))
-    })
+    let unsub = () => {}
+    try {
+      unsub = photoManager.subscribeToPhotoStatus(({ photoId, status, filename, error }) => {
+        try {
+          setActivityBlocks(prev => prev.map(block => {
+            let touched = false
+            const newWork = (block.workPhotos || []).map(p => {
+              if (!p || p.photoId !== photoId) return p
+              touched = true
+              return { ...p, uploadStatus: status, filename: filename || p.filename, uploadError: error || null }
+            })
+            const newTicket = (block.ticketPhotos || []).map(p => {
+              if (!p || p.photoId !== photoId) return p
+              touched = true
+              return { ...p, uploadStatus: status, filename: filename || p.filename, uploadError: error || null }
+            })
+            if (!touched) return block
+            return { ...block, workPhotos: newWork, ticketPhotos: newTicket }
+          }))
+        } catch (e) {
+          console.warn('[photoStatusSub] handler error:', e)
+        }
+      })
+    } catch (e) {
+      console.warn('[photoStatusSub] subscribe error:', e)
+    }
     return unsub
   }, [])
 
@@ -318,7 +327,11 @@ function InspectorReport({
   // Keep latest form state in a ref so the autosave interval doesn't have to
   // re-bind on every keystroke.
   useEffect(() => {
-    formStateRef.current = collectFormState()
+    try {
+      formStateRef.current = collectFormState()
+    } catch (e) {
+      console.warn('[collectFormState] failed:', e)
+    }
   })
 
   // Recovery check on mount — show banner if a newer draft snapshot exists.
