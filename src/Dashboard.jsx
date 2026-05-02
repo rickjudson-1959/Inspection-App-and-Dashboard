@@ -295,8 +295,9 @@ function Dashboard({ onBackToReport }) {
   const [showEVM, setShowEVM] = useState(false)
 
   // Project / pipeline filter — sourced from daily_reports.pipeline values
-  const [pipelineOptions, setPipelineOptions] = useState([])
-  const [pipelineFilter, setPipelineFilter] = useState('')
+  // Hardcoded to CLX-2 — only one active project. Restore the dropdown when
+  // a second project is added.
+  const [pipelineFilter] = useState('CLX-2')
 
   // Active project metadata (loaded from dpr_config). Falls back to DEFAULT_PROJECT.
   const [projectInfo, setProjectInfo] = useState(DEFAULT_PROJECT)
@@ -316,33 +317,6 @@ function Dashboard({ onBackToReport }) {
   const [photoSearchDate, setPhotoSearchDate] = useState('')
   const [photoSearchLocation, setPhotoSearchLocation] = useState('')
   const [photoSearchInspector, setPhotoSearchInspector] = useState('')
-
-  // Load distinct project (pipeline) values for this org
-  useEffect(() => {
-    if (!organizationId) return
-    ;(async () => {
-      const { data } = await supabase
-        .from('daily_reports')
-        .select('pipeline, date')
-        .eq('organization_id', organizationId)
-        .not('pipeline', 'is', null)
-        .order('date', { ascending: false })
-        .limit(500)
-      const seen = new Set()
-      const pipelines = []
-      for (const row of data || []) {
-        const p = (row.pipeline || '').trim()
-        if (p && !seen.has(p)) {
-          seen.add(p)
-          pipelines.push(p)
-        }
-      }
-      setPipelineOptions(pipelines)
-      if (!pipelineFilter && pipelines.length > 0) {
-        setPipelineFilter(pipelines[0])
-      }
-    })()
-  }, [organizationId])
 
   // Load project metadata + rate cards
   useEffect(() => {
@@ -772,19 +746,9 @@ function Dashboard({ onBackToReport }) {
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            {pipelineOptions.length > 0 && (
-              <select
-                value={pipelineFilter}
-                onChange={(e) => setPipelineFilter(e.target.value)}
-                style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px' }}
-                title="Project / pipeline filter"
-              >
-                <option value="">All projects</option>
-                {pipelineOptions.map(p => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
-            )}
+            <span style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px', color: '#666', backgroundColor: '#fff' }}>
+              Project: <strong>{pipelineFilter}</strong>
+            </span>
             <select
               value={dateRange}
               onChange={(e) => setDateRange(parseInt(e.target.value))}

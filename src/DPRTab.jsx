@@ -23,8 +23,9 @@ export default function DPRTab() {
   // DPR data
   const [dprId, setDprId] = useState(null);
   const [status, setStatus] = useState('draft');
-  const [pipelineOptions, setPipelineOptions] = useState([]);
-  const [pipelineFilter, setPipelineFilter] = useState('');
+  // Hardcoded to CLX-2 for now — only one active project. When a second
+  // project is added, restore the multi-project dropdown.
+  const [pipelineFilter] = useState('CLX-2');
   // Pipeline length (metres) for the active project. Sourced from
   // project_baselines first, then dpr_config. null when neither is available.
   const [pipelineLength, setPipelineLength] = useState(null);
@@ -116,34 +117,6 @@ export default function DPRTab() {
       setPipelineLength(cfgLen > 0 ? cfgLen : null);
     })();
   }, [pipelineFilter, config]);
-
-  // Load distinct pipeline (project) values from this org's daily_reports
-  useEffect(() => {
-    if (!organizationId) return;
-    (async () => {
-      const { data } = await supabase
-        .from('daily_reports')
-        .select('pipeline, date')
-        .eq('organization_id', organizationId)
-        .not('pipeline', 'is', null)
-        .order('date', { ascending: false })
-        .limit(500);
-      const seen = new Set();
-      const pipelines = [];
-      for (const row of data || []) {
-        const p = (row.pipeline || '').trim();
-        if (p && !seen.has(p)) {
-          seen.add(p);
-          pipelines.push(p);
-        }
-      }
-      setPipelineOptions(pipelines);
-      // Default to most recent pipeline if none selected
-      if (!pipelineFilter && pipelines.length > 0) {
-        setPipelineFilter(pipelines[0]);
-      }
-    })();
-  }, [organizationId]);
 
   // Check for existing DPR when date changes
   useEffect(() => {
@@ -741,21 +714,9 @@ export default function DPRTab() {
           onChange={e => setReportDate(e.target.value)}
           style={{ padding: '6px 10px', border: '1px solid #ccc', borderRadius: 6, fontSize: 14 }}
         />
-        {pipelineOptions.length > 0 && (
-          <>
-            <label style={{ fontSize: 14, fontWeight: 600 }}>Project:</label>
-            <select
-              value={pipelineFilter}
-              onChange={e => setPipelineFilter(e.target.value)}
-              style={{ padding: '6px 10px', border: '1px solid #ccc', borderRadius: 6, fontSize: 14 }}
-            >
-              <option value="">All projects</option>
-              {pipelineOptions.map(p => (
-                <option key={p} value={p}>{p}</option>
-              ))}
-            </select>
-          </>
-        )}
+        <span style={{ fontSize: 13, color: '#666', padding: '6px 10px', backgroundColor: '#fff', border: '1px solid #ccc', borderRadius: 6 }}>
+          Project: <strong>{pipelineFilter}</strong>
+        </span>
         <button
           onClick={loadData}
           disabled={loading}

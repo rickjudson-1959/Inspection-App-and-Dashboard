@@ -426,8 +426,9 @@ function EVMDashboard() {
   const [dragMetrics, setDragMetrics] = useState(null)
 
   // Project / pipeline state
-  const [pipelineOptions, setPipelineOptions] = useState([])
-  const [pipelineFilter, setPipelineFilter] = useState('')
+  // Hardcoded to CLX-2 — only one active project. Restore the dropdown when
+  // a second project is added.
+  const [pipelineFilter] = useState('CLX-2')
   const [projectInfo, setProjectInfo] = useState(DEFAULT_PROJECT)
   const [labourRateMap, setLabourRateMap] = useState({})
   const [equipmentRateMap, setEquipmentRateMap] = useState({})
@@ -441,33 +442,6 @@ function EVMDashboard() {
     // Initial paint timer
     setTimeout(() => setLoading(false), 500)
   }, [])
-
-  // Load distinct pipelines for this org
-  useEffect(() => {
-    if (!organizationId) return
-    ;(async () => {
-      const { data } = await supabase
-        .from('daily_reports')
-        .select('pipeline, date')
-        .eq('organization_id', organizationId)
-        .not('pipeline', 'is', null)
-        .order('date', { ascending: false })
-        .limit(500)
-      const seen = new Set()
-      const pipelines = []
-      for (const row of data || []) {
-        const p = (row.pipeline || '').trim()
-        if (p && !seen.has(p)) {
-          seen.add(p)
-          pipelines.push(p)
-        }
-      }
-      setPipelineOptions(pipelines)
-      if (!pipelineFilter && pipelines.length > 0) {
-        setPipelineFilter(pipelines[0])
-      }
-    })()
-  }, [organizationId])
 
   // Load project metadata + master rate cards
   useEffect(() => {
@@ -777,20 +751,12 @@ function EVMDashboard() {
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
-            {pipelineOptions.length > 0 && (
-              <div>
-                <label style={{ fontSize: '11px', color: '#666', display: 'block' }}>Project</label>
-                <select
-                  value={pipelineFilter}
-                  onChange={(e) => setPipelineFilter(e.target.value)}
-                  style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px' }}
-                >
-                  {pipelineOptions.map(p => (
-                    <option key={p} value={p}>{p}</option>
-                  ))}
-                </select>
+            <div>
+              <label style={{ fontSize: '11px', color: '#666', display: 'block' }}>Project</label>
+              <div style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px', backgroundColor: '#fff' }}>
+                <strong>{pipelineFilter}</strong>
               </div>
-            )}
+            </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '11px', color: '#666' }}>Project Length</div>
               <div style={{ fontSize: '16px', fontWeight: 'bold' }}>
