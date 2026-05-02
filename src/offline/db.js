@@ -147,13 +147,17 @@ export async function savePhoto(photo) {
   const db = await getDB()
   const photoRecord = {
     id: photo.id || crypto.randomUUID(),
-    reportId: photo.reportId,
-    blockId: photo.blockId,
+    reportId: photo.reportId || null,
+    draftKey: photo.draftKey || null,
+    organizationId: photo.organizationId || null,
+    blockId: photo.blockId || null,
     type: photo.type, // 'ticket' or 'work'
     blob: photo.blob,
     metadata: photo.metadata || {},
-    syncStatus: 'pending',
-    createdAt: Date.now()
+    syncStatus: photo.syncStatus || 'pending',
+    uploadedFilename: photo.uploadedFilename || null,
+    error: photo.error || null,
+    createdAt: photo.createdAt || Date.now()
   }
   await db.put('photos', photoRecord)
   return photoRecord.id

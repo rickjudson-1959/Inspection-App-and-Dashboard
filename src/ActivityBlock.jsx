@@ -8,6 +8,7 @@ import { useOrgQuery } from './utils/queryHelpers.js'
 import { calculateShadowHours, calculateTotalBilledHours, calculateTotalShadowHours, calculateInertiaRatio, hasSystemicDelay, getDelayType } from './shadowAuditUtils.js'
 import { calculateSplit, getHolidayForDate } from './lib/contractCompliance.js'
 import { getAllVariants } from './utils/nameMatchingUtils.js'
+import { photoManager } from './offline'
 
 // Specialized log components
 import MainlineWeldData from './MainlineWeldData.jsx'
@@ -964,17 +965,62 @@ function ActivityBlock({
     setOcrError(null)
     setOcrSuccess(false)
 
-    // Append new photos to any existing ones (supports adding pages one at a time)
-    const existingPhotos = block.ticketPhotos || (block.ticketPhoto ? [block.ticketPhoto] : [])
-    // Only keep existing File objects (not saved URLs from DB)
-    const existingFiles = existingPhotos.filter(p => p instanceof File)
-    const allFiles = [...existingFiles, ...newFiles]
+    // Belt-and-suspenders: persist each new ticket photo to IndexedDB
+    // immediately and start background upload to Supabase Storage. This
+    // protects against page refresh / crash / deploy mid-session.
+    const draftKey = photoManager.makeDraftKey(currentUser?.email, selectedDate)
+    const newPhotoObjs = await Promise.all(newFiles.map(async (file) => {
+      try {
+        const photoId = await photoManager.persistPhoto({
+          blob: file,
+          type: 'ticket',
+          blockId,
+          reportId: reportId || null,
+          draftKey,
+          organizationId,
+          metadata: { originalName: file.name }
+        })
+        return {
+          photoId,
+          file,
+          originalName: file.name,
+          uploadStatus: 'pending',
+          filename: null,
+          uploadError: null
+        }
+      } catch (err) {
+        console.error('[processTicketOCR] persistPhoto failed:', err)
+        return {
+          photoId: null,
+          file,
+          originalName: file.name,
+          uploadStatus: 'failed',
+          filename: null,
+          uploadError: err.message
+        }
+      }
+    }))
 
-    // Save accumulated photos (first file as ticketPhoto for backward compat)
+    // Normalize existing photos: support both legacy File[] and the new
+    // PhotoObj[] shape so we don't lose anything during the migration.
+    const existingRaw = block.ticketPhotos || (block.ticketPhoto ? [block.ticketPhoto] : [])
+    const existingObjs = existingRaw
+      .map(p => {
+        if (!p) return null
+        if (p instanceof File) return { photoId: null, file: p, originalName: p.name, uploadStatus: null, filename: null, uploadError: null }
+        if (p.file instanceof File) return p
+        return p // already-saved photo from DB (has filename)
+      })
+      .filter(Boolean)
+
+    const allPhotos = [...existingObjs, ...newPhotoObjs]
+
+    // Keep block.ticketPhoto (singular) as a File for legacy code paths.
+    const firstFile = allPhotos.find(p => p?.file instanceof File)?.file || null
     if (!block.ticketPhoto || !(block.ticketPhoto instanceof File)) {
-      updateBlock(blockId, 'ticketPhoto', allFiles[0])
+      updateBlock(blockId, 'ticketPhoto', firstFile)
     }
-    updateBlock(blockId, 'ticketPhotos', allFiles)
+    updateBlock(blockId, 'ticketPhotos', allPhotos)
 
     // OCR only processes the NEW photos to avoid duplicating entries from previous pages
     const files = newFiles
@@ -2516,20 +2562,34 @@ Rules:
 
         {/* Ticket photo thumbnail — clickable to view full size */}
         {(block.ticketPhoto || block.savedTicketPhotoUrl || block.savedTicketPhotoUrls?.length > 0) && (() => {
-          // Build thumbnail URLs for display
-          const thumbUrls = []
+          // Build thumbnail URLs for display. Photos can be stored as:
+          //   - new PhotoObj { photoId, file, uploadStatus, filename, ... } (new flow)
+          //   - File directly (legacy)
+          //   - string URL (legacy)
+          // We also surface upload status badges (uploading/uploaded/failed).
+          const thumbs = [] // [{ url, status, error }]
           if (block.ticketPhotos?.length > 0) {
             block.ticketPhotos.forEach(p => {
-              if (p instanceof File) thumbUrls.push(URL.createObjectURL(p))
-              else if (typeof p === 'string' && p.startsWith('http')) thumbUrls.push(p)
+              if (!p) return
+              if (p instanceof File) {
+                thumbs.push({ url: URL.createObjectURL(p), status: null })
+              } else if (p.file instanceof File) {
+                thumbs.push({ url: URL.createObjectURL(p.file), status: p.uploadStatus, error: p.uploadError })
+              } else if (typeof p === 'string' && p.startsWith('http')) {
+                thumbs.push({ url: p, status: 'uploaded' })
+              } else if (p.filename) {
+                // Already-saved photo from DB; status considered uploaded
+                thumbs.push({ url: null, status: 'uploaded', filename: p.filename })
+              }
             })
           } else if (block.savedTicketPhotoUrls?.length > 0) {
-            thumbUrls.push(...block.savedTicketPhotoUrls)
+            block.savedTicketPhotoUrls.forEach(u => thumbs.push({ url: u, status: 'uploaded' }))
           } else if (block.ticketPhoto instanceof File) {
-            thumbUrls.push(URL.createObjectURL(block.ticketPhoto))
+            thumbs.push({ url: URL.createObjectURL(block.ticketPhoto), status: null })
           } else if (block.savedTicketPhotoUrl) {
-            thumbUrls.push(block.savedTicketPhotoUrl)
+            thumbs.push({ url: block.savedTicketPhotoUrl, status: 'uploaded' })
           }
+          const thumbUrls = thumbs.map(t => t.url).filter(Boolean)
           return (
             <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#f0f9f4', borderRadius: '6px', border: '1px solid #c3e6cb' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -2556,21 +2616,44 @@ Rules:
                 style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', cursor: 'pointer' }}
                 title="Click to view full size"
               >
-                {thumbUrls.map((url, idx) => (
-                  <img
-                    key={idx}
-                    src={url}
-                    alt={`Ticket page ${idx + 1}`}
-                    style={{
-                      width: thumbUrls.length === 1 ? '120px' : '80px',
-                      height: thumbUrls.length === 1 ? '160px' : '106px',
-                      objectFit: 'cover',
-                      borderRadius: '4px',
-                      border: '2px solid #c3e6cb',
-                      backgroundColor: '#fff'
-                    }}
-                  />
-                ))}
+                {thumbs.filter(t => t.url).map((t, idx) => {
+                  const badge = t.status === 'uploaded'
+                    ? { icon: '✓', color: '#155724', bg: '#d4edda', title: 'Saved to cloud' }
+                    : t.status === 'uploading'
+                      ? { icon: '⟳', color: '#856404', bg: '#fff3cd', title: 'Uploading…' }
+                      : t.status === 'failed'
+                        ? { icon: '!', color: '#721c24', bg: '#f8d7da', title: t.error || 'Upload failed — will retry on Save' }
+                        : t.status === 'pending'
+                          ? { icon: '…', color: '#856404', bg: '#fff3cd', title: 'Queued for upload' }
+                          : null
+                  return (
+                  <div key={idx} style={{ position: 'relative', display: 'inline-block' }}>
+                    <img
+                      src={t.url}
+                      alt={`Ticket page ${idx + 1}`}
+                      style={{
+                        width: thumbs.length === 1 ? '120px' : '80px',
+                        height: thumbs.length === 1 ? '160px' : '106px',
+                        objectFit: 'cover',
+                        borderRadius: '4px',
+                        border: '2px solid #c3e6cb',
+                        backgroundColor: '#fff'
+                      }}
+                    />
+                    {badge && (
+                      <span title={badge.title} style={{
+                        position: 'absolute', top: '4px', right: '4px',
+                        backgroundColor: badge.bg, color: badge.color,
+                        borderRadius: '50%', width: '20px', height: '20px',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '12px', fontWeight: 'bold',
+                        animation: t.status === 'uploading' ? 'spin 1s linear infinite' : 'none',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
+                      }}>{badge.icon}</span>
+                    )}
+                  </div>
+                  )
+                })}
               </div>
             </div>
           )
@@ -2623,16 +2706,25 @@ Rules:
               </div>
               <div style={{ overflow: 'auto', flex: 1 }}>
                 {block.ticketPhotos?.length > 1 ? (
-                  block.ticketPhotos.map((photo, idx) => (
+                  block.ticketPhotos.map((photo, idx) => {
+                    // Resolve src from either the new PhotoObj shape or legacy File/string
+                    let src = ''
+                    if (!photo) src = ''
+                    else if (photo instanceof File) src = URL.createObjectURL(photo)
+                    else if (photo.file instanceof File) src = URL.createObjectURL(photo.file)
+                    else if (typeof photo === 'string') src = photo
+                    else if (photo.filename) src = supabase.storage.from('ticket-photos').getPublicUrl(photo.filename)?.data?.publicUrl || ''
+                    return (
                     <div key={idx} style={{ marginBottom: idx < block.ticketPhotos.length - 1 ? '15px' : 0, borderBottom: idx < block.ticketPhotos.length - 1 ? '2px solid #dee2e6' : 'none', paddingBottom: idx < block.ticketPhotos.length - 1 ? '15px' : 0 }}>
                       <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '5px' }}>Page {idx + 1} of {block.ticketPhotos.length}</div>
                       <img
-                        src={photo instanceof File ? URL.createObjectURL(photo) : photo}
+                        src={src}
                         alt={`Contractor Ticket Page ${idx + 1}`}
                         style={{ maxWidth: '100%', objectFit: 'contain' }}
                       />
                     </div>
-                  ))
+                    )
+                  })
                 ) : block.savedTicketPhotoUrls?.length > 1 ? (
                   block.savedTicketPhotoUrls.map((url, idx) => (
                     <div key={idx} style={{ marginBottom: idx < block.savedTicketPhotoUrls.length - 1 ? '15px' : 0, borderBottom: idx < block.savedTicketPhotoUrls.length - 1 ? '2px solid #dee2e6' : 'none', paddingBottom: idx < block.savedTicketPhotoUrls.length - 1 ? '15px' : 0 }}>
@@ -3566,9 +3658,19 @@ Rules:
                 // Handle both new File objects and saved photos from database
                 const photoSrc = photo.file instanceof File ? URL.createObjectURL(photo.file) : photo.savedUrl || null
                 const photoName = photo.file instanceof File ? photo.file.name : (photo.originalName || photo.filename || 'Saved photo')
+                const status = photo.uploadStatus
+                const statusBadge = status === 'uploaded'
+                  ? { icon: '✓', color: '#155724', bg: '#d4edda', title: 'Saved to cloud' }
+                  : status === 'uploading'
+                    ? { icon: '⟳', color: '#856404', bg: '#fff3cd', title: 'Uploading…' }
+                    : status === 'failed'
+                      ? { icon: '!', color: '#721c24', bg: '#f8d7da', title: photo.uploadError || 'Upload failed — will retry on Save' }
+                      : status === 'pending'
+                        ? { icon: '…', color: '#856404', bg: '#fff3cd', title: 'Queued for upload' }
+                        : null // already-saved photo from DB or no status yet
                 return (
-                <tr key={photoIdx} style={{ backgroundColor: '#fff' }}>
-                  <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6', textAlign: 'center' }}>
+                <tr key={photo.photoId || photoIdx} style={{ backgroundColor: '#fff' }}>
+                  <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6', textAlign: 'center', position: 'relative' }}>
                     {photoSrc ? (
                     <img
                       src={photoSrc}
@@ -3578,6 +3680,16 @@ Rules:
                     />
                     ) : (
                     <span style={{ fontSize: '11px', color: '#999' }}>No preview</span>
+                    )}
+                    {statusBadge && (
+                      <span title={statusBadge.title} style={{
+                        position: 'absolute', top: '4px', right: '4px',
+                        backgroundColor: statusBadge.bg, color: statusBadge.color,
+                        borderRadius: '50%', width: '18px', height: '18px',
+                        display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: '11px', fontWeight: 'bold',
+                        animation: status === 'uploading' ? 'spin 1s linear infinite' : 'none'
+                      }}>{statusBadge.icon}</span>
                     )}
                   </td>
                   <td style={{ padding: '8px', borderBottom: '1px solid #dee2e6', fontSize: '12px' }}>{photoName}</td>

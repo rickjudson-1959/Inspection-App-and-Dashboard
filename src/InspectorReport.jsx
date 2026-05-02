@@ -14,7 +14,7 @@ import AskTheAgentPanel from './components/AskTheAgentPanel.jsx'
 import FeedbackButton from './components/FeedbackButton.jsx'
 
 // Offline mode imports
-import { syncManager, chainageCache, useOnlineStatus, useSyncStatus } from './offline'
+import { syncManager, chainageCache, useOnlineStatus, useSyncStatus, photoManager } from './offline'
 
 // Import constants from separate file
 import {
@@ -70,6 +70,129 @@ function InspectorReport({
   // Log version only once on mount
   useEffect(() => {
     console.log('[InspectorReport] Component mounted, version:', APP_VERSION)
+  }, [])
+
+  // Page-load recovery: scan IndexedDB for unsaved photos that belong to this
+  // report (or this draft) and merge them back into the matching activity
+  // block's workPhotos / ticketPhotos arrays. Runs once after blocks first
+  // populate. Photos persisted to IndexedDB via photoManager are safe even
+  // through a refresh / crash / deploy — this surfaces them again.
+  const [photoRecoveryDone, setPhotoRecoveryDone] = useState(false)
+  useEffect(() => {
+    if (photoRecoveryDone) return
+    if (!activityBlocks?.length) return
+    if (loadingReport) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const inspectorEmail = userProfile?.email || ''
+        let recovered = []
+        if (currentReportId) {
+          recovered = await photoManager.loadPhotosForReport(currentReportId)
+        } else if (inspectorEmail && selectedDate) {
+          const draftKey = photoManager.makeDraftKey(inspectorEmail, selectedDate)
+          recovered = await photoManager.loadPhotosForDraft(draftKey)
+        }
+        if (cancelled) return
+
+        // Filter out anything already archived (means the report saved successfully).
+        const live = (recovered || []).filter(p => p && p.syncStatus !== 'archived')
+        if (live.length === 0) {
+          setPhotoRecoveryDone(true)
+          return
+        }
+
+        // Bucket by blockId
+        const byBlock = new Map()
+        for (const p of live) {
+          if (!p.blockId) continue
+          if (!byBlock.has(p.blockId)) byBlock.set(p.blockId, [])
+          byBlock.get(p.blockId).push(p)
+        }
+
+        let mergedCount = 0
+        let orphanCount = 0
+        setActivityBlocks(prev => prev.map(block => {
+          const matches = byBlock.get(block.id)
+          if (!matches?.length) return block
+
+          // Existing photoIds we don't want to duplicate
+          const existingWorkIds = new Set((block.workPhotos || []).map(p => p?.photoId).filter(Boolean))
+          const existingTicketIds = new Set((block.ticketPhotos || []).map(p => p?.photoId).filter(Boolean))
+
+          const newWork = []
+          const newTicket = []
+          for (const rec of matches) {
+            const wrapper = {
+              photoId: rec.id,
+              file: rec.blob instanceof File ? rec.blob : new File([rec.blob], rec.metadata?.originalName || `${rec.type}_${rec.id}.jpg`, { type: rec.blob?.type || 'image/jpeg' }),
+              originalName: rec.metadata?.originalName || `${rec.type}_${rec.id}.jpg`,
+              uploadStatus: rec.syncStatus || 'pending',
+              filename: rec.uploadedFilename || null,
+              uploadError: rec.error || null,
+              location: rec.metadata?.location || '',
+              description: rec.metadata?.description || ''
+            }
+            if (rec.type === 'work' && !existingWorkIds.has(rec.id)) {
+              newWork.push(wrapper)
+              mergedCount++
+            } else if (rec.type === 'ticket' && !existingTicketIds.has(rec.id)) {
+              newTicket.push(wrapper)
+              mergedCount++
+            }
+            // Pending uploads should resume — kicker is harmless if already uploaded
+            if (wrapper.uploadStatus !== 'uploaded' && wrapper.uploadStatus !== 'archived') {
+              photoManager.awaitUpload(rec.id).catch(() => {})
+            }
+          }
+
+          if (!newWork.length && !newTicket.length) return block
+          return {
+            ...block,
+            workPhotos: [...(block.workPhotos || []), ...newWork],
+            ticketPhotos: [...(block.ticketPhotos || []), ...newTicket]
+          }
+        }))
+
+        // Anything whose blockId no longer matches a live block is an orphan.
+        const liveBlockIds = new Set(activityBlocks.map(b => b.id))
+        for (const p of live) {
+          if (!liveBlockIds.has(p.blockId)) orphanCount++
+        }
+        if (mergedCount > 0 || orphanCount > 0) {
+          console.log(`[photoRecovery] merged ${mergedCount} photo(s) from IndexedDB; ${orphanCount} orphan(s) (blockId no longer present)`)
+        }
+        setPhotoRecoveryDone(true)
+      } catch (err) {
+        console.warn('[photoRecovery] failed:', err)
+        setPhotoRecoveryDone(true)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [activityBlocks, currentReportId, userProfile, selectedDate, loadingReport, photoRecoveryDone])
+
+  // Subscribe to photo upload status changes — flips workPhotos / ticketPhotos
+  // status fields as uploads complete in the background. Effect lives here
+  // (early in component lifecycle) so it captures every status change.
+  useEffect(() => {
+    const unsub = photoManager.subscribeToPhotoStatus(({ photoId, status, filename, error }) => {
+      setActivityBlocks(prev => prev.map(block => {
+        let touched = false
+        const newWork = (block.workPhotos || []).map(p => {
+          if (p.photoId !== photoId) return p
+          touched = true
+          return { ...p, uploadStatus: status, filename: filename || p.filename, uploadError: error || null }
+        })
+        const newTicket = (block.ticketPhotos || []).map(p => {
+          if (!p || p.photoId !== photoId) return p
+          touched = true
+          return { ...p, uploadStatus: status, filename: filename || p.filename, uploadError: error || null }
+        })
+        if (!touched) return block
+        return { ...block, workPhotos: newWork, ticketPhotos: newTicket }
+      }))
+    })
+    return unsub
   }, [])
   const { signOut, userProfile } = useAuth()
   const [searchParams] = useSearchParams()
@@ -2572,22 +2695,76 @@ CRITICAL - Individual Entries Required:
     }
   }
 
-  function handleWorkPhotosSelect(blockId, event) {
-    const files = Array.from(event.target.files)
-    const newPhotos = files.map(file => ({
-      file: file,
+  // Belt-and-suspenders photo selection:
+  //   1. Persist blob to IndexedDB instantly (durable on device).
+  //   2. Push placeholder into React state with status='pending'.
+  //   3. photoManager fires the Storage upload in the background.
+  //   4. As status changes, we patch the matching React entry so the UI
+  //      shows a spinner → checkmark → error state per photo.
+  // Even if the page is refreshed/closed/auto-deployed mid-session, the
+  // blob is already in IndexedDB and will be recovered on next mount.
+  async function handleWorkPhotosSelect(blockId, event) {
+    const files = Array.from(event.target.files || [])
+    if (!files.length) return
+
+    const inspectorEmail = userProfile?.email || ''
+    const draftKey = photoManager.makeDraftKey(inspectorEmail, selectedDate)
+
+    // 1. Optimistic state push so thumbs appear immediately.
+    const placeholders = files.map(file => ({
+      photoId: null, // filled in by persistPhoto below
+      file,           // browser-memory blob, used for the thumbnail until upload finishes
+      filename: null,
+      uploadStatus: 'pending',
+      uploadError: null,
       location: '',
-      description: ''
+      description: '',
+      originalName: file.name
     }))
-    setActivityBlocks(prev => prev.map(block => {
-      if (block.id === blockId) {
-        return {
-          ...block,
-          workPhotos: [...block.workPhotos, ...newPhotos]
-        }
+    setActivityBlocks(prev => prev.map(block =>
+      block.id === blockId
+        ? { ...block, workPhotos: [...block.workPhotos, ...placeholders] }
+        : block
+    ))
+
+    // 2. Persist each blob and wire its photoId back into the placeholder.
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i]
+      try {
+        const photoId = await photoManager.persistPhoto({
+          blob: file,
+          type: 'work',
+          blockId,
+          reportId: currentReportId || null,
+          draftKey,
+          organizationId: getOrgId(),
+          metadata: { originalName: file.name, location: '', description: '' }
+        })
+        setActivityBlocks(prev => prev.map(block => {
+          if (block.id !== blockId) return block
+          // match by File reference (placeholder still has it)
+          return {
+            ...block,
+            workPhotos: block.workPhotos.map(p =>
+              p.photoId == null && p.file === file ? { ...p, photoId } : p
+            )
+          }
+        }))
+      } catch (err) {
+        console.error('[handleWorkPhotosSelect] persist failed:', err)
+        setActivityBlocks(prev => prev.map(block => {
+          if (block.id !== blockId) return block
+          return {
+            ...block,
+            workPhotos: block.workPhotos.map(p =>
+              p.photoId == null && p.file === file
+                ? { ...p, uploadStatus: 'failed', uploadError: err.message }
+                : p
+            )
+          }
+        }))
       }
-      return block
-    }))
+    }
   }
 
   function updatePhotoMetadata(blockId, photoIndex, field, value) {
@@ -2869,52 +3046,87 @@ CRITICAL - Individual Entries Required:
         await exportToExcel()
       }
 
-      // Upload photos for each activity block
+      // Photos for each activity block. Most are already in Supabase Storage
+      // (uploaded the moment the user selected them via photoManager).
+      // For any that haven't completed upload yet, we await the in-flight
+      // promise (or kick a fresh attempt for failed/pending). Save blocks
+      // until every photo either succeeds or definitively fails.
       const processedBlocks = []
-      
+      const photoIdsToReassociate = []
+
       for (const block of activityBlocks) {
         // Preserve existing ticket photo filename, or null if none
         let ticketPhotoFileName = block.savedTicketPhotoName || null
         let ticketPhotoFileNames = block.savedTicketPhotoNames || null
         const workPhotoData = []
 
-        // Upload NEW ticket photo(s) (if user uploaded/took new ones)
+        // ---------- TICKET PHOTOS ----------
         if (block.ticketPhotos && block.ticketPhotos.length > 0) {
-          // Upload all new File objects
           const uploadedNames = []
           for (let i = 0; i < block.ticketPhotos.length; i++) {
-            const file = block.ticketPhotos[i]
-            if (!(file instanceof File)) continue
-            const fileExt = file.name.split('.').pop()
-            const fileName = `ticket_${Date.now()}_${block.id}_p${i + 1}.${fileExt}`
-            const { error: uploadError } = await supabase.storage
-              .from('ticket-photos')
-              .upload(fileName, file)
-            if (uploadError) {
-              console.error(`Ticket photo page ${i + 1} upload error:`, uploadError)
-            } else {
-              uploadedNames.push(fileName)
-              console.log(`[Save] Uploaded ticket photo page ${i + 1}:`, fileName)
+            const item = block.ticketPhotos[i]
+            if (!item) continue
+
+            // Already-saved photo from DB or upload completed earlier
+            if (item.filename) {
+              uploadedNames.push(item.filename)
+              continue
+            }
+
+            // New PhotoObj from photoManager
+            if (item.photoId) {
+              if (item.uploadStatus === 'uploaded' && item.filename) {
+                uploadedNames.push(item.filename)
+                photoIdsToReassociate.push(item.photoId)
+                continue
+              }
+              // Wait for in-flight upload (or kick a retry if pending/failed)
+              const result = await photoManager.awaitUpload(item.photoId)
+              if (result.success && result.filename) {
+                uploadedNames.push(result.filename)
+                photoIdsToReassociate.push(item.photoId)
+              } else {
+                console.error(`[Save] ticket photo upload failed for ${item.photoId}:`, result.error)
+              }
+              continue
+            }
+
+            // Legacy File-only entry (no photoManager wrapper) — upload inline.
+            if (item instanceof File) {
+              const fileExt = item.name.split('.').pop()
+              const fileName = `ticket_${Date.now()}_${block.id}_p${i + 1}.${fileExt}`
+              const { error: uploadError } = await supabase.storage
+                .from('ticket-photos').upload(fileName, item)
+              if (!uploadError) uploadedNames.push(fileName)
+              else console.error(`[Save] legacy ticket photo upload error:`, uploadError)
+            } else if (item.file instanceof File) {
+              // PhotoObj with a File but no photoId (persist failed earlier) — upload inline
+              const fileExt = item.file.name.split('.').pop()
+              const fileName = `ticket_${Date.now()}_${block.id}_p${i + 1}.${fileExt}`
+              const { error: uploadError } = await supabase.storage
+                .from('ticket-photos').upload(fileName, item.file)
+              if (!uploadError) uploadedNames.push(fileName)
+              else console.error(`[Save] inline ticket photo upload error:`, uploadError)
             }
           }
           if (uploadedNames.length > 0) {
-            // Merge with any existing saved filenames (for adding pages to existing ticket)
             const existingNames = block.savedTicketPhotoNames || (ticketPhotoFileName ? [ticketPhotoFileName] : [])
-            const allNames = [...existingNames, ...uploadedNames]
-            ticketPhotoFileName = allNames[0]
-            ticketPhotoFileNames = allNames
-            console.log(`[Save] Ticket photos: ${existingNames.length} existing + ${uploadedNames.length} new = ${allNames.length} total`)
+            // De-dupe in case savedTicketPhotoNames already contained one of the photoManager-resolved filenames
+            const merged = [...new Set([...existingNames, ...uploadedNames])]
+            ticketPhotoFileName = merged[0]
+            ticketPhotoFileNames = merged
+            console.log(`[Save] Ticket photos: ${existingNames.length} existing + ${uploadedNames.length} resolved = ${merged.length} total`)
           }
         } else if (ticketPhotoFileName) {
           console.log('[Save] Preserving existing ticket photo:', ticketPhotoFileName)
         }
 
-        // Upload work photos (new ones) and preserve existing ones
+        // ---------- WORK PHOTOS ----------
         for (let i = 0; i < block.workPhotos.length; i++) {
           const photo = block.workPhotos[i]
 
           // Already-saved photo from database — preserve metadata without re-uploading
-          if (photo.filename && !(photo.file instanceof File)) {
+          if (photo.filename && !(photo.file instanceof File) && !photo.photoId) {
             workPhotoData.push({
               filename: photo.filename,
               originalName: photo.originalName || photo.filename,
@@ -2928,7 +3140,34 @@ CRITICAL - Individual Entries Required:
             continue
           }
 
-          // New photo — upload to storage
+          // New photoManager-managed photo — already uploading or uploaded in background
+          if (photo.photoId) {
+            let resolvedFilename = photo.filename
+            if (photo.uploadStatus !== 'uploaded' || !resolvedFilename) {
+              const result = await photoManager.awaitUpload(photo.photoId)
+              if (result.success && result.filename) {
+                resolvedFilename = result.filename
+              } else {
+                console.error('Work photo upload failed for', photo.photoId, result.error)
+                alert(`Failed to upload photo "${photo.originalName || photo.file?.name || 'unknown'}": ${result.error || 'unknown error'}`)
+                continue
+              }
+            }
+            photoIdsToReassociate.push(photo.photoId)
+            workPhotoData.push({
+              filename: resolvedFilename,
+              originalName: photo.originalName || photo.file?.name || resolvedFilename,
+              location: photo.location || '',
+              description: photo.description || '',
+              inspector: inspectorName,
+              date: selectedDate,
+              spread: spread,
+              afe: afe
+            })
+            continue
+          }
+
+          // Legacy fallback — photo without a photoId (rare; shouldn't happen post-migration).
           const fileExt = photo.file.name.split('.').pop()
           const fileName = `work_${Date.now()}_${block.id}_${i}.${fileExt}`
           const { error: uploadError } = await supabase.storage
@@ -3121,6 +3360,15 @@ CRITICAL - Individual Entries Required:
           throw new Error('Update failed - no rows affected. Report ID may not exist.')
         }
 
+        // Re-associate IndexedDB photo records with this report ID and mark
+        // them archived so they don't reappear in draft recovery sweeps.
+        try {
+          await photoManager.reassociatePhotos({ photoIds: photoIdsToReassociate, reportId: currentReportId })
+          for (const pid of photoIdsToReassociate) {
+            await photoManager.markPhotoArchived(pid)
+          }
+        } catch (e) { console.warn('[Save] photo reassociate error:', e) }
+
         // Persist health score separately (non-blocking, tolerates missing column)
         persistHealthScore(currentReportId)
 
@@ -3217,6 +3465,16 @@ CRITICAL - Individual Entries Required:
 
         const ticketId = insertedTicket.id
         setCurrentReportId(ticketId)
+
+        // Re-associate any draft-keyed photos in IndexedDB with the now-saved
+        // report ID and mark them archived so they don't reappear in draft
+        // recovery sweeps.
+        try {
+          await photoManager.reassociatePhotos({ photoIds: photoIdsToReassociate, reportId: ticketId })
+          for (const pid of photoIdsToReassociate) {
+            await photoManager.markPhotoArchived(pid)
+          }
+        } catch (e) { console.warn('[Save] photo reassociate error:', e) }
 
         // Persist health score separately (non-blocking, tolerates missing column)
         persistHealthScore(ticketId)
