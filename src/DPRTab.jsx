@@ -25,6 +25,9 @@ export default function DPRTab() {
   const [status, setStatus] = useState('draft');
   const [pipelineOptions, setPipelineOptions] = useState([]);
   const [pipelineFilter, setPipelineFilter] = useState('');
+  // Pipeline length (metres) for the active project. Sourced from
+  // project_baselines first, then dpr_config. null when neither is available.
+  const [pipelineLength, setPipelineLength] = useState(null);
   const [progressData, setProgressData] = useState([]);
   const [weldData, setWeldData] = useState({
     mainline: { today: 0, previous: 0, to_date: 0 },
@@ -85,6 +88,34 @@ export default function DPRTab() {
       setLoadingConfig(false);
     })();
   }, [organizationId, pipelineFilter]);
+
+  // Resolve pipeline length: priority is project_baselines (max planned_metres
+  // across activities for the active pipeline), then dpr_config.pipeline_length_metres.
+  useEffect(() => {
+    if (!pipelineFilter) {
+      // No project selected — fall back to dpr_config if available
+      const cfgLen = parseFloat(config?.pipeline_length_metres);
+      setPipelineLength(cfgLen > 0 ? cfgLen : null);
+      return;
+    }
+    (async () => {
+      const { data } = await supabase
+        .from('project_baselines')
+        .select('planned_metres')
+        .eq('pipeline', pipelineFilter)
+        .eq('is_active', true);
+      const maxBaselineLen = (data || []).reduce(
+        (m, r) => Math.max(m, parseFloat(r.planned_metres) || 0),
+        0
+      );
+      if (maxBaselineLen > 0) {
+        setPipelineLength(maxBaselineLen);
+        return;
+      }
+      const cfgLen = parseFloat(config?.pipeline_length_metres);
+      setPipelineLength(cfgLen > 0 ? cfgLen : null);
+    })();
+  }, [pipelineFilter, config]);
 
   // Load distinct pipeline (project) values from this org's daily_reports
   useEffect(() => {
@@ -281,24 +312,31 @@ export default function DPRTab() {
       const prevWelds = prevDprs?.weld_data || {};
 
       // 5. Build progress data rows
-      const pipelineLength = parseFloat(config.pipeline_length_metres) || 1;
+      // Definitions:
+      //   Today      = todayToKp - todayFromKp (metres of work performed today)
+      //   Previous   = yesterday's cumulative metres-to-date (from progress log)
+      //   Total      = Previous + Today
+      //   % Complete = Total / pipelineLength (only if pipelineLength is known)
+      const denominator = pipelineLength && pipelineLength > 0 ? pipelineLength : null;
       const newProgressData = (config.activities || []).map(activity => {
         const todayData = activityMap[activity.key];
-        const prevToKp = prevCumulative[activity.key] || 0;
-        const todayFromKp = todayData?.from_kp || prevToKp || 0;
-        const todayToKp = todayData?.to_kp || prevToKp || 0;
-        const todayMetres = todayToKp > prevToKp ? todayToKp - prevToKp : 0;
-        const totalToDate = todayToKp;
+        const prevTotal = prevCumulative[activity.key] || 0;
+        const todayFromKp = todayData?.from_kp ?? null;
+        const todayToKp = todayData?.to_kp ?? null;
+        const todayMetres = (todayToKp != null && todayFromKp != null)
+          ? Math.max(0, todayToKp - todayFromKp)
+          : 0;
+        const totalToDate = prevTotal + todayMetres;
 
         return {
           activity_key: activity.key,
           label: activity.label,
-          from_kp: todayFromKp,
-          to_kp: todayToKp,
+          from_kp: todayFromKp ?? 0,
+          to_kp: todayToKp ?? 0,
           today_metres: todayMetres,
-          previous_to_kp: prevToKp,
+          previous_to_kp: prevTotal,
           total_to_date: totalToDate,
-          pct_complete: pipelineLength > 0 ? (totalToDate / pipelineLength) : 0,
+          pct_complete: denominator ? totalToDate / denominator : null,
         };
       });
 
@@ -434,17 +472,17 @@ export default function DPRTab() {
     doc.text(`Date: ${formatDate(reportDate)}`, pageWidth - margin - 50, y);
     y += 10;
 
-    // Progress Table
-    const pipelineLength = parseFloat(config?.pipeline_length_metres) || 0;
+    // Progress Table — uses the resolved pipelineLength state (project_baselines or dpr_config)
+    const lengthForPdf = pipelineLength && pipelineLength > 0 ? pipelineLength : null;
     const progressRows = progressData.map(row => [
       row.label,
       formatKP(row.from_kp),
       formatKP(row.to_kp),
       Math.round(row.today_metres).toLocaleString(),
-      formatKP(row.previous_to_kp),
-      formatKP(row.to_kp),
-      pipelineLength ? pipelineLength.toLocaleString() : '',
-      row.pct_complete ? (row.pct_complete * 100).toFixed(1) + '%' : '0.0%',
+      Math.round(row.previous_to_kp).toLocaleString(),
+      Math.round(row.total_to_date).toLocaleString(),
+      lengthForPdf ? Math.round(lengthForPdf).toLocaleString() : '—',
+      row.pct_complete == null ? '—' : (row.pct_complete * 100).toFixed(1) + '%',
     ]);
 
     doc.autoTable({
@@ -639,12 +677,13 @@ export default function DPRTab() {
   const updateProgressRow = (index, field, value) => {
     const updated = [...progressData];
     updated[index] = { ...updated[index], [field]: parseFloat(value) || 0 };
-    // Recalculate metres and pct
+    // Recalculate using same definitions as loadData:
+    //   Today = to_kp - from_kp; Total = previous + today; % = total / pipelineLength
     const row = updated[index];
-    row.today_metres = Math.max(0, (row.to_kp || 0) - (row.previous_to_kp || 0));
-    row.total_to_date = row.to_kp || 0;
-    const pipeLen = parseFloat(config?.pipeline_length_metres) || 1;
-    row.pct_complete = pipeLen > 0 ? row.total_to_date / pipeLen : 0;
+    row.today_metres = Math.max(0, (row.to_kp || 0) - (row.from_kp || 0));
+    row.total_to_date = (row.previous_to_kp || 0) + row.today_metres;
+    const denominator = pipelineLength && pipelineLength > 0 ? pipelineLength : null;
+    row.pct_complete = denominator ? row.total_to_date / denominator : null;
     setProgressData(updated);
   };
 
@@ -767,11 +806,11 @@ export default function DPRTab() {
                   <input type="number" value={row.to_kp || ''} onChange={e => updateProgressRow(i, 'to_kp', e.target.value)} style={cellInput} />
                 </td>
                 <td style={{ ...tdStyleNum, fontWeight: 600 }}>{Math.round(row.today_metres).toLocaleString()}</td>
-                <td style={tdStyleNum}>{formatKP(row.previous_to_kp)}</td>
-                <td style={tdStyleNum}>{formatKP(row.to_kp)}</td>
-                <td style={tdStyleNum}>{config.pipeline_length_metres ? parseFloat(config.pipeline_length_metres).toLocaleString() : ''}</td>
-                <td style={{ ...tdStyleNum, fontWeight: 600, color: row.pct_complete >= 1 ? '#2e7d32' : '#333' }}>
-                  {(row.pct_complete * 100).toFixed(1)}%
+                <td style={tdStyleNum}>{Math.round(row.previous_to_kp).toLocaleString()}</td>
+                <td style={tdStyleNum}>{Math.round(row.total_to_date).toLocaleString()}</td>
+                <td style={tdStyleNum}>{pipelineLength ? Math.round(pipelineLength).toLocaleString() : '—'}</td>
+                <td style={{ ...tdStyleNum, fontWeight: 600, color: (row.pct_complete ?? 0) >= 1 ? '#2e7d32' : '#333' }}>
+                  {row.pct_complete == null ? '—' : (row.pct_complete * 100).toFixed(1) + '%'}
                 </td>
               </tr>
             ))}
