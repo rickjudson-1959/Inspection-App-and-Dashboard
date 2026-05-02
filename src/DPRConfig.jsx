@@ -61,7 +61,7 @@ const ACTIVITY_TYPE_MAP = {
   'Other': 'other',
 };
 
-export { ACTIVITY_TYPE_MAP };
+export { ACTIVITY_TYPE_MAP, DEFAULT_ACTIVITIES, DEFAULT_SUPPLEMENTARY };
 
 export default function DPRConfig() {
   const { organizationId } = useOrg();

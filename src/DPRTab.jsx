@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from './supabase';
 import { useOrg } from './contexts/OrgContext';
-import { ACTIVITY_TYPE_MAP } from './DPRConfig';
+import { ACTIVITY_TYPE_MAP, DEFAULT_ACTIVITIES, DEFAULT_SUPPLEMENTARY } from './DPRConfig';
+import { parseKP as parseKPToMetres } from './kpUtils';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
@@ -22,6 +23,8 @@ export default function DPRTab() {
   // DPR data
   const [dprId, setDprId] = useState(null);
   const [status, setStatus] = useState('draft');
+  const [pipelineOptions, setPipelineOptions] = useState([]);
+  const [pipelineFilter, setPipelineFilter] = useState('');
   const [progressData, setProgressData] = useState([]);
   const [weldData, setWeldData] = useState({
     mainline: { today: 0, previous: 0, to_date: 0 },
@@ -40,7 +43,10 @@ export default function DPRTab() {
   const [preparedBy, setPreparedBy] = useState('');
   const [reportCount, setReportCount] = useState(0);
 
-  // Load DPR config
+  // Load DPR config (org-scoped). Synthesizes a fallback config from defaults
+  // when no row exists, so the tab always loads. The `pipeline` filter is the
+  // project selector — dpr_config is shared org-wide, project_name is just
+  // a display label.
   useEffect(() => {
     if (!organizationId) return;
     (async () => {
@@ -50,9 +56,61 @@ export default function DPRTab() {
         .select('*')
         .eq('organization_id', organizationId)
         .maybeSingle();
-      setConfig(data);
-      if (data?.prepared_by_default) setPreparedBy(data.prepared_by_default);
+
+      if (data) {
+        // Real config — use it, but ensure activities/sections are populated.
+        setConfig({
+          ...data,
+          activities: data.activities?.length ? data.activities : DEFAULT_ACTIVITIES,
+          supplementary_sections: data.supplementary_sections?.length
+            ? data.supplementary_sections
+            : DEFAULT_SUPPLEMENTARY
+        });
+        if (data.prepared_by_default) setPreparedBy(data.prepared_by_default);
+      } else {
+        // No config row for this org — synthesize one from defaults so the
+        // DPR data tab still works. Project name follows the active pipeline.
+        setConfig({
+          id: null,
+          organization_id: organizationId,
+          project_name: pipelineFilter || 'Pipeline Project',
+          contractor_name: '',
+          pipeline_length_metres: 0,
+          activities: DEFAULT_ACTIVITIES,
+          supplementary_sections: DEFAULT_SUPPLEMENTARY,
+          distribution_emails: [],
+          prepared_by_default: ''
+        });
+      }
       setLoadingConfig(false);
+    })();
+  }, [organizationId, pipelineFilter]);
+
+  // Load distinct pipeline (project) values from this org's daily_reports
+  useEffect(() => {
+    if (!organizationId) return;
+    (async () => {
+      const { data } = await supabase
+        .from('daily_reports')
+        .select('pipeline, date')
+        .eq('organization_id', organizationId)
+        .not('pipeline', 'is', null)
+        .order('date', { ascending: false })
+        .limit(500);
+      const seen = new Set();
+      const pipelines = [];
+      for (const row of data || []) {
+        const p = (row.pipeline || '').trim();
+        if (p && !seen.has(p)) {
+          seen.add(p);
+          pipelines.push(p);
+        }
+      }
+      setPipelineOptions(pipelines);
+      // Default to most recent pipeline if none selected
+      if (!pipelineFilter && pipelines.length > 0) {
+        setPipelineFilter(pipelines[0]);
+      }
     })();
   }, [organizationId]);
 
@@ -97,14 +155,33 @@ export default function DPRTab() {
     setLoading(true);
 
     try {
-      // 1. Fetch approved reports for the selected date
-      const { data: reports, error: repErr } = await supabase
-        .from('daily_reports')
-        .select('id, report_date, activity_blocks, weather_conditions, weather_temp_high, weather_temp_low')
+      // 1a. Find report IDs whose report_status is submitted/approved/published
+      const { data: statusRows, error: statusErr } = await supabase
+        .from('report_status')
+        .select('report_id')
         .eq('organization_id', organizationId)
-        .eq('report_date', reportDate)
-        .in('status', ['approved', 'published']);
+        .in('status', ['submitted', 'approved', 'published']);
+      if (statusErr) throw statusErr;
+      const allowedIds = (statusRows || []).map(r => r.report_id);
 
+      // 1b. Fetch reports for the selected date, filtered by status + pipeline
+      let repQuery = supabase
+        .from('daily_reports')
+        .select('id, date, pipeline, activity_blocks, weather, temp_high, temp_low')
+        .eq('organization_id', organizationId)
+        .eq('date', reportDate);
+      if (pipelineFilter) {
+        repQuery = repQuery.eq('pipeline', pipelineFilter);
+      }
+      if (allowedIds.length > 0) {
+        repQuery = repQuery.in('id', allowedIds);
+      } else {
+        // No allowed reports — short-circuit
+        setReportCount(0);
+        setLoading(false);
+        return;
+      }
+      const { data: reports, error: repErr } = await repQuery;
       if (repErr) throw repErr;
       setReportCount(reports?.length || 0);
 
@@ -121,14 +198,14 @@ export default function DPRTab() {
 
       for (const report of reports) {
         // Weather — take from first report that has it
-        if (!weatherSet.summary && report.weather_conditions) {
-          weatherSet.summary = report.weather_conditions;
+        if (!weatherSet.summary && report.weather) {
+          weatherSet.summary = report.weather;
         }
-        if (!weatherSet.high && report.weather_temp_high) {
-          weatherSet.high = report.weather_temp_high;
+        if (!weatherSet.high && report.temp_high !== null && report.temp_high !== undefined) {
+          weatherSet.high = String(report.temp_high);
         }
-        if (!weatherSet.low && report.weather_temp_low) {
-          weatherSet.low = report.weather_temp_low;
+        if (!weatherSet.low && report.temp_low !== null && report.temp_low !== undefined) {
+          weatherSet.low = String(report.temp_low);
         }
 
         const blocks = report.activity_blocks || [];
@@ -137,8 +214,9 @@ export default function DPRTab() {
           const dprKey = ACTIVITY_TYPE_MAP[activityType];
 
           if (dprKey && config.activities?.find(a => a.key === dprKey)) {
-            const fromKp = parseFloat(block.fromKP || block.from_kp) || null;
-            const toKp = parseFloat(block.toKP || block.to_kp) || null;
+            // Inspector report stores KPs as startKP / endKP (string like "12+345")
+            const fromKp = parseKPToMetres(block.startKP || block.fromKP || block.from_kp);
+            const toKp = parseKPToMetres(block.endKP || block.toKP || block.to_kp);
 
             if (fromKp !== null || toKp !== null) {
               if (!activityMap[dprKey]) {
@@ -153,15 +231,16 @@ export default function DPRTab() {
               }
             }
 
-            // Weld counts from welding activities
+            // Weld counts — inspector report stores welds inside block.weldData.weldsToday
+            const weldsToday = parseInt(block.weldData?.weldsToday) || parseInt(block.weldCount) || parseInt(block.weld_count) || 0;
             if (activityType === 'Welding - Mainline') {
-              weldCounts.mainline += parseInt(block.weldCount || block.weld_count) || 0;
+              weldCounts.mainline += weldsToday;
             } else if (activityType === 'Welding - Poor Boy') {
-              weldCounts.poor_boy += parseInt(block.weldCount || block.weld_count) || 0;
+              weldCounts.poor_boy += weldsToday;
             } else if (activityType === 'Welding - Section Crew') {
-              weldCounts.section += parseInt(block.weldCount || block.weld_count) || 0;
+              weldCounts.section += weldsToday;
             } else if (activityType === 'Welding - Tie-in') {
-              weldCounts.tie_in += parseInt(block.weldCount || block.weld_count) || 0;
+              weldCounts.tie_in += weldsToday;
             }
           }
 
@@ -282,7 +361,7 @@ export default function DPRTab() {
     }
 
     setLoading(false);
-  }, [organizationId, config, reportDate]);
+  }, [organizationId, config, reportDate, pipelineFilter]);
 
   // ─── SAVE DRAFT ───
   const saveDraft = async () => {
@@ -595,16 +674,7 @@ export default function DPRTab() {
   };
 
   // ─── RENDER ───
-  if (loadingConfig) return <div style={{ padding: 20, color: '#888' }}>Loading...</div>;
-
-  if (!config) {
-    return (
-      <div style={{ padding: 20, textAlign: 'center', color: '#888' }}>
-        <p style={{ fontSize: 16, marginBottom: 8 }}>DPR not configured yet.</p>
-        <p style={{ fontSize: 14 }}>Go to the Setup tab and configure the Daily Progress Report section first.</p>
-      </div>
-    );
-  }
+  if (loadingConfig || !config) return <div style={{ padding: 20, color: '#888' }}>Loading...</div>;
 
   const statusColors = { draft: '#ff9800', published: '#2196f3', sent: '#4caf50' };
 
@@ -634,6 +704,21 @@ export default function DPRTab() {
           onChange={e => setReportDate(e.target.value)}
           style={{ padding: '6px 10px', border: '1px solid #ccc', borderRadius: 6, fontSize: 14 }}
         />
+        {pipelineOptions.length > 0 && (
+          <>
+            <label style={{ fontSize: 14, fontWeight: 600 }}>Project:</label>
+            <select
+              value={pipelineFilter}
+              onChange={e => setPipelineFilter(e.target.value)}
+              style={{ padding: '6px 10px', border: '1px solid #ccc', borderRadius: 6, fontSize: 14 }}
+            >
+              <option value="">All projects</option>
+              {pipelineOptions.map(p => (
+                <option key={p} value={p}>{p}</option>
+              ))}
+            </select>
+          </>
+        )}
         <button
           onClick={loadData}
           disabled={loading}

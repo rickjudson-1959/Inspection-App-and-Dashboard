@@ -11,27 +11,30 @@ import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
 import { aggregateReliabilityScore, calculateTotalBilledHours, calculateTotalShadowHours, calculateValueLost, aggregateValueLostByParty } from './shadowAuditUtils.js'
 import { MetricInfoIcon, MetricIntegrityModal, useMetricIntegrityModal } from './components/MetricIntegrityInfo.jsx'
 import { useOrgQuery } from './utils/queryHelpers.js'
-import { useOrgPath } from './contexts/OrgContext.jsx'
+import { useOrgPath, useOrg } from './contexts/OrgContext.jsx'
+import { fetchRateMaps } from './evmCalculations.js'
 import ProjectCalendar from './components/ProjectCalendar.jsx'
 
 // ============================================================================
-// CMT DASHBOARD - Eagle Mountain - Woodfibre Gas Pipeline (EGP)
-// FortisBC | NPS 24 | 47km Mainline + 9km TBM Tunnel
+// CMT DASHBOARD — project-aware (Construction Management Tracking)
+// Project name, contractor, pipeline length, etc. are loaded from dpr_config
+// per organization. The default fallback is used only when no config exists.
 // ============================================================================
 
-// EGP Project Configuration
-const EGP_PROJECT = {
-  name: 'FortisBC EGP Project',
-  fullName: 'Eagle Mountain - Woodfibre Gas Pipeline',
-  client: 'FortisBC Energy Inc.',
-  contractor: 'SA Energy Group (Somerville Aecon JV)',
-  totalBudget: 400000000,
-  totalLength: 56000,
-  mainlineLength: 47000,
-  tunnelLength: 9000,
-  pipeSpec: 'NPS 24 x 0.500" WT, X70',
-  baselineStart: '2025-07-01',
-  baselineFinish: '2026-06-30'
+// Default project shape used if dpr_config / project record can't be loaded.
+// Treat this as a placeholder, not a real project.
+const DEFAULT_PROJECT = {
+  name: 'Pipeline Project',
+  fullName: '',
+  client: '',
+  contractor: '',
+  totalBudget: 0,
+  totalLength: 0,
+  mainlineLength: 0,
+  tunnelLength: 0,
+  pipeSpec: '',
+  baselineStart: '',
+  baselineFinish: ''
 }
 
 // Phase colors - 15 activities in construction sequence order
@@ -98,10 +101,13 @@ const plannedTargets = {
   'Other': { metres: 47000, costPerMetre: 20, rate: '0 m/day' }
 }
 
-// Generate EGP-specific demo data
-function generateEGPDemoData(dateRange) {
+// Generate placeholder demo data when no real reports exist for the selected project.
+// Caller passes `projectInfo` so the demo respects the active project's start date.
+function generateDemoData(dateRange, projectInfo = DEFAULT_PROJECT) {
   const today = new Date()
-  const projectStart = new Date(EGP_PROJECT.baselineStart)
+  const projectStart = projectInfo.baselineStart
+    ? new Date(projectInfo.baselineStart)
+    : new Date(today.getTime() - dateRange * 24 * 60 * 60 * 1000)
   
   // Generate daily data for the selected range
   const dailyArray = []
@@ -288,6 +294,17 @@ function Dashboard({ onBackToReport }) {
   const [selectedCrewType, setSelectedCrewType] = useState('Welding')
   const [showEVM, setShowEVM] = useState(false)
 
+  // Project / pipeline filter — sourced from daily_reports.pipeline values
+  const [pipelineOptions, setPipelineOptions] = useState([])
+  const [pipelineFilter, setPipelineFilter] = useState('')
+
+  // Active project metadata (loaded from dpr_config). Falls back to DEFAULT_PROJECT.
+  const [projectInfo, setProjectInfo] = useState(DEFAULT_PROJECT)
+
+  // Master rate cards (labour + equipment). Empty maps mean fall through to defaults.
+  const [labourRateMap, setLabourRateMap] = useState({})
+  const [equipmentRateMap, setEquipmentRateMap] = useState({})
+
   // Metric Integrity Info modal
   const metricInfoModal = useMetricIntegrityModal()
   const [activeTab, setActiveTab] = useState('overview')
@@ -300,14 +317,67 @@ function Dashboard({ onBackToReport }) {
   const [photoSearchLocation, setPhotoSearchLocation] = useState('')
   const [photoSearchInspector, setPhotoSearchInspector] = useState('')
 
+  // Load distinct project (pipeline) values for this org
   useEffect(() => {
-    console.log('[Dashboard] useEffect - isReady:', isReady(), 'orgId:', organizationId, 'isSuperAdmin:', isSuperAdmin)
+    if (!organizationId) return
+    ;(async () => {
+      const { data } = await supabase
+        .from('daily_reports')
+        .select('pipeline, date')
+        .eq('organization_id', organizationId)
+        .not('pipeline', 'is', null)
+        .order('date', { ascending: false })
+        .limit(500)
+      const seen = new Set()
+      const pipelines = []
+      for (const row of data || []) {
+        const p = (row.pipeline || '').trim()
+        if (p && !seen.has(p)) {
+          seen.add(p)
+          pipelines.push(p)
+        }
+      }
+      setPipelineOptions(pipelines)
+      if (!pipelineFilter && pipelines.length > 0) {
+        setPipelineFilter(pipelines[0])
+      }
+    })()
+  }, [organizationId])
+
+  // Load project metadata + rate cards
+  useEffect(() => {
+    if (!organizationId) return
+    ;(async () => {
+      const { data: cfg } = await supabase
+        .from('dpr_config')
+        .select('project_name, contractor_name, pipeline_length_metres')
+        .eq('organization_id', organizationId)
+        .maybeSingle()
+      if (cfg) {
+        setProjectInfo(prev => ({
+          ...prev,
+          name: cfg.project_name || prev.name,
+          fullName: cfg.project_name || prev.fullName,
+          contractor: cfg.contractor_name || prev.contractor,
+          totalLength: cfg.pipeline_length_metres || prev.totalLength,
+          mainlineLength: cfg.pipeline_length_metres || prev.mainlineLength
+        }))
+      }
+
+      const { labourRateMap: lm, equipmentRateMap: em } = await fetchRateMaps(organizationId)
+      setLabourRateMap(lm)
+      setEquipmentRateMap(em)
+    })()
+  }, [organizationId])
+
+  useEffect(() => {
+    console.log('[Dashboard] useEffect - isReady:', isReady(), 'orgId:', organizationId, 'isSuperAdmin:', isSuperAdmin, 'pipeline:', pipelineFilter)
     if (isReady()) {
       loadReports()
     } else {
       console.log('[Dashboard] Not ready, skipping loadReports')
     }
-  }, [dateRange, organizationId, isSuperAdmin])
+  }, [dateRange, organizationId, isSuperAdmin, pipelineFilter])
 
   async function loadReports() {
     setLoading(true)
@@ -324,6 +394,11 @@ function Dashboard({ onBackToReport }) {
       // Add organization filter
       query = addOrgFilter(query)
 
+      // Project filter (matches inspector report's pipeline column)
+      if (pipelineFilter) {
+        query = query.eq('pipeline', pipelineFilter)
+      }
+
       const { data, error } = await query
 
       if (!error && data) {
@@ -335,24 +410,45 @@ function Dashboard({ onBackToReport }) {
     setLoading(false)
   }
 
+  // Resolve labour rate: 1) inspector entry.rate, 2) master rate card, 3) $85 fallback
+  const resolveLabourRate = (entry) => {
+    if (entry.rate) return entry.rate
+    const key = (entry.classification || '').trim().toUpperCase()
+    if (key && labourRateMap[key]) return labourRateMap[key]
+    return 85
+  }
+
+  // Resolve equipment rate (hourly):
+  //   1) entry.rate (inspector-supplied — assumed hourly)
+  //   2) master equipment_rates.rate_daily / 10
+  //   3) $165 fallback
+  const resolveEquipmentRate = (entry) => {
+    if (entry.rate) return entry.rate
+    const key = (entry.type || entry.equipment_type || '').trim().toUpperCase()
+    if (key && equipmentRateMap[key]) return equipmentRateMap[key] / 10
+    return 165
+  }
+
   // Use demo data if no real reports
   const metrics = useMemo(() => {
     if (reports.length === 0) {
-      return generateEGPDemoData(dateRange)
+      return generateDemoData(dateRange, projectInfo)
     }
-    
-    // Calculate from real reports (keeping existing logic)
+
+    // Calculate from real reports
     const dailyData = {}
     const phaseProgress = {}
     const phaseCosts = {}
     let totalLabourHours = 0
+    let totalLabourCost = 0
     let totalEquipmentHours = 0
+    let totalEquipmentCost = 0
     let totalTimeLost = 0
 
     reports.forEach(report => {
       const date = report.date
       if (!date) return
-      
+
       if (!dailyData[date]) {
         dailyData[date] = { date, totalCost: 0, phases: {}, labourHours: 0, equipmentHours: 0 }
       }
@@ -364,8 +460,8 @@ function Dashboard({ onBackToReport }) {
 
           let progress = 0
           if (block.startKP && block.endKP) {
-            const start = parseFloat(block.startKP.replace('+', '.')) || 0
-            const end = parseFloat(block.endKP.replace('+', '.')) || 0
+            const start = parseFloat(String(block.startKP).replace('+', '.')) || 0
+            const end = parseFloat(String(block.endKP).replace('+', '.')) || 0
             progress = Math.abs(end - start) * 1000
           }
 
@@ -376,27 +472,42 @@ function Dashboard({ onBackToReport }) {
           phaseProgress[phase] += progress
 
           if (!phaseCosts[phase]) phaseCosts[phase] = 0
-          
+
+          // Labour: hours = (rt + ot) × count; cost = hours × resolved rate
           let blockLabourHours = 0
+          let blockLabourCost = 0
           if (block.labourEntries && Array.isArray(block.labourEntries)) {
             block.labourEntries.forEach(entry => {
-              const hours = (entry.hours || 0) * (entry.count || 1)
+              const hours = ((parseFloat(entry.rt) || 0) + (parseFloat(entry.ot) || 0)) * (entry.count || 1)
+              const rate = resolveLabourRate(entry)
               blockLabourHours += hours
+              blockLabourCost += hours * rate
               totalLabourHours += hours
+              totalLabourCost += hours * rate
               dailyData[date].labourHours += hours
             })
           }
 
+          let blockEquipmentCost = 0
           if (block.equipmentEntries && Array.isArray(block.equipmentEntries)) {
             block.equipmentEntries.forEach(entry => {
-              const hours = (entry.hours || 0) * (entry.count || 1)
+              const hours = (parseFloat(entry.hours) || 0) * (entry.count || 1)
+              const rate = resolveEquipmentRate(entry)
+              blockEquipmentCost += hours * rate
               totalEquipmentHours += hours
+              totalEquipmentCost += hours * rate
               dailyData[date].equipmentHours += hours
             })
           }
 
-          const costPerMetre = plannedTargets[phase]?.costPerMetre || 50
-          phaseCosts[phase] += progress > 0 ? progress * costPerMetre : blockLabourHours * 85
+          // Phase cost: prefer actual labour+equipment cost; fall back to costPerMetre estimate
+          const actualBlockCost = blockLabourCost + blockEquipmentCost
+          if (actualBlockCost > 0) {
+            phaseCosts[phase] += actualBlockCost
+          } else {
+            const costPerMetre = plannedTargets[phase]?.costPerMetre || 50
+            phaseCosts[phase] += progress * costPerMetre
+          }
 
           if (block.timeLostHours) {
             totalTimeLost += parseFloat(block.timeLostHours) || 0
@@ -413,7 +524,7 @@ function Dashboard({ onBackToReport }) {
       ...d.phases
     }))
 
-    const totalCost = totalLabourHours * 85 + totalEquipmentHours * 165
+    const totalCost = totalLabourCost + totalEquipmentCost
     const avgDailyCost = totalCost / Math.max(Object.keys(dailyData).length, 1)
 
     // Sort phases by construction sequence order
@@ -427,17 +538,18 @@ function Dashboard({ onBackToReport }) {
       return idxA - idxB
     })
 
+    const fallbackLength = projectInfo.totalLength || 47000
     const phaseCompletion = sortedPhases.map(phase => ({
       phase,
       actual: phaseProgress[phase],
-      planned: plannedTargets[phase]?.metres || 47000,
-      actualPercent: ((phaseProgress[phase] / (plannedTargets[phase]?.metres || 47000)) * 100).toFixed(1),
+      planned: plannedTargets[phase]?.metres || fallbackLength,
+      actualPercent: ((phaseProgress[phase] / (plannedTargets[phase]?.metres || fallbackLength)) * 100).toFixed(1),
       cost: phaseCosts[phase] || 0
     }))
 
     // If real data is minimal, supplement with demo data
     if (Object.keys(phaseProgress).length < 3) {
-      return generateEGPDemoData(dateRange)
+      return generateDemoData(dateRange, projectInfo)
     }
 
     // Calculate reliability score (Goodhart's Law protection)
@@ -479,7 +591,7 @@ function Dashboard({ onBackToReport }) {
         valueLostByParty
       }
     }
-  }, [reports, dateRange])
+  }, [reports, dateRange, projectInfo, labourRateMap, equipmentRateMap])
 
   // Extract productivity mismatch alerts with their explanations
   const productivityAlerts = useMemo(() => {
@@ -629,7 +741,7 @@ function Dashboard({ onBackToReport }) {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
         <h2>Loading CMT Dashboard...</h2>
-        <p>{EGP_PROJECT.fullName}</p>
+        <p>{projectInfo.fullName}</p>
       </div>
     )
   }
@@ -653,13 +765,26 @@ function Dashboard({ onBackToReport }) {
           <div>
             <h1 style={{ margin: '0 0 5px 0', fontSize: '26px', color: '#1a237e' }}>📊 CMT Dashboard</h1>
             <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
-              <strong>{EGP_PROJECT.name}</strong> | {EGP_PROJECT.fullName}
+              <strong>{projectInfo.name}</strong> | {projectInfo.fullName}
             </p>
             <p style={{ margin: '3px 0 0', color: '#888', fontSize: '12px' }}>
-              {EGP_PROJECT.client} | {EGP_PROJECT.contractor} | {EGP_PROJECT.pipeSpec}
+              {projectInfo.client} | {projectInfo.contractor} | {projectInfo.pipeSpec}
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            {pipelineOptions.length > 0 && (
+              <select
+                value={pipelineFilter}
+                onChange={(e) => setPipelineFilter(e.target.value)}
+                style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px' }}
+                title="Project / pipeline filter"
+              >
+                <option value="">All projects</option>
+                {pipelineOptions.map(p => (
+                  <option key={p} value={p}>{p}</option>
+                ))}
+              </select>
+            )}
             <select
               value={dateRange}
               onChange={(e) => setDateRange(parseInt(e.target.value))}
@@ -1124,7 +1249,7 @@ function Dashboard({ onBackToReport }) {
               </div>
               <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef' }}>
                 <div style={{ fontSize: '11px', color: '#666' }}>Project Budget</div>
-                <div style={{ fontSize: '26px', fontWeight: 'bold', color: '#1a237e' }}>{formatCurrency(EGP_PROJECT.totalBudget)}</div>
+                <div style={{ fontSize: '26px', fontWeight: 'bold', color: '#1a237e' }}>{formatCurrency(projectInfo.totalBudget)}</div>
                 <div style={{ fontSize: '11px', color: '#999' }}>Total BAC</div>
               </div>
               <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef' }}>
@@ -1399,7 +1524,7 @@ function Dashboard({ onBackToReport }) {
               </div>
               <div style={{ padding: '15px', backgroundColor: '#f3e5f5', borderRadius: '8px', textAlign: 'center' }}>
                 <div style={{ fontSize: '11px', color: '#666' }}>Peak Workforce</div>
-                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#7b1fa2' }}>{EGP_PROJECT.peakWorkforce || 650}</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#7b1fa2' }}>{projectInfo.peakWorkforce || 650}</div>
               </div>
             </div>
 
@@ -1589,7 +1714,7 @@ function Dashboard({ onBackToReport }) {
 
       {/* Footer */}
       <div style={{ marginTop: '20px', textAlign: 'center', fontSize: '11px', color: '#999', padding: '15px', borderTop: '1px solid #ddd' }}>
-        <p style={{ margin: 0 }}>Generated by <strong>Pipe-Up</strong> | {EGP_PROJECT.name} | {EGP_PROJECT.pipeSpec}</p>
+        <p style={{ margin: 0 }}>Generated by <strong>Pipe-Up</strong> | {projectInfo.name} | {projectInfo.pipeSpec}</p>
         <p style={{ margin: '5px 0 0' }}>Demo Data - For Demonstration Purposes</p>
       </div>
 

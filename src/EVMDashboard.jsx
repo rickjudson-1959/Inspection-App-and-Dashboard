@@ -9,11 +9,13 @@ import { useOrgQuery } from './utils/queryHelpers.js'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 import { calculateVAAC, aggregateValueLostByParty } from './shadowAuditUtils.js'
 import { MetricInfoIcon, MetricIntegrityModal, useMetricIntegrityModal } from './components/MetricIntegrityInfo.jsx'
+import { calculateEVM, fetchRateMaps } from './evmCalculations.js'
 
 // ============================================================================
 // EARNED VALUE MANAGEMENT (EVM) EXECUTIVE DASHBOARD
-// Eagle Mountain - Woodfibre Gas Pipeline (EGP) Project
-// FortisBC | NPS 24 | 47km Mainline + 9km TBM Tunnel
+// Project-aware. Uses calculateEVM() against project_baselines + daily_reports
+// when real data is available; otherwise renders illustrative demo data.
+// Project metadata loaded from dpr_config (per organization).
 // ============================================================================
 
 const EVMColors = {
@@ -50,51 +52,40 @@ function getIndexStatus(value) {
 }
 
 // ============================================================================
-// EGP PROJECT CONFIGURATION - Real Project Data
+// DEFAULT PROJECT CONFIG — used only as a placeholder when no dpr_config or
+// project_baselines exist for the active pipeline. All real values come from
+// the database at runtime.
 // ============================================================================
-const EGP_PROJECT = {
-  name: 'FortisBC EGP Project',
-  fullName: 'Eagle Mountain - Woodfibre Gas Pipeline',
-  client: 'FortisBC Energy Inc.',
-  contractor: 'SA Energy Group (Somerville Aecon JV)',
-  totalBudget: 400000000, // $400M total project
-  mainlineBudget: 280000000, // $280M mainline
-  tunnelBudget: 95000000, // $95M tunnel
-  facilitiesBudget: 25000000, // $25M facilities
-  baselineStart: '2025-07-01',
-  baselineFinish: '2026-06-30',
-  totalLength: 56000, // 56km total
-  mainlineLength: 47000, // 47km mainline
-  tunnelLength: 9000, // 9km tunnel
-  pipeSpec: 'NPS 24 x 0.500" WT, Grade X70',
-  peakWorkforce: 650,
-  
-  // Key Locations
-  keyPoints: [
-    { kp: '0+000', name: 'Coquitlam Station', type: 'Start' },
-    { kp: '9+250', name: 'CN Rail Crossing (HDD)', type: 'Crossing' },
-    { kp: '12+100', name: 'Highway 99 Crossing', type: 'Crossing' },
-    { kp: '19+400', name: 'Indian River HDD', type: 'Crossing' },
-    { kp: '24+000', name: 'MLV-1 Block Valve', type: 'Facility' },
-    { kp: '35+200', name: 'Mamquam River HDD', type: 'Crossing' },
-    { kp: '47+000', name: 'Tunnel Portal South', type: 'Facility' },
-    { kp: '56+000', name: 'Woodfibre LNG Terminal', type: 'End' }
-  ],
-  
-  // Environmental Constraints
-  envConstraints: [
-    { name: 'Coastal Tailed Frog Habitat', kpFrom: '15+000', kpTo: '25+000', restriction: 'Limited clearing Oct-Apr' },
-    { name: 'Salmon Fish Window', kpFrom: '19+000', kpTo: '20+500', restriction: 'No in-stream work Aug 15 - Nov 15' },
-    { name: 'Indian River Watershed', kpFrom: '18+000', kpTo: '22+000', restriction: 'Enhanced erosion controls' }
-  ]
+const DEFAULT_PROJECT = {
+  name: 'Pipeline Project',
+  fullName: '',
+  client: '',
+  contractor: '',
+  totalBudget: 0,
+  baselineStart: '',
+  baselineFinish: '',
+  totalLength: 0,
+  mainlineLength: 0,
+  tunnelLength: 0,
+  pipeSpec: '',
+  peakWorkforce: 0,
+  keyPoints: [],
+  envConstraints: []
 }
 
 // ============================================================================
 // DEMO DATA - 6 Month Project Simulation
 // ============================================================================
-function generateEGPDemoData(asOfDate) {
-  const projectStart = new Date(EGP_PROJECT.baselineStart)
-  const projectEnd = new Date(EGP_PROJECT.baselineFinish)
+function generateDemoData(asOfDate, projectInfo = DEFAULT_PROJECT) {
+  // Demo fallback. Uses the active project's baseline dates if present,
+  // otherwise spans the past year ending today.
+  const today = new Date()
+  const projectStart = projectInfo.baselineStart
+    ? new Date(projectInfo.baselineStart)
+    : new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000)
+  const projectEnd = projectInfo.baselineFinish
+    ? new Date(projectInfo.baselineFinish)
+    : new Date(today.getTime() + 90 * 24 * 60 * 60 * 1000)
   const currentDate = new Date(asOfDate)
   
   const totalDays = Math.floor((projectEnd - projectStart) / (1000 * 60 * 60 * 24))
@@ -262,7 +253,7 @@ function generateEGPDemoData(asOfDate) {
   ]
   
   // Calculate overall metrics
-  const BAC = EGP_PROJECT.totalBudget
+  const BAC = projectInfo.totalBudget || 0
   const plannedPhysical = percentElapsed * sCurveFactor
   const actualPhysical = plannedPhysical * currentMonth.spi
   
@@ -317,11 +308,14 @@ function generateEGPDemoData(asOfDate) {
 
 // Generate S-Curve data with VAAC (Value-Adjusted Actual Cost)
 // VAAC shows what the project SHOULD have cost with 100% management efficiency
-function generateSCurveData(asOfDate) {
+function generateSCurveData(asOfDate, projectInfo = DEFAULT_PROJECT) {
   const data = []
-  const start = new Date(EGP_PROJECT.baselineStart)
+  const today = new Date()
+  const start = projectInfo.baselineStart
+    ? new Date(projectInfo.baselineStart)
+    : new Date(today.getTime() - 365 * 24 * 60 * 60 * 1000)
   const end = new Date(asOfDate)
-  const BAC = EGP_PROJECT.totalBudget
+  const BAC = projectInfo.totalBudget || 0
   const totalDays = 365
 
   let current = new Date(start)
@@ -424,20 +418,144 @@ function generateHealthAssessment(metrics) {
 // ============================================================================
 function EVMDashboard() {
   const navigate = useNavigate()
-  const { addOrgFilter } = useOrgQuery()
+  const { addOrgFilter, organizationId } = useOrgQuery()
   const { orgPath } = useOrgPath()
   const [loading, setLoading] = useState(true)
   const [asOfDate, setAsOfDate] = useState(new Date().toISOString().split('T')[0])
   const [activeTab, setActiveTab] = useState('overview')
   const [dragMetrics, setDragMetrics] = useState(null)
 
+  // Project / pipeline state
+  const [pipelineOptions, setPipelineOptions] = useState([])
+  const [pipelineFilter, setPipelineFilter] = useState('')
+  const [projectInfo, setProjectInfo] = useState(DEFAULT_PROJECT)
+  const [labourRateMap, setLabourRateMap] = useState({})
+  const [equipmentRateMap, setEquipmentRateMap] = useState({})
+  const [evmRealData, setEvmRealData] = useState(null) // result of calculateEVM()
+  const [usingDemoData, setUsingDemoData] = useState(true)
+
   // Metric Integrity Info modal
   const metricInfoModal = useMetricIntegrityModal()
 
   useEffect(() => {
-    // Simulate loading
+    // Initial paint timer
     setTimeout(() => setLoading(false), 500)
   }, [])
+
+  // Load distinct pipelines for this org
+  useEffect(() => {
+    if (!organizationId) return
+    ;(async () => {
+      const { data } = await supabase
+        .from('daily_reports')
+        .select('pipeline, date')
+        .eq('organization_id', organizationId)
+        .not('pipeline', 'is', null)
+        .order('date', { ascending: false })
+        .limit(500)
+      const seen = new Set()
+      const pipelines = []
+      for (const row of data || []) {
+        const p = (row.pipeline || '').trim()
+        if (p && !seen.has(p)) {
+          seen.add(p)
+          pipelines.push(p)
+        }
+      }
+      setPipelineOptions(pipelines)
+      if (!pipelineFilter && pipelines.length > 0) {
+        setPipelineFilter(pipelines[0])
+      }
+    })()
+  }, [organizationId])
+
+  // Load project metadata + master rate cards
+  useEffect(() => {
+    if (!organizationId) return
+    ;(async () => {
+      const { data: cfg } = await supabase
+        .from('dpr_config')
+        .select('project_name, contractor_name, pipeline_length_metres')
+        .eq('organization_id', organizationId)
+        .maybeSingle()
+      if (cfg) {
+        setProjectInfo(prev => ({
+          ...prev,
+          name: cfg.project_name || prev.name,
+          fullName: cfg.project_name || prev.fullName,
+          contractor: cfg.contractor_name || prev.contractor,
+          totalLength: cfg.pipeline_length_metres || prev.totalLength
+        }))
+      }
+
+      const { labourRateMap: lm, equipmentRateMap: em } = await fetchRateMaps(organizationId)
+      setLabourRateMap(lm)
+      setEquipmentRateMap(em)
+    })()
+  }, [organizationId])
+
+  // Load baseline-derived project info (BAC, schedule) for the active pipeline
+  useEffect(() => {
+    if (!pipelineFilter) return
+    ;(async () => {
+      const { data: baselines } = await supabase
+        .from('project_baselines')
+        .select('planned_metres, budgeted_unit_cost, planned_start_date, planned_end_date')
+        .eq('pipeline', pipelineFilter)
+        .eq('is_active', true)
+      if (baselines && baselines.length > 0) {
+        let bac = 0
+        let earliest = null
+        let latest = null
+        for (const b of baselines) {
+          bac += (Number(b.planned_metres) || 0) * (Number(b.budgeted_unit_cost) || 0)
+          if (!earliest || b.planned_start_date < earliest) earliest = b.planned_start_date
+          if (!latest || b.planned_end_date > latest) latest = b.planned_end_date
+        }
+        setProjectInfo(prev => ({
+          ...prev,
+          totalBudget: Math.round(bac),
+          baselineStart: earliest || prev.baselineStart,
+          baselineFinish: latest || prev.baselineFinish
+        }))
+      }
+    })()
+  }, [pipelineFilter])
+
+  // Wire calculateEVM() to feed real actuals from inspector reports
+  useEffect(() => {
+    if (!pipelineFilter) {
+      setEvmRealData(null)
+      setUsingDemoData(true)
+      return
+    }
+    let cancelled = false
+    ;(async () => {
+      try {
+        const evm = await calculateEVM({
+          pipeline: pipelineFilter,
+          asOfDate: new Date(asOfDate),
+          labourRateMap,
+          equipmentRateMap
+        })
+        if (cancelled) return
+        if (evm && evm.reportCount > 0) {
+          setEvmRealData(evm)
+          setUsingDemoData(false)
+        } else {
+          setEvmRealData(null)
+          setUsingDemoData(true)
+        }
+      } catch (err) {
+        console.error('calculateEVM failed:', err)
+        if (!cancelled) {
+          setEvmRealData(null)
+          setUsingDemoData(true)
+        }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [pipelineFilter, asOfDate, labourRateMap, equipmentRateMap])
 
   // Fetch Efficiency Audit data for drag cost analysis
   useEffect(() => {
@@ -514,20 +632,125 @@ function EVMDashboard() {
     fetchDragMetrics()
   }, [asOfDate])
 
-  const demoData = useMemo(() => generateEGPDemoData(asOfDate), [asOfDate])
-  const sCurveData = useMemo(() => generateSCurveData(asOfDate), [asOfDate])
-  const healthAssessment = useMemo(() => generateHealthAssessment(demoData.metrics), [demoData.metrics])
+  const demoData = useMemo(() => generateDemoData(asOfDate, projectInfo), [asOfDate, projectInfo])
+  const sCurveData = useMemo(() => generateSCurveData(asOfDate, projectInfo), [asOfDate, projectInfo])
+
+  // When real EVM data is available, build a metrics object compatible with the
+  // existing demo shape so downstream tabs render without further refactor.
+  const liveMetrics = useMemo(() => {
+    if (!evmRealData) return null
+    const s = evmRealData.summary
+    const totalDays = projectInfo.baselineStart && projectInfo.baselineFinish
+      ? Math.max(1, Math.floor((new Date(projectInfo.baselineFinish) - new Date(projectInfo.baselineStart)) / (1000 * 60 * 60 * 24)))
+      : 365
+    const daysElapsed = projectInfo.baselineStart
+      ? Math.max(0, Math.floor((new Date(asOfDate) - new Date(projectInfo.baselineStart)) / (1000 * 60 * 60 * 24)))
+      : 0
+    const percentScheduled = totalDays > 0 ? (daysElapsed / totalDays) * 100 : 0
+    const dailyPV = daysElapsed > 0 ? s.plannedValue / daysElapsed : 0
+    const daysBehind = dailyPV > 0
+      ? Math.round((s.plannedValue - s.earnedValue) / dailyPV)
+      : 0
+    return {
+      BAC: s.budgetAtCompletion,
+      PV: s.plannedValue,
+      EV: s.earnedValue,
+      AC: s.actualCost,
+      CV: s.costVariance,
+      SV: s.scheduleVariance,
+      CPI: s.cpi,
+      SPI: s.spi,
+      EAC: s.estimateAtCompletion,
+      ETC: s.estimateAtCompletion - s.actualCost,
+      VAC: s.varianceAtCompletion,
+      TCPI: (s.budgetAtCompletion - s.actualCost) > 0
+        ? (s.budgetAtCompletion - s.earnedValue) / (s.budgetAtCompletion - s.actualCost)
+        : 1,
+      percentPhysical: s.budgetAtCompletion > 0 ? (s.earnedValue / s.budgetAtCompletion) * 100 : 0,
+      percentSpent: s.budgetAtCompletion > 0 ? (s.actualCost / s.budgetAtCompletion) * 100 : 0,
+      percentScheduled,
+      dailyPV,
+      daysBehind,
+      daysElapsed,
+      totalDays
+    }
+  }, [evmRealData, projectInfo, asOfDate])
+
+  // Build phase + spread arrays from real EVM data
+  const livePhases = useMemo(() => {
+    if (!evmRealData) return null
+    const totalBAC = evmRealData.summary.budgetAtCompletion || 1
+    return Object.values(evmRealData.byActivity).map(a => ({
+      name: a.activityType,
+      budgetPercent: Math.round((a.budgetAtCompletion / totalBAC) * 100),
+      plannedPercent: a.plannedMetres > 0 ? (a.plannedMetresToDate / a.plannedMetres) * 100 : 0,
+      actualPercent: a.percentComplete,
+      rate: '',
+      unitCost: a.budgetedUnitCost ? `$${Number(a.budgetedUnitCost).toFixed(0)}/m` : ''
+    }))
+  }, [evmRealData])
+
+  const liveSpreads = useMemo(() => {
+    if (!evmRealData) return null
+    // Derive spread-level rollups by combining activity spreads
+    const spreadMap = {}
+    Object.values(evmRealData.byActivity).forEach(a => {
+      const spread = (a.spreads && a.spreads[0]) || 'Spread 1'
+      if (!spreadMap[spread]) {
+        spreadMap[spread] = {
+          name: spread,
+          foreman: '',
+          kpRange: '',
+          metresComplete: 0,
+          metresTarget: 0,
+          spi: 0,
+          cpi: 0,
+          labourCount: 0,
+          equipmentUnits: 0,
+          welders: 0,
+          status: 'On Track',
+          _spiSum: 0,
+          _cpiSum: 0,
+          _count: 0
+        }
+      }
+      spreadMap[spread].metresComplete += a.actualMetres || 0
+      spreadMap[spread].metresTarget += a.plannedMetresToDate || 0
+      spreadMap[spread]._spiSum += a.spi || 0
+      spreadMap[spread]._cpiSum += a.cpi || 0
+      spreadMap[spread]._count += 1
+    })
+    return Object.values(spreadMap).map(s => {
+      const spi = s._count > 0 ? s._spiSum / s._count : 1
+      const cpi = s._count > 0 ? s._cpiSum / s._count : 1
+      return {
+        ...s,
+        spi: parseFloat(spi.toFixed(2)),
+        cpi: parseFloat(cpi.toFixed(2)),
+        status: spi >= 1.0 ? 'On Track' : spi >= 0.9 ? 'Monitor' : 'At Risk'
+      }
+    })
+  }, [evmRealData])
+
+  const healthAssessment = useMemo(
+    () => generateHealthAssessment(liveMetrics || demoData.metrics),
+    [liveMetrics, demoData.metrics]
+  )
 
   if (loading) {
     return (
       <div style={{ padding: '40px', textAlign: 'center' }}>
         <h2>Loading EVM Dashboard...</h2>
-        <p>Eagle Mountain - Woodfibre Gas Pipeline</p>
+        <p>{projectInfo.fullName || projectInfo.name || 'Project EVM'}</p>
       </div>
     )
   }
 
-  const { metrics, phases, spreads, monthlyTrends } = demoData
+  // Prefer live data when available; otherwise fall back to demo
+  const metrics = liveMetrics || demoData.metrics
+  const phases = livePhases || demoData.phases
+  const spreads = liveSpreads || demoData.spreads
+  const monthlyTrends = demoData.monthlyTrends
 
   return (
     <div style={{ padding: '20px', maxWidth: '1800px', margin: '0 auto', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
@@ -547,29 +770,62 @@ function EVMDashboard() {
               📊 Earned Value Management Dashboard
             </h1>
             <p style={{ margin: 0, color: '#666', fontSize: '14px' }}>
-              <strong>{EGP_PROJECT.name}</strong> | {EGP_PROJECT.fullName}
+              <strong>{projectInfo.name}</strong> | {projectInfo.fullName}
             </p>
             <p style={{ margin: '5px 0 0', color: '#888', fontSize: '12px' }}>
-              {EGP_PROJECT.client} | {EGP_PROJECT.contractor} | {EGP_PROJECT.pipeSpec}
+              {projectInfo.client} | {projectInfo.contractor} | {projectInfo.pipeSpec}
             </p>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+            {pipelineOptions.length > 0 && (
+              <div>
+                <label style={{ fontSize: '11px', color: '#666', display: 'block' }}>Project</label>
+                <select
+                  value={pipelineFilter}
+                  onChange={(e) => setPipelineFilter(e.target.value)}
+                  style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px' }}
+                >
+                  {pipelineOptions.map(p => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '11px', color: '#666' }}>Project Length</div>
-              <div style={{ fontSize: '16px', fontWeight: 'bold' }}>{(EGP_PROJECT.totalLength / 1000).toFixed(0)} km</div>
+              <div style={{ fontSize: '16px', fontWeight: 'bold' }}>
+                {(Number(projectInfo.totalLength) || 0) > 0
+                  ? `${(projectInfo.totalLength / 1000).toFixed(1)} km`
+                  : '—'}
+              </div>
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '11px', color: '#666' }}>Budget (BAC)</div>
-              <div style={{ fontSize: '16px', fontWeight: 'bold' }}>${(EGP_PROJECT.totalBudget / 1000000).toFixed(0)}M</div>
+              <div style={{ fontSize: '16px', fontWeight: 'bold' }}>
+                {(Number(projectInfo.totalBudget) || 0) > 0
+                  ? `$${(projectInfo.totalBudget / 1000000).toFixed(1)}M`
+                  : '—'}
+              </div>
+            </div>
+            <div style={{
+              padding: '4px 10px',
+              borderRadius: '12px',
+              fontSize: '11px',
+              fontWeight: '600',
+              backgroundColor: usingDemoData ? '#fff3cd' : '#d4edda',
+              color: usingDemoData ? '#856404' : '#155724',
+              border: usingDemoData ? '1px solid #ffeeba' : '1px solid #c3e6cb'
+            }}>
+              {usingDemoData ? 'DEMO DATA' : `LIVE — ${evmRealData?.reportCount || 0} reports`}
             </div>
             <div>
               <label style={{ fontSize: '11px', color: '#666', display: 'block' }}>Data as of:</label>
-              <input 
-                type="date" 
+              <input
+                type="date"
                 value={asOfDate}
                 onChange={(e) => setAsOfDate(e.target.value)}
-                min={EGP_PROJECT.baselineStart}
-                max={EGP_PROJECT.baselineFinish}
+                min={projectInfo.baselineStart || undefined}
+                max={projectInfo.baselineFinish || undefined}
                 style={{ padding: '8px 12px', borderRadius: '4px', border: '1px solid #ccc', fontSize: '14px' }}
               />
             </div>
@@ -610,7 +866,7 @@ function EVMDashboard() {
 
       {/* Tab Content */}
       {activeTab === 'overview' && (
-        <OverviewTab metrics={metrics} sCurveData={sCurveData} healthAssessment={healthAssessment} dragMetrics={dragMetrics} metricInfoModal={metricInfoModal} />
+        <OverviewTab metrics={metrics} sCurveData={sCurveData} healthAssessment={healthAssessment} dragMetrics={dragMetrics} metricInfoModal={metricInfoModal} projectInfo={projectInfo} />
       )}
       {activeTab === 'phases' && (
         <PhasesTab phases={phases} />
@@ -624,8 +880,10 @@ function EVMDashboard() {
 
       {/* Footer */}
       <div style={{ marginTop: '30px', textAlign: 'center', fontSize: '11px', color: '#999', padding: '15px', borderTop: '1px solid #ddd' }}>
-        <p style={{ margin: 0 }}>Generated by <strong>Pipe-Up</strong> | Data as of {asOfDate} | {EGP_PROJECT.name}</p>
-        <p style={{ margin: '5px 0 0' }}>Demo Data - For Demonstration Purposes</p>
+        <p style={{ margin: 0 }}>Generated by <strong>Pipe-Up</strong> | Data as of {asOfDate} | {projectInfo.name}</p>
+        {usingDemoData && (
+          <p style={{ margin: '5px 0 0' }}>Demo data — no inspector reports for this project yet, or no baselines configured.</p>
+        )}
       </div>
 
       {/* Metric Integrity Info Modal */}
@@ -638,7 +896,7 @@ function EVMDashboard() {
 // TAB COMPONENTS
 // ============================================================================
 
-function OverviewTab({ metrics, sCurveData, healthAssessment, dragMetrics, metricInfoModal }) {
+function OverviewTab({ metrics, sCurveData, healthAssessment, dragMetrics, metricInfoModal, projectInfo = DEFAULT_PROJECT }) {
   return (
     <>
       {/* Core EVM Metrics */}
@@ -986,7 +1244,7 @@ function OverviewTab({ metrics, sCurveData, healthAssessment, dragMetrics, metri
           <div style={{ padding: '15px', backgroundColor: '#f5f5f5', borderRadius: '8px' }}>
             <h4 style={{ marginTop: 0, fontSize: '14px' }}>🗺️ Project Key Points</h4>
             <div style={{ fontSize: '12px', lineHeight: '1.8' }}>
-              {EGP_PROJECT.keyPoints.slice(0, 6).map((kp, i) => (
+              {(projectInfo.keyPoints || []).slice(0, 6).map((kp, i) => (
                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', borderBottom: '1px solid #ddd' }}>
                   <span style={{ fontFamily: 'monospace' }}>{kp.kp}</span>
                   <span>{kp.name}</span>

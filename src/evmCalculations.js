@@ -37,6 +37,56 @@ export function formatCurrency(amount) {
 }
 
 // =====================================================
+// FETCH MASTER RATE MAPS (labour + equipment) via /api/rates
+// =====================================================
+
+/**
+ * Build lookup maps from labour_rates and equipment_rates for a given org.
+ * Returns { labourRateMap, equipmentRateMap } keyed by uppercased classification/type.
+ *   labourRateMap:    classification → rate_st (hourly ST rate, $/hr)
+ *   equipmentRateMap: equipment_type → rate_daily ($/day; consumer divides by 10 for hourly)
+ *
+ * Falls back to empty maps on error so callers can still compute with hardcoded defaults.
+ */
+export async function fetchRateMaps(organizationId) {
+  if (!organizationId) return { labourRateMap: {}, equipmentRateMap: {} }
+  try {
+    const [labourRes, equipRes] = await Promise.all([
+      fetch(`/api/rates?table=labour_rates&organization_id=${organizationId}`),
+      fetch(`/api/rates?table=equipment_rates&organization_id=${organizationId}`)
+    ])
+
+    const labourRows = labourRes.ok ? await labourRes.json() : []
+    const equipRows = equipRes.ok ? await equipRes.json() : []
+
+    const labourRateMap = {}
+    for (const row of labourRows || []) {
+      const key = (row.classification || '').trim().toUpperCase()
+      if (!key) continue
+      // Hourly rates use rate_st directly. Weekly rates need conversion.
+      if (row.rate_type === 'weekly') {
+        // Standard 50-hour-week assumption for weekly classifications
+        labourRateMap[key] = row.rate_st ? row.rate_st / 50 : null
+      } else {
+        labourRateMap[key] = row.rate_st || null
+      }
+    }
+
+    const equipmentRateMap = {}
+    for (const row of equipRows || []) {
+      const key = (row.equipment_type || '').trim().toUpperCase()
+      if (!key) continue
+      equipmentRateMap[key] = row.rate_daily || null
+    }
+
+    return { labourRateMap, equipmentRateMap }
+  } catch (err) {
+    console.error('fetchRateMaps failed:', err)
+    return { labourRateMap: {}, equipmentRateMap: {} }
+  }
+}
+
+// =====================================================
 // FETCH BASELINE DATA
 // =====================================================
 
@@ -55,6 +105,9 @@ export async function fetchBaselines(filters = {}) {
   }
   if (filters.activityType) {
     query = query.eq('activity_type', filters.activityType)
+  }
+  if (filters.pipeline) {
+    query = query.eq('pipeline', filters.pipeline)
   }
 
   const { data, error } = await query
@@ -91,7 +144,7 @@ export async function fetchBaselineSummary() {
  * Aggregate actual production from daily_reports
  */
 export async function fetchActualProduction(filters = {}) {
-  const { startDate, endDate, spread, activityType } = filters
+  const { startDate, endDate, spread, activityType, pipeline, labourRateMap, equipmentRateMap } = filters
 
   let query = supabase
     .from('daily_reports')
@@ -106,6 +159,9 @@ export async function fetchActualProduction(filters = {}) {
   }
   if (spread) {
     query = query.eq('spread', spread)
+  }
+  if (pipeline) {
+    query = query.eq('pipeline', pipeline)
   }
 
   const { data: reports, error } = await query
@@ -163,20 +219,33 @@ export async function fetchActualProduction(filters = {}) {
 
       actuals[activity].reportCount++
 
-      // Aggregate labour (default rate $85/hr if not specified)
+      // Aggregate labour. Rate priority:
+      //   1) entry.rate (inspector-supplied)
+      //   2) labourRateMap[classification] (master rate card)
+      //   3) $85/hr fallback
       block.labourEntries?.forEach(entry => {
         const hours = ((entry.rt || 0) + (entry.ot || 0)) * (entry.count || 1)
-        const rate = entry.rate || 85
+        const masterRate = labourRateMap?.[
+          (entry.classification || '').trim().toUpperCase()
+        ]
+        const rate = entry.rate || masterRate || 85
         actuals[activity].labourHours += hours
         actuals[activity].labourCost += hours * rate
         totalLabourHours += hours
         totalLabourCost += hours * rate
       })
 
-      // Aggregate equipment (default rate $150/hr if not specified)
+      // Aggregate equipment. Rate priority:
+      //   1) entry.rate (inspector-supplied — assumed hourly)
+      //   2) equipmentRateMap[type] (rate_daily / 10 = hourly)
+      //   3) $150/hr fallback
       block.equipmentEntries?.forEach(entry => {
-        const hours = entry.hours || 0
-        const rate = entry.rate || 150
+        const hours = (entry.hours || 0) * (entry.count || 1)
+        const masterDaily = equipmentRateMap?.[
+          (entry.type || entry.equipment_type || '').trim().toUpperCase()
+        ]
+        const masterHourly = masterDaily ? masterDaily / 10 : null
+        const rate = entry.rate || masterHourly || 150
         actuals[activity].equipmentHours += hours
         actuals[activity].equipmentCost += hours * rate
         totalEquipmentHours += hours
@@ -351,18 +420,24 @@ function getHealthStatus(spi, cpi) {
  * @param {string} options.endDate - Actuals to this date
  */
 export async function calculateEVM(options = {}) {
-  const { spread, asOfDate = new Date(), startDate, endDate } = options
+  const {
+    spread, pipeline,
+    asOfDate = new Date(), startDate, endDate,
+    labourRateMap, equipmentRateMap
+  } = options
 
   try {
-    // Fetch baselines
-    const baselines = await fetchBaselines({ spread })
+    // Fetch baselines (filtered by pipeline + spread when supplied)
+    const baselines = await fetchBaselines({ spread, pipeline })
     if (!baselines.length) {
-      console.warn('No baselines found')
+      console.warn('No baselines found for pipeline:', pipeline)
       return null
     }
 
-    // Fetch actuals
-    const actualsData = await fetchActualProduction({ spread, startDate, endDate })
+    // Fetch actuals (same pipeline filter so we don't mix projects)
+    const actualsData = await fetchActualProduction({
+      spread, pipeline, startDate, endDate, labourRateMap, equipmentRateMap
+    })
     if (!actualsData) {
       console.warn('No actuals data')
       return null
