@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - April 26, 2026
+## Project Manifest - May 2, 2026
 
 ---
 
@@ -656,7 +656,60 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ---
 
-## 6. RECENT UPDATES (January–April 2026)
+## 6. RECENT UPDATES (January–May 2026)
+
+### Inspector Reports Wired to DPR / CMT / EVM Dashboards + CLX-2 Baselines (May 2, 2026)
+
+**Three downstream views now read from Corry's CLX-2 inspector reports as the single source of truth.** Audit + 6-step refactor; pushed direct to main as commit `4bf40e6`.
+
+**The audit finding (before this work):** all three dashboards intended to read from `daily_reports` but were broken or hardcoded:
+- **DPR** queried columns that don't exist (`report_date`, `weather_conditions`, `weather_temp_high/low`, plus a non-existent `status` column on `daily_reports`). Tab fully blocked when no `dpr_config` row existed.
+- **CMT Dashboard** had a labour-hour bug (read `entry.hours` instead of `(entry.rt + entry.ot)`), hardcoded $85/$165 rates, hardcoded EGP/FortisBC project metadata, and fell back to demo data when fewer than 3 phases reported.
+- **EVM Dashboard** never called `calculateEVM()` — rendered hardcoded demo S-curves only. The engine in `evmCalculations.js` was production-ready but disconnected.
+
+**Fixes applied:**
+
+1. **DPR query corrected** (`src/DPRTab.jsx`) — column names fixed to match `daily_reports` (`date`, `weather`, `temp_high`, `temp_low`). Status filter now joins through `report_status` and includes `submitted`/`approved`/`published` so Corry's active reports flow through, not just approved ones. Welds read from `block.weldData.weldsToday`. KP parsing uses `parseKP` from `kpUtils.js`. Synthesizes a fallback `dpr_config` from defaults when no row exists, so the tab loads without manual setup.
+
+2. **Project (pipeline) selector added to all three views** — sourced from distinct `daily_reports.pipeline` values per org. Defaults to most-recent project. Drives the data query in DPR, the report scope in CMT, and `calculateEVM({ pipeline })` in EVM.
+
+3. **CMT labour-hour fix + master rate lookup** (`src/Dashboard.jsx`) — `(rt + ot) × count` for labour hours. Cost rate priority: `entry.rate` → master `labour_rates.rate_st` (or `equipment_rates.rate_daily / 10`) → $85/$165 fallback. Phase costs now use real labour × resolved rate + equipment × resolved rate; the `costPerMetre` table is only used when no labour/equipment was logged for the block.
+
+4. **CLX-2 baselines seeded** (migration `20260502_clx2_baselines_and_pipeline_column.sql`) — adds `pipeline TEXT`, `organization_id UUID`, `provisional BOOLEAN` columns to `project_baselines` plus an org-aware RLS policy. Seeds 16 activities for `pipeline = 'CLX-2'`: NPS 36, 76,300m, FEED budget $68.4M, Apr–Nov 2014 schedule windows staggered by construction sequence. All allocations marked provisional (standard pipeline construction percentage breakdowns) until contract-level cost data lands.
+
+5. **EVM Dashboard wired to live data** (`src/EVMDashboard.jsx`) — calls `calculateEVM({ pipeline, asOfDate, labourRateMap, equipmentRateMap })` whenever the project or rate maps change. When real data exists (`reportCount > 0`), builds `liveMetrics`, `livePhases`, `liveSpreads` from EVM output. Falls back to demo data only when no inspector reports for the selected pipeline. LIVE/DEMO badge in the header. Demo footer ("For Demonstration Purposes") only renders when actually demo.
+
+6. **Hardcoded EGP/FortisBC branding removed from both dashboards** — `EGP_PROJECT` constant replaced by `DEFAULT_PROJECT` placeholders + `projectInfo` state populated from `dpr_config` (name, contractor, length) and `project_baselines` (BAC + schedule auto-computed by summing `planned_metres × budgeted_unit_cost` and taking min/max planned dates for the active pipeline). Demo data generators now take `projectInfo` as a parameter.
+
+7. **`evmCalculations.js` extensions** — new `fetchRateMaps()` helper reads `/api/rates` (server-side, RLS-bypass) and builds `{ classification → rate_st }` and `{ equipment_type → rate_daily }` maps for an org. `fetchBaselines()` and `fetchActualProduction()` accept a `pipeline` filter. `calculateEVM()` accepts `pipeline`, `labourRateMap`, `equipmentRateMap` options.
+
+**Modified files:**
+```
+src/DPRTab.jsx               # column names, report_status join, fallback config
+src/DPRConfig.jsx            # exports DEFAULT_ACTIVITIES, DEFAULT_SUPPLEMENTARY
+src/Dashboard.jsx            # pipeline filter, labour bug fix, master rates, projectInfo
+src/EVMDashboard.jsx         # calculateEVM wired in, projectInfo, LIVE/DEMO badge
+src/evmCalculations.js       # fetchRateMaps, pipeline filter, master rate priority
+```
+
+**New migration (run in Supabase SQL Editor):**
+```
+supabase/migrations/20260502_clx2_baselines_and_pipeline_column.sql
+```
+
+**Verification query after running migration:**
+```sql
+SELECT pipeline, COUNT(*) AS activities,
+       SUM(planned_metres * budgeted_unit_cost) AS total_budget
+FROM project_baselines WHERE pipeline = 'CLX-2' GROUP BY pipeline;
+-- Expected: 16 activities, total ≈ $68,344,000
+```
+
+**Required follow-ups:**
+- Run the migration in Supabase SQL Editor.
+- Confirm Corry's `pipeline` column value matches `'CLX-2'` exactly (the dropdown will show whatever values exist in the data).
+- Refine provisional baseline allocations when contract-level cost detail is available (`UPDATE project_baselines SET provisional = FALSE, budgeted_unit_cost = ... WHERE pipeline = 'CLX-2' AND activity_type = '...'`).
+- No field guide regeneration needed — work did not touch `InspectorReport.jsx`, `ActivityBlock.jsx`, `TrackableItemsTracker.jsx`, or quality field constants.
 
 ### LEM Batch Extraction + Extract Now Fix + Per-Person Subs Override (April 25, 2026)
 
