@@ -14,7 +14,7 @@ import AskTheAgentPanel from './components/AskTheAgentPanel.jsx'
 import FeedbackButton from './components/FeedbackButton.jsx'
 
 // Offline mode imports
-import { syncManager, chainageCache, useOnlineStatus, useSyncStatus, photoManager } from './offline'
+import { syncManager, chainageCache, useOnlineStatus, useSyncStatus, photoManager, draftAutoSave } from './offline'
 
 // Import constants from separate file
 import {
@@ -72,128 +72,6 @@ function InspectorReport({
     console.log('[InspectorReport] Component mounted, version:', APP_VERSION)
   }, [])
 
-  // Page-load recovery: scan IndexedDB for unsaved photos that belong to this
-  // report (or this draft) and merge them back into the matching activity
-  // block's workPhotos / ticketPhotos arrays. Runs once after blocks first
-  // populate. Photos persisted to IndexedDB via photoManager are safe even
-  // through a refresh / crash / deploy — this surfaces them again.
-  const [photoRecoveryDone, setPhotoRecoveryDone] = useState(false)
-  useEffect(() => {
-    if (photoRecoveryDone) return
-    if (!activityBlocks?.length) return
-    if (loadingReport) return
-    let cancelled = false
-    ;(async () => {
-      try {
-        const inspectorEmail = userProfile?.email || ''
-        let recovered = []
-        if (currentReportId) {
-          recovered = await photoManager.loadPhotosForReport(currentReportId)
-        } else if (inspectorEmail && selectedDate) {
-          const draftKey = photoManager.makeDraftKey(inspectorEmail, selectedDate)
-          recovered = await photoManager.loadPhotosForDraft(draftKey)
-        }
-        if (cancelled) return
-
-        // Filter out anything already archived (means the report saved successfully).
-        const live = (recovered || []).filter(p => p && p.syncStatus !== 'archived')
-        if (live.length === 0) {
-          setPhotoRecoveryDone(true)
-          return
-        }
-
-        // Bucket by blockId
-        const byBlock = new Map()
-        for (const p of live) {
-          if (!p.blockId) continue
-          if (!byBlock.has(p.blockId)) byBlock.set(p.blockId, [])
-          byBlock.get(p.blockId).push(p)
-        }
-
-        let mergedCount = 0
-        let orphanCount = 0
-        setActivityBlocks(prev => prev.map(block => {
-          const matches = byBlock.get(block.id)
-          if (!matches?.length) return block
-
-          // Existing photoIds we don't want to duplicate
-          const existingWorkIds = new Set((block.workPhotos || []).map(p => p?.photoId).filter(Boolean))
-          const existingTicketIds = new Set((block.ticketPhotos || []).map(p => p?.photoId).filter(Boolean))
-
-          const newWork = []
-          const newTicket = []
-          for (const rec of matches) {
-            const wrapper = {
-              photoId: rec.id,
-              file: rec.blob instanceof File ? rec.blob : new File([rec.blob], rec.metadata?.originalName || `${rec.type}_${rec.id}.jpg`, { type: rec.blob?.type || 'image/jpeg' }),
-              originalName: rec.metadata?.originalName || `${rec.type}_${rec.id}.jpg`,
-              uploadStatus: rec.syncStatus || 'pending',
-              filename: rec.uploadedFilename || null,
-              uploadError: rec.error || null,
-              location: rec.metadata?.location || '',
-              description: rec.metadata?.description || ''
-            }
-            if (rec.type === 'work' && !existingWorkIds.has(rec.id)) {
-              newWork.push(wrapper)
-              mergedCount++
-            } else if (rec.type === 'ticket' && !existingTicketIds.has(rec.id)) {
-              newTicket.push(wrapper)
-              mergedCount++
-            }
-            // Pending uploads should resume — kicker is harmless if already uploaded
-            if (wrapper.uploadStatus !== 'uploaded' && wrapper.uploadStatus !== 'archived') {
-              photoManager.awaitUpload(rec.id).catch(() => {})
-            }
-          }
-
-          if (!newWork.length && !newTicket.length) return block
-          return {
-            ...block,
-            workPhotos: [...(block.workPhotos || []), ...newWork],
-            ticketPhotos: [...(block.ticketPhotos || []), ...newTicket]
-          }
-        }))
-
-        // Anything whose blockId no longer matches a live block is an orphan.
-        const liveBlockIds = new Set(activityBlocks.map(b => b.id))
-        for (const p of live) {
-          if (!liveBlockIds.has(p.blockId)) orphanCount++
-        }
-        if (mergedCount > 0 || orphanCount > 0) {
-          console.log(`[photoRecovery] merged ${mergedCount} photo(s) from IndexedDB; ${orphanCount} orphan(s) (blockId no longer present)`)
-        }
-        setPhotoRecoveryDone(true)
-      } catch (err) {
-        console.warn('[photoRecovery] failed:', err)
-        setPhotoRecoveryDone(true)
-      }
-    })()
-    return () => { cancelled = true }
-  }, [activityBlocks, currentReportId, userProfile, selectedDate, loadingReport, photoRecoveryDone])
-
-  // Subscribe to photo upload status changes — flips workPhotos / ticketPhotos
-  // status fields as uploads complete in the background. Effect lives here
-  // (early in component lifecycle) so it captures every status change.
-  useEffect(() => {
-    const unsub = photoManager.subscribeToPhotoStatus(({ photoId, status, filename, error }) => {
-      setActivityBlocks(prev => prev.map(block => {
-        let touched = false
-        const newWork = (block.workPhotos || []).map(p => {
-          if (p.photoId !== photoId) return p
-          touched = true
-          return { ...p, uploadStatus: status, filename: filename || p.filename, uploadError: error || null }
-        })
-        const newTicket = (block.ticketPhotos || []).map(p => {
-          if (!p || p.photoId !== photoId) return p
-          touched = true
-          return { ...p, uploadStatus: status, filename: filename || p.filename, uploadError: error || null }
-        })
-        if (!touched) return block
-        return { ...block, workPhotos: newWork, ticketPhotos: newTicket }
-      }))
-    })
-    return unsub
-  }, [])
   const { signOut, userProfile } = useAuth()
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
@@ -327,6 +205,203 @@ function InspectorReport({
   
   // Trackable Items confirmation modal
   const [showTrackableItemsModal, setShowTrackableItemsModal] = useState(false)
+
+  // ===== Durability state (photo recovery + 30s autosave + draft recovery banner) =====
+  const [photoRecoveryDone, setPhotoRecoveryDone] = useState(false)
+  const [draftBanner, setDraftBanner] = useState(null) // { snapshot, updatedAt, draftId } | null
+  const draftLoadedRef = useRef(false)
+  const formStateRef = useRef(null)
+
+  // Photo recovery — restore unsaved photos from IndexedDB into matching blocks.
+  // Runs once after blocks first populate.
+  useEffect(() => {
+    if (photoRecoveryDone) return
+    if (!activityBlocks?.length) return
+    if (loadingReport) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const inspectorEmail = userProfile?.email || ''
+        let recovered = []
+        if (currentReportId) {
+          recovered = await photoManager.loadPhotosForReport(currentReportId)
+        } else if (inspectorEmail && selectedDate) {
+          const dk = photoManager.makeDraftKey(inspectorEmail, selectedDate)
+          recovered = await photoManager.loadPhotosForDraft(dk)
+        }
+        if (cancelled) return
+        const live = (recovered || []).filter(p => p && p.syncStatus !== 'archived')
+        if (live.length === 0) { setPhotoRecoveryDone(true); return }
+
+        const byBlock = new Map()
+        for (const p of live) {
+          if (!p.blockId) continue
+          if (!byBlock.has(p.blockId)) byBlock.set(p.blockId, [])
+          byBlock.get(p.blockId).push(p)
+        }
+        let mergedCount = 0
+        setActivityBlocks(prev => prev.map(block => {
+          const matches = byBlock.get(block.id)
+          if (!matches?.length) return block
+          const existingWorkIds = new Set((block.workPhotos || []).map(p => p?.photoId).filter(Boolean))
+          const existingTicketIds = new Set((block.ticketPhotos || []).map(p => p?.photoId).filter(Boolean))
+          const newWork = []
+          const newTicket = []
+          for (const rec of matches) {
+            const wrapper = {
+              photoId: rec.id,
+              file: rec.blob instanceof File
+                ? rec.blob
+                : new File([rec.blob], rec.metadata?.originalName || `${rec.type}_${rec.id}.jpg`, { type: rec.blob?.type || 'image/jpeg' }),
+              originalName: rec.metadata?.originalName || `${rec.type}_${rec.id}.jpg`,
+              uploadStatus: rec.syncStatus || 'pending',
+              filename: rec.uploadedFilename || null,
+              uploadError: rec.error || null,
+              location: rec.metadata?.location || '',
+              description: rec.metadata?.description || ''
+            }
+            if (rec.type === 'work' && !existingWorkIds.has(rec.id)) { newWork.push(wrapper); mergedCount++ }
+            else if (rec.type === 'ticket' && !existingTicketIds.has(rec.id)) { newTicket.push(wrapper); mergedCount++ }
+            if (wrapper.uploadStatus !== 'uploaded' && wrapper.uploadStatus !== 'archived') {
+              photoManager.awaitUpload(rec.id).catch(() => {})
+            }
+          }
+          if (!newWork.length && !newTicket.length) return block
+          return { ...block, workPhotos: [...(block.workPhotos || []), ...newWork], ticketPhotos: [...(block.ticketPhotos || []), ...newTicket] }
+        }))
+        if (mergedCount > 0) console.log(`[photoRecovery] restored ${mergedCount} photo(s) from IndexedDB`)
+        setPhotoRecoveryDone(true)
+      } catch (err) {
+        console.warn('[photoRecovery] failed:', err)
+        setPhotoRecoveryDone(true)
+      }
+    })()
+    return () => { cancelled = true }
+  }, [activityBlocks.length, currentReportId, userProfile?.email, selectedDate, loadingReport, photoRecoveryDone])
+
+  // Photo upload status subscription — flips badge state as uploads complete.
+  useEffect(() => {
+    const unsub = photoManager.subscribeToPhotoStatus(({ photoId, status, filename, error }) => {
+      setActivityBlocks(prev => prev.map(block => {
+        let touched = false
+        const newWork = (block.workPhotos || []).map(p => {
+          if (!p || p.photoId !== photoId) return p
+          touched = true
+          return { ...p, uploadStatus: status, filename: filename || p.filename, uploadError: error || null }
+        })
+        const newTicket = (block.ticketPhotos || []).map(p => {
+          if (!p || p.photoId !== photoId) return p
+          touched = true
+          return { ...p, uploadStatus: status, filename: filename || p.filename, uploadError: error || null }
+        })
+        if (!touched) return block
+        return { ...block, workPhotos: newWork, ticketPhotos: newTicket }
+      }))
+    })
+    return unsub
+  }, [])
+
+  // Build a snapshot of the current form state. Wrapped in a callback so the
+  // 30s autosave reads the latest values via formStateRef.
+  const collectFormState = () => ({
+    selectedDate, inspectorName, spread, afe, pipeline,
+    weather, precipitation, tempHigh, tempLow, windSpeed, rowCondition,
+    startTime, stopTime,
+    activityBlocks,
+    safetyNotes, safetyRecognitionData, landEnvironment, wildlifeSightingData,
+    generalComments, visitors, inspectorMileage, inspectorEquipment,
+    unitPriceItemsEnabled, unitPriceData,
+    chainageReasons
+  })
+
+  // Keep latest form state in a ref so the autosave interval doesn't have to
+  // re-bind on every keystroke.
+  useEffect(() => {
+    formStateRef.current = collectFormState()
+  })
+
+  // Recovery check on mount — show banner if a newer draft snapshot exists.
+  useEffect(() => {
+    if (draftLoadedRef.current) return
+    if (loadingReport) return
+    if (!userProfile?.email) return
+    if (!selectedDate) return
+    draftLoadedRef.current = true
+    ;(async () => {
+      try {
+        const draft = await draftAutoSave.loadDraftFor({
+          reportId: currentReportId,
+          inspectorEmail: userProfile.email,
+          reportDate: selectedDate
+        })
+        if (!draft) return
+        const draftId = draftAutoSave.makeDraftId({
+          reportId: currentReportId,
+          inspectorEmail: userProfile.email,
+          reportDate: selectedDate
+        })
+        // Only surface if the snapshot is fresh enough to be useful.
+        // Older than 7 days = probably stale, skip.
+        if (Date.now() - (draft.updatedAt || 0) > 7 * 24 * 60 * 60 * 1000) return
+        setDraftBanner({ snapshot: draft.formState, updatedAt: draft.updatedAt, draftId })
+      } catch (err) {
+        console.warn('[draftAutoSave] load failed:', err)
+      }
+    })()
+  }, [userProfile?.email, selectedDate, currentReportId, loadingReport])
+
+  // 30-second autosave loop. Persists the entire form (photos handled
+  // separately by photoManager) so a refresh / crash / deploy mid-session
+  // costs at most ~30s of unsaved edits.
+  useEffect(() => {
+    if (!userProfile?.email) return
+    const tick = async () => {
+      try {
+        const id = draftAutoSave.makeDraftId({
+          reportId: currentReportId,
+          inspectorEmail: userProfile.email,
+          reportDate: formStateRef.current?.selectedDate || selectedDate
+        })
+        if (!id) return
+        // Skip empty initial state — avoid creating a draft when the user
+        // hasn't actually started filling anything in.
+        const fs = formStateRef.current
+        if (!fs) return
+        const hasContent = !!(
+          fs.spread || fs.afe || fs.pipeline || fs.inspectorName ||
+          fs.weather || fs.safetyNotes || fs.generalComments ||
+          (fs.activityBlocks || []).some(b =>
+            b?.activityType ||
+            (b?.labourEntries?.length > 0) ||
+            (b?.equipmentEntries?.length > 0) ||
+            b?.startKP || b?.endKP || b?.workDescription ||
+            (b?.workPhotos?.length > 0) || (b?.ticketPhotos?.length > 0)
+          )
+        )
+        if (!hasContent) return
+        await draftAutoSave.saveDraft({
+          id,
+          reportId: currentReportId,
+          draftKey: photoManager.makeDraftKey(userProfile.email, fs.selectedDate || selectedDate),
+          organizationId,
+          inspectorEmail: userProfile.email,
+          reportDate: fs.selectedDate || selectedDate,
+          formState: fs
+        })
+      } catch (err) {
+        console.warn('[draftAutoSave] tick failed:', err)
+      }
+    }
+    const handle = setInterval(tick, 30000)
+    // Also save on page unload (best effort — IndexedDB is async so this
+    // isn't guaranteed to complete, but it'll usually succeed).
+    const onUnload = () => { tick() }
+    window.addEventListener('beforeunload', onUnload)
+    return () => {
+      clearInterval(handle)
+      window.removeEventListener('beforeunload', onUnload)
+    }
+  }, [userProfile?.email, currentReportId, selectedDate, organizationId])
 
   // Welding activity prefixes that require Welding Chief review
   // Uses startsWith() to avoid false positives (e.g., "Tie-In Completion" matching "tie-in")
@@ -894,6 +969,70 @@ CRITICAL - Individual Entries Required:
     setDraftRestorePrompt(false)
     setPendingDraft(null)
     console.log('🗑️ Draft declined and cleared')
+  }
+
+  // ---- IndexedDB autosave recovery banner: apply / dismiss ----
+  function applyIndexedDBSnapshot(snapshot) {
+    if (!snapshot) return
+    try {
+      if (snapshot.selectedDate) setSelectedDate(snapshot.selectedDate)
+      if (snapshot.inspectorName !== undefined) setInspectorName(snapshot.inspectorName || '')
+      if (snapshot.spread !== undefined) setSpread(snapshot.spread || '')
+      if (snapshot.afe !== undefined) setAfe(snapshot.afe || '')
+      if (snapshot.pipeline !== undefined) {
+        const p = snapshot.pipeline
+        setPipeline(pipelineMigrationMap[p] || p)
+      }
+      if (snapshot.weather !== undefined) setWeather(snapshot.weather || '')
+      if (snapshot.precipitation !== undefined) setPrecipitation(snapshot.precipitation || '')
+      if (snapshot.tempHigh !== undefined) setTempHigh(snapshot.tempHigh || '')
+      if (snapshot.tempLow !== undefined) setTempLow(snapshot.tempLow || '')
+      if (snapshot.windSpeed !== undefined) setWindSpeed(snapshot.windSpeed || '')
+      if (snapshot.rowCondition !== undefined) setRowCondition(snapshot.rowCondition || '')
+      if (snapshot.startTime !== undefined) setStartTime(snapshot.startTime || '')
+      if (snapshot.stopTime !== undefined) setStopTime(snapshot.stopTime || '')
+      if (Array.isArray(snapshot.activityBlocks) && snapshot.activityBlocks.length > 0) {
+        setActivityBlocks(snapshot.activityBlocks)
+      }
+      if (snapshot.safetyNotes !== undefined) setSafetyNotes(snapshot.safetyNotes || '')
+      if (snapshot.safetyRecognitionData) setSafetyRecognitionData(snapshot.safetyRecognitionData)
+      if (snapshot.wildlifeSightingData) setWildlifeSightingData(snapshot.wildlifeSightingData)
+      if (snapshot.landEnvironment !== undefined) setLandEnvironment(snapshot.landEnvironment || '')
+      if (snapshot.generalComments !== undefined) setGeneralComments(snapshot.generalComments || '')
+      if (Array.isArray(snapshot.visitors)) setVisitors(snapshot.visitors)
+      if (snapshot.inspectorMileage !== undefined) setInspectorMileage(snapshot.inspectorMileage || '')
+      if (snapshot.inspectorEquipment !== undefined) setInspectorEquipment(snapshot.inspectorEquipment || [])
+      if (snapshot.unitPriceItemsEnabled !== undefined) setUnitPriceItemsEnabled(!!snapshot.unitPriceItemsEnabled)
+      if (snapshot.unitPriceData) setUnitPriceData(snapshot.unitPriceData)
+      if (snapshot.chainageReasons) setChainageReasons(snapshot.chainageReasons)
+      console.log('[draftAutoSave] Restored snapshot from IndexedDB')
+    } catch (err) {
+      console.error('[draftAutoSave] restore failed:', err)
+      alert('Could not restore the recovered draft cleanly. Some fields may be missing.')
+    }
+  }
+
+  async function restoreDraftBanner() {
+    if (!draftBanner) return
+    applyIndexedDBSnapshot(draftBanner.snapshot)
+    setDraftBanner(null)
+    // Photo recovery already runs separately; force a re-run so newly-restored
+    // blocks pick up their photos from IndexedDB.
+    setPhotoRecoveryDone(false)
+  }
+
+  async function dismissDraftBanner() {
+    const id = draftBanner?.draftId
+    setDraftBanner(null)
+    if (id) {
+      try {
+        await draftAutoSave.clearDraftFor({
+          reportId: currentReportId,
+          inspectorEmail: userProfile?.email,
+          reportDate: selectedDate
+        })
+      } catch (e) { console.warn('clearDraftFor failed:', e) }
+    }
   }
 
   // Manually clear draft
@@ -3369,6 +3508,17 @@ CRITICAL - Individual Entries Required:
           }
         } catch (e) { console.warn('[Save] photo reassociate error:', e) }
 
+        // Wipe the IndexedDB form-draft snapshot — Supabase is now the
+        // source of truth for this report.
+        try {
+          await draftAutoSave.clearDraftFor({
+            reportId: currentReportId,
+            inspectorEmail: userProfile?.email,
+            reportDate: selectedDate
+          })
+          setDraftBanner(null)
+        } catch (e) { console.warn('[Save] clearDraftFor failed:', e) }
+
         // Persist health score separately (non-blocking, tolerates missing column)
         persistHealthScore(currentReportId)
 
@@ -3475,6 +3625,18 @@ CRITICAL - Individual Entries Required:
             await photoManager.markPhotoArchived(pid)
           }
         } catch (e) { console.warn('[Save] photo reassociate error:', e) }
+
+        // Wipe the IndexedDB form-draft snapshot for both keyspaces (the
+        // pre-save draft key AND the post-save report id key, in case a
+        // tick happened between insert and now).
+        try {
+          await draftAutoSave.clearDraftFor({
+            reportId: ticketId,
+            inspectorEmail: userProfile?.email,
+            reportDate: selectedDate
+          })
+          setDraftBanner(null)
+        } catch (e) { console.warn('[Save] clearDraftFor failed:', e) }
 
         // Persist health score separately (non-blocking, tolerates missing column)
         persistHealthScore(ticketId)
@@ -9313,6 +9475,70 @@ CRITICAL - Individual Entries Required:
           100% { opacity: 0; transform: translateY(-10px); }
         }
       `}</style>
+
+      {/* IndexedDB autosave recovery banner — appears at the top of the
+          report when an auto-saved snapshot is found that hasn't been
+          merged into the current form yet. Different from the
+          draftRestorePrompt modal below: this is non-blocking, lives
+          inline at the top, and is for the new IndexedDB durability
+          system that persists every 30s. */}
+      {draftBanner && (
+        <div style={{
+          backgroundColor: '#fff3cd',
+          border: '2px solid #ffc107',
+          borderRadius: '8px',
+          padding: '15px 20px',
+          marginBottom: '15px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: '15px',
+          flexWrap: 'wrap'
+        }}>
+          <div style={{ flex: 1, minWidth: '260px' }}>
+            <div style={{ fontWeight: 'bold', color: '#856404', fontSize: '15px', marginBottom: '4px' }}>
+              ⚠️ Unsaved changes recovered
+            </div>
+            <div style={{ fontSize: '13px', color: '#664d03' }}>
+              Auto-saved {draftAutoSave.formatRecoveredAt(draftBanner.updatedAt)}
+              {draftBanner.snapshot?.activityBlocks?.length
+                ? ` — ${draftBanner.snapshot.activityBlocks.filter(b => b?.activityType).length} activit${draftBanner.snapshot.activityBlocks.filter(b => b?.activityType).length === 1 ? 'y' : 'ies'}, ${draftBanner.snapshot.activityBlocks.reduce((n, b) => n + ((b?.labourEntries?.length) || 0), 0)} labour entries.`
+                : '.'}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={restoreDraftBanner}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: '#28a745',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+                fontSize: '13px'
+              }}
+            >
+              Restore
+            </button>
+            <button
+              onClick={dismissDraftBanner}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: 'white',
+                color: '#856404',
+                border: '1px solid #ffc107',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '13px'
+              }}
+            >
+              Discard
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Draft Restore Prompt Modal */}
       {draftRestorePrompt && pendingDraft && (

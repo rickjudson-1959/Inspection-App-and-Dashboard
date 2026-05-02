@@ -1,7 +1,7 @@
 import { openDB } from 'idb'
 
 const DB_NAME = 'egp-inspector-offline'
-const DB_VERSION = 1
+const DB_VERSION = 2 // bumped from 1 in May 2026 to add formDrafts store
 
 // Initialize and upgrade the IndexedDB database
 export async function initDB() {
@@ -34,6 +34,19 @@ export async function initDB() {
       // userSession store - Cached auth for offline validation
       if (!db.objectStoreNames.contains('userSession')) {
         db.createObjectStore('userSession', { keyPath: 'id' })
+      }
+
+      // formDrafts store (added v2, May 2026) - Auto-saved snapshots of the
+      // entire inspector report form. Key is either 'report:<reportId>' for
+      // edit-mode drafts, or 'draft:<email>:<date>' for brand-new reports.
+      // Snapshots strip File/Blob refs (those are handled by the photos
+      // store + photoManager) so the payload stays small enough to write
+      // every 30s without UI jank.
+      if (!db.objectStoreNames.contains('formDrafts')) {
+        const draftStore = db.createObjectStore('formDrafts', { keyPath: 'id' })
+        draftStore.createIndex('reportId', 'reportId')
+        draftStore.createIndex('draftKey', 'draftKey')
+        draftStore.createIndex('updatedAt', 'updatedAt')
       }
     }
   })
@@ -264,17 +277,62 @@ export async function clearUserSession() {
 }
 
 // =====================
+// Form Draft Snapshots (v2)
+// =====================
+// One row per { reportId } or { draftKey }. Snapshots get overwritten in
+// place every 30s while the user edits, so the store never grows without
+// bound for a single report.
+
+export async function putDraftSnapshot({ id, reportId, draftKey, organizationId, inspectorEmail, reportDate, formState }) {
+  if (!id) throw new Error('putDraftSnapshot: id is required')
+  const db = await getDB()
+  const now = Date.now()
+  const existing = await db.get('formDrafts', id)
+  const record = {
+    id,
+    reportId: reportId || null,
+    draftKey: draftKey || null,
+    organizationId: organizationId || null,
+    inspectorEmail: inspectorEmail || null,
+    reportDate: reportDate || null,
+    formState,
+    updatedAt: now,
+    createdAt: existing?.createdAt || now
+  }
+  await db.put('formDrafts', record)
+  return record
+}
+
+export async function getDraftSnapshot(id) {
+  if (!id) return null
+  const db = await getDB()
+  return db.get('formDrafts', id)
+}
+
+export async function deleteDraftSnapshot(id) {
+  if (!id) return
+  const db = await getDB()
+  await db.delete('formDrafts', id)
+}
+
+export async function listDraftSnapshots() {
+  const db = await getDB()
+  return db.getAll('formDrafts')
+}
+
+// =====================
 // Utility Functions
 // =====================
 
 export async function clearAllData() {
   const db = await getDB()
-  const tx = db.transaction(['pendingReports', 'photos', 'chainageCache', 'userSession'], 'readwrite')
+  const tx = db.transaction(['pendingReports', 'photos', 'chainageCache', 'userSession', 'formDrafts'], 'readwrite')
   await Promise.all([
     tx.objectStore('pendingReports').clear(),
     tx.objectStore('photos').clear(),
     tx.objectStore('chainageCache').clear(),
     tx.objectStore('userSession').clear(),
+    tx.objectStore('formDrafts').clear(),
     tx.done
   ])
 }
