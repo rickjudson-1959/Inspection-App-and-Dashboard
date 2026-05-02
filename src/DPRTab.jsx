@@ -155,37 +155,35 @@ export default function DPRTab() {
     setLoading(true);
 
     try {
-      // 1a. Find report IDs whose report_status is submitted/approved/published
-      const { data: statusRows, error: statusErr } = await supabase
-        .from('report_status')
-        .select('report_id')
-        .eq('organization_id', organizationId)
-        .in('status', ['submitted', 'approved', 'published']);
-      if (statusErr) throw statusErr;
-      const allowedIds = (statusRows || []).map(r => r.report_id);
-
-      // 1b. Fetch reports for the selected date, filtered by status + pipeline
+      // Single query — fetch reports for the date with their status joined in.
+      // Embedded select returns report_status as an array (one row per status entry).
       let repQuery = supabase
         .from('daily_reports')
-        .select('id, date, pipeline, activity_blocks, weather, temp_high, temp_low')
+        .select('id, date, pipeline, activity_blocks, weather, temp_high, temp_low, report_status(status)')
         .eq('organization_id', organizationId)
         .eq('date', reportDate);
       if (pipelineFilter) {
         repQuery = repQuery.eq('pipeline', pipelineFilter);
       }
-      if (allowedIds.length > 0) {
-        repQuery = repQuery.in('id', allowedIds);
-      } else {
-        // No allowed reports — short-circuit
-        setReportCount(0);
-        setLoading(false);
-        return;
-      }
-      const { data: reports, error: repErr } = await repQuery;
+      const { data: rawReports, error: repErr } = await repQuery;
       if (repErr) throw repErr;
-      setReportCount(reports?.length || 0);
 
-      if (!reports?.length) {
+      // Filter to allowed statuses. PostgREST returns report_status as an
+      // object (1:1 FK) or an array (1:N) depending on relationship inference;
+      // normalize both. Reports with NO status entry are treated as legacy/visible.
+      const allowedStatuses = new Set(['submitted', 'approved', 'published']);
+      const reports = (rawReports || []).filter(r => {
+        const rs = r.report_status;
+        if (!rs) return true; // no status row — legacy historical data
+        const statuses = Array.isArray(rs) ? rs : [rs];
+        if (statuses.length === 0) return true;
+        return statuses.some(s => allowedStatuses.has(s?.status));
+      });
+
+      console.log(`[DPR loadData] date=${reportDate} pipeline=${pipelineFilter || 'ALL'}: fetched ${rawReports?.length || 0} reports, ${reports.length} pass status filter`);
+      setReportCount(reports.length);
+
+      if (!reports.length) {
         setLoading(false);
         return;
       }
