@@ -163,6 +163,9 @@ export async function savePhoto(photo) {
     reportId: photo.reportId || null,
     draftKey: photo.draftKey || null,
     organizationId: photo.organizationId || null,
+    inspectorEmail: photo.inspectorEmail
+      ? photo.inspectorEmail.toLowerCase().trim()
+      : null,
     blockId: photo.blockId || null,
     type: photo.type, // 'ticket' or 'work'
     blob: photo.blob,

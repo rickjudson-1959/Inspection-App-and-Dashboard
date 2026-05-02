@@ -222,12 +222,13 @@ function InspectorReport({
     ;(async () => {
       try {
         const inspectorEmail = userProfile?.email || ''
+        if (!inspectorEmail) { setPhotoRecoveryDone(true); return }
         let recovered = []
         if (currentReportId) {
-          recovered = await photoManager.loadPhotosForReport(currentReportId)
-        } else if (inspectorEmail && selectedDate) {
+          recovered = await photoManager.loadPhotosForReport(currentReportId, inspectorEmail)
+        } else if (selectedDate) {
           const dk = photoManager.makeDraftKey(inspectorEmail, selectedDate)
-          recovered = await photoManager.loadPhotosForDraft(dk)
+          recovered = await photoManager.loadPhotosForDraft(dk, inspectorEmail)
         }
         if (cancelled) return
         const live = (recovered || []).filter(p => p && p.syncStatus !== 'archived')
@@ -2849,7 +2850,9 @@ CRITICAL - Individual Entries Required:
     const inspectorEmail = userProfile?.email || ''
     const draftKey = photoManager.makeDraftKey(inspectorEmail, selectedDate)
 
-    // 1. Optimistic state push so thumbs appear immediately.
+    // 1. Optimistic state push so thumbs appear immediately. (inspectorEmail
+    //    is plumbed all the way to IndexedDB so two users on a shared device
+    //    don't see each other's pending uploads.)
     const placeholders = files.map(file => ({
       photoId: null, // filled in by persistPhoto below
       file,           // browser-memory blob, used for the thumbnail until upload finishes
@@ -2877,6 +2880,7 @@ CRITICAL - Individual Entries Required:
           reportId: currentReportId || null,
           draftKey,
           organizationId: getOrgId(),
+          inspectorEmail,
           metadata: { originalName: file.name, location: '', description: '' }
         })
         setActivityBlocks(prev => prev.map(block => {

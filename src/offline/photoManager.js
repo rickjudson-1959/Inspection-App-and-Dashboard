@@ -62,6 +62,7 @@ function notifyStatusChange(photoId, status, extras = {}) {
  * @param {string|null} args.reportId        daily_reports.id, or null for unsaved drafts.
  * @param {string|null} args.draftKey        Stable draft id (`draft:<email>:<date>`), used when reportId is null.
  * @param {string|null} args.organizationId
+ * @param {string|null} args.inspectorEmail  Used to user-scope IndexedDB recovery so two users on the same device don't see each other's pending photos.
  * @param {object} args.metadata             { location, description, originalName }
  * @returns {Promise<string>}                The generated photoId.
  */
@@ -72,6 +73,7 @@ export async function persistPhoto({
   reportId = null,
   draftKey = null,
   organizationId = null,
+  inspectorEmail = null,
   metadata = {}
 }) {
   if (!blob) throw new Error('persistPhoto: blob is required')
@@ -87,6 +89,7 @@ export async function persistPhoto({
     reportId,
     draftKey,
     organizationId,
+    inspectorEmail,
     blockId,
     type,
     blob,
@@ -147,22 +150,35 @@ export async function getStatus(photoId) {
 
 /**
  * Load all photos persisted against a saved report. Used to restore React
- * state on page load when editing an existing report.
+ * state on page load when editing an existing report. When inspectorEmail
+ * is provided, only photos owned by that user are returned — prevents
+ * cross-user leakage on a shared device.
  */
-export async function loadPhotosForReport(reportId) {
+export async function loadPhotosForReport(reportId, inspectorEmail = null) {
   if (!reportId) return []
-  return getPhotosByReportId(reportId)
+  const all = await getPhotosByReportId(reportId)
+  if (!inspectorEmail) return all
+  const email = inspectorEmail.toLowerCase().trim()
+  // Backward-compat: include legacy records with no inspectorEmail field
+  // (those were created before user-scoping landed).
+  return all.filter(p => !p.inspectorEmail || p.inspectorEmail === email)
 }
 
 /**
  * Load all photos persisted against a draft (unsaved report). The draftKey
- * is a deterministic string like `draft:<inspectorEmail>:<date>`.
+ * already encodes the user via `draft:<email>:<date>`, so user-scoping is
+ * implicit. inspectorEmail kept as an optional second filter for symmetry.
  */
-export async function loadPhotosForDraft(draftKey) {
+export async function loadPhotosForDraft(draftKey, inspectorEmail = null) {
   if (!draftKey) return []
   const db = await getDB()
   const all = await db.getAll('photos')
-  return all.filter(p => p.draftKey === draftKey)
+  let rows = all.filter(p => p.draftKey === draftKey)
+  if (inspectorEmail) {
+    const email = inspectorEmail.toLowerCase().trim()
+    rows = rows.filter(p => !p.inspectorEmail || p.inspectorEmail === email)
+  }
+  return rows
 }
 
 /**

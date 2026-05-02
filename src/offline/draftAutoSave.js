@@ -21,15 +21,16 @@ const DRAFT_KEY_PREFIX_REPORT = 'report:'
 const DRAFT_KEY_PREFIX_DRAFT = 'draft:'
 
 /**
- * Build the IndexedDB key for a draft snapshot. Edit-mode reports use
- * 'report:<id>'; brand-new drafts use 'draft:<email>:<date>'. Either may
- * be null if the form isn't ready yet.
+ * Build the IndexedDB key for a draft snapshot. Always user-scoped via
+ * inspectorEmail so two users on the same browser/device can't see each
+ * other's unsaved drafts. Edit-mode keys: 'report:<id>:<email>'. New
+ * drafts: 'draft:<email>:<date>'. Returns null if email is missing.
  */
 export function makeDraftId({ reportId, inspectorEmail, reportDate }) {
-  if (reportId) return `${DRAFT_KEY_PREFIX_REPORT}${reportId}`
-  if (inspectorEmail && reportDate) {
-    return `${DRAFT_KEY_PREFIX_DRAFT}${inspectorEmail.toLowerCase().trim()}:${reportDate}`
-  }
+  const email = (inspectorEmail || '').toLowerCase().trim()
+  if (!email) return null
+  if (reportId) return `${DRAFT_KEY_PREFIX_REPORT}${reportId}:${email}`
+  if (reportDate) return `${DRAFT_KEY_PREFIX_DRAFT}${email}:${reportDate}`
   return null
 }
 
@@ -118,16 +119,19 @@ export async function saveDraft({ id, reportId, draftKey, organizationId, inspec
 
 /**
  * Load the most recent snapshot for an edit-mode report or a brand-new
- * draft. Tries the report key first, then falls back to the draft key.
+ * draft. Always scoped by inspectorEmail so different users on the same
+ * device get different drafts. Tries the report key first, then falls
+ * back to the draft key.
  */
 export async function loadDraftFor({ reportId, inspectorEmail, reportDate }) {
-  // Saved-report snapshot takes priority
+  const email = (inspectorEmail || '').toLowerCase().trim()
+  if (!email) return null
   if (reportId) {
-    const r = await getDraftSnapshot(`${DRAFT_KEY_PREFIX_REPORT}${reportId}`)
+    const r = await getDraftSnapshot(`${DRAFT_KEY_PREFIX_REPORT}${reportId}:${email}`)
     if (r) return r
   }
-  if (inspectorEmail && reportDate) {
-    const d = await getDraftSnapshot(`${DRAFT_KEY_PREFIX_DRAFT}${inspectorEmail.toLowerCase().trim()}:${reportDate}`)
+  if (reportDate) {
+    const d = await getDraftSnapshot(`${DRAFT_KEY_PREFIX_DRAFT}${email}:${reportDate}`)
     if (d) return d
   }
   return null
@@ -139,11 +143,13 @@ export async function loadDraftFor({ reportId, inspectorEmail, reportDate }) {
  * a saved report and we want to wipe both bookkeeping records.
  */
 export async function clearDraftFor({ reportId, inspectorEmail, reportDate }) {
+  const email = (inspectorEmail || '').toLowerCase().trim()
+  if (!email) return
   if (reportId) {
-    await deleteDraftSnapshot(`${DRAFT_KEY_PREFIX_REPORT}${reportId}`)
+    await deleteDraftSnapshot(`${DRAFT_KEY_PREFIX_REPORT}${reportId}:${email}`)
   }
-  if (inspectorEmail && reportDate) {
-    await deleteDraftSnapshot(`${DRAFT_KEY_PREFIX_DRAFT}${inspectorEmail.toLowerCase().trim()}:${reportDate}`)
+  if (reportDate) {
+    await deleteDraftSnapshot(`${DRAFT_KEY_PREFIX_DRAFT}${email}:${reportDate}`)
   }
 }
 

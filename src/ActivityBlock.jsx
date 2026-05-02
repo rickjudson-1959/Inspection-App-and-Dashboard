@@ -978,6 +978,7 @@ function ActivityBlock({
           reportId: reportId || null,
           draftKey,
           organizationId,
+          inspectorEmail: currentUser?.email || null,
           metadata: { originalName: file.name }
         })
         return {
