@@ -720,11 +720,36 @@ function EVMDashboard() {
     )
   }
 
-  // Prefer live data when available; otherwise fall back to demo
-  const metrics = liveMetrics || demoData.metrics
-  const phases = livePhases || demoData.phases
-  const spreads = liveSpreads || demoData.spreads
-  const monthlyTrends = demoData.monthlyTrends
+  // Prefer live data when available; otherwise fall back to demo. If both are
+  // unavailable (e.g. calculateEVM still in flight, or no baselines + missing
+  // demo shape), fall back to SAFE_METRICS so downstream .toFixed() calls
+  // don't crash the page.
+  const SAFE_METRICS = {
+    BAC: 0, PV: 0, EV: 0, AC: 0, CV: 0, SV: 0,
+    CPI: 1, SPI: 1, EAC: 0, ETC: 0, VAC: 0, TCPI: 1,
+    percentPhysical: 0, percentSpent: 0, percentScheduled: 0,
+    dailyPV: 0, daysBehind: 0, daysElapsed: 0, totalDays: 1
+  }
+  const metrics = liveMetrics || demoData?.metrics || SAFE_METRICS
+  const phases = livePhases || demoData?.phases || []
+  const spreads = liveSpreads || demoData?.spreads || []
+  const monthlyTrends = demoData?.monthlyTrends || []
+
+  // If we ended up on the all-zero fallback AND we're not just starting up,
+  // surface a clear "no data" message rather than rendering an empty dashboard.
+  const hasAnyData = !!(liveMetrics || demoData?.metrics)
+  if (!hasAnyData) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center', color: '#666' }}>
+        <h2>No EVM data available</h2>
+        <p>No baselines or inspector reports found for <strong>{pipelineFilter || 'this project'}</strong>.</p>
+        <p style={{ fontSize: '13px', marginTop: '20px' }}>
+          Verify <code>project_baselines</code> rows exist for the active pipeline,
+          and that inspector reports have been submitted.
+        </p>
+      </div>
+    )
+  }
 
   return (
     <div style={{ padding: '20px', maxWidth: '1800px', margin: '0 auto', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
@@ -956,18 +981,18 @@ function OverviewTab({ metrics, sCurveData, healthAssessment, dragMetrics, metri
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
                     <div style={{ fontSize: '12px', color: '#666' }}>Reported CPI</div>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: getIndexColor(metrics.CPI) }}>{metrics.CPI.toFixed(2)}</div>
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: getIndexColor(metrics?.CPI ?? 1) }}>{(metrics?.CPI ?? 0).toFixed(2)}</div>
                   </div>
                   <div style={{ fontSize: '24px', color: '#666' }}>→</div>
                   <div>
                     <div style={{ fontSize: '12px', color: '#666' }}>True CPI (excl. drag)</div>
-                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: getIndexColor(metrics.CPI * (100 / dragMetrics.inertiaRatio)) }}>
-                      {(metrics.CPI * (100 / dragMetrics.inertiaRatio)).toFixed(2)}
+                    <div style={{ fontSize: '24px', fontWeight: 'bold', color: getIndexColor(((metrics?.CPI ?? 1) * (100 / (dragMetrics?.inertiaRatio || 100)))) }}>
+                      {((metrics?.CPI ?? 0) * (100 / (dragMetrics?.inertiaRatio || 100))).toFixed(2)}
                     </div>
                   </div>
                 </div>
                 <div style={{ fontSize: '11px', color: '#856404', marginTop: '10px', padding: '8px', backgroundColor: '#fff3cd', borderRadius: '4px' }}>
-                  If drag costs were eliminated, CPI would improve by {((metrics.CPI * (100 / dragMetrics.inertiaRatio)) - metrics.CPI).toFixed(2)} points
+                  If drag costs were eliminated, CPI would improve by {(((metrics?.CPI ?? 0) * (100 / (dragMetrics?.inertiaRatio || 100))) - (metrics?.CPI ?? 0)).toFixed(2)} points
                 </div>
               </div>
 
@@ -1350,10 +1375,13 @@ function CrewsTab({ spreads }) {
 
         {/* Spread Cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
-          {spreads.map((spread, i) => {
-            const spiColor = getIndexColor(spread.spi)
-            const cpiColor = getIndexColor(spread.cpi)
-            const progressPercent = (spread.metresComplete / spread.metresTarget) * 100
+          {(spreads || []).filter(Boolean).map((spread, i) => {
+            const spiVal = spread?.spi ?? 1
+            const cpiVal = spread?.cpi ?? 1
+            const spiColor = getIndexColor(spiVal)
+            const cpiColor = getIndexColor(cpiVal)
+            const target = spread?.metresTarget || 0
+            const progressPercent = target > 0 ? ((spread?.metresComplete || 0) / target) * 100 : 0
             
             return (
               <div key={i} style={{ 
@@ -1368,26 +1396,26 @@ function CrewsTab({ spreads }) {
                     <p style={{ margin: 0, fontSize: '12px', color: '#666' }}>Foreman: {spread.foreman}</p>
                     <p style={{ margin: '3px 0 0', fontSize: '11px', color: '#888' }}>{spread.kpRange}</p>
                   </div>
-                  <span style={{ 
-                    padding: '4px 10px', 
-                    backgroundColor: spread.status === 'On Track' ? '#e8f5e9' : spread.status.includes('Monitor') ? '#fff3e0' : '#ffebee',
-                    color: spread.status === 'On Track' ? '#2e7d32' : spread.status.includes('Monitor') ? '#ef6c00' : '#c62828',
+                  <span style={{
+                    padding: '4px 10px',
+                    backgroundColor: spread?.status === 'On Track' ? '#e8f5e9' : (spread?.status || '').includes('Monitor') ? '#fff3e0' : '#ffebee',
+                    color: spread?.status === 'On Track' ? '#2e7d32' : (spread?.status || '').includes('Monitor') ? '#ef6c00' : '#c62828',
                     borderRadius: '12px',
                     fontSize: '11px',
                     fontWeight: '600'
                   }}>
-                    {spread.status}
+                    {spread?.status || '—'}
                   </span>
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: '15px' }}>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '10px', color: '#666' }}>SPI</div>
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: spiColor }}>{spread.spi.toFixed(2)}</div>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: spiColor }}>{spiVal.toFixed(2)}</div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '10px', color: '#666' }}>CPI</div>
-                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: cpiColor }}>{spread.cpi.toFixed(2)}</div>
+                    <div style={{ fontSize: '18px', fontWeight: 'bold', color: cpiColor }}>{cpiVal.toFixed(2)}</div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '10px', color: '#666' }}>Labour</div>
@@ -1492,14 +1520,14 @@ function TrendsTab({ monthlyTrends }) {
               </tr>
             </thead>
             <tbody>
-              {monthlyTrends.map((m, i) => (
+              {(monthlyTrends || []).filter(Boolean).map((m, i) => (
                 <tr key={i} style={{ backgroundColor: i % 2 ? '#f8f9fa' : 'white' }}>
-                  <td style={{ padding: '10px', borderBottom: '1px solid #dee2e6', fontWeight: 'bold' }}>{m.month}</td>
-                  <td style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #dee2e6', color: getIndexColor(m.SPI), fontWeight: 'bold' }}>{m.SPI.toFixed(2)}</td>
-                  <td style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #dee2e6', color: getIndexColor(m.CPI), fontWeight: 'bold' }}>{m.CPI.toFixed(2)}</td>
-                  <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #dee2e6' }}>{Math.round(m.labourHours).toLocaleString()}</td>
-                  <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #dee2e6' }}>{Math.round(m.equipmentHours).toLocaleString()}</td>
-                  <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #dee2e6' }}>{Math.round(m.metresInstalled).toLocaleString()}</td>
+                  <td style={{ padding: '10px', borderBottom: '1px solid #dee2e6', fontWeight: 'bold' }}>{m?.month || '—'}</td>
+                  <td style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #dee2e6', color: getIndexColor(m?.SPI ?? 1), fontWeight: 'bold' }}>{(m?.SPI ?? 0).toFixed(2)}</td>
+                  <td style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #dee2e6', color: getIndexColor(m?.CPI ?? 1), fontWeight: 'bold' }}>{(m?.CPI ?? 0).toFixed(2)}</td>
+                  <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #dee2e6' }}>{Math.round(m?.labourHours || 0).toLocaleString()}</td>
+                  <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #dee2e6' }}>{Math.round(m?.equipmentHours || 0).toLocaleString()}</td>
+                  <td style={{ padding: '10px', textAlign: 'right', borderBottom: '1px solid #dee2e6' }}>{Math.round(m?.metresInstalled || 0).toLocaleString()}</td>
                   <td style={{ padding: '10px', textAlign: 'center', borderBottom: '1px solid #dee2e6' }}>
                     <span style={{ 
                       display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%',
@@ -1521,13 +1549,18 @@ function TrendsTab({ monthlyTrends }) {
 // ============================================================================
 
 function KPICard({ title, value, subtitle, format = 'currency', color, isVariance }) {
-  const displayValue = format === 'currency' ? formatCurrency(value) : format === 'index' ? value.toFixed(3) : value
-  const valueColor = isVariance ? (value >= 0 ? EVMColors.variance.positive : EVMColors.variance.negative) : color || '#333'
+  const safeValue = value == null || Number.isNaN(value) ? 0 : value
+  const displayValue = format === 'currency'
+    ? formatCurrency(safeValue)
+    : format === 'index'
+      ? safeValue.toFixed(3)
+      : safeValue
+  const valueColor = isVariance ? (safeValue >= 0 ? EVMColors.variance.positive : EVMColors.variance.negative) : color || '#333'
 
   return (
     <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef' }}>
       <div style={{ fontSize: '11px', color: '#666', fontWeight: '500', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{title}</div>
-      <div style={{ fontSize: '26px', fontWeight: 'bold', color: valueColor, marginTop: '5px' }}>{isVariance && value > 0 && '+'}{displayValue}</div>
+      <div style={{ fontSize: '26px', fontWeight: 'bold', color: valueColor, marginTop: '5px' }}>{isVariance && safeValue > 0 && '+'}{displayValue}</div>
       {subtitle && <div style={{ fontSize: '11px', color: '#999', marginTop: '3px' }}>{subtitle}</div>}
     </div>
   )
@@ -1565,9 +1598,10 @@ function EACCard({ eac, bac, vac }) {
 }
 
 function PerformanceGauge({ label, value }) {
-  const color = getIndexColor(value)
-  const status = getIndexStatus(value)
-  const percentage = Math.min((value / 1.2) * 100, 100)
+  const safeValue = value == null || Number.isNaN(value) ? 0 : value
+  const color = getIndexColor(safeValue)
+  const status = getIndexStatus(safeValue)
+  const percentage = Math.min((safeValue / 1.2) * 100, 100)
 
   return (
     <div style={{ padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px', border: '1px solid #e9ecef', textAlign: 'center' }}>
@@ -1577,7 +1611,7 @@ function PerformanceGauge({ label, value }) {
         <div style={{ position: 'absolute', width: `${percentage}%`, height: '100%', backgroundColor: color, transition: 'width 0.5s ease' }} />
         <div style={{ position: 'absolute', left: `${(1.0 / 1.2) * 100}%`, top: 0, bottom: 0, width: '2px', backgroundColor: '#333' }} />
       </div>
-      <div style={{ fontSize: '28px', fontWeight: 'bold', color }}>{value.toFixed(2)}</div>
+      <div style={{ fontSize: '28px', fontWeight: 'bold', color }}>{safeValue.toFixed(2)}</div>
       <div style={{ fontSize: '11px', color, fontWeight: '600', marginTop: '3px' }}>{status}</div>
     </div>
   )
