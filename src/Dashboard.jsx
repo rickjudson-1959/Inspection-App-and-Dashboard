@@ -235,53 +235,8 @@ function getCrewData(crewType) {
   })
 }
 
-// Spread/Crew performance data
-const spreadData = [
-  {
-    name: 'Spread 1 - Mainline North',
-    foreman: 'Brad Whitworth',
-    kpRange: '0+000 to 20+000',
-    labourCount: 145,
-    equipmentUnits: 42,
-    welders: 24,
-    spi: 0.93,
-    dailyMetres: 520,
-    status: 'On Track'
-  },
-  {
-    name: 'Spread 2 - Mainline South',
-    foreman: 'Gary Nelson',
-    kpRange: '20+000 to 40+000',
-    labourCount: 158,
-    equipmentUnits: 48,
-    welders: 28,
-    spi: 0.88,
-    dailyMetres: 485,
-    status: 'Monitor - Rock delays'
-  },
-  {
-    name: 'Spread 3 - Portal & Crossings',
-    foreman: 'Mike Thompson',
-    kpRange: '40+000 to 47+000 + HDDs',
-    labourCount: 92,
-    equipmentUnits: 28,
-    welders: 12,
-    spi: 0.96,
-    dailyMetres: 380,
-    status: 'On Track'
-  },
-  {
-    name: 'TBM Tunnel Crew',
-    foreman: 'James Wilson (Herrenknecht)',
-    kpRange: 'Tunnel KP 47 to 56',
-    labourCount: 85,
-    equipmentUnits: 15,
-    welders: 0,
-    spi: 0.82,
-    dailyMetres: 18,
-    status: 'At Risk - Ground conditions'
-  }
-]
+// (Hardcoded EGP demo spread data removed — Crews tab now derives from
+// real reports' spread/inspector_name/labourEntries fields.)
 
 function Dashboard({ onBackToReport }) {
   const { signOut, userProfile } = useAuth()
@@ -318,7 +273,12 @@ function Dashboard({ onBackToReport }) {
   const [photoSearchLocation, setPhotoSearchLocation] = useState('')
   const [photoSearchInspector, setPhotoSearchInspector] = useState('')
 
-  // Load project metadata + rate cards
+  // Per-activity baseline lookup (planned_metres + $/m) derived from
+  // project_baselines for the active pipeline. Replaces the hardcoded
+  // plannedTargets table.
+  const [baselineByPhase, setBaselineByPhase] = useState({})
+
+  // Load project metadata (dpr_config) + master rate cards.
   useEffect(() => {
     if (!organizationId) return
     ;(async () => {
@@ -344,6 +304,59 @@ function Dashboard({ onBackToReport }) {
     })()
   }, [organizationId])
 
+  // Load baselines for the active pipeline. Derives total length, total
+  // budget (BAC), schedule window, and per-activity planned_metres/$ from
+  // project_baselines. Fully replaces the hardcoded EGP plannedTargets.
+  useEffect(() => {
+    if (!pipelineFilter) return
+    ;(async () => {
+      const { data: rows, error } = await supabase
+        .from('project_baselines')
+        .select('activity_type, planned_metres, budgeted_unit_cost, planned_start_date, planned_end_date')
+        .eq('pipeline', pipelineFilter)
+        .eq('is_active', true)
+      if (error) { console.warn('[Dashboard] baselines load failed:', error); return }
+      if (!rows || rows.length === 0) {
+        console.warn('[Dashboard] no baselines for pipeline:', pipelineFilter)
+        setBaselineByPhase({})
+        return
+      }
+      let bac = 0
+      let earliest = null, latest = null, maxLen = 0
+      const byPhase = {}
+      for (const b of rows) {
+        const len = Number(b.planned_metres) || 0
+        const upc = Number(b.budgeted_unit_cost) || 0
+        bac += len * upc
+        if (!earliest || b.planned_start_date < earliest) earliest = b.planned_start_date
+        if (!latest || b.planned_end_date > latest) latest = b.planned_end_date
+        if (len > maxLen) maxLen = len
+        byPhase[b.activity_type] = {
+          metres: len,
+          costPerMetre: upc,
+          start: b.planned_start_date,
+          end: b.planned_end_date
+        }
+      }
+      setBaselineByPhase(byPhase)
+      setProjectInfo(prev => ({
+        ...prev,
+        totalBudget: Math.round(bac),
+        totalLength: maxLen || prev.totalLength,
+        mainlineLength: maxLen || prev.mainlineLength,
+        baselineStart: earliest || prev.baselineStart,
+        baselineFinish: latest || prev.baselineFinish
+      }))
+      console.log('[Dashboard] baselines loaded:', {
+        pipeline: pipelineFilter,
+        baselineCount: rows.length,
+        totalBudget: Math.round(bac),
+        totalLength: maxLen,
+        window: `${earliest} → ${latest}`
+      })
+    })()
+  }, [pipelineFilter])
+
   useEffect(() => {
     console.log('[Dashboard] useEffect - isReady:', isReady(), 'orgId:', organizationId, 'isSuperAdmin:', isSuperAdmin, 'pipeline:', pipelineFilter)
     if (isReady()) {
@@ -355,28 +368,34 @@ function Dashboard({ onBackToReport }) {
 
   async function loadReports() {
     setLoading(true)
-    const startDate = new Date()
-    startDate.setDate(startDate.getDate() - dateRange)
 
     try {
       let query = supabase
         .from('daily_reports')
         .select('*')
-        .gte('date', startDate.toISOString().split('T')[0])
         .order('date', { ascending: true })
 
-      // Add organization filter
       query = addOrgFilter(query)
 
-      // Project filter (matches inspector report's pipeline column)
       if (pipelineFilter) {
+        // Pipeline-scoped: query the entire project window (which can span
+        // 2014 for CLX-2). The dateRange selector becomes a *display* filter
+        // in the timeline charts only.
         query = query.eq('pipeline', pipelineFilter)
+      } else {
+        // No pipeline selected — keep the legacy "last N days" semantics.
+        const startDate = new Date()
+        startDate.setDate(startDate.getDate() - dateRange)
+        query = query.gte('date', startDate.toISOString().split('T')[0])
       }
 
       const { data, error } = await query
 
       if (!error && data) {
         setReports(data)
+        console.log(`[Dashboard] loaded ${data.length} report(s) for pipeline=${pipelineFilter || '(any)'}`)
+      } else if (error) {
+        console.error('[Dashboard] loadReports error:', error)
       }
     } catch (e) {
       console.error('Load error:', e)
@@ -403,10 +422,11 @@ function Dashboard({ onBackToReport }) {
     return 165
   }
 
-  // Use demo data if no real reports
+  // Build metrics from real reports. Returns null when there are no reports
+  // (consumers render "No data available" instead of synthetic numbers).
   const metrics = useMemo(() => {
     if (reports.length === 0) {
-      return generateDemoData(dateRange, projectInfo)
+      return null
     }
 
     // Calculate from real reports
@@ -474,13 +494,14 @@ function Dashboard({ onBackToReport }) {
             })
           }
 
-          // Phase cost: prefer actual labour+equipment cost; fall back to costPerMetre estimate
+          // Phase cost: prefer actual labour+equipment cost; fall back to
+          // baseline costPerMetre × progress (not the hardcoded plannedTargets).
           const actualBlockCost = blockLabourCost + blockEquipmentCost
           if (actualBlockCost > 0) {
             phaseCosts[phase] += actualBlockCost
           } else {
-            const costPerMetre = plannedTargets[phase]?.costPerMetre || 50
-            phaseCosts[phase] += progress * costPerMetre
+            const cpm = baselineByPhase[phase]?.costPerMetre || 0
+            phaseCosts[phase] += progress * cpm
           }
 
           if (block.timeLostHours) {
@@ -512,19 +533,20 @@ function Dashboard({ onBackToReport }) {
       return idxA - idxB
     })
 
-    const fallbackLength = projectInfo.totalLength || 47000
-    const phaseCompletion = sortedPhases.map(phase => ({
-      phase,
-      actual: phaseProgress[phase],
-      planned: plannedTargets[phase]?.metres || fallbackLength,
-      actualPercent: ((phaseProgress[phase] / (plannedTargets[phase]?.metres || fallbackLength)) * 100).toFixed(1),
-      cost: phaseCosts[phase] || 0
-    }))
+    const fallbackLength = projectInfo.totalLength || 0
+    const phaseCompletion = sortedPhases.map(phase => {
+      const planned = baselineByPhase[phase]?.metres || fallbackLength || 0
+      return {
+        phase,
+        actual: phaseProgress[phase],
+        planned,
+        actualPercent: planned > 0 ? ((phaseProgress[phase] / planned) * 100).toFixed(1) : '—',
+        cost: phaseCosts[phase] || 0
+      }
+    })
 
-    // If real data is minimal, supplement with demo data
-    if (Object.keys(phaseProgress).length < 3) {
-      return generateDemoData(dateRange, projectInfo)
-    }
+    // No demo fallback when phase count is low — that was masking real
+    // data (e.g. CLX-2 reports for one day with 1–2 active activities).
 
     // Calculate reliability score (Goodhart's Law protection)
     const allBlocks = reports.flatMap(r => r.activity_blocks || [])
@@ -565,7 +587,7 @@ function Dashboard({ onBackToReport }) {
         valueLostByParty
       }
     }
-  }, [reports, dateRange, projectInfo, labourRateMap, equipmentRateMap])
+  }, [reports, dateRange, projectInfo, labourRateMap, equipmentRateMap, baselineByPhase])
 
   // Extract productivity mismatch alerts with their explanations
   const productivityAlerts = useMemo(() => {
@@ -724,12 +746,96 @@ function Dashboard({ onBackToReport }) {
     return <EVMDashboard onBack={() => setShowEVM(false)} />
   }
 
-  // Calculate workforce totals from spread data
-  const workforceTotals = spreadData.reduce((acc, s) => ({
+  // Derive crew/spread rollups from real reports (replaces the hardcoded
+  // EGP liveSpreads array with real names + counts).
+  const liveSpreads = useMemo(() => {
+    if (!reports?.length) return []
+    const bySpread = {}
+    for (const r of reports) {
+      const spreadName = (r.spread || '').trim() || 'Unspecified'
+      if (!bySpread[spreadName]) {
+        bySpread[spreadName] = {
+          name: spreadName,
+          foreman: '',
+          kpRange: '',
+          labourCount: new Set(),
+          equipmentUnits: new Set(),
+          welders: new Set(),
+          inspectors: new Set(),
+          dailyMetres: 0,
+          status: 'On Track',
+          spi: 1,
+          cpi: 1
+        }
+      }
+      const s = bySpread[spreadName]
+      if (r.inspector_name) s.inspectors.add(r.inspector_name)
+      let minKP = null, maxKP = null
+      for (const block of r.activity_blocks || []) {
+        for (const e of block.labourEntries || []) {
+          const id = e.masterPersonnelId || e.name || e.classification
+          if (id) s.labourCount.add(id)
+          if ((block.activityType || '').startsWith('Welding')) {
+            if (id) s.welders.add(id)
+          }
+          if (!s.foreman && (e.classification || '').toUpperCase().includes('FOREMAN')) {
+            s.foreman = e.name || ''
+          }
+        }
+        for (const e of block.equipmentEntries || []) {
+          const id = e.masterEquipmentId || e.unitNumber || e.type
+          if (id) s.equipmentUnits.add(id)
+        }
+        const start = parseFloat(String(block.startKP || '').replace('+', '.')) || 0
+        const end = parseFloat(String(block.endKP || '').replace('+', '.')) || 0
+        if (start > 0 && (minKP === null || start < minKP)) minKP = start
+        if (end > 0 && (maxKP === null || end > maxKP)) maxKP = end
+        s.dailyMetres += Math.abs(end - start) * 1000
+      }
+      if (minKP !== null && maxKP !== null) {
+        s.kpRange = `${minKP.toFixed(1)} → ${maxKP.toFixed(1)} (KP)`
+      }
+    }
+    return Object.values(bySpread).map(s => ({
+      ...s,
+      labourCount: s.labourCount.size,
+      equipmentUnits: s.equipmentUnits.size,
+      welders: s.welders.size,
+      foreman: s.foreman || (s.inspectors.size > 0 ? `Inspector: ${[...s.inspectors][0]}` : '—'),
+      dailyMetres: Math.round(s.dailyMetres / Math.max(1, reports.length))
+    }))
+  }, [reports])
+
+  // Workforce totals computed from the live spreads (zero when no data).
+  const workforceTotals = liveSpreads.reduce((acc, s) => ({
     labour: acc.labour + s.labourCount,
     equipment: acc.equipment + s.equipmentUnits,
     welders: acc.welders + s.welders
   }), { labour: 0, equipment: 0, welders: 0 })
+
+  // No-data short-circuit: render a clear panel rather than tabs filled
+  // with synthetic numbers.
+  if (!loading && (!metrics || reports.length === 0)) {
+    return (
+      <div style={{ padding: '40px', maxWidth: '900px', margin: '40px auto', backgroundColor: '#f5f5f5', textAlign: 'center', borderRadius: '8px', border: '1px solid #ddd' }}>
+        <h2 style={{ color: '#1a237e' }}>📊 CMT Dashboard — No data available</h2>
+        <p style={{ color: '#666', fontSize: '14px' }}>
+          No inspector reports found for project <strong>{pipelineFilter || '(none selected)'}</strong>.
+        </p>
+        <p style={{ color: '#888', fontSize: '13px', marginTop: '20px' }}>
+          Once inspector reports are submitted (or the active pipeline is changed),
+          metrics will populate from real data. This dashboard does not show
+          demonstration values.
+        </p>
+        <button
+          onClick={() => navigate(orgPath('/inspector'))}
+          style={{ marginTop: '20px', padding: '10px 20px', backgroundColor: '#1976d2', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+        >
+          Go to Inspector Reports
+        </button>
+      </div>
+    )
+  }
 
   return (
     <div style={{ padding: '20px', maxWidth: '1600px', margin: '0 auto', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
@@ -1377,8 +1483,25 @@ function Dashboard({ onBackToReport }) {
         <ShadowAuditDashboard />
       )}
 
-      {/* QUALITY TAB */}
+      {/* QUALITY TAB — placeholder while real qualityData aggregation
+          ships. Hardcoded 91.2% / 4.8% / 95.2% numbers and the synthetic
+          getCrewData chart were removed because they looked real. */}
       {activeTab === 'quality' && (
+        <div style={{ padding: '40px', textAlign: 'center', color: '#666', backgroundColor: '#fff', borderRadius: '8px', border: '1px solid #ddd' }}>
+          <h3 style={{ color: '#9370DB' }}>Quality metrics — coming soon</h3>
+          <p style={{ fontSize: '13px' }}>
+            Per-activity quality aggregation (weld first-pass rate, coating
+            holiday rate, hydrotest results) requires per-activity
+            qualityData parsing. The previous numbers on this tab were
+            illustrative defaults; they have been removed to avoid being
+            mistaken for real CLX-2 data.
+          </p>
+          <p style={{ fontSize: '12px', color: '#999' }}>
+            Reports loaded for this project: <strong>{reports.length}</strong>
+          </p>
+        </div>
+      )}
+      {false && activeTab === 'quality' && (
         <>
           <div style={{ backgroundColor: '#9370DB', color: 'white', padding: '10px 15px', borderRadius: '4px 4px 0 0', fontWeight: 'bold' }}>
             QUALITY METRICS
@@ -1484,7 +1607,7 @@ function Dashboard({ onBackToReport }) {
               </div>
               <div style={{ padding: '15px', backgroundColor: '#fce4ec', borderRadius: '8px', textAlign: 'center' }}>
                 <div style={{ fontSize: '11px', color: '#666' }}>Active Spreads</div>
-                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#c2185b' }}>{spreadData.length}</div>
+                <div style={{ fontSize: '28px', fontWeight: 'bold', color: '#c2185b' }}>{liveSpreads.length}</div>
               </div>
               <div style={{ padding: '15px', backgroundColor: '#f3e5f5', borderRadius: '8px', textAlign: 'center' }}>
                 <div style={{ fontSize: '11px', color: '#666' }}>Peak Workforce</div>
@@ -1494,7 +1617,7 @@ function Dashboard({ onBackToReport }) {
 
             {/* Spread Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
-              {spreadData.map((spread, i) => {
+              {liveSpreads.map((spread, i) => {
                 const spiColor = spread.spi >= 1.0 ? '#28a745' : spread.spi >= 0.9 ? '#ffc107' : '#dc3545'
                 return (
                   <div key={i} style={{ padding: '20px', backgroundColor: '#f8f9fa', borderRadius: '8px', borderLeft: `4px solid ${spiColor}` }}>
