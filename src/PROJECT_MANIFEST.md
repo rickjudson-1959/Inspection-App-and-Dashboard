@@ -658,6 +658,62 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### Stockpiling — 15th Trackable Item Category (May 3, 2026 — late)
+
+Added a new trackable-item category for pipe and fittings inventory tracking.
+Inspectors can log received / issued / returned / damaged / rejected pipe and
+fittings against named stockpile locations. Reconciliation tab now shows a
+per-stockpile-location balance table so the team can see current on-hand
+inventory at every yard / laydown.
+
+**Fields on the new `stockpiling` item type** (`src/TrackableItemsTracker.jsx`):
+- `sub_type` — `Pipe` or `Fitting`
+- `description` — free text (e.g. `NPS 36 x 12.2m`, `16" Gate Valve`, `90° Bend NPS 36`)
+- `joint_numbers` — pipe joint range (`J1001-J1025`) — pipe-only via `showWhen`
+- `heat_number` — pipe heat/lot — pipe-only via `showWhen`
+- `quantity` — count
+- `action` — `Received` / `Issued to Spread` / `Returned` / `Damaged` / `Rejected`
+- `stockpile_location` — `Yard A`, `KP 12+500 laydown`, etc.
+- `issued_to_spread` — only when `action === 'Issued to Spread'` (`showWhen` predicate)
+- `kp_location` — KP reference, runs through `formatKPInput` on blur
+- `notes`
+
+A `showWhen(item)` predicate was added to the field-config schema so other
+trackable types can adopt conditional fields too. The renderer iterates
+`type.fields` and skips any field whose predicate returns false.
+
+**Database** — `supabase/migrations/20260503_trackable_items_stockpiling.sql`:
+- `ADD COLUMN IF NOT EXISTS sub_type, description, joint_numbers, heat_number, stockpile_location, issued_to_spread` to `trackable_items` (all TEXT, all nullable). Existing columns `action`, `quantity`, `kp_location`, `notes` reused — confirmed via live schema audit.
+- Partial index `idx_trackable_items_stockpile (item_type, stockpile_location) WHERE item_type = 'stockpiling'` for the Reconciliation balance rollup.
+- Safe to re-run.
+
+**Reconciliation tab** (`src/ReconciliationDashboard.jsx`):
+- New filter chip: 📦 Stockpiling (Pipe & Fittings).
+- New panel **Stockpile Balance — Pipe & Fittings**: sums `Received + Returned − Issued − Damaged − Rejected` per `(stockpile_location × description × sub_type)`. Renders inline above the existing Inventory Net Position table when any stockpiling items exist.
+- `DEPLOY_ACTIONS` / `RETRIEVE_ACTIONS` lists extended to include the stockpiling action vocabulary so the existing inventory roll-up math works for pipe/fittings too.
+- `typeExtraColumns.stockpiling` configured so the per-item table shows Sub-Type, Description, Joint #s, Heat #, Stockpile, Issued To when the stockpiling chip is selected.
+
+**Pre-submit modal** (`src/InspectorReport.jsx`): the trackable-items checklist
+now includes both 📦 Stockpiling AND 📐 Counterbore/Transition (the latter
+was missing from the list — silently fixed in the same pass).
+
+**PDF export** (`src/InspectorReport.jsx`): `typeLabels` extended with
+`stockpiling` and `counterbore_transition`. New per-type formatter in the
+report PDF generator builds a one-line description per stockpile entry:
+```
+{action} {qty} x {sub_type}: {description} | Joints {…} | Heat {…} |
+Stockpile: {…} | Issued to: {…} | KP {…}
+```
+Pipe-only fields and the `Issued to` segment are conditional.
+
+**Files changed:**
+```
+src/TrackableItemsTracker.jsx                                  # new ITEM_TYPES entry, showWhen
+src/ReconciliationDashboard.jsx                                # filter chip + balance panel
+src/InspectorReport.jsx                                        # checklist + PDF
+supabase/migrations/20260503_trackable_items_stockpiling.sql   # new
+```
+
 ### KP Auto-Format on Joints/Trackable Items + Trackable Items Pipeline Filter Fix (May 3, 2026 — afternoon)
 
 Two bugs from Corry's field testing:

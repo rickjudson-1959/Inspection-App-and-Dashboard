@@ -45,7 +45,10 @@ const TRACKABLE_DB_COLUMNS = new Set([
   // Bedding & padding
   'protection_type', 'material',
   // Welding trackable items
-  'upi_type', 'weld_number', 'status'
+  'upi_type', 'weld_number', 'status',
+  // Stockpiling (added May 2026 — pipe + fittings inventory tracking)
+  'sub_type', 'description', 'joint_numbers', 'heat_number',
+  'stockpile_location', 'issued_to_spread'
 ])
 
 // Map form field names to DB column names where they differ
@@ -270,6 +273,25 @@ const ITEM_TYPES = [
       { name: 'quantity', label: 'Quantity', type: 'number' },
       { name: 'status', label: 'Status', type: 'select', options: ['Completed - Accepted', 'Completed - Rejected', 'In Progress', 'Pending'] },
       { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Details...' }
+    ]
+  },
+  {
+    id: 'stockpiling',
+    label: '📦 Stockpiling (Pipe & Fittings)',
+    color: '#0d6efd',
+    fields: [
+      { name: 'sub_type', label: 'Sub-Type', type: 'select', options: ['Pipe', 'Fitting'] },
+      { name: 'description', label: 'Description', type: 'text', placeholder: 'e.g., NPS 36 x 12.2m, 16" Gate Valve, 90° Bend NPS 36' },
+      // Pipe-only fields — renderer hides these when sub_type !== 'Pipe'
+      { name: 'joint_numbers', label: 'Joint Number Range', type: 'text', placeholder: 'e.g., J1001-J1025', showWhen: (item) => item.sub_type === 'Pipe' },
+      { name: 'heat_number', label: 'Heat / Lot Number', type: 'text', placeholder: 'Pipe heat #', showWhen: (item) => item.sub_type === 'Pipe' },
+      { name: 'quantity', label: 'Quantity', type: 'number', placeholder: 'Count' },
+      { name: 'action', label: 'Action', type: 'select', options: ['Received', 'Issued to Spread', 'Returned', 'Damaged', 'Rejected'] },
+      { name: 'stockpile_location', label: 'Stockpile Location', type: 'text', placeholder: 'e.g., Yard A, KP 12+500 laydown' },
+      // Crew/spread receiving the issue — only shown for the "Issued to Spread" action
+      { name: 'issued_to_spread', label: 'Issued To (Spread/Crew)', type: 'text', placeholder: 'e.g., Spread 1, Welding Crew 2', showWhen: (item) => item.action === 'Issued to Spread' },
+      { name: 'kp_location', label: 'KP Reference', type: 'text', placeholder: 'If on-ROW, e.g., 12+500' },
+      { name: 'notes', label: 'Notes', type: 'text', placeholder: 'Additional details...' }
     ]
   }
 ]
@@ -605,7 +627,15 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
                         gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', 
                         gap: '12px' 
                       }}>
-                        {type.fields.map(field => (
+                        {type.fields.map(field => {
+                          // Conditional rendering — fields with a showWhen
+                          // predicate (e.g. pipe-only fields, "issued to"
+                          // when action === 'Issued to Spread') are hidden
+                          // when the predicate returns false.
+                          if (typeof field.showWhen === 'function' && !field.showWhen(item)) {
+                            return null
+                          }
+                          return (
                           <div key={field.name}>
                             <label style={labelStyle}>{field.label}</label>
                             {field.type === 'select' ? (
@@ -642,7 +672,8 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
                               />
                             )}
                           </div>
-                        ))}
+                          )
+                        })}
                       </div>
                     </div>
                   ))

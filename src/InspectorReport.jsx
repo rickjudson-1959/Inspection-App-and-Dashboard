@@ -8837,7 +8837,9 @@ CRITICAL - Individual Entries Required:
         rock_trench: 'Rock Trench',
         extra_depth: 'Extra Depth Ditch',
         bedding_padding: 'Bedding & Padding',
-        weld_upi: 'Welding'
+        weld_upi: 'Welding',
+        counterbore_transition: 'Counterbore/Transition',
+        stockpiling: 'Stockpiling (Pipe & Fittings)'
       }
       
       Object.entries(groupedItems).forEach(([type, items]) => {
@@ -8951,6 +8953,20 @@ CRITICAL - Individual Entries Required:
             if (item.surface) parts.push(item.surface)
             if (item.width) parts.push(`${item.width}m wide`)
             if (item.length) parts.push(`${item.length}m long`)
+          } else if (type === 'stockpiling') {
+            // Pipe / Fittings inventory line. Sub-type drives which extra
+            // fields are meaningful (joint# + heat# only for Pipe).
+            parts.push(`${item.action || ''} ${item.quantity || ''} x ${item.sub_type || 'Item'}: ${item.description || ''}`)
+            if (item.sub_type === 'Pipe' && item.joint_numbers) parts.push(`Joints ${item.joint_numbers}`)
+            if (item.sub_type === 'Pipe' && item.heat_number) parts.push(`Heat ${item.heat_number}`)
+            if (item.stockpile_location) parts.push(`Stockpile: ${item.stockpile_location}`)
+            if (item.action === 'Issued to Spread' && item.issued_to_spread) parts.push(`Issued to: ${item.issued_to_spread}`)
+            if (item.kp_location) parts.push(`KP ${item.kp_location}`)
+          } else if (type === 'counterbore_transition') {
+            parts.push(`${item.upi_type || 'Counterbore/Transition'} - Weld ${item.weld_number || 'N/A'}`)
+            if (item.quantity) parts.push(`Qty: ${item.quantity}`)
+            if (item.kp_location) parts.push(`KP ${item.kp_location}`)
+            if (item.status) parts.push(`Status: ${item.status}`)
           } else {
             parts.push(`${item.action || ''}`)
             if (item.kp_location) parts.push(`KP ${item.kp_location}`)
@@ -10773,6 +10789,8 @@ CRITICAL - Individual Entries Required:
                 <li>🚧 Signage & Flagging</li>
                 <li>🧹 Equipment Cleaning</li>
                 <li>⚙️ Welding</li>
+                <li>📐 Counterbore/Transition</li>
+                <li>📦 Stockpiling (Pipe & Fittings)</li>
               </ul>
             </div>
             <p style={{ margin: '0 0 20px 0', color: '#666', fontSize: '14px' }}>
