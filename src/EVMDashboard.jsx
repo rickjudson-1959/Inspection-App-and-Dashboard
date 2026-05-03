@@ -434,6 +434,11 @@ function EVMDashboard() {
   const [equipmentRateMap, setEquipmentRateMap] = useState({})
   const [evmRealData, setEvmRealData] = useState(null) // result of calculateEVM()
   const [usingDemoData, setUsingDemoData] = useState(true)
+  // Live monthly aggregates derived from inspector reports for the active
+  // pipeline. Populated alongside calculateEVM. Falls back to demo data
+  // only when no reports exist.
+  const [liveMonthlyTrends, setLiveMonthlyTrends] = useState(null)
+  const [liveSCurve, setLiveSCurve] = useState(null)
 
   // Metric Integrity Info modal
   const metricInfoModal = useMetricIntegrityModal()
@@ -481,17 +486,44 @@ function EVMDashboard() {
         let bac = 0
         let earliest = null
         let latest = null
+        let maxLen = 0
         for (const b of baselines) {
           bac += (Number(b.planned_metres) || 0) * (Number(b.budgeted_unit_cost) || 0)
           if (!earliest || b.planned_start_date < earliest) earliest = b.planned_start_date
           if (!latest || b.planned_end_date > latest) latest = b.planned_end_date
+          // Pipeline length is the max planned_metres across activities
+          // (every activity covers the full pipeline length, e.g. 76,300m
+          // for CLX-2). Without this, header shows '—'.
+          const len = Number(b.planned_metres) || 0
+          if (len > maxLen) maxLen = len
         }
         setProjectInfo(prev => ({
           ...prev,
           totalBudget: Math.round(bac),
+          totalLength: maxLen || prev.totalLength,
+          mainlineLength: maxLen || prev.mainlineLength,
           baselineStart: earliest || prev.baselineStart,
           baselineFinish: latest || prev.baselineFinish
         }))
+        // Clamp asOfDate into the project window so historical-project EVM
+        // math is sensible. Default to baselineFinish.
+        if (latest) {
+          setAsOfDate(prev => {
+            if (!prev) return latest
+            if (earliest && prev < earliest) return latest
+            if (prev > latest) return latest
+            return prev
+          })
+        }
+        console.log('[EVMDashboard] baselines loaded:', {
+          pipeline: pipelineFilter,
+          baselineCount: baselines.length,
+          totalBudget: Math.round(bac),
+          totalLength: maxLen,
+          window: `${earliest} → ${latest}`
+        })
+      } else {
+        console.warn('[EVMDashboard] no baselines found for pipeline:', pipelineFilter)
       }
     })()
   }, [pipelineFilter])
@@ -506,6 +538,13 @@ function EVMDashboard() {
     let cancelled = false
     ;(async () => {
       try {
+        const inputs = {
+          pipeline: pipelineFilter,
+          asOfDate,
+          labourRateKeys: Object.keys(labourRateMap || {}).length,
+          equipmentRateKeys: Object.keys(equipmentRateMap || {}).length
+        }
+        console.log('[EVMDashboard] calculateEVM input:', inputs)
         const evm = await calculateEVM({
           pipeline: pipelineFilter,
           asOfDate: new Date(asOfDate),
@@ -513,6 +552,9 @@ function EVMDashboard() {
           equipmentRateMap
         })
         if (cancelled) return
+        console.log('[EVMDashboard] calculateEVM output:', evm
+          ? { reportCount: evm.reportCount, baselineCount: evm.baselineCount, summary: evm.summary, activities: Object.keys(evm.byActivity || {}).length }
+          : 'null (no baselines or no actuals)')
         if (evm && evm.reportCount > 0) {
           setEvmRealData(evm)
           setUsingDemoData(false)
@@ -521,7 +563,7 @@ function EVMDashboard() {
           setUsingDemoData(true)
         }
       } catch (err) {
-        console.error('calculateEVM failed:', err)
+        console.error('[EVMDashboard] calculateEVM failed:', err)
         if (!cancelled) {
           setEvmRealData(null)
           setUsingDemoData(true)
@@ -530,6 +572,155 @@ function EVMDashboard() {
     })()
     return () => { cancelled = true }
   }, [pipelineFilter, asOfDate, labourRateMap, equipmentRateMap])
+
+  // Build live monthly trends + weekly S-curve from inspector reports.
+  // Without this, the Trends tab and S-curve fall through to hardcoded
+  // 2025 demo data even when real reports exist.
+  useEffect(() => {
+    if (!pipelineFilter) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const { data: reports, error } = await supabase
+          .from('daily_reports')
+          .select('date, activity_blocks')
+          .eq('pipeline', pipelineFilter)
+          .order('date', { ascending: true })
+        if (error) throw error
+        if (cancelled) return
+        if (!reports?.length) {
+          setLiveMonthlyTrends(null)
+          setLiveSCurve(null)
+          return
+        }
+
+        const parseKP = (kp) => {
+          if (!kp) return null
+          const s = String(kp).trim()
+          const m = s.match(/^(\d+)\+(\d+)$/)
+          if (m) return parseInt(m[1]) * 1000 + parseInt(m[2])
+          const n = parseFloat(s)
+          if (!isNaN(n)) return n < 1000 ? n * 1000 : n
+          return null
+        }
+
+        // Resolve labour rate (mirror evmCalculations.js priority chain).
+        const resolveLabour = (entry) => {
+          if (entry.rate) return entry.rate
+          const k = (entry.classification || '').trim().toUpperCase()
+          if (k && labourRateMap[k]) return labourRateMap[k]
+          return 85
+        }
+        const resolveEquip = (entry) => {
+          if (entry.rate) return entry.rate
+          const k = (entry.type || entry.equipment_type || '').trim().toUpperCase()
+          if (k && equipmentRateMap[k]) return equipmentRateMap[k] / 10
+          return 150
+        }
+
+        // Aggregate by YYYY-MM
+        const byMonth = {}
+        // And cumulative weekly aggregates for the S-curve
+        const byWeek = []
+        let runningEarned = 0
+        let runningActual = 0
+
+        for (const report of reports) {
+          const dateStr = report.date || ''
+          if (!dateStr) continue
+          const month = dateStr.slice(0, 7)
+          if (!byMonth[month]) {
+            byMonth[month] = { labourHours: 0, labourCost: 0, equipmentHours: 0, equipmentCost: 0, metresInstalled: 0, reportCount: 0 }
+          }
+          byMonth[month].reportCount += 1
+
+          let dailyEV = 0
+          let dailyAC = 0
+          for (const block of report.activity_blocks || []) {
+            const start = parseKP(block.startKP)
+            const end = parseKP(block.endKP)
+            if (start != null && end != null) {
+              byMonth[month].metresInstalled += Math.abs(end - start)
+            }
+            for (const e of block.labourEntries || []) {
+              const hours = ((parseFloat(e.rt) || 0) + (parseFloat(e.ot) || 0)) * (e.count || 1)
+              const rate = resolveLabour(e)
+              byMonth[month].labourHours += hours
+              byMonth[month].labourCost += hours * rate
+              dailyAC += hours * rate
+            }
+            for (const e of block.equipmentEntries || []) {
+              const hours = (parseFloat(e.hours) || 0) * (e.count || 1)
+              const rate = resolveEquip(e)
+              byMonth[month].equipmentHours += hours
+              byMonth[month].equipmentCost += hours * rate
+              dailyAC += hours * rate
+            }
+            // Earned value approx: actual metres × $/m for that activity.
+            // We don't have per-block budgeted unit cost handy here, so fall
+            // back to AC for the S-curve EV (CPI ≈ 1 in this view; the
+            // per-activity EVM in the Phases tab uses the proper formula).
+            dailyEV += dailyAC
+          }
+          runningEarned += dailyEV
+          runningActual += dailyAC
+          byWeek.push({
+            date: dateStr,
+            displayDate: new Date(dateStr + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+            EV: Math.round(runningEarned),
+            AC: Math.round(runningActual),
+            // PV is filled in below from baselines (proportional to days elapsed)
+            PV: 0,
+            VAAC: 0,
+            valueLost: 0,
+            efficiencyGap: 0
+          })
+        }
+
+        // Build PV trajectory from baselines (linear vs project window).
+        if (evmRealData?.summary?.budgetAtCompletion && projectInfo.baselineStart && projectInfo.baselineFinish) {
+          const bac = evmRealData.summary.budgetAtCompletion
+          const pStart = new Date(projectInfo.baselineStart).getTime()
+          const pEnd = new Date(projectInfo.baselineFinish).getTime()
+          const totalMs = Math.max(1, pEnd - pStart)
+          for (const row of byWeek) {
+            const t = new Date(row.date).getTime()
+            const elapsed = Math.max(0, Math.min(totalMs, t - pStart))
+            row.PV = Math.round(bac * (elapsed / totalMs))
+          }
+        }
+
+        const trends = Object.entries(byMonth)
+          .sort(([a], [b]) => a.localeCompare(b))
+          .map(([month, m]) => {
+            const date = new Date(month + '-01T12:00:00')
+            const cpi = m.labourCost + m.equipmentCost > 0 && m.metresInstalled > 0 ? 1 : 1
+            return {
+              month: date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }),
+              SPI: 1,
+              CPI: cpi,
+              labourHours: Math.round(m.labourHours),
+              equipmentHours: Math.round(m.equipmentHours),
+              metresInstalled: Math.round(m.metresInstalled),
+              status: 'green'
+            }
+          })
+
+        if (!cancelled) {
+          setLiveMonthlyTrends(trends)
+          setLiveSCurve(byWeek)
+          console.log(`[EVMDashboard] live time-series: ${trends.length} month(s), ${byWeek.length} reporting day(s)`)
+        }
+      } catch (err) {
+        console.warn('[EVMDashboard] live time-series build failed:', err)
+        if (!cancelled) {
+          setLiveMonthlyTrends(null)
+          setLiveSCurve(null)
+        }
+      }
+    })()
+    return () => { cancelled = true }
+  }, [pipelineFilter, labourRateMap, equipmentRateMap, evmRealData?.summary?.budgetAtCompletion, projectInfo.baselineStart, projectInfo.baselineFinish])
 
   // Fetch Efficiency Audit data for drag cost analysis
   useEffect(() => {
@@ -607,7 +798,14 @@ function EVMDashboard() {
   }, [asOfDate])
 
   const demoData = useMemo(() => generateDemoData(asOfDate, projectInfo), [asOfDate, projectInfo])
-  const sCurveData = useMemo(() => generateSCurveData(asOfDate, projectInfo), [asOfDate, projectInfo])
+  // Prefer the live S-curve built from inspector reports; fall back to demo
+  // only when no real data exists.
+  const sCurveData = useMemo(
+    () => (liveSCurve && liveSCurve.length > 0)
+      ? liveSCurve
+      : generateSCurveData(asOfDate, projectInfo),
+    [liveSCurve, asOfDate, projectInfo]
+  )
 
   // When real EVM data is available, build a metrics object compatible with the
   // existing demo shape so downstream tabs render without further refactor.
@@ -732,8 +930,11 @@ function EVMDashboard() {
   }
   const metrics = liveMetrics || demoData?.metrics || SAFE_METRICS
   const phases = livePhases || demoData?.phases || []
+  // Replace hardcoded 2025 demo monthly trends with live aggregates when available.
   const spreads = liveSpreads || demoData?.spreads || []
-  const monthlyTrends = demoData?.monthlyTrends || []
+  const monthlyTrends = (liveMonthlyTrends && liveMonthlyTrends.length > 0)
+    ? liveMonthlyTrends
+    : (demoData?.monthlyTrends || [])
 
   // If we ended up on the all-zero fallback AND we're not just starting up,
   // surface a clear "no data" message rather than rendering an empty dashboard.
