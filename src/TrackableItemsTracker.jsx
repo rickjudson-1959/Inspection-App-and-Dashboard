@@ -5,6 +5,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { supabase } from './supabase'
 import { useOrgQuery } from './utils/queryHelpers.js'
+import { formatKPInput } from './kpUtils.js'
 
 // All columns in the trackable_items DB table (excluding auto-managed: id, created_at, updated_at)
 // When new columns are added via migration, add them here so saveItem persists them
@@ -310,11 +311,18 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
         }
       }
 
-      // Calculate summary totals for each type
+      // Calculate summary totals for each type. Project scoping uses the
+      // related daily_reports.pipeline field — `trackable_items.project_id`
+      // is a free-text column with stale legacy values that don't match
+      // the active pipeline (audit found CLX-2 items with project_id like
+      // 'Coquitlam Start' / 'Indian Arm'). The canonical project link is
+      // through report_id → daily_reports.pipeline.
       let summaryQuery = supabase
         .from('trackable_items')
-        .select('item_type, action, quantity')
-        .eq('project_id', projectId || 'default')
+        .select('item_type, action, quantity, daily_reports!inner(pipeline)')
+      if (projectId) {
+        summaryQuery = summaryQuery.eq('daily_reports.pipeline', projectId)
+      }
       summaryQuery = addOrgFilter(summaryQuery)
       const { data: allItems } = await summaryQuery
 
@@ -617,7 +625,18 @@ function TrackableItemsTracker({ projectId, reportDate, reportId, inspector, onD
                                 type={field.type}
                                 value={item[field.name] || ''}
                                 onChange={(e) => updateItem(item.id, field.name, e.target.value)}
-                                onBlur={() => saveItem(item.id)}
+                                onBlur={(e) => {
+                                  // Auto-format any KP-style field on blur
+                                  // (kp_location, from_kp, to_kp, etc.)
+                                  const isKpField = field.name === 'kp_location' || field.name === 'from_kp' || field.name === 'to_kp' || field.name === 'cleaning_station_kp'
+                                  if (isKpField) {
+                                    const formatted = formatKPInput(e.target.value)
+                                    if (formatted !== e.target.value) {
+                                      updateItem(item.id, field.name, formatted)
+                                    }
+                                  }
+                                  saveItem(item.id)
+                                }}
                                 placeholder={field.placeholder || ''}
                                 style={inputStyle}
                               />

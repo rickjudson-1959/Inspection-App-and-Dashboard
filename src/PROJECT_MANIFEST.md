@@ -658,6 +658,39 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### KP Auto-Format on Joints/Trackable Items + Trackable Items Pipeline Filter Fix (May 3, 2026 — afternoon)
+
+Two bugs from Corry's field testing:
+
+**Bug 1: KP values not formatting to pipeline notation outside the activity block.**
+ActivityBlock.jsx already auto-formats `startKP`/`endKP` on blur (raw `2500` → `2+500`), but the formatter wasn't applied to the joint-station inputs in `StringingLog.jsx` / `BendingLog.jsx`, nor to the `kp_location` / `from_kp` / `to_kp` fields rendered by `TrackableItemsTracker.jsx`. Inspectors typing `2500` saw it stay as `2500`.
+
+Fix: new shared `formatKPInput(value)` exported from `src/kpUtils.js` (handles `'2+500'` passthrough, decimal-km `'5.25'` → `'5+250'`, integer metres `2500` → `'2+500'`, plus `500` → `'0+500'`). Wired into the `onBlur` of:
+- `StringingLog.jsx` — joints-strung `stationKP` field
+- `BendingLog.jsx` — bend-entry `stationKP` field
+- `TrackableItemsTracker.jsx` — generic input renderer now detects `kp_location` / `from_kp` / `to_kp` / `cleaning_station_kp` fields and formats on blur
+
+**Bug 2: Trackable items not showing CLX-2 data.**
+Live DB audit found that `trackable_items` has 14 rows total — 12 are linked to CLX-2 reports via `report_id → daily_reports.pipeline`. But the `trackable_items.project_id` column has stale free-text values like `'Coquitlam Start'`, `'Indian Arm'`, `'Woodfibre Approach'` (no `'CLX-2'` rows). The summary query in `TrackableItemsTracker.jsx` was filtering `.eq('project_id', projectId || 'default')`, where `projectId` is the active pipeline (`'CLX-2'`) — never matched any rows.
+
+Fix: replaced the `project_id` text-equality filter with an embedded PostgREST inner join through `daily_reports`:
+```js
+.from('trackable_items')
+.select('item_type, action, quantity, daily_reports!inner(pipeline)')
+.eq('daily_reports.pipeline', projectId)
+```
+Verified against the live DB: query now returns 12 CLX-2 trackable items (3 weld_upi, 2 ramps, 2 bedding_padding, 2 equipment_cleaning, 1 hydrovac, 1 access, 1 fencing). The legacy `trackable_items.project_id` column is deprecated as a project filter — kept on writes for backward compat.
+
+Files changed:
+```
+src/kpUtils.js                    # new formatKPInput export (string-safe)
+src/StringingLog.jsx              # onBlur formatter on stationKP
+src/BendingLog.jsx                # onBlur formatter on stationKP
+src/TrackableItemsTracker.jsx     # generic KP-field on-blur formatter +
+                                  # summary filter switched to embedded
+                                  # daily_reports.pipeline join
+```
+
 ### CMT + EVM Live-Data Wire-Through, Photo & Form Durability, React #310 Fix (May 3, 2026)
 
 Follow-up day after the dashboard wire-through (May 2). Three big workstreams:

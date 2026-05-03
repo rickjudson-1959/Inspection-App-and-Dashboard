@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
+import { formatKPInput } from './kpUtils'
 
 const PROJECT_NAME = "Clearwater Pipeline"
 const AFE_NUMBER = "CWP-2025-001"
@@ -364,6 +365,12 @@ export default function BendingLog({ blockId, reportId, onDataChange, existingDa
                           type="text"
                           value={entry.stationKP}
                           onChange={(e) => updateBendEntry(entry.id, 'stationKP', e.target.value)}
+                          onBlur={(e) => {
+                            const formatted = formatKPInput(e.target.value)
+                            if (formatted !== e.target.value) {
+                              updateBendEntry(entry.id, 'stationKP', formatted)
+                            }
+                          }}
                           placeholder="e.g., 5+250"
                           style={{ ...inputStyle, width: '90px' }}
                         />

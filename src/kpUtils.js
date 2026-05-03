@@ -182,9 +182,44 @@ export function formatKP(kpMetres) {
   if (kpMetres === null || kpMetres === undefined || isNaN(kpMetres)) {
     return ''
   }
-  
+
   const km = Math.floor(kpMetres / 1000)
   const m = Math.round(kpMetres % 1000)
+  return `${km}+${m.toString().padStart(3, '0')}`
+}
+
+/**
+ * Format raw user-input (string or number) into a KP display value
+ * (km+metres). Used for on-blur normalization on KP input fields so
+ * inspectors can type just '2500' and have it render as '2+500'.
+ *
+ *   '2+500'     → '2+500'  (passthrough — already formatted)
+ *   '2500'      → '2+500'
+ *   500         → '0+500'
+ *   '12345'     → '12+345'
+ *   ''          → ''       (blank stays blank)
+ *   '5.250'     → '5+250'  (decimal-km also accepted)
+ */
+export function formatKPInput(value) {
+  if (value === null || value === undefined) return ''
+  const str = String(value).trim()
+  if (str === '') return ''
+  // Already in KP format — leave it alone.
+  if (str.includes('+')) return str
+  // Decimal kilometres (e.g. '5.25' → '5+250')
+  if (str.includes('.')) {
+    const [kmPart, mPart] = str.split('.')
+    const km = parseInt(kmPart, 10)
+    if (!isNaN(km)) {
+      const metres = parseInt((mPart || '').padEnd(3, '0').slice(0, 3), 10) || 0
+      return `${km}+${metres.toString().padStart(3, '0')}`
+    }
+  }
+  // Pure integer — interpret as raw metres.
+  const num = parseFloat(str)
+  if (isNaN(num) || num < 0) return str
+  const km = Math.floor(num / 1000)
+  const m = Math.round(num % 1000)
   return `${km}+${m.toString().padStart(3, '0')}`
 }
 
