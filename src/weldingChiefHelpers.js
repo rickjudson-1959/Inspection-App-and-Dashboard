@@ -191,9 +191,12 @@ export function aggregateDailyWeldProduction(reports) {
       // Count welds - use weldsToday if set, otherwise count unique weld numbers from entries
       let weldsToday = parseInt(weldData.weldsToday) || 0
 
-      // For tie-ins, count tieIns from weldData (not tieInData)
-      if (block.activityType === 'Welding - Tie-in') {
-        // Tie-in data is stored in weldData.tieIns
+      // For tie-ins, fall back to tieIns / transitions only if weldsToday
+      // was NOT explicitly entered by the inspector. Previously this branch
+      // unconditionally overrode weldsToday, which dropped legacy CLX-2
+      // tie-in welds where weldData.weldsToday=5 but the tieIns array was
+      // null (the form was older than the tieIns sub-structure).
+      if (block.activityType === 'Welding - Tie-in' && weldsToday === 0) {
         weldsToday = weldData.tieIns?.length || counterboreData.transitions?.length || 0
       }
 

@@ -46,6 +46,10 @@ export default function DPRTab() {
   const [weatherLow, setWeatherLow] = useState('');
   const [preparedBy, setPreparedBy] = useState('');
   const [reportCount, setReportCount] = useState(0);
+  // Set to true when the user picks a date with no saved DPR — triggers an
+  // auto-aggregation pass so the weld/progress tables populate without
+  // requiring the user to click Load Data manually.
+  const [shouldAutoLoad, setShouldAutoLoad] = useState(false);
 
   // Load DPR config (org-scoped). Synthesizes a fallback config from defaults
   // when no row exists, so the tab always loads. The `pipeline` filter is the
@@ -140,6 +144,9 @@ export default function DPRTab() {
         setWeatherLow(data.weather_low || '');
         setPreparedBy(data.prepared_by || config?.prepared_by_default || '');
       } else {
+        // No saved DPR for this date — reset draft state and flag for
+        // auto-aggregation so the user doesn't have to click Load Data
+        // every time they open a fresh date.
         setDprId(null);
         setStatus('draft');
         setProgressData([]);
@@ -149,9 +156,23 @@ export default function DPRTab() {
         setWeatherHigh('');
         setWeatherLow('');
         setPreparedBy(config?.prepared_by_default || '');
+        setShouldAutoLoad(true);
       }
     })();
   }, [organizationId, reportDate]);
+
+  // Auto-aggregate from inspector reports when:
+  //   1. The date has no saved DPR yet (shouldAutoLoad set by the date effect)
+  //   2. Config is loaded
+  //   3. organizationId is available
+  // Removes the need to click Load Data on every fresh date — fixes the
+  // case where the user sees all zeros after switching dates.
+  useEffect(() => {
+    if (!shouldAutoLoad) return;
+    if (!config || !organizationId) return;
+    setShouldAutoLoad(false);
+    loadData();
+  }, [shouldAutoLoad, config, organizationId]);
 
   // ─── LOAD DATA: aggregate approved reports for selected date ───
   const loadData = useCallback(async () => {
