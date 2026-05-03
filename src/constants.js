@@ -275,6 +275,8 @@ export const timeLostReasons = [
   'Safety Issue',
   'Equipment Breakdown',
   'Waiting on Materials',
+  'Illness',
+  'Personal Reason',
   'Other'
 ]
 

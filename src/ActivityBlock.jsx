@@ -1002,26 +1002,28 @@ function ActivityBlock({
       }
     }))
 
-    // Normalize existing photos: support both legacy File[] and the new
-    // PhotoObj[] shape so we don't lose anything during the migration.
-    const existingRaw = block.ticketPhotos || (block.ticketPhoto ? [block.ticketPhoto] : [])
-    const existingObjs = existingRaw
-      .map(p => {
-        if (!p) return null
-        if (p instanceof File) return { photoId: null, file: p, originalName: p.name, uploadStatus: null, filename: null, uploadError: null }
-        if (p.file instanceof File) return p
-        return p // already-saved photo from DB (has filename)
-      })
-      .filter(Boolean)
-
-    const allPhotos = [...existingObjs, ...newPhotoObjs]
-
-    // Keep block.ticketPhoto (singular) as a File for legacy code paths.
-    const firstFile = allPhotos.find(p => p?.file instanceof File)?.file || null
-    if (!block.ticketPhoto || !(block.ticketPhoto instanceof File)) {
-      updateBlock(blockId, 'ticketPhoto', firstFile)
-    }
-    updateBlock(blockId, 'ticketPhotos', allPhotos)
+    // Functional state update — uses the LATEST state inside the setter
+    // (not the captured `block` prop) so two rapid uploads can't race
+    // each other into overwriting one another. Previously, the second
+    // upload would read a stale `block.ticketPhotos` from its closure
+    // and the merge would lose the first photo.
+    setActivityBlocks(prev => prev.map(b => {
+      if (b.id !== blockId) return b
+      const existingRaw = b.ticketPhotos || (b.ticketPhoto ? [b.ticketPhoto] : [])
+      const existingObjs = existingRaw
+        .map(p => {
+          if (!p) return null
+          if (p instanceof File) return { photoId: null, file: p, originalName: p.name, uploadStatus: null, filename: null, uploadError: null }
+          if (p.file instanceof File) return p
+          return p // already-saved photo from DB (has filename)
+        })
+        .filter(Boolean)
+      const merged = [...existingObjs, ...newPhotoObjs]
+      // Singular ticketPhoto = first File for legacy display paths.
+      const firstFile = merged.find(p => p?.file instanceof File)?.file || null
+      const nextTicketPhoto = (b.ticketPhoto instanceof File) ? b.ticketPhoto : firstFile
+      return { ...b, ticketPhoto: nextTicketPhoto, ticketPhotos: merged }
+    }))
 
     // OCR only processes the NEW photos to avoid duplicating entries from previous pages
     const files = newFiles
@@ -2522,6 +2524,11 @@ Rules:
                 if (e.target.files[0]) {
                   processTicketOCR(block.id, e.target.files[0])
                 }
+                // Clear the input so a subsequent capture of an
+                // identically-named camera file fires onChange again.
+                // Without this, iOS Safari silently ignores the second
+                // capture and the user thinks the upload failed.
+                e.target.value = ''
               }}
               style={{ display: 'none' }}
               disabled={ocrProcessing}
@@ -2538,6 +2545,7 @@ Rules:
                 if (e.target.files?.length) {
                   processTicketOCR(block.id, Array.from(e.target.files))
                 }
+                e.target.value = ''
               }}
               style={{ display: 'none' }}
               disabled={ocrProcessing}

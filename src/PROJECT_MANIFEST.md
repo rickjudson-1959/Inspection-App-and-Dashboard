@@ -658,6 +658,52 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### Ticket Photo Multi-Upload Fix + Time-Lost Reasons + Bending Health-Score Findings (May 3, 2026 — evening)
+
+Three field-test bugs from Corry. Two fixed, one investigated only (per instructions).
+
+**Bug 1 fixed — Second ticket photo overwriting the first.**
+`processTicketOCR` in `ActivityBlock.jsx` was reading `block.ticketPhotos` from the closure-captured `block` prop, then calling `updateBlock` to merge. If two uploads happened in quick succession (or via state-update timing on the camera path), the second invocation could read a stale `block.ticketPhotos` and lose the first photo on merge. Replaced the two sequential `updateBlock` calls with a single functional setter:
+```js
+setActivityBlocks(prev => prev.map(b => {
+  if (b.id !== blockId) return b
+  const existing = b.ticketPhotos || (b.ticketPhoto ? [b.ticketPhoto] : [])
+  const merged = [...normalize(existing), ...newPhotoObjs]
+  return { ...b, ticketPhoto: ..., ticketPhotos: merged }
+}))
+```
+which always reads the latest state inside the setter, eliminating the closure-staleness window.
+
+Also added `e.target.value = ''` to both `<input type="file">` `onChange` handlers (Take Photo + Upload Photo(s)). Without that, iOS Safari silently ignores a re-capture when the new file appears identical to the previous one — the user thinks they uploaded but onChange never fired. Clearing the input forces every selection to fire onChange.
+
+**Bug 2 fixed — Missing manpower downtime reasons.**
+`src/constants.js` `timeLostReasons` extended with `'Illness'` and `'Personal Reason'`. Existing options preserved.
+
+**Bug 3 — Bending health-score false positive (findings only, not yet fixed).**
+The Field Completeness check (20% weight) in `src/agents/ReportHealthScorer.js` iterates `qualityFieldsByActivity[block.activityType]` and counts unfilled fields in `block.qualityData`. For `'Bending'` the `qualityFieldsByActivity` entry still defines 6 quality fields (`bendAngle`, `bendRadius`, `ovalityPercent`, `wrinkleCheck`, `bendTemp`, `distanceToWeld`) — but **the Bending UI is rendered by the specialized `BendingLog` component, which writes to `block.bendingData`, not `block.qualityData`.**
+
+Other specialized-log activities (`Welding - Tie-in`, `Coating`, `Ditch`, `HDD`, `Piling`, `Hydrovac`, `Welder Testing`, `Hydrostatic Testing`, `Tie-in Coating`, `Tie-in Backfill`, `Cleanup - Machine`, `Cleanup - Final`) all have `[]` arrays with a comment like `// Handled by XLog component`. Bending is the only one that still has stale qualityData fields defined.
+
+Result: every Bending block produces a health-score issue like
+> Block #N "Bending" (KP X+XXX) — 6 quality fields to complete. Open "Quality Checks" and fill in → Quality Checks: bendAngle, bendRadius, ovalityPercent, wrinkleCheck, bendTemp, distanceToWeld
+
+The user can't fix it because the qualityData fields aren't surfaced in the Bending UI at all (the BendingLog component renders bend entries instead).
+
+**Recommended one-line fix** (deferred per instructions — fix when explicitly authorized):
+```js
+// In src/constants.js
+'Bending': [], // Handled by BendingLog component (writes to block.bendingData)
+```
+Optional follow-up: add a separate completeness rule that flags Bending blocks with `bendingData.bendEntries.length === 0`.
+
+Files changed in this commit:
+```
+src/ActivityBlock.jsx   # functional setter for ticketPhotos merge,
+                        # input.value='' on both file onChange handlers
+src/constants.js        # +Illness, +Personal Reason in timeLostReasons
+src/PROJECT_MANIFEST.md # this entry
+```
+
 ### Stockpiling — 15th Trackable Item Category (May 3, 2026 — late)
 
 Added a new trackable-item category for pipe and fittings inventory tracking.
