@@ -658,6 +658,55 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### Seven Field-Test Bug Fixes — Photo Display, Name Dropdown, Crew-Wide Hours, Hours Roll-up, PDF Gaps (May 4, 2026 — second pass)
+
+Eight bugs reported by Corry. Bug 4 (OCR equipment extraction) was already addressed in the prior commit so it was skipped per the user's instruction. The remaining seven are all fixed in this pass.
+
+**Bug 1 fixed — Uploaded ticket photo not displaying.** Two root causes layered on top of each other:
+
+1. **Display logic gave exclusive priority to `block.ticketPhotos`.** When a user opened a saved report (edit mode), `savedTicketPhotoUrls` held the existing photos and `ticketPhotos` was reset to `null`. As soon as the user uploaded a new photo, `ticketPhotos` became `[newWrapper]` — and the if/else chain meant the OLD saved photos disappeared from view (still in DB, just hidden). Rewrote the thumbnail builder in `ActivityBlock.jsx` to gather thumbs from BOTH `ticketPhotos` (in-progress / new uploads) and `savedTicketPhotoNames/Urls` (already-saved), deduping by filename. The full-size modal got the same unified-source treatment.
+
+2. **Recovery effect skipped existing entries by photoId instead of merging.** The draft autosave (`src/offline/draftAutoSave.js` `stripPhotoBlob`) strips the `file` blob from photo wrappers before serialising — without that, photos would balloon IndexedDB. On a refresh-during-draft, the form draft restored a stub wrapper `{ photoId, uploadStatus, filename, ... }` with no usable file. The photoRecovery effect in `InspectorReport.jsx` then loaded the actual blob from the photoManager IndexedDB store, but **skipped** any photoId already present in the form's wrapper list — so the file-having recovered record never overwrote the file-less stub. Result: a photo upload that hadn't completed before refresh would never display, even though the blob was sitting in IndexedDB. Replaced the skip-on-match logic with a merge-on-match: when `photoId` matches, copy the recovered `file`, `filename`, and `uploadStatus` into the existing wrapper, then append any genuinely-new records.
+
+Display logic also now prefers the Supabase Storage URL once `uploadStatus === 'uploaded' && filename`, so completed uploads survive page refresh even if the local blob is GC'd.
+
+**Bug 2 fixed — No worker-name dropdown on inspector report.** `ActivityBlock.jsx`'s `loadMasterRoster` only read `master_personnel`. Reconciliation reads `personnel_roster` (the CSV-uploaded admin table). On CLX-2 the admin had populated `personnel_roster` but `master_personnel` was sparse, so the inspector's `SearchableNameInput` rendered an empty dropdown while reconciliation showed full results from the same data. Extended `loadMasterRoster` to ALSO query `personnel_roster` (and `equipment_fleet` for the equipment side), supplementing — not overwriting — the master tables. Names already in `master_personnel` keep priority; anything else from the CSV roster gets added so the dropdown matches reconciliation.
+
+**Bug 3 fixed — Crew-wide downtime/standby hours.** Added two number inputs under "Site Condition Affecting Crew" (`ActivityBlock.jsx`): **Down Hours (per person)** and **Standby Hours (per person)**. Values persist on `block.systemicDelay.crewDownHours` and `block.systemicDelay.crewStandbyHours`. On blur, the values propagate to **every** labour and equipment entry on the block: each entry's `timeLostHours` becomes the sum (`crewDownHours + crewStandbyHours`) and `timeLostReason` copies the existing site-condition reason. This eliminates the per-row pencil-icon edit pass that Corry was running for entire crews. Helper text under the inputs explains the apply-on-blur behaviour.
+
+**Bug 5 fixed — "Verification Summary" misnomer.** The four-card hours panel (Billed / Productive / Down / Standby) was previously titled **📋 Verification Summary** with a green **✓ Verified** badge that auto-appeared whenever no anomalies were detected — even though no human had verified anything. Renamed to **📋 Hours Roll-up** with a one-line subtitle ("Auto-calculated from manpower & equipment entries below"). Removed the misleading green checkmark; kept the amber "⚠ Note required" indicator that surfaces only when the heuristic flags a block (≥80% productive but <50m progress, or any Full-Production row with zero KP delta).
+
+**Bug 6 fixed — PDF Quality Checks dropping ad-hoc keys.** The PDF Quality Checks renderer kept a `renderedCount` counter; the raw-key dump (which catches `qualityData` entries not in `qualityFieldsByActivity`) only ran when `renderedCount === 0`. So if an activity had any structured fields filled, anything else in `qualityData` was silently dropped. Replaced the counter with a `renderedKeys` Set; the raw fallback now always runs and skips only the keys structured rendering already covered. Section is also now gated on "any non-empty value" rather than "any key present" — cleaner suppression of empty-data activity blocks.
+
+**Bug 7 fixed — Visitors missing from PDF.** `saveReport` already auto-pulled an unsaved visitor name out of the input fields before persisting, but `exportToPDF` did not. If an inspector typed a visitor's name into the input row and clicked **Download PDF Copy** without first hitting **Add**, the visitor never made it into the rendered list. Mirrored the saveReport behaviour in `exportToPDF`: builds a local `pdfVisitors` array from `[...visitors]` plus the unsaved input row (if non-blank), filters out fully-empty entries, then renders from that.
+
+**Bug 8 — Safety Recognition in PDF.** Verified existing condition `if (safetyRecognitionData?.cards && safetyRecognitionData.cards.length > 0)` is correctly gated; the rendering logic walks every card field including observer/observee, dialogue, actions, supervisor sign-off, and comments. No code change required — the bug almost certainly resolves once the inspector clicks **Save** before generating the PDF (the cards are persisted to `safety_recognition` JSONB on save, then re-read on edit-mode reload). If Corry hits this again, the diagnostic is to confirm `safetyRecognitionData.cards.length > 0` in the live state at PDF time.
+
+**Files changed:**
+```
+src/ActivityBlock.jsx          # Bug 1: unified thumbnail + modal photo
+                               #   sources, dedup by filename
+                               # Bug 2: personnel_roster + equipment_fleet
+                               #   fallback in loadMasterRoster
+                               # Bug 3: crewDownHours/crewStandbyHours
+                               #   inputs + onBlur propagation
+                               # Bug 5: rename Verification Summary →
+                               #   Hours Roll-up, drop ✓ Verified badge
+src/InspectorReport.jsx        # Bug 1: photoRecovery effect merges into
+                               #   existing wrappers by photoId instead
+                               #   of skipping
+                               # Bug 6: Quality Checks raw-key dump now
+                               #   always runs, skipping structured keys
+                               # Bug 7: pdfVisitors auto-includes the
+                               #   unsaved visitor input row
+src/PROJECT_MANIFEST.md        # this entry
+```
+
+**Field guide sync required:** Bugs 2, 3, 5 affect inspector report UX (name dropdown source, new crew-wide hours inputs, Hours Roll-up wording). The `pipe-up-field-guide-agent-kb.md` should reflect:
+- The labour-name dropdown sources both `master_personnel` AND `personnel_roster`.
+- The Site Condition Affecting Crew section now has crew-wide Down Hours and Standby Hours inputs.
+- The "Verification Summary" card is now called "Hours Roll-up" — it is auto-derived, not a verification status.
+
 ### Five Field-Test Bug Fixes — Photos, Quality Checks, Hour Labels, OCR Equipment, Welding UPI (May 4, 2026)
 
 Five bugs from Corry's continued field testing on CLX-2. All fixed in a single pass, build clean.

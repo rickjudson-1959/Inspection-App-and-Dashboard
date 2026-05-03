@@ -628,6 +628,32 @@ function ActivityBlock({
         pOffset += 1000
       }
 
+      // Supplement with personnel_roster (CSV-uploaded by admin). The
+      // reconciliation panel uses this table; if a name was uploaded
+      // there but never promoted to master_personnel, the inspector's
+      // dropdown was empty even though the same name showed up in
+      // reconciliation. Names already in master_personnel take priority.
+      try {
+        let prOffset = 0
+        while (true) {
+          let prq = supabase.from('personnel_roster').select('id, employee_name, classification')
+            .range(prOffset, prOffset + 999)
+          prq = addOrgFilter(prq, true)
+          const { data: prData } = await prq
+          for (const r of (prData || [])) {
+            const name = (r.employee_name || '').trim()
+            const cls = (r.classification || '').trim()
+            if (!name) continue
+            const key = name.toUpperCase()
+            if (!personnelMap[key]) {
+              personnelMap[key] = { employeeName: name, classification: cls, masterId: r.id }
+            }
+          }
+          if (!prData || prData.length < 1000) break
+          prOffset += 1000
+        }
+      } catch (e) { console.warn('personnel_roster fallback unavailable:', e) }
+
       // Load ALL master_equipment (paginated)
       const fleetMap = {}
       let eOffset = 0
@@ -645,6 +671,28 @@ function ActivityBlock({
         if (!eData || eData.length < 1000) break
         eOffset += 1000
       }
+
+      // Supplement equipment roster with equipment_fleet (same pattern)
+      try {
+        let efOffset = 0
+        while (true) {
+          let efq = supabase.from('equipment_fleet').select('id, unit_number, equipment_type')
+            .range(efOffset, efOffset + 999)
+          efq = addOrgFilter(efq, true)
+          const { data: efData } = await efq
+          for (const r of (efData || [])) {
+            const unit = (r.unit_number || '').trim()
+            const type = (r.equipment_type || '').trim()
+            if (!unit) continue
+            const key = unit.toUpperCase()
+            if (!fleetMap[key]) {
+              fleetMap[key] = { unitNumber: unit, equipmentType: type, masterId: r.id }
+            }
+          }
+          if (!efData || efData.length < 1000) break
+          efOffset += 1000
+        }
+      } catch (e) { console.warn('equipment_fleet fallback unavailable:', e) }
 
       setEmployeeRoster(Object.values(personnelMap).sort((a, b) => a.employeeName.localeCompare(b.employeeName)))
       setEquipmentRoster(Object.values(fleetMap).sort((a, b) => a.unitNumber.localeCompare(b.unitNumber)))
@@ -2589,41 +2637,76 @@ Rules:
         )}
 
         {/* Ticket photo thumbnail — clickable to view full size */}
-        {(block.ticketPhoto || block.savedTicketPhotoUrl || block.savedTicketPhotoUrls?.length > 0) && (() => {
-          // Build thumbnail URLs for display. Photos can be stored as:
-          //   - new PhotoObj { photoId, file, uploadStatus, filename, ... } (new flow)
-          //   - File directly (legacy)
-          //   - string URL (legacy)
-          // We also surface upload status badges (uploading/uploaded/failed).
+        {(block.ticketPhoto || block.savedTicketPhotoUrl || block.savedTicketPhotoUrls?.length > 0 || block.ticketPhotos?.length > 0) && (() => {
+          // Build thumbnail URLs for display from BOTH ticketPhotos
+          // (in-progress / new uploads) AND savedTicketPhotoNames/Urls
+          // (already-saved photos from edit-mode load). Previously the
+          // display gave exclusive priority to ticketPhotos, so when a
+          // user uploaded a new photo on a saved report, the OLD saved
+          // photos disappeared from view (they were still in DB but
+          // hidden). Dedup by filename so we don't show the same photo
+          // from both sources.
           const thumbs = [] // [{ url, status, error }]
+          const seenFilenames = new Set()
+          const pushThumb = (entry) => {
+            if (!entry || !entry.url) return
+            if (entry.filename) {
+              if (seenFilenames.has(entry.filename)) return
+              seenFilenames.add(entry.filename)
+            }
+            thumbs.push(entry)
+          }
+
+          // 1. New / in-progress photos from ticketPhotos.
           if (block.ticketPhotos?.length > 0) {
             block.ticketPhotos.forEach(p => {
               if (!p) return
               if (p instanceof File) {
-                thumbs.push({ url: URL.createObjectURL(p), status: null })
+                pushThumb({ url: URL.createObjectURL(p), status: null })
               } else if (p.file instanceof File) {
-                thumbs.push({ url: URL.createObjectURL(p.file), status: p.uploadStatus, error: p.uploadError })
+                // Prefer Storage URL once upload completes (survives refresh
+                // even if the local blob is GC'd); fall back to blob URL
+                // while still uploading.
+                if (p.uploadStatus === 'uploaded' && p.filename) {
+                  const { data } = supabase.storage.from('ticket-photos').getPublicUrl(p.filename)
+                  pushThumb({ url: data?.publicUrl || URL.createObjectURL(p.file), status: 'uploaded', filename: p.filename })
+                } else {
+                  pushThumb({ url: URL.createObjectURL(p.file), status: p.uploadStatus, error: p.uploadError, filename: p.filename || null })
+                }
               } else if (typeof p === 'string' && p.startsWith('http')) {
-                thumbs.push({ url: p, status: 'uploaded' })
+                pushThumb({ url: p, status: 'uploaded' })
               } else if (typeof p === 'string') {
-                // Bare filename string in the array (legacy save shape)
                 const { data } = supabase.storage.from('ticket-photos').getPublicUrl(p)
-                thumbs.push({ url: data?.publicUrl || null, status: 'uploaded' })
+                pushThumb({ url: data?.publicUrl || null, status: 'uploaded', filename: p })
               } else if (p.filename) {
-                // Already-saved photo: build the public URL from the filename
-                // so the thumbnail still renders. Previously this pushed
-                // url:null which got filtered out — second-page photos
-                // saved during the session were vanishing here.
+                // Wrapper with filename only (no file) — happens after
+                // draft autosave round-trip strips the blob, OR after
+                // upload completes and the file ref drops.
                 const { data } = supabase.storage.from('ticket-photos').getPublicUrl(p.filename)
-                thumbs.push({ url: data?.publicUrl || null, status: 'uploaded' })
+                pushThumb({ url: data?.publicUrl || null, status: 'uploaded', filename: p.filename })
               }
             })
-          } else if (block.savedTicketPhotoUrls?.length > 0) {
-            block.savedTicketPhotoUrls.forEach(u => thumbs.push({ url: u, status: 'uploaded' }))
-          } else if (block.ticketPhoto instanceof File) {
-            thumbs.push({ url: URL.createObjectURL(block.ticketPhoto), status: null })
-          } else if (block.savedTicketPhotoUrl) {
-            thumbs.push({ url: block.savedTicketPhotoUrl, status: 'uploaded' })
+          }
+
+          // 2. Saved photos from edit-mode load — only ones not already
+          //    represented in ticketPhotos. Iterate by filename so the
+          //    dedup hits.
+          if (block.savedTicketPhotoNames?.length > 0) {
+            block.savedTicketPhotoNames.forEach((filename, idx) => {
+              if (!filename || seenFilenames.has(filename)) return
+              const url = block.savedTicketPhotoUrls?.[idx]
+                || supabase.storage.from('ticket-photos').getPublicUrl(filename)?.data?.publicUrl
+              pushThumb({ url: url || null, status: 'uploaded', filename })
+            })
+          } else if (block.savedTicketPhotoUrl && !seenFilenames.has(block.savedTicketPhotoName)) {
+            const fname = block.savedTicketPhotoName || null
+            if (fname) seenFilenames.add(fname)
+            pushThumb({ url: block.savedTicketPhotoUrl, status: 'uploaded', filename: fname })
+          }
+
+          // 3. Legacy single-File on block.ticketPhoto (old save shape)
+          if (thumbs.length === 0 && block.ticketPhoto instanceof File) {
+            pushThumb({ url: URL.createObjectURL(block.ticketPhoto), status: null })
           }
           const thumbUrls = thumbs.map(t => t.url).filter(Boolean)
           return (
@@ -2750,44 +2833,70 @@ Rules:
                 </button>
               </div>
               <div style={{ overflow: 'auto', flex: 1 }}>
-                {block.ticketPhotos?.length > 1 ? (
-                  block.ticketPhotos.map((photo, idx) => {
-                    // Resolve src from either the new PhotoObj shape or legacy File/string
-                    let src = ''
-                    if (!photo) src = ''
-                    else if (photo instanceof File) src = URL.createObjectURL(photo)
-                    else if (photo.file instanceof File) src = URL.createObjectURL(photo.file)
-                    else if (typeof photo === 'string') src = photo
-                    else if (photo.filename) src = supabase.storage.from('ticket-photos').getPublicUrl(photo.filename)?.data?.publicUrl || ''
-                    return (
-                    <div key={idx} style={{ marginBottom: idx < block.ticketPhotos.length - 1 ? '15px' : 0, borderBottom: idx < block.ticketPhotos.length - 1 ? '2px solid #dee2e6' : 'none', paddingBottom: idx < block.ticketPhotos.length - 1 ? '15px' : 0 }}>
-                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '5px' }}>Page {idx + 1} of {block.ticketPhotos.length}</div>
-                      <img
-                        src={src}
-                        alt={`Contractor Ticket Page ${idx + 1}`}
-                        style={{ maxWidth: '100%', objectFit: 'contain' }}
-                      />
-                    </div>
-                    )
-                  })
-                ) : block.savedTicketPhotoUrls?.length > 1 ? (
-                  block.savedTicketPhotoUrls.map((url, idx) => (
-                    <div key={idx} style={{ marginBottom: idx < block.savedTicketPhotoUrls.length - 1 ? '15px' : 0, borderBottom: idx < block.savedTicketPhotoUrls.length - 1 ? '2px solid #dee2e6' : 'none', paddingBottom: idx < block.savedTicketPhotoUrls.length - 1 ? '15px' : 0 }}>
-                      <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '5px' }}>Page {idx + 1} of {block.savedTicketPhotoUrls.length}</div>
-                      <img
-                        src={url}
-                        alt={`Contractor Ticket Page ${idx + 1}`}
-                        style={{ maxWidth: '100%', objectFit: 'contain' }}
-                      />
-                    </div>
-                  ))
-                ) : (
-                  <img
-                    src={block.ticketPhoto instanceof File ? URL.createObjectURL(block.ticketPhoto) : (block.savedTicketPhotoUrl || '')}
-                    alt="Contractor Ticket"
-                    style={{ maxWidth: '100%', maxHeight: 'calc(90vh - 100px)', objectFit: 'contain' }}
-                  />
-                )}
+                {(() => {
+                  // Build a unified list of photo URLs from BOTH ticketPhotos
+                  // (in-progress / new uploads) and savedTicketPhotoNames/Urls
+                  // (already-saved). Dedup by filename — same logic as the
+                  // thumbnail strip above.
+                  const items = []
+                  const seenFilenames = new Set()
+                  const push = (src, filename) => {
+                    if (!src) return
+                    if (filename) {
+                      if (seenFilenames.has(filename)) return
+                      seenFilenames.add(filename)
+                    }
+                    items.push(src)
+                  }
+                  if (block.ticketPhotos?.length > 0) {
+                    block.ticketPhotos.forEach(p => {
+                      if (!p) return
+                      if (p instanceof File) push(URL.createObjectURL(p), null)
+                      else if (p.file instanceof File) {
+                        if (p.uploadStatus === 'uploaded' && p.filename) {
+                          const { data } = supabase.storage.from('ticket-photos').getPublicUrl(p.filename)
+                          push(data?.publicUrl || URL.createObjectURL(p.file), p.filename)
+                        } else {
+                          push(URL.createObjectURL(p.file), p.filename || null)
+                        }
+                      }
+                      else if (typeof p === 'string' && p.startsWith('http')) push(p, null)
+                      else if (typeof p === 'string') {
+                        const { data } = supabase.storage.from('ticket-photos').getPublicUrl(p)
+                        push(data?.publicUrl, p)
+                      }
+                      else if (p.filename) {
+                        const { data } = supabase.storage.from('ticket-photos').getPublicUrl(p.filename)
+                        push(data?.publicUrl, p.filename)
+                      }
+                    })
+                  }
+                  if (block.savedTicketPhotoNames?.length > 0) {
+                    block.savedTicketPhotoNames.forEach((filename, idx) => {
+                      if (!filename || seenFilenames.has(filename)) return
+                      const url = block.savedTicketPhotoUrls?.[idx]
+                        || supabase.storage.from('ticket-photos').getPublicUrl(filename)?.data?.publicUrl
+                      push(url, filename)
+                    })
+                  } else if (block.savedTicketPhotoUrl) {
+                    push(block.savedTicketPhotoUrl, block.savedTicketPhotoName || null)
+                  }
+                  if (items.length === 0 && block.ticketPhoto instanceof File) {
+                    push(URL.createObjectURL(block.ticketPhoto), null)
+                  }
+
+                  if (items.length > 1) {
+                    return items.map((src, idx) => (
+                      <div key={idx} style={{ marginBottom: idx < items.length - 1 ? '15px' : 0, borderBottom: idx < items.length - 1 ? '2px solid #dee2e6' : 'none', paddingBottom: idx < items.length - 1 ? '15px' : 0 }}>
+                        <div style={{ fontSize: '12px', fontWeight: 'bold', color: '#666', marginBottom: '5px' }}>Page {idx + 1} of {items.length}</div>
+                        <img src={src} alt={`Contractor Ticket Page ${idx + 1}`} style={{ maxWidth: '100%', objectFit: 'contain' }} />
+                      </div>
+                    ))
+                  }
+                  return (
+                    <img src={items[0] || ''} alt="Contractor Ticket" style={{ maxWidth: '100%', maxHeight: 'calc(90vh - 100px)', objectFit: 'contain' }} />
+                  )
+                })()}
               </div>
             </div>
           </div>
@@ -2975,6 +3084,104 @@ Rules:
                     })()}
                   </div>
                 )}
+              </div>
+            </div>
+            {/* Crew-wide downtime / standby hours — applied to every
+                labour and equipment entry on this block when the user
+                blurs the inputs. Saves Corry from opening the pencil
+                icon on every row. */}
+            <div style={{
+              marginTop: '12px',
+              padding: '10px',
+              backgroundColor: '#fff',
+              borderRadius: '6px',
+              border: '1px dashed #adb5bd'
+            }}>
+              <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#495057', marginBottom: '6px' }}>
+                Crew-Wide Hours (applies to every person & piece of equipment on this block)
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                <div>
+                  <label style={{ fontSize: '10px', color: '#856404', display: 'block', marginBottom: '3px' }}>
+                    Down Hours (per person)
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.25"
+                    placeholder="0"
+                    value={block.systemicDelay?.crewDownHours ?? ''}
+                    onChange={(e) => {
+                      updateSystemicDelay(block.id, { ...block.systemicDelay, crewDownHours: e.target.value })
+                    }}
+                    onBlur={() => {
+                      const down = parseFloat(block.systemicDelay?.crewDownHours) || 0
+                      const standby = parseFloat(block.systemicDelay?.crewStandbyHours) || 0
+                      const total = down + standby
+                      const reason = block.systemicDelay?.reason || ''
+                      setActivityBlocks(prev => prev.map(b => {
+                        if (b.id !== block.id) return b
+                        return {
+                          ...b,
+                          labourEntries: (b.labourEntries || []).map(e => ({
+                            ...e,
+                            timeLostHours: total > 0 ? total : (e.timeLostHours ?? ''),
+                            timeLostReason: reason || e.timeLostReason || ''
+                          })),
+                          equipmentEntries: (b.equipmentEntries || []).map(e => ({
+                            ...e,
+                            timeLostHours: total > 0 ? total : (e.timeLostHours ?? ''),
+                            timeLostReason: reason || e.timeLostReason || ''
+                          }))
+                        }
+                      }))
+                    }}
+                    style={{ width: '100%', padding: '6px', fontSize: '13px', border: '1px solid #ffc107', borderRadius: '4px', boxSizing: 'border-box' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '10px', color: '#721c24', display: 'block', marginBottom: '3px' }}>
+                    Standby Hours (per person)
+                  </label>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="0.25"
+                    placeholder="0"
+                    value={block.systemicDelay?.crewStandbyHours ?? ''}
+                    onChange={(e) => {
+                      updateSystemicDelay(block.id, { ...block.systemicDelay, crewStandbyHours: e.target.value })
+                    }}
+                    onBlur={() => {
+                      const down = parseFloat(block.systemicDelay?.crewDownHours) || 0
+                      const standby = parseFloat(block.systemicDelay?.crewStandbyHours) || 0
+                      const total = down + standby
+                      const reason = block.systemicDelay?.reason || ''
+                      setActivityBlocks(prev => prev.map(b => {
+                        if (b.id !== block.id) return b
+                        return {
+                          ...b,
+                          labourEntries: (b.labourEntries || []).map(e => ({
+                            ...e,
+                            timeLostHours: total > 0 ? total : (e.timeLostHours ?? ''),
+                            timeLostReason: reason || e.timeLostReason || ''
+                          })),
+                          equipmentEntries: (b.equipmentEntries || []).map(e => ({
+                            ...e,
+                            timeLostHours: total > 0 ? total : (e.timeLostHours ?? ''),
+                            timeLostReason: reason || e.timeLostReason || ''
+                          }))
+                        }
+                      }))
+                    }}
+                    style={{ width: '100%', padding: '6px', fontSize: '13px', border: '1px solid #dc3545', borderRadius: '4px', boxSizing: 'border-box' }}
+                  />
+                </div>
+              </div>
+              <div style={{ fontSize: '10px', color: '#666', marginTop: '6px', fontStyle: 'italic' }}>
+                Tab away from the field to apply. The values fill <strong>timeLostHours</strong> on every labour and equipment row, and the reason copies the Site Condition above.
               </div>
             </div>
             <div style={{ marginTop: '10px', fontSize: '11px', color: '#666', fontStyle: 'italic' }}>
@@ -3599,14 +3806,21 @@ Rules:
             border: needsVerification ? '2px solid #ffc107' : '1px solid #c3e6cb',
             marginBottom: '15px'
           }}>
-            {/* Verification Summary Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            {/* Hours Roll-up Header. The four cards below are auto-derived
+                from the labour & equipment entries — no human verification
+                takes place here, so the header avoids "Verification" /
+                "Verified" wording that previously made it look like an
+                approval status. */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
               <h4 style={{ margin: 0, color: '#495057', fontSize: '14px' }}>
-                📋 Verification Summary
+                📋 Hours Roll-up
               </h4>
-              {!needsVerification && (
-                <span style={{ fontSize: '12px', color: '#28a745', fontWeight: 'bold' }}>✓ Verified</span>
+              {needsVerification && (
+                <span style={{ fontSize: '11px', color: '#856404', fontWeight: 'bold' }}>⚠ Note required</span>
               )}
+            </div>
+            <div style={{ fontSize: '10px', color: '#6c757d', marginBottom: '10px' }}>
+              Auto-calculated from manpower &amp; equipment entries below.
             </div>
 
             {/* Billed | Productive | Down | Standby — separate cards so

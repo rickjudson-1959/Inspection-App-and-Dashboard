@@ -244,31 +244,78 @@ function InspectorReport({
         setActivityBlocks(prev => prev.map(block => {
           const matches = byBlock.get(block.id)
           if (!matches?.length) return block
-          const existingWorkIds = new Set((block.workPhotos || []).map(p => p?.photoId).filter(Boolean))
-          const existingTicketIds = new Set((block.ticketPhotos || []).map(p => p?.photoId).filter(Boolean))
+          // Build wrappers from IndexedDB records.
+          const buildWrapper = (rec) => ({
+            photoId: rec.id,
+            file: rec.blob instanceof File
+              ? rec.blob
+              : (rec.blob ? new File([rec.blob], rec.metadata?.originalName || `${rec.type}_${rec.id}.jpg`, { type: rec.blob?.type || 'image/jpeg' }) : null),
+            originalName: rec.metadata?.originalName || `${rec.type}_${rec.id}.jpg`,
+            uploadStatus: rec.syncStatus || 'pending',
+            filename: rec.uploadedFilename || null,
+            uploadError: rec.error || null,
+            location: rec.metadata?.location || '',
+            description: rec.metadata?.description || ''
+          })
+
+          // For each existing entry that matches a recovered record by photoId,
+          // MERGE the recovered file/filename/uploadStatus into it. The draft
+          // autosave strips the `file` field on serialization, so a draft
+          // restore brings back stub wrappers without a usable blob — without
+          // this merge, the displays would have nothing to render until the
+          // user manually re-attached the photo. Skipping (the old behaviour)
+          // also lost data when the existing wrapper was missing fields the
+          // recovered record had.
+          const recById = new Map(matches.map(r => [r.id, r]))
+
+          const mergeInto = (list, type) => {
+            let touched = false
+            const merged = (list || []).map(p => {
+              if (!p?.photoId) return p
+              const rec = recById.get(p.photoId)
+              if (!rec || rec.type !== type) return p
+              const w = buildWrapper(rec)
+              recById.delete(p.photoId)
+              touched = true
+              return {
+                ...p,
+                file: p.file instanceof File ? p.file : w.file,
+                filename: p.filename || w.filename,
+                uploadStatus: w.uploadStatus || p.uploadStatus,
+                uploadError: p.uploadError || w.uploadError,
+                originalName: p.originalName || w.originalName,
+                location: p.location || w.location,
+                description: p.description || w.description
+              }
+            })
+            return { merged, touched }
+          }
+
+          const work = mergeInto(block.workPhotos, 'work')
+          const ticket = mergeInto(block.ticketPhotos, 'ticket')
+
+          // Anything still in recById is genuinely new — append.
           const newWork = []
           const newTicket = []
+          for (const rec of recById.values()) {
+            const w = buildWrapper(rec)
+            if (rec.type === 'work') { newWork.push(w); mergedCount++ }
+            else if (rec.type === 'ticket') { newTicket.push(w); mergedCount++ }
+          }
+
+          // Kick off in-flight upload tracking for anything not yet uploaded.
           for (const rec of matches) {
-            const wrapper = {
-              photoId: rec.id,
-              file: rec.blob instanceof File
-                ? rec.blob
-                : new File([rec.blob], rec.metadata?.originalName || `${rec.type}_${rec.id}.jpg`, { type: rec.blob?.type || 'image/jpeg' }),
-              originalName: rec.metadata?.originalName || `${rec.type}_${rec.id}.jpg`,
-              uploadStatus: rec.syncStatus || 'pending',
-              filename: rec.uploadedFilename || null,
-              uploadError: rec.error || null,
-              location: rec.metadata?.location || '',
-              description: rec.metadata?.description || ''
-            }
-            if (rec.type === 'work' && !existingWorkIds.has(rec.id)) { newWork.push(wrapper); mergedCount++ }
-            else if (rec.type === 'ticket' && !existingTicketIds.has(rec.id)) { newTicket.push(wrapper); mergedCount++ }
-            if (wrapper.uploadStatus !== 'uploaded' && wrapper.uploadStatus !== 'archived') {
+            if (rec.syncStatus !== 'uploaded' && rec.syncStatus !== 'archived') {
               photoManager.awaitUpload(rec.id).catch(() => {})
             }
           }
-          if (!newWork.length && !newTicket.length) return block
-          return { ...block, workPhotos: [...(block.workPhotos || []), ...newWork], ticketPhotos: [...(block.ticketPhotos || []), ...newTicket] }
+
+          if (!work.touched && !ticket.touched && !newWork.length && !newTicket.length) return block
+          return {
+            ...block,
+            workPhotos: [...work.merged, ...newWork],
+            ticketPhotos: [...ticket.merged, ...newTicket]
+          }
         }))
         if (mergedCount > 0) console.log(`[photoRecovery] restored ${mergedCount} photo(s) from IndexedDB`)
         setPhotoRecoveryDone(true)
@@ -4028,6 +4075,20 @@ CRITICAL - Individual Entries Required:
     const contentWidth = pageWidth - (margin * 2)
     let y = 0
 
+    // Mirror the saveReport behaviour: pull any name still sitting in the
+    // visitor input fields into the visitors list before rendering.
+    // Inspectors often type a visitor and click "Download PDF Copy"
+    // without first hitting "Add", which would otherwise drop the entry.
+    let pdfVisitors = [...(visitors || [])]
+    if (visitorName && visitorName.trim()) {
+      pdfVisitors.push({
+        name: visitorName.trim(),
+        company: (visitorCompany || '').trim(),
+        position: (visitorPosition || '').trim()
+      })
+    }
+    pdfVisitors = pdfVisitors.filter(v => (v?.name || '').trim() || (v?.company || '').trim() || (v?.position || '').trim())
+
     // Fetch trackable items from DB if not already loaded (component may not be mounted)
     let pdfTrackableItems = trackableItemsData
     console.log('[PDF] Trackable items - in-memory count:', pdfTrackableItems?.length || 0, 'reportId:', currentReportId)
@@ -4366,12 +4427,19 @@ CRITICAL - Individual Entries Required:
         y += 2
       }
 
-      // Quality Checks
-      if (block.activityType && Object.keys(block.qualityData || {}).length > 0) {
+      // Quality Checks. Render the section if either (a) qualityData has
+      // any non-empty value, or (b) the activity has configured fields and
+      // any of them carry data — and ALWAYS finish with a raw-key dump for
+      // any qualityData entries the structured renderer didn't cover, so
+      // ad-hoc fields don't silently drop out of the PDF.
+      const qualityHasAnyValue = Object.values(block.qualityData || {}).some(
+        v => v !== undefined && v !== null && v !== ''
+      )
+      if (block.activityType && qualityHasAnyValue) {
         checkPageBreak(20)
         addSubHeader('Quality Checks', BRAND.orangeLight)
         const fields = qualityFieldsByActivity[block.activityType] || []
-        let renderedCount = 0
+        const renderedKeys = new Set()
 
         // Helper to render a list of flat fields in 2-column layout
         const renderQualityFields = (fieldList) => {
@@ -4380,6 +4448,7 @@ CRITICAL - Individual Entries Required:
             if (field.type === 'info') return
             const value = block.qualityData[field.name]
             if (value !== undefined && value !== null && value !== '') {
+              renderedKeys.add(field.name)
               if (fieldCount > 0 && fieldCount % 2 === 0) y += 5
               checkPageBreak(8)
               const col = fieldCount % 2 === 0 ? leftCol : rightCol
@@ -4388,7 +4457,6 @@ CRITICAL - Individual Entries Required:
             }
           })
           if (fieldCount > 0) y += 6
-          renderedCount += fieldCount
         }
 
         // Separate flat fields from collapsible sections
@@ -4420,20 +4488,22 @@ CRITICAL - Individual Entries Required:
           }
         })
 
-        // Raw data fallback — if structured rendering produced nothing, dump raw key-value pairs
-        if (renderedCount === 0) {
-          let rawCount = 0
-          const camelToLabel = (s) => s.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).substring(0, 28)
-          Object.entries(block.qualityData).forEach(([key, value]) => {
-            if (value === undefined || value === null || value === '') return
-            if (rawCount > 0 && rawCount % 2 === 0) y += 5
-            checkPageBreak(8)
-            const col = rawCount % 2 === 0 ? leftCol : rightCol
-            addField(camelToLabel(key), String(value), col, 50)
-            rawCount++
-          })
-          if (rawCount > 0) y += 6
-        }
+        // Raw-key fallback for any qualityData entry the structured
+        // renderer didn't already pick up. Previously this only ran when
+        // structured rendering produced zero output, so any extra keys
+        // alongside structured ones were silently dropped.
+        const camelToLabel = (s) => s.replace(/([A-Z])/g, ' $1').replace(/^./, c => c.toUpperCase()).substring(0, 28)
+        let rawCount = 0
+        Object.entries(block.qualityData || {}).forEach(([key, value]) => {
+          if (value === undefined || value === null || value === '') return
+          if (renderedKeys.has(key)) return
+          if (rawCount > 0 && rawCount % 2 === 0) y += 5
+          checkPageBreak(8)
+          const col = rawCount % 2 === 0 ? leftCol : rightCol
+          addField(camelToLabel(key), String(value), col, 50)
+          rawCount++
+        })
+        if (rawCount > 0) y += 6
       }
 
       // Systemic Delay (Entire Crew Impact) - if active
@@ -8588,13 +8658,13 @@ CRITICAL - Individual Entries Required:
     // ═══════════════════════════════════════════════════════════
     // VISITORS
     // ═══════════════════════════════════════════════════════════
-    if (visitors?.length > 0) {
+    if (pdfVisitors.length > 0) {
       checkPageBreak(25)
       addSectionHeader('SITE VISITORS', BRAND.gray)
       setColor(BRAND.black, 'text')
       doc.setFont('helvetica', 'normal')
       doc.setFontSize(8)
-      visitors.forEach(v => {
+      pdfVisitors.forEach(v => {
         checkPageBreak(6)
         doc.text(`• ${v.name || 'N/A'} - ${v.company || 'N/A'} (${v.position || 'N/A'})`, margin + 2, y)
         y += 5
