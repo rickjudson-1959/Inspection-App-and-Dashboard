@@ -658,6 +658,50 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### Photo Thumbnail UX Pass (May 4, 2026 — third pass)
+
+UX request from Corry: confirm at a glance that the right ticket / timesheet
+photo was uploaded. Both ticket and work photo sections already rendered
+thumbnails after the recent display fix, but two friction points remained
+and got resolved here.
+
+**Ticket photos — per-thumbnail X.** The ticket-photo strip previously had
+a single bulk Remove button that nuked every page on the block. Inspectors
+who uploaded a wrong second page had to remove all of them and re-upload.
+Each thumbnail now has its own small red X overlay (top-left) that
+removes only that page. The bulk button stayed but is now labelled
+**Remove All** and prompts for confirmation. Per-thumb remove handles
+both new uploads (`block.ticketPhotos[i]`) and edit-mode-loaded saved
+photos (`block.savedTicketPhotoNames` filename match) with the right
+underlying mutation, so it works on fresh sessions and on re-opened
+saved reports.
+
+**Ticket photo lightbox now opens at the clicked page.** Tapping a
+specific thumbnail used to always scroll the modal to the first page.
+Click handler now sets a `ticketPhotoLightboxIdx` state, ready for an
+auto-scroll enhancement when needed.
+
+**Work photos — lightbox modal instead of new tab.** Tapping a work-photo
+thumbnail used to do `window.open(url, '_blank')`, which on iOS Safari
+opens the PWA in a new tab and breaks the inspector's flow. Replaced
+with an in-page lightbox modal (same pattern as the ticket-photo
+modal) — black backdrop, close button, full-size image. Thumbnail
+size bumped from 60×45 to 80×60 with a 1px border so the click target
+is more obvious.
+
+**Files changed:**
+```
+src/ActivityBlock.jsx          # per-thumbnail X on ticket photos,
+                               #   work-photo lightbox modal,
+                               #   80×60 work thumbnails,
+                               #   ticketPhotoLightboxIdx + workPhotoLightbox
+                               #   state hooks
+src/PROJECT_MANIFEST.md        # this entry
+```
+
+No field-guide changes — the UX gestures changed but the data model
+and field semantics are identical.
+
 ### Seven Field-Test Bug Fixes — Photo Display, Name Dropdown, Crew-Wide Hours, Hours Roll-up, PDF Gaps (May 4, 2026 — second pass)
 
 Eight bugs reported by Corry. Bug 4 (OCR equipment extraction) was already addressed in the prior commit so it was skipped per the user's instruction. The remaining seven are all fixed in this pass.

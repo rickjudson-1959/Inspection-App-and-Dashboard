@@ -603,6 +603,11 @@ function ActivityBlock({
   const [ocrError, setOcrError] = useState(null)
   const [ocrSuccess, setOcrSuccess] = useState(false)
   const [showTicketPhoto, setShowTicketPhoto] = useState(false)
+  // Index into the unified ticket-photo list we display, used to open the
+  // lightbox at a specific page when the user taps a thumbnail.
+  const [ticketPhotoLightboxIdx, setTicketPhotoLightboxIdx] = useState(0)
+  // Lightbox state for work photos. Null = closed; otherwise { url, name }.
+  const [workPhotoLightbox, setWorkPhotoLightbox] = useState(null)
 
   // Load employee + equipment rosters from master tables ONLY (single source of truth)
   const [employeeRoster, setEmployeeRoster] = useState([])
@@ -2657,33 +2662,60 @@ Rules:
             thumbs.push(entry)
           }
 
+          // Build a "remove" callback per thumb that mutates the right
+          // source array (ticketPhotos vs. savedTicketPhotoNames/Urls).
+          // Lets the user delete one specific page without nuking the
+          // whole ticket.
+          const makeRemoveTicketByIndex = (i) => () => {
+            setActivityBlocks(prev => prev.map(b => {
+              if (b.id !== block.id) return b
+              const next = [...(b.ticketPhotos || [])]
+              next.splice(i, 1)
+              const firstFile = next.find(p => p?.file instanceof File)?.file
+                || (next.find(p => p instanceof File)) || null
+              return { ...b, ticketPhotos: next.length ? next : null, ticketPhoto: firstFile || null }
+            }))
+          }
+          const makeRemoveSavedByFilename = (filename) => () => {
+            setActivityBlocks(prev => prev.map(b => {
+              if (b.id !== block.id) return b
+              const names = (b.savedTicketPhotoNames || []).filter(n => n !== filename)
+              const urls = (b.savedTicketPhotoUrls || []).filter((_, idx) => (b.savedTicketPhotoNames || [])[idx] !== filename)
+              return {
+                ...b,
+                savedTicketPhotoNames: names.length ? names : null,
+                savedTicketPhotoUrls: urls.length ? urls : null,
+                savedTicketPhotoName: b.savedTicketPhotoName === filename ? null : b.savedTicketPhotoName,
+                savedTicketPhotoUrl: b.savedTicketPhotoName === filename ? null : b.savedTicketPhotoUrl
+              }
+            }))
+          }
+          const makeRemoveLegacySingle = () => () => {
+            setActivityBlocks(prev => prev.map(b => b.id === block.id ? { ...b, ticketPhoto: null } : b))
+          }
+
           // 1. New / in-progress photos from ticketPhotos.
           if (block.ticketPhotos?.length > 0) {
-            block.ticketPhotos.forEach(p => {
+            block.ticketPhotos.forEach((p, i) => {
               if (!p) return
+              const remove = makeRemoveTicketByIndex(i)
               if (p instanceof File) {
-                pushThumb({ url: URL.createObjectURL(p), status: null })
+                pushThumb({ url: URL.createObjectURL(p), status: null, remove })
               } else if (p.file instanceof File) {
-                // Prefer Storage URL once upload completes (survives refresh
-                // even if the local blob is GC'd); fall back to blob URL
-                // while still uploading.
                 if (p.uploadStatus === 'uploaded' && p.filename) {
                   const { data } = supabase.storage.from('ticket-photos').getPublicUrl(p.filename)
-                  pushThumb({ url: data?.publicUrl || URL.createObjectURL(p.file), status: 'uploaded', filename: p.filename })
+                  pushThumb({ url: data?.publicUrl || URL.createObjectURL(p.file), status: 'uploaded', filename: p.filename, remove })
                 } else {
-                  pushThumb({ url: URL.createObjectURL(p.file), status: p.uploadStatus, error: p.uploadError, filename: p.filename || null })
+                  pushThumb({ url: URL.createObjectURL(p.file), status: p.uploadStatus, error: p.uploadError, filename: p.filename || null, remove })
                 }
               } else if (typeof p === 'string' && p.startsWith('http')) {
-                pushThumb({ url: p, status: 'uploaded' })
+                pushThumb({ url: p, status: 'uploaded', remove })
               } else if (typeof p === 'string') {
                 const { data } = supabase.storage.from('ticket-photos').getPublicUrl(p)
-                pushThumb({ url: data?.publicUrl || null, status: 'uploaded', filename: p })
+                pushThumb({ url: data?.publicUrl || null, status: 'uploaded', filename: p, remove })
               } else if (p.filename) {
-                // Wrapper with filename only (no file) — happens after
-                // draft autosave round-trip strips the blob, OR after
-                // upload completes and the file ref drops.
                 const { data } = supabase.storage.from('ticket-photos').getPublicUrl(p.filename)
-                pushThumb({ url: data?.publicUrl || null, status: 'uploaded', filename: p.filename })
+                pushThumb({ url: data?.publicUrl || null, status: 'uploaded', filename: p.filename, remove })
               }
             })
           }
@@ -2696,19 +2728,20 @@ Rules:
               if (!filename || seenFilenames.has(filename)) return
               const url = block.savedTicketPhotoUrls?.[idx]
                 || supabase.storage.from('ticket-photos').getPublicUrl(filename)?.data?.publicUrl
-              pushThumb({ url: url || null, status: 'uploaded', filename })
+              pushThumb({ url: url || null, status: 'uploaded', filename, remove: makeRemoveSavedByFilename(filename) })
             })
           } else if (block.savedTicketPhotoUrl && !seenFilenames.has(block.savedTicketPhotoName)) {
             const fname = block.savedTicketPhotoName || null
             if (fname) seenFilenames.add(fname)
-            pushThumb({ url: block.savedTicketPhotoUrl, status: 'uploaded', filename: fname })
+            pushThumb({ url: block.savedTicketPhotoUrl, status: 'uploaded', filename: fname, remove: makeRemoveSavedByFilename(fname) })
           }
 
           // 3. Legacy single-File on block.ticketPhoto (old save shape)
           if (thumbs.length === 0 && block.ticketPhoto instanceof File) {
-            pushThumb({ url: URL.createObjectURL(block.ticketPhoto), status: null })
+            pushThumb({ url: URL.createObjectURL(block.ticketPhoto), status: null, remove: makeRemoveLegacySingle() })
           }
-          const thumbUrls = thumbs.map(t => t.url).filter(Boolean)
+          const visibleThumbs = thumbs.filter(t => t.url)
+          const thumbUrls = visibleThumbs.map(t => t.url)
           return (
             <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#f0f9f4', borderRadius: '6px', border: '1px solid #c3e6cb' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
@@ -2720,6 +2753,7 @@ Rules:
                 <button
                   type="button"
                   onClick={() => {
+                    if (!confirm('Remove all ticket photos from this block?')) return
                     updateBlock(block.id, 'ticketPhoto', null)
                     updateBlock(block.id, 'ticketPhotos', null)
                     updateBlock(block.id, 'savedTicketPhotoUrl', null)
@@ -2729,15 +2763,11 @@ Rules:
                   }}
                   style={{ padding: '3px 8px', backgroundColor: 'transparent', color: '#dc3545', border: '1px solid #dc3545', borderRadius: '4px', cursor: 'pointer', fontSize: '11px' }}
                 >
-                  Remove
+                  Remove All
                 </button>
               </div>
-              <div
-                onClick={() => setShowTicketPhoto(true)}
-                style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', cursor: 'pointer' }}
-                title="Click to view full size"
-              >
-                {thumbs.filter(t => t.url).map((t, idx) => {
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {visibleThumbs.map((t, idx) => {
                   const badge = t.status === 'uploaded'
                     ? { icon: '✓', color: '#155724', bg: '#d4edda', title: 'Saved to cloud' }
                     : t.status === 'uploading'
@@ -2752,16 +2782,39 @@ Rules:
                     <img
                       src={t.url}
                       alt={`Ticket page ${idx + 1}`}
+                      onClick={() => { setTicketPhotoLightboxIdx(idx); setShowTicketPhoto(true) }}
                       style={{
-                        width: thumbs.length === 1 ? '120px' : '80px',
-                        height: thumbs.length === 1 ? '160px' : '106px',
+                        width: visibleThumbs.length === 1 ? '120px' : '80px',
+                        height: visibleThumbs.length === 1 ? '160px' : '106px',
                         objectFit: 'cover',
                         borderRadius: '4px',
                         border: '2px solid #c3e6cb',
                         backgroundColor: '#fff',
-                        display: 'block'
+                        display: 'block',
+                        cursor: 'pointer'
                       }}
+                      title="Click to view full size"
                     />
+                    {/* Per-thumbnail X — removes ONLY this page. Stops the
+                        click event so the lightbox doesn't open at the
+                        same time. */}
+                    {t.remove && (
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); t.remove() }}
+                        title="Remove this page"
+                        style={{
+                          position: 'absolute', top: '-6px', left: '-6px',
+                          width: '20px', height: '20px',
+                          backgroundColor: '#dc3545', color: 'white',
+                          border: '2px solid white', borderRadius: '50%',
+                          fontSize: '11px', fontWeight: 'bold',
+                          cursor: 'pointer', padding: 0,
+                          display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.3)', lineHeight: 1
+                        }}
+                      >×</button>
+                    )}
                     {badge && (
                       <span title={badge.title} style={{
                         position: 'absolute', top: '4px', right: '4px',
@@ -2773,11 +2826,11 @@ Rules:
                         boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
                       }}>{badge.icon}</span>
                     )}
-                    {thumbs.length > 1 && (
+                    {visibleThumbs.length > 1 && (
                       <div style={{
                         fontSize: '10px', color: '#155724', fontWeight: '600',
                         marginTop: '3px'
-                      }}>Page {idx + 1} of {thumbs.length}</div>
+                      }}>Page {idx + 1} of {visibleThumbs.length}</div>
                     )}
                   </div>
                   )
@@ -3965,8 +4018,9 @@ Rules:
                     <img
                       src={photoSrc}
                       alt={`Photo ${photoIdx + 1}`}
-                      style={{ width: '60px', height: '45px', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer' }}
-                      onClick={() => window.open(photoSrc, '_blank')}
+                      style={{ width: '80px', height: '60px', objectFit: 'cover', borderRadius: '4px', cursor: 'pointer', border: '1px solid #ced4da' }}
+                      onClick={() => setWorkPhotoLightbox({ url: photoSrc, name: photoName })}
+                      title="Click to view full size"
                     />
                     ) : (
                     <span style={{ fontSize: '11px', color: '#999' }}>No preview</span>
@@ -4016,6 +4070,44 @@ Rules:
           </table>
         )}
       </div>
+
+      {/* Work Photo Lightbox — full-size viewer that replaces the
+          previous "open in new tab" behaviour. Click outside or the
+          close button to dismiss. */}
+      {workPhotoLightbox && (
+        <div
+          onClick={() => setWorkPhotoLightbox(null)}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 10000,
+            display: 'flex', flexDirection: 'column',
+            alignItems: 'center', justifyContent: 'center', padding: '20px'
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              backgroundColor: 'white', padding: '15px', borderRadius: '8px',
+              maxWidth: '95vw', maxHeight: '90vh',
+              display: 'flex', flexDirection: 'column'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <h3 style={{ margin: 0, fontSize: '14px' }}>📷 {workPhotoLightbox.name || 'Work Photo'}</h3>
+              <button
+                type="button"
+                onClick={() => setWorkPhotoLightbox(null)}
+                style={{ padding: '6px 14px', backgroundColor: '#dc3545', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+              >✕ Close</button>
+            </div>
+            <img
+              src={workPhotoLightbox.url}
+              alt={workPhotoLightbox.name || 'Work photo'}
+              style={{ maxWidth: '100%', maxHeight: 'calc(90vh - 60px)', objectFit: 'contain' }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   )
 }
