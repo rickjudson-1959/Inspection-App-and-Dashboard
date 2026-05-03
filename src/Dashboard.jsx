@@ -11,6 +11,15 @@ import ShadowAuditDashboard from './ShadowAuditDashboard.jsx'
 import { aggregateReliabilityScore, calculateTotalBilledHours, calculateTotalShadowHours, calculateValueLost, aggregateValueLostByParty } from './shadowAuditUtils.js'
 import { MetricInfoIcon, MetricIntegrityModal, useMetricIntegrityModal } from './components/MetricIntegrityInfo.jsx'
 import { useOrgQuery } from './utils/queryHelpers.js'
+import { parseKP } from './kpUtils.js'
+
+// Format a YYYY-MM-DD date string for display, anchored to noon local time
+// so timezone offsets can't shift the calendar day (otherwise '2014-01-20'
+// would render as 'Jan 19' for any user west of UTC).
+function formatDateForChart(dateStr) {
+  if (!dateStr) return ''
+  return new Date(`${dateStr}T12:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })
+}
 import { useOrgPath, useOrg } from './contexts/OrgContext.jsx'
 import { fetchRateMaps } from './evmCalculations.js'
 import ProjectCalendar from './components/ProjectCalendar.jsx'
@@ -452,11 +461,15 @@ function Dashboard({ onBackToReport }) {
           const phase = block.activityType
           if (!phase) return
 
+          // Use integer KP parser (km*1000 + m) to avoid floating-point
+          // artifacts like 2700.0000000000027.
           let progress = 0
           if (block.startKP && block.endKP) {
-            const start = parseFloat(String(block.startKP).replace('+', '.')) || 0
-            const end = parseFloat(String(block.endKP).replace('+', '.')) || 0
-            progress = Math.abs(end - start) * 1000
+            const startM = parseKP(block.startKP)
+            const endM = parseKP(block.endKP)
+            if (startM != null && endM != null) {
+              progress = Math.round(Math.abs(endM - startM))
+            }
           }
 
           if (!dailyData[date].phases[phase]) dailyData[date].phases[phase] = 0
@@ -512,7 +525,9 @@ function Dashboard({ onBackToReport }) {
     })
 
     const dailyArray = Object.values(dailyData).map(d => ({
-      date: new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+      // Anchor to noon to avoid the UTC→local TZ shift that turned
+      // '2014-01-20' into 'Jan 19' for anyone west of UTC.
+      date: formatDateForChart(d.date).replace(/, \d{4}$/, ''),
       fullDate: d.date,
       labourHours: d.labourHours,
       equipmentHours: d.equipmentHours,
@@ -774,14 +789,19 @@ function Dashboard({ onBackToReport }) {
           const id = e.masterEquipmentId || e.unitNumber || e.type
           if (id) s.equipmentUnits.add(id)
         }
-        const start = parseFloat(String(block.startKP || '').replace('+', '.')) || 0
-        const end = parseFloat(String(block.endKP || '').replace('+', '.')) || 0
-        if (start > 0 && (minKP === null || start < minKP)) minKP = start
-        if (end > 0 && (maxKP === null || end > maxKP)) maxKP = end
-        s.dailyMetres += Math.abs(end - start) * 1000
+        const startM = parseKP(block.startKP)
+        const endM = parseKP(block.endKP)
+        if (startM != null && (minKP === null || startM < minKP)) minKP = startM
+        if (endM != null && (maxKP === null || endM > maxKP)) maxKP = endM
+        if (startM != null && endM != null) {
+          s.dailyMetres += Math.round(Math.abs(endM - startM))
+        }
       }
       if (minKP !== null && maxKP !== null) {
-        s.kpRange = `${minKP.toFixed(1)} → ${maxKP.toFixed(1)} (KP)`
+        // Display KPs as "12+345" (km+m) — integer-clean.
+        const kmS = Math.floor(minKP / 1000), mS = Math.round(minKP % 1000)
+        const kmE = Math.floor(maxKP / 1000), mE = Math.round(maxKP % 1000)
+        s.kpRange = `${kmS}+${String(mS).padStart(3, '0')} → ${kmE}+${String(mE).padStart(3, '0')}`
       }
     }
     return Object.values(bySpread).map(s => ({
@@ -792,6 +812,64 @@ function Dashboard({ onBackToReport }) {
       foreman: s.foreman || (s.inspectors.size > 0 ? `Inspector: ${[...s.inspectors][0]}` : '—'),
       dailyMetres: Math.round(s.dailyMetres / Math.max(1, reports.length))
     }))
+  }, [reports])
+
+  // Per-crew rollup for the Productivity tab. A *crew* is one (spread, foreman)
+  // pair from an activity block — so a single report with 5 different
+  // foremen produces 5 crew rows. Replaces the hardcoded 'Crew 1 / Crew 2'
+  // bar charts that previously had no relationship to real data.
+  const liveCrews = useMemo(() => {
+    if (!reports?.length) return []
+    const byCrew = new Map() // key → { spread, foreman, contractor, activity, days, labour, equipment, metres, welds }
+    for (const r of reports) {
+      const spread = (r.spread || '').trim() || 'Unspecified'
+      for (const block of r.activity_blocks || []) {
+        const foreman = (block.foreman || '').trim() || '(no foreman)'
+        const contractor = (block.contractor || '').trim() || ''
+        const activity = block.activityType || '(none)'
+        const key = `${spread}|||${foreman}|||${activity}`
+        if (!byCrew.has(key)) {
+          byCrew.set(key, {
+            spread,
+            foreman,
+            contractor,
+            activity,
+            reports: 0,
+            labourCount: 0,
+            equipmentCount: 0,
+            metres: 0,
+            welds: 0,
+            labourHours: 0,
+            equipmentHours: 0
+          })
+        }
+        const c = byCrew.get(key)
+        c.reports += 1
+        c.labourCount += (block.labourEntries || []).length
+        c.equipmentCount += (block.equipmentEntries || []).length
+        for (const e of block.labourEntries || []) {
+          c.labourHours += ((parseFloat(e.rt) || 0) + (parseFloat(e.ot) || 0)) * (e.count || 1)
+        }
+        for (const e of block.equipmentEntries || []) {
+          c.equipmentHours += (parseFloat(e.hours) || 0) * (e.count || 1)
+        }
+        const startM = parseKP(block.startKP)
+        const endM = parseKP(block.endKP)
+        if (startM != null && endM != null) {
+          c.metres += Math.round(Math.abs(endM - startM))
+        }
+        c.welds += (block.weldData?.weldsToday) ? parseInt(block.weldData.weldsToday) || 0 : 0
+      }
+    }
+    return Array.from(byCrew.values()).map(c => ({
+      ...c,
+      labourHours: Math.round(c.labourHours * 10) / 10,
+      equipmentHours: Math.round(c.equipmentHours * 10) / 10
+    })).sort((a, b) => {
+      if (a.spread !== b.spread) return a.spread.localeCompare(b.spread)
+      if (a.activity !== b.activity) return a.activity.localeCompare(b.activity)
+      return a.foreman.localeCompare(b.foreman)
+    })
   }, [reports])
 
   // ===== EARLY RETURNS — must come AFTER all hook calls above =====
@@ -1426,57 +1504,60 @@ function Dashboard({ onBackToReport }) {
       {activeTab === 'productivity' && (
         <>
           <div style={{ backgroundColor: '#FF8C00', color: 'white', padding: '10px 15px', borderRadius: '4px 4px 0 0', fontWeight: 'bold' }}>
-            PRODUCTIVITY METRICS
+            PRODUCTIVITY BY CREW
           </div>
           <div style={{ backgroundColor: 'white', padding: '20px', borderRadius: '0 0 4px 4px', marginBottom: '20px', border: '1px solid #ddd' }}>
-            {/* Productivity Charts */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px', marginBottom: '25px' }}>
-              {[
-                { phase: 'Welding - Mainline', color: '#DC143C', label: 'ML Welding (Welds/Day)', values: [45, 48, 42, 51] },
-                { phase: 'Coating', color: '#FF8C00', label: 'ML Coating (m/Day)', values: [520, 580, 495, 545] },
-                { phase: 'Ditch', color: '#32CD32', label: 'Ditch Excavators (m/Day)', values: [680, 720, 650, 695] },
-                { phase: 'Lower-in', color: '#1E90FF', label: 'Sidebooms (m/Day)', values: [720, 780, 690, 745] }
-              ].map((item, idx) => (
-                <div key={idx} style={{ backgroundColor: '#f8f9fa', padding: '15px', borderRadius: '8px' }}>
-                  <div style={{ fontSize: '12px', fontWeight: 'bold', color: item.color, marginBottom: '10px' }}>{item.label}</div>
-                  <ResponsiveContainer width="100%" height={120} minWidth={0}>
-                    <BarChart data={[
-                      { name: 'Crew 1', value: item.values[0] },
-                      { name: 'Crew 2', value: item.values[1] }
-                    ]}>
-                      <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <Tooltip />
-                      <Bar dataKey="value" fill={item.color} />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              ))}
-            </div>
-
-            {/* Productivity KPIs */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '15px' }}>
-              <div style={{ padding: '15px', backgroundColor: '#fff5f5', borderRadius: '8px', border: '1px solid #ffcccc' }}>
-                <div style={{ fontSize: '11px', color: '#666' }}>Welding Rate</div>
-                <div style={{ fontSize: '26px', fontWeight: 'bold', color: '#DC143C' }}>46.5/day</div>
-                <div style={{ fontSize: '11px', color: '#999' }}>Target: 45/day</div>
+            <p style={{ fontSize: '12px', color: '#666', marginTop: 0 }}>
+              One row per (spread, foreman, activity). Numbers come from the
+              {' '}{liveCrews.length} crew rows derived from {reports.length} inspector report(s).
+            </p>
+            {liveCrews.length === 0 ? (
+              <p style={{ fontSize: '13px', color: '#999', padding: '20px', textAlign: 'center' }}>No crew activity recorded.</p>
+            ) : (
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: '#f8f9fa' }}>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Spread</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Foreman</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Contractor</th>
+                      <th style={{ padding: '10px', textAlign: 'left', borderBottom: '2px solid #dee2e6' }}>Activity</th>
+                      <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Reports</th>
+                      <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Labour Hrs</th>
+                      <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Equip Hrs</th>
+                      <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Metres</th>
+                      <th style={{ padding: '10px', textAlign: 'right', borderBottom: '2px solid #dee2e6' }}>Welds</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {liveCrews.map((c, idx) => (
+                      <tr key={idx} style={{ backgroundColor: idx % 2 ? '#fafafa' : 'white' }}>
+                        <td style={{ padding: '8px 10px', borderBottom: '1px solid #eee' }}>{c.spread}</td>
+                        <td style={{ padding: '8px 10px', borderBottom: '1px solid #eee', fontWeight: 'bold' }}>{c.foreman}</td>
+                        <td style={{ padding: '8px 10px', borderBottom: '1px solid #eee', fontSize: '12px', color: '#666' }}>{c.contractor || '—'}</td>
+                        <td style={{ padding: '8px 10px', borderBottom: '1px solid #eee' }}>
+                          <span style={{ display: 'inline-block', width: '10px', height: '10px', backgroundColor: phaseColors[c.activity] || '#999', borderRadius: '2px', marginRight: '6px', verticalAlign: 'middle' }}></span>
+                          {c.activity}
+                        </td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #eee' }}>{c.reports}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #eee' }}>{Math.round(c.labourHours).toLocaleString()}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #eee' }}>{Math.round(c.equipmentHours).toLocaleString()}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #eee', fontWeight: c.metres > 0 ? 'bold' : 'normal' }}>{Math.round(c.metres).toLocaleString()}</td>
+                        <td style={{ padding: '8px 10px', textAlign: 'right', borderBottom: '1px solid #eee' }}>{c.welds || '—'}</td>
+                      </tr>
+                    ))}
+                    <tr style={{ backgroundColor: '#fff3e0', fontWeight: 'bold' }}>
+                      <td colSpan={4} style={{ padding: '10px', borderTop: '2px solid #FF8C00' }}>Totals</td>
+                      <td style={{ padding: '10px', textAlign: 'right', borderTop: '2px solid #FF8C00' }}>{liveCrews.reduce((n, c) => n + c.reports, 0)}</td>
+                      <td style={{ padding: '10px', textAlign: 'right', borderTop: '2px solid #FF8C00' }}>{Math.round(liveCrews.reduce((n, c) => n + c.labourHours, 0)).toLocaleString()}</td>
+                      <td style={{ padding: '10px', textAlign: 'right', borderTop: '2px solid #FF8C00' }}>{Math.round(liveCrews.reduce((n, c) => n + c.equipmentHours, 0)).toLocaleString()}</td>
+                      <td style={{ padding: '10px', textAlign: 'right', borderTop: '2px solid #FF8C00' }}>{Math.round(liveCrews.reduce((n, c) => n + c.metres, 0)).toLocaleString()}</td>
+                      <td style={{ padding: '10px', textAlign: 'right', borderTop: '2px solid #FF8C00' }}>{liveCrews.reduce((n, c) => n + (c.welds || 0), 0) || '—'}</td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
-              <div style={{ padding: '15px', backgroundColor: '#fff8e6', borderRadius: '8px', border: '1px solid #ffe0b2' }}>
-                <div style={{ fontSize: '11px', color: '#666' }}>Coating Rate</div>
-                <div style={{ fontSize: '26px', fontWeight: 'bold', color: '#FF8C00' }}>535m/day</div>
-                <div style={{ fontSize: '11px', color: '#999' }}>Target: 520m/day</div>
-              </div>
-              <div style={{ padding: '15px', backgroundColor: '#e8f5e9', borderRadius: '8px', border: '1px solid #c8e6c9' }}>
-                <div style={{ fontSize: '11px', color: '#666' }}>Ditch Productivity</div>
-                <div style={{ fontSize: '26px', fontWeight: 'bold', color: '#32CD32' }}>44.9m/hr</div>
-                <div style={{ fontSize: '11px', color: '#999' }}>6,800m in 152hrs</div>
-              </div>
-              <div style={{ padding: '15px', backgroundColor: '#e3f2fd', borderRadius: '8px', border: '1px solid #bbdefb' }}>
-                <div style={{ fontSize: '11px', color: '#666' }}>Lower-in Productivity</div>
-                <div style={{ fontSize: '26px', fontWeight: 'bold', color: '#1E90FF' }}>47.2m/hr</div>
-                <div style={{ fontSize: '11px', color: '#999' }}>7,200m in 153hrs</div>
-              </div>
-            </div>
+            )}
           </div>
         </>
       )}
