@@ -212,6 +212,23 @@ function scoreFieldCompleteness(activityBlocks) {
     }
   })
 
+  // Specialized-log completeness — Bending uses the BendingLog component
+  // which writes to block.bendingData (not block.qualityData), so the
+  // generic field-loop above can't detect missing data here. Treat each
+  // Bending block as 1 field that's "filled" iff at least one bend entry
+  // has been logged.
+  activityBlocks.forEach((block, idx) => {
+    if (block.activityType !== 'Bending') return
+    totalFields += 1
+    const entries = block.bendingData?.bendEntries
+    if (Array.isArray(entries) && entries.length > 0) {
+      filledFields += 1
+    } else {
+      const blockNum = idx + 1
+      issues.push(`Block #${blockNum} "Bending" (KP ${block.startKP || '?'}) — no bend entries logged. Open the Bending log and add at least one bend entry (joint #, station KP, bend angle, etc.)`)
+    }
+  })
+
   const score = totalFields > 0 ? Math.round((filledFields / totalFields) * 100) : 100
   return { score, weight: 20, issues }
 }

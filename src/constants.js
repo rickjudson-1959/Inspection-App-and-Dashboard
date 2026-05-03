@@ -199,14 +199,7 @@ export const qualityFieldsByActivity = {
       { name: 'acceptanceNotes', label: 'Notes', type: 'textarea', placeholder: 'Additional notes on acceptance/rejection...' }
     ]}
   ],
-  'Bending': [
-    { name: 'bendAngle', label: 'Bend Angle (°)', type: 'number' },
-    { name: 'bendRadius', label: 'Bend Radius (m)', type: 'number' },
-    { name: 'ovalityPercent', label: 'Ovality %', type: 'number' },
-    { name: 'wrinkleCheck', label: 'Wrinkle Check', type: 'select', options: ['Pass', 'Fail', 'N/A'] },
-    { name: 'bendTemp', label: 'Temperature (°C)', type: 'number' },
-    { name: 'distanceToWeld', label: 'Distance to Nearest Weld (m)', type: 'number' }
-  ],
+  'Bending': [], // Handled by BendingLog component (writes to block.bendingData)
   'Welding - Mainline': [
     { name: 'weldNumber', label: 'Weld Number', type: 'text' },
     { name: 'welderID', label: 'Welder ID', type: 'text' },
