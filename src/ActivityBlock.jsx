@@ -1054,15 +1054,15 @@ function ActivityBlock({
   "foreman": "string or null",
   "spread": "string or null",
   "labour": [{"name": "full name as written", "hours": number}],
-  "equipment": [{"unitNumber": "unit/fleet ID as written", "hours": number}]
+  "equipment": [{"unitNumber": "unit/fleet ID if visible, else empty string", "equipmentType": "equipment description as written", "hours": number}]
 }
 
 Rules:
 - List EVERY person as a SEPARATE entry. Do NOT group workers.
 - List EVERY piece of equipment as a SEPARATE entry. Do NOT group equipment.
 - For personnel: extract the name exactly as written and total hours worked. Nothing else.
-- For equipment: extract the unit number, asset ID, or fleet number exactly as written (e.g., "OR1551", "DL2507", "496T") and hours. Nothing else.
-- Do NOT extract classifications, rates, costs, or RT/OT breakdowns — only names/units and hours.
+- For equipment: include ALL equipment listed on the ticket. Extract unitNumber if a unit/asset/fleet ID is shown (e.g., "OR1551", "DL2507", "496T"); otherwise use empty string. ALWAYS extract equipmentType (the equipment description as written, e.g. "Excavator 200", "Sideboom 587T", "Welding Rig"). Include rows that only show a description with no unit number — do NOT skip them.
+- Do NOT extract classifications, rates, costs, or RT/OT breakdowns — only names/units/types and hours.
 - Extract ticket header info: ticket number, date, contractor, foreman, spread/crew if visible.${pageNote}`
 
       // Retry loop with rate-limit handling (matches lemParser.js pattern)
@@ -1178,18 +1178,37 @@ Rules:
       if (data.equipment && Array.isArray(data.equipment)) {
         data.equipment.forEach(e => {
           const unitNumber = (e.unitNumber || '').trim()
-          if (!unitNumber) return
+          const equipmentType = (e.equipmentType || e.type || '').trim()
+          // Skip only if BOTH the unit number AND the type are missing.
+          // Previously we skipped any row without a unit number, which
+          // dropped every equipment line on tickets that list equipment
+          // by description only (most tickets pre-fleet-numbering).
+          if (!unitNumber && !equipmentType) return
 
-          // Resolve unit number against equipment fleet
-          const fleetMatch = equipmentRoster.find(r =>
-            (r.unitNumber || '').toLowerCase().trim() === unitNumber.toLowerCase()
-          )
-          const resolvedType = fleetMatch ? (fleetMatch.equipmentType || 'Unknown') : 'Unknown'
+          // Resolve unit number against equipment fleet (unit-number match
+          // takes priority); fall back to a type/classification match so
+          // even unit-less rows get linked to the master fleet when possible.
+          let fleetMatch = null
+          if (unitNumber) {
+            fleetMatch = equipmentRoster.find(r =>
+              (r.unitNumber || '').toLowerCase().trim() === unitNumber.toLowerCase()
+            )
+          }
+          if (!fleetMatch && equipmentType) {
+            fleetMatch = equipmentRoster.find(r =>
+              (r.equipmentType || '').toLowerCase().trim() === equipmentType.toLowerCase()
+            )
+          }
+          const resolvedType = fleetMatch
+            ? (fleetMatch.equipmentType || equipmentType || 'Unknown')
+            : (equipmentType || 'Unknown')
           const resolvedMasterId = fleetMatch ? (fleetMatch.masterId || null) : null
 
-          const isDuplicate = existingEquipment.some(
-            ex => (ex.unitNumber || '').toLowerCase() === unitNumber.toLowerCase()
-          )
+          // Dedup by unit number when one exists, otherwise by type.
+          const isDuplicate = existingEquipment.some(ex => {
+            if (unitNumber) return (ex.unitNumber || '').toLowerCase() === unitNumber.toLowerCase()
+            return (ex.type || '').toLowerCase() === resolvedType.toLowerCase()
+          })
           if (!isDuplicate) {
             addEquipmentToBlock(blockId, resolvedType, e.hours || 0, 1, unitNumber, resolvedMasterId)
             equipAdded++
@@ -2586,9 +2605,17 @@ Rules:
                 thumbs.push({ url: URL.createObjectURL(p.file), status: p.uploadStatus, error: p.uploadError })
               } else if (typeof p === 'string' && p.startsWith('http')) {
                 thumbs.push({ url: p, status: 'uploaded' })
+              } else if (typeof p === 'string') {
+                // Bare filename string in the array (legacy save shape)
+                const { data } = supabase.storage.from('ticket-photos').getPublicUrl(p)
+                thumbs.push({ url: data?.publicUrl || null, status: 'uploaded' })
               } else if (p.filename) {
-                // Already-saved photo from DB; status considered uploaded
-                thumbs.push({ url: null, status: 'uploaded', filename: p.filename })
+                // Already-saved photo: build the public URL from the filename
+                // so the thumbnail still renders. Previously this pushed
+                // url:null which got filtered out — second-page photos
+                // saved during the session were vanishing here.
+                const { data } = supabase.storage.from('ticket-photos').getPublicUrl(p.filename)
+                thumbs.push({ url: data?.publicUrl || null, status: 'uploaded' })
               }
             })
           } else if (block.savedTicketPhotoUrls?.length > 0) {
@@ -2603,7 +2630,9 @@ Rules:
             <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#f0f9f4', borderRadius: '6px', border: '1px solid #c3e6cb' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                 <span style={{ color: '#155724', fontSize: '12px', fontWeight: '600' }}>
-                  Ticket Photo{thumbUrls.length > 1 ? `s (${thumbUrls.length} pages)` : ''}
+                  📎 {thumbUrls.length === 1
+                    ? '1 ticket photo attached'
+                    : `${thumbUrls.length} ticket photos attached`}
                 </span>
                 <button
                   type="button"
@@ -2636,7 +2665,7 @@ Rules:
                           ? { icon: '…', color: '#856404', bg: '#fff3cd', title: 'Queued for upload' }
                           : null
                   return (
-                  <div key={idx} style={{ position: 'relative', display: 'inline-block' }}>
+                  <div key={idx} style={{ position: 'relative', display: 'inline-block', textAlign: 'center' }}>
                     <img
                       src={t.url}
                       alt={`Ticket page ${idx + 1}`}
@@ -2646,7 +2675,8 @@ Rules:
                         objectFit: 'cover',
                         borderRadius: '4px',
                         border: '2px solid #c3e6cb',
-                        backgroundColor: '#fff'
+                        backgroundColor: '#fff',
+                        display: 'block'
                       }}
                     />
                     {badge && (
@@ -2659,6 +2689,12 @@ Rules:
                         animation: t.status === 'uploading' ? 'spin 1s linear infinite' : 'none',
                         boxShadow: '0 1px 3px rgba(0,0,0,0.3)'
                       }}>{badge.icon}</span>
+                    )}
+                    {thumbs.length > 1 && (
+                      <div style={{
+                        fontSize: '10px', color: '#155724', fontWeight: '600',
+                        marginTop: '3px'
+                      }}>Page {idx + 1} of {thumbs.length}</div>
                     )}
                   </div>
                   )
@@ -3496,13 +3532,38 @@ Rules:
         )}
       </div>
 
-      {/* Verification Summary - Billed vs Productive Hours */}
+      {/* Verification Summary - Billed vs Productive/Down/Standby Hours */}
       {(() => {
         // Calculate metrics for this block
         const totalBilledHours = calculateTotalBilledHours(block)
         const totalShadowHours = calculateTotalShadowHours(block)
         const productivePercent = totalBilledHours > 0 ? (totalShadowHours / totalBilledHours) * 100 : 100
         const nonWorkingHours = totalBilledHours - totalShadowHours
+
+        // Split non-working hours into Down (SYNC_DELAY) vs Standby (MANAGEMENT_DRAG)
+        // so the summary card shows them separately instead of bundling
+        // everything under "Productive Hours".
+        const computeTypedHours = (entries, isLabour) => {
+          let down = 0, standby = 0
+          for (const e of entries || []) {
+            const billed = isLabour
+              ? ((parseFloat(e.rt) || 0) + (parseFloat(e.ot) || 0)) * (e.count || 1)
+              : (parseFloat(e.hours) || 0) * (e.count || 1)
+            const status = e.productionStatus || 'ACTIVE'
+            if (status === 'ACTIVE') continue
+            const mult = status === 'SYNC_DELAY' ? 0.7 : 0.0
+            const prod = e.shadowEffectiveHours != null
+              ? parseFloat(e.shadowEffectiveHours) || 0
+              : billed * mult
+            if (status === 'SYNC_DELAY') down += Math.max(0, billed - prod)
+            else standby += billed
+          }
+          return { down, standby }
+        }
+        const labourTyped = computeTypedHours(block.labourEntries, true)
+        const equipTyped = computeTypedHours(block.equipmentEntries, false)
+        const totalDownHours = labourTyped.down + equipTyped.down
+        const totalStandbyHours = labourTyped.standby + equipTyped.standby
 
         // Calculate linear metres (KP Difference)
         let linearMetres = 0
@@ -3548,8 +3609,10 @@ Rules:
               )}
             </div>
 
-            {/* Billed vs Productive Summary */}
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', marginBottom: needsVerification ? '15px' : '0' }}>
+            {/* Billed | Productive | Down | Standby — separate cards so
+                the label always reflects the type of hours, not just
+                "productive". Down + Standby together = Non-Working. */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '10px', marginBottom: needsVerification ? '15px' : '0' }}>
               <div style={{ textAlign: 'center', padding: '10px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #dee2e6' }}>
                 <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#495057' }}>{totalBilledHours.toFixed(1)}</div>
                 <div style={{ fontSize: '11px', color: '#666' }}>Billed Hours</div>
@@ -3558,9 +3621,13 @@ Rules:
                 <div style={{ fontSize: '20px', fontWeight: 'bold', color: '#28a745' }}>{totalShadowHours.toFixed(1)}</div>
                 <div style={{ fontSize: '11px', color: '#666' }}>Productive Hours</div>
               </div>
-              <div style={{ textAlign: 'center', padding: '10px', backgroundColor: nonWorkingHours > 0 ? '#fff3cd' : '#fff', borderRadius: '6px', border: '1px solid #dee2e6' }}>
-                <div style={{ fontSize: '20px', fontWeight: 'bold', color: nonWorkingHours > 0 ? '#856404' : '#28a745' }}>{nonWorkingHours.toFixed(1)}</div>
-                <div style={{ fontSize: '11px', color: '#666' }}>Non-Working Hours</div>
+              <div style={{ textAlign: 'center', padding: '10px', backgroundColor: totalDownHours > 0 ? '#fff3cd' : '#fff', borderRadius: '6px', border: '1px solid #dee2e6' }}>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', color: totalDownHours > 0 ? '#856404' : '#999' }}>{totalDownHours.toFixed(1)}</div>
+                <div style={{ fontSize: '11px', color: '#666' }}>Down Hours</div>
+              </div>
+              <div style={{ textAlign: 'center', padding: '10px', backgroundColor: totalStandbyHours > 0 ? '#f8d7da' : '#fff', borderRadius: '6px', border: '1px solid #dee2e6' }}>
+                <div style={{ fontSize: '20px', fontWeight: 'bold', color: totalStandbyHours > 0 ? '#721c24' : '#999' }}>{totalStandbyHours.toFixed(1)}</div>
+                <div style={{ fontSize: '11px', color: '#666' }}>Standby Hours</div>
               </div>
             </div>
 

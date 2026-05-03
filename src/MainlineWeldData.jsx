@@ -759,30 +759,12 @@ export default function MainlineWeldData({ blockId, reportId, onDataChange, exis
               style={inputStyle}
             />
           </div>
-          <div>
-            <label style={labelStyle}>Down Time (hrs)</label>
-            <BufferedInput
-              type="text"
-              inputMode="decimal"
-              value={downTimeHours}
-              onChange={(val) => setDownTimeHours(val)}
-              placeholder="0"
-              style={inputStyle}
-            />
-          </div>
-          <div>
-            <label style={labelStyle}>Down Time Reason</label>
-            <select
-              value={downTimeReason}
-              onChange={(e) => setDownTimeReason(e.target.value)}
-              style={inputStyle}
-            >
-              <option value="">Select reason...</option>
-              {DOWN_TIME_REASONS.map(r => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </select>
-          </div>
+          {/* Down Time / Down Time Reason fields removed (May 2026):
+              downtime is now tracked per-entry on the Manpower & Equipment
+              section via labour entries' production status + timeLostReason.
+              Showing it here too created duplicate entry. The state hooks
+              for downTimeHours/downTimeReason remain in case existing
+              saved data has values, but the UI is hidden. */}
           <div>
             <label style={labelStyle}>Total Weld Time (hrs)</label>
             <input

@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - May 3, 2026
+## Project Manifest - May 4, 2026
 
 ---
 
@@ -657,6 +657,43 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–May 2026)
+
+### Five Field-Test Bug Fixes — Photos, Quality Checks, Hour Labels, OCR Equipment, Welding UPI (May 4, 2026)
+
+Five bugs from Corry's continued field testing on CLX-2. All fixed in a single pass, build clean.
+
+**Bug 1 — Second-page ticket photo missing the "photo attached" indicator.**
+After Bug-1 from May 3 was deployed (ticketPhotos array merge), inspectors could upload multiple ticket pages, but the activity-block header continued to show the indicator and thumbnails for only the first photo. Root cause: the thumbnail builder in `ActivityBlock.jsx` was discarding entries that had only a `filename` (no `url`), pushing `{ url: null }` for them. Those got filtered out by `thumbs.filter(t => t.url)` downstream. Fixed by adding a `supabase.storage.from('ticket-photos').getPublicUrl(filename)` fallback when an entry is a string or has only a filename, so every saved photo always has a usable URL. Header text changed to plural-aware "📎 N ticket photos attached" and per-thumbnail "Page N of M" labels added when more than one photo is present.
+
+**Bug 2 — Quality Checks for Welding - Tie-in still showed downtime fields.**
+The Welding - Tie-in specialized log (`MainlineWeldData.jsx`) had its own Time Tracking section with a `Down Time (hrs)` numeric input and a `Down Time Reason` dropdown. As of the production-status / billed-vs-productive-hours rollout, downtime is recorded against each labour and equipment row via `productionStatus` (`ACTIVE` / `SYNC_DELAY` / `MANAGEMENT_DRAG`). Having a second downtime input on the weld log was confusing and produced duplicate accounting. Removed the two input controls from the Time Tracking section. Kept the `downTimeHours` and `downTimeReason` state hooks so historical reports that already saved those values still load without errors. Total Weld Time field retained — it's still the welder-clock measurement, distinct from the per-row labour hours.
+
+**Bug 3 — "Productive Hours: 7.7" shown for downtime entries.**
+The Verification Summary card on each activity block was a single tile labelled `Productive Hours`. When an entry was marked `SYNC_DELAY` or `MANAGEMENT_DRAG`, the same field was still labelled `Productive Hours`, which read wrong (those entries are downtime / standby, not productive time). Replaced the single tile with **four** typed cards: `Billed | Productive | Down | Standby`. New `computeTypedHours` helper splits any `SYNC_DELAY` row's billed hours into `productive` (the shadow-effective portion at 0.7×) and `down` (the lost portion), and counts every `MANAGEMENT_DRAG` row's full billed hours as `standby` (0× productive). Same change applied to the PDF export in `InspectorReport.jsx`: the labour and equipment tables now show a context-aware HRS column with `Prod: X.X`, `Down: X.X`, or `Stby: X.X` per row based on the row's production status, instead of "PROD" header with the same value regardless of status.
+
+**Bug 4 — OCR not extracting equipment when ticket has no unit numbers.**
+The Claude Vision OCR prompt asked only for `unitNumber` and `hours`. Many subcontractor tickets list equipment only by description (e.g., "Excavator 320", "Welding rig") with no fleet ID column. Those rows were silently skipped. Rewrote the prompt to ask for both `unitNumber` and `equipmentType`, with explicit rules: "Include rows that only show a description with no unit number — do NOT skip them" and "If only a unit number is visible, set equipmentType to empty string. If only a description, set unitNumber to empty string." Equipment parser updated to accept entries with either field (was previously skipping when `unitNumber` was empty). Match priority: unit-number match first (existing behaviour), then equipment-type fallback against the existing equipment list, then dedup by unit number when present, otherwise by type.
+
+**Bug 5 — Welding trackable items missing UPI sub-types.**
+The `weld_upi` trackable-item type's `upi_type` dropdown only had `Cut Out`, `Repair`, `Rework`, `NDT Fail Repair`, `Other`. Cut-Outs and Repairs that count as Unit Price Items (separately billable per the rate sheet) were indistinguishable from cut-outs and repairs that are already covered by the lump-sum welding scope. Extended the option list to: `Cut Out`, `Cut Out UPI`, `Repair`, `Repair UPI`, `New Weld`, `Tie-in Weld`, `Golden Weld`, `Rework`, `NDT Fail Repair`, `Hot Tap`, `Pup Insertion`, `Other`. Existing saved values unaffected (these are free-text strings stored in JSONB).
+
+**Files changed:**
+```
+src/ActivityBlock.jsx          # Bug 1: getPublicUrl fallback for filename-only photos,
+                               #         "N ticket photos attached" header, "Page N of M" labels
+                               # Bug 3: 4-card Verification Summary (Billed/Productive/Down/Standby)
+                               #         + computeTypedHours helper
+                               # Bug 4: OCR prompt asks for equipmentType, parser accepts type-only rows
+src/MainlineWeldData.jsx       # Bug 2: removed Down Time hrs + reason inputs from Time Tracking
+                               #         (state hooks preserved for backward compat)
+src/InspectorReport.jsx        # Bug 3: PDF labour + equipment tables show Prod:/Down:/Stby: per row
+src/TrackableItemsTracker.jsx  # Bug 5: extended weld_upi upi_type options (+ Cut Out UPI,
+                               #         Repair UPI, New Weld, Tie-in Weld, Golden Weld,
+                               #         Hot Tap, Pup Insertion)
+src/PROJECT_MANIFEST.md        # this entry
+```
+
+**Field guide sync required:** Bugs 2, 3, 4, 5 all touch InspectorReport / ActivityBlock / TrackableItemsTracker / MainlineWeldData and must be reflected in the Pipe-Up Field Guide knowledge base. Specifically: (a) downtime is recorded per row via productionStatus, not in a separate Time Tracking input; (b) Verification Summary now shows Billed/Productive/Down/Standby cards; (c) OCR can extract equipment by description alone; (d) weld_upi has expanded UPI sub-types.
 
 ### Ticket Photo Multi-Upload Fix + Time-Lost Reasons + Bending Health-Score Findings (May 3, 2026 — evening)
 

@@ -4469,7 +4469,9 @@ CRITICAL - Individual Entries Required:
         checkPageBreak(30)
         addSubHeader('Manpower', BRAND.greenLight)
 
-        // Table header - includes Status and Productive Hours
+        // Table header — column 'HRS' is context-labeled per row
+        // (Prod / Down / Stby) since the value's meaning depends on the
+        // entry's production status.
         setColor(BRAND.green, 'fill')
         doc.rect(margin, y, contentWidth, 5, 'F')
         setColor(BRAND.white, 'text')
@@ -4482,7 +4484,7 @@ CRITICAL - Individual Entries Required:
         doc.text('JH', margin + 78, y + 3.5)
         doc.text('QTY', margin + 88, y + 3.5)
         doc.text('STATUS', margin + 100, y + 3.5)
-        doc.text('PROD', margin + 130, y + 3.5)
+        doc.text('HRS', margin + 130, y + 3.5)
         doc.text('REASON', margin + 145, y + 3.5)
         y += 6
 
@@ -4503,6 +4505,14 @@ CRITICAL - Individual Entries Required:
             ? entry.shadowEffectiveHours
             : billedHours * multiplier
           const statusLabel = status === 'ACTIVE' ? 'Full' : status === 'SYNC_DELAY' ? 'Partial' : 'Standby'
+          // Context-aware hours cell: Active rows show productive hours,
+          // partial rows show the down portion, standby rows show the
+          // standby total. Each cell is prefixed so the label reflects
+          // the type of hours, not just "productive".
+          let hoursCell
+          if (status === 'ACTIVE') hoursCell = `Prod: ${prodHours.toFixed(1)}`
+          else if (status === 'SYNC_DELAY') hoursCell = `Down: ${(billedHours - prodHours).toFixed(1)}`
+          else hoursCell = `Stby: ${billedHours.toFixed(1)}`
 
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
@@ -4519,7 +4529,7 @@ CRITICAL - Individual Entries Required:
           else setColor(BRAND.red, 'text')
           doc.text(statusLabel, margin + 100, y + 3)
           setColor(BRAND.black, 'text')
-          doc.text(String(prodHours.toFixed(1)), margin + 130, y + 3)
+          doc.text(hoursCell, margin + 130, y + 3)
           doc.text((entry.dragReason || '-').substring(0, 18), margin + 145, y + 3)
           y += 5
         })
@@ -4542,7 +4552,7 @@ CRITICAL - Individual Entries Required:
         doc.text('HRS', margin + 78, y + 3.5)
         doc.text('QTY', margin + 90, y + 3.5)
         doc.text('STATUS', margin + 103, y + 3.5)
-        doc.text('PROD', margin + 130, y + 3.5)
+        doc.text('HRS', margin + 130, y + 3.5)
         doc.text('REASON', margin + 148, y + 3.5)
         y += 6
 
@@ -4562,6 +4572,11 @@ CRITICAL - Individual Entries Required:
             ? entry.shadowEffectiveHours
             : billedHours * multiplier
           const statusLabel = status === 'ACTIVE' ? 'Full' : status === 'SYNC_DELAY' ? 'Partial' : 'Standby'
+          // Same context-aware HRS cell as the labour table.
+          let hoursCell
+          if (status === 'ACTIVE') hoursCell = `Prod: ${prodHours.toFixed(1)}`
+          else if (status === 'SYNC_DELAY') hoursCell = `Down: ${(billedHours - prodHours).toFixed(1)}`
+          else hoursCell = `Stby: ${billedHours.toFixed(1)}`
 
           setColor(BRAND.black, 'text')
           doc.setFont('helvetica', 'normal')
@@ -4576,7 +4591,7 @@ CRITICAL - Individual Entries Required:
           else setColor(BRAND.red, 'text')
           doc.text(statusLabel, margin + 103, y + 3)
           setColor(BRAND.black, 'text')
-          doc.text(String(prodHours.toFixed(1)), margin + 130, y + 3)
+          doc.text(hoursCell, margin + 130, y + 3)
           doc.text((entry.dragReason || '-').substring(0, 15), margin + 148, y + 3)
           y += 5
         })
