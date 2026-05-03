@@ -733,21 +733,9 @@ function Dashboard({ onBackToReport }) {
     return `$${value.toFixed(0)}`
   }
 
-  if (loading) {
-    return (
-      <div style={{ padding: '40px', textAlign: 'center' }}>
-        <h2>Loading CMT Dashboard...</h2>
-        <p>{projectInfo.fullName}</p>
-      </div>
-    )
-  }
-
-  if (showEVM) {
-    return <EVMDashboard onBack={() => setShowEVM(false)} />
-  }
-
-  // Derive crew/spread rollups from real reports (replaces the hardcoded
-  // EGP liveSpreads array with real names + counts).
+  // Derive crew/spread rollups from real reports. MUST be declared before
+  // any conditional early-return below (hooks may not be called after a
+  // conditional return — that's React error #310 territory).
   const liveSpreads = useMemo(() => {
     if (!reports?.length) return []
     const bySpread = {}
@@ -806,16 +794,24 @@ function Dashboard({ onBackToReport }) {
     }))
   }, [reports])
 
-  // Workforce totals computed from the live spreads (zero when no data).
-  const workforceTotals = liveSpreads.reduce((acc, s) => ({
-    labour: acc.labour + s.labourCount,
-    equipment: acc.equipment + s.equipmentUnits,
-    welders: acc.welders + s.welders
-  }), { labour: 0, equipment: 0, welders: 0 })
+  // ===== EARLY RETURNS — must come AFTER all hook calls above =====
+
+  if (loading) {
+    return (
+      <div style={{ padding: '40px', textAlign: 'center' }}>
+        <h2>Loading CMT Dashboard...</h2>
+        <p>{projectInfo.fullName}</p>
+      </div>
+    )
+  }
+
+  if (showEVM) {
+    return <EVMDashboard onBack={() => setShowEVM(false)} />
+  }
 
   // No-data short-circuit: render a clear panel rather than tabs filled
   // with synthetic numbers.
-  if (!loading && (!metrics || reports.length === 0)) {
+  if (!metrics || reports.length === 0) {
     return (
       <div style={{ padding: '40px', maxWidth: '900px', margin: '40px auto', backgroundColor: '#f5f5f5', textAlign: 'center', borderRadius: '8px', border: '1px solid #ddd' }}>
         <h2 style={{ color: '#1a237e' }}>📊 CMT Dashboard — No data available</h2>
@@ -836,6 +832,13 @@ function Dashboard({ onBackToReport }) {
       </div>
     )
   }
+
+  // Workforce totals computed from the live spreads (plain reduce, no hook).
+  const workforceTotals = liveSpreads.reduce((acc, s) => ({
+    labour: acc.labour + s.labourCount,
+    equipment: acc.equipment + s.equipmentUnits,
+    welders: acc.welders + s.welders
+  }), { labour: 0, equipment: 0, welders: 0 })
 
   return (
     <div style={{ padding: '20px', maxWidth: '1600px', margin: '0 auto', backgroundColor: '#f5f5f5', minHeight: '100vh' }}>
