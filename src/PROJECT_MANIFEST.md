@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - May 2, 2026
+## Project Manifest - May 3, 2026
 
 ---
 
@@ -657,6 +657,147 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–May 2026)
+
+### CMT + EVM Live-Data Wire-Through, Photo & Form Durability, React #310 Fix (May 3, 2026)
+
+Follow-up day after the dashboard wire-through (May 2). Three big workstreams:
+durability (photos + autosave), CMT/EVM second-pass (real CLX-2 data, demo
+fallbacks removed), and a Rules-of-Hooks crash fix.
+
+#### A. Photo durability — belt-and-suspenders (commit `72a3efb`)
+
+Audit revealed photos selected on inspector reports were stored only in React
+state as raw `File` objects until Save was clicked. Page refresh / browser
+crash / auto-deploy mid-session = audit-trail evidence permanently lost
+(critical for concealed-work activities already buried). Fixed with a layered
+architecture:
+
+1. **`src/offline/photoManager.js`** — new module:
+   - `persistPhoto({ blob, type, blockId, reportId, draftKey, organizationId, inspectorEmail, metadata })` — writes blob to IndexedDB instantly, fires background upload to Supabase Storage. Returns `photoId`.
+   - `awaitUpload(photoId)` — wait for in-flight upload OR kick fresh retry. 3-attempt exponential backoff (2s, 4s, 6s).
+   - `loadPhotosForReport(reportId, inspectorEmail?)` / `loadPhotosForDraft(draftKey, inspectorEmail?)` — recovery on page load.
+   - `reassociatePhotos`, `markPhotoArchived` — promote draft photos onto saved reportId after save.
+   - `subscribeToPhotoStatus(listener)` — drives per-photo UI badge updates.
+   - `makeDraftKey(email, date)` — deterministic draft id.
+2. **`src/offline/db.js`** — `savePhoto` extended to preserve `draftKey`, `organizationId`, `inspectorEmail`, `error` fields. No schema bump (IndexedDB stores arbitrary fields on records).
+3. **`src/InspectorReport.jsx`** — `handleWorkPhotosSelect` rewrite (UUID + IndexedDB + background upload). Status subscription effect flips per-photo badges. Page-load recovery effect merges IndexedDB photos by blockId. `saveReport` awaits in-flight uploads then records filenames in `activity_blocks` JSONB. After save: `reassociatePhotos` + `markPhotoArchived`.
+4. **`src/ActivityBlock.jsx`** — `processTicketOCR` migrated to the same pattern. `block.ticketPhotos` shape now `PhotoObj[]` with `{ photoId, file, originalName, uploadStatus, filename, uploadError }`. Thumbnail badges (`…` pending → `⟳` uploading → `✓` uploaded → `!` failed).
+5. **`src/index.css`** — `@keyframes spin` for the upload-in-progress badge.
+6. **`scripts/cleanup-orphan-photos.cjs`** — manual orphan cleanup. Walks both buckets, queries every `daily_reports.activity_blocks` for referenced filenames, deletes anything not referenced *and* older than configured grace period (default 7 days). Dry-run by default; `--confirm` to delete; `--age-days N` overrides.
+
+#### B. Full-form 30s auto-save to IndexedDB (commit `f7abe20`)
+
+Photos durable from selection wasn't enough — text/numbers/labour rows still
+lived only in React state. Added a full-form snapshot every 30 seconds:
+
+1. **`src/offline/db.js`** — bumped `DB_VERSION` 1→2, added `formDrafts` object store with indexes `(reportId, draftKey, updatedAt)`. CRUD: `putDraftSnapshot`, `getDraftSnapshot`, `deleteDraftSnapshot`, `listDraftSnapshots`.
+2. **`src/offline/draftAutoSave.js`** — new module: `makeDraftId({ reportId, inspectorEmail, reportDate })`, `buildSnapshot(formState)` (strips File/Blob refs since photos are handled separately), `saveDraft`, `loadDraftFor`, `clearDraftFor`, `formatRecoveredAt`.
+3. **`src/InspectorReport.jsx`** — `formStateRef` ref updated each render; 30s `setInterval` snapshots to IndexedDB; `beforeunload` listener for best-effort save on tab close. Recovery banner appears at the top of the form when a draft <7 days old is found, with **Restore** and **Discard** buttons. Save success path calls `clearDraftFor`.
+
+#### C. User-scoped durability — multi-tenant device safety (commit `9716a9c`)
+
+Audit found that edit-mode draft keys were `report:<id>` — same key regardless
+of user. On a shared field tablet User B opening User A's saved report would
+see A's unsaved typing in the recovery banner and A's pending IndexedDB photos
+in the workPhotos array. Cross-user leak.
+
+Fix: every IndexedDB record now scoped by `inspectorEmail`. `makeDraftId`:
+`report:<id>:<email>` (was `report:<id>`); `draft:<email>:<date>` unchanged.
+`savePhoto` records gain an `inspectorEmail` field. `loadPhotosForReport` /
+`loadPhotosForDraft` filter by email with backward-compat for legacy records.
+
+#### D. EVM Dashboard fixes (commits `06ee47b`, `2dd38cc`)
+
+Two passes:
+
+**Pass 1: null-safe rendering.** EVM dashboard crashed with
+`Cannot read properties of undefined (reading 'spi')` on the Crews and
+Trends tabs. Added `SAFE_METRICS` default object (every field set to safe
+zero/one values), three-tier fallback chain (`liveMetrics → demoData.metrics →
+SAFE_METRICS`), `(arr || []).filter(Boolean).map(...)` guards on `spreads` /
+`monthlyTrends` iterations, optional-chained every `.toFixed()` call.
+
+**Pass 2: live data was disabled in two places.**
+- `projectInfo.totalLength` only sourced from `dpr_config.pipeline_length_metres` → header showed "—" with no `dpr_config` row. Now sourced from `project_baselines` (max `planned_metres` = 76,300 m for CLX-2).
+- `monthlyTrends` had no live equivalent — render always called `demoData.monthlyTrends` whose labels are *hardcoded* `'Jul 2025'…'Dec 2025'`. Same for `sCurveData`. Built `liveMonthlyTrends` and `liveSCurve` by querying `daily_reports` filtered by pipeline, aggregating by month + per-day cumulative EV/AC. PV interpolated linearly across baseline window.
+- `asOfDate` defaulted to today (12 years past CLX-2 end). Now clamped to `[baselineStart, baselineFinish]`, defaults to `baselineFinish`.
+- Console instrumentation: `[EVMDashboard] baselines loaded`, `calculateEVM input/output`, `live time-series`.
+
+#### E. CMT Dashboard fixes (commits `1451b66`, `46ccb75`)
+
+Same demo-data leakage pattern as EVM, three independent paths:
+
+1. **`loadReports`** filtered `.gte('date', today − dateRange days)`. CLX-2 reports are 2014-01-20; today is 2026 — even "All Time" (last 365 days) misses by 11 years. Now: pipeline-scoped queries the entire project window with no date filter. Legacy "last N days" only when no pipeline is set.
+2. **`metrics` useMemo** had a `< 3 phases → demo` fallback that triggered for low-activity days even with real data. Removed entirely. Now returns `null` when reports.length === 0; consumers render a "No data available" panel.
+3. **Crews/Workforce/Quality tabs** read from a hardcoded `spreadData` array of fake foremen (Brad Whitworth, Gary Nelson, Mike Thompson, James Wilson) and a `Math.sin`-generated `getCrewData()` table with hardcoded `91.2%` / `4.8%` / `95.2%` quality KPIs. New `liveSpreads` `useMemo` derives from `report.spread`, dedupes labour by `masterPersonnelId`, dedupes equipment by `masterEquipmentId`, infers welder count from blocks whose `activityType` starts with `Welding`. Quality tab gated behind `{false && ...}` and replaced with a "Quality metrics — coming soon" placeholder noting that real `qualityData` aggregation is a follow-up.
+
+Plus: baseline-loading effect (mirrors EVM) populates `projectInfo.totalLength` / `totalBudget` / `baselineStart` / `baselineFinish` and a `baselineByPhase` map that replaces the hardcoded `plannedTargets` table.
+
+**`46ccb75` follow-up:** the `liveSpreads` useMemo from `1451b66` was placed AFTER the existing `if (loading)` and `if (showEVM)` early returns — Rules of Hooks violation causing React #310 (`Rendered more hooks than during the previous render`) once `loading` flipped false. Moved all three `useMemo` blocks above all conditional returns.
+
+#### F. DPR fixes (commits `c04e9e1`, `6faf793`)
+
+Two follow-ups to the May 2 DPR work:
+
+1. **Embedded-resource query** — replaced the brittle two-step
+   `report_status` → `IN(...)` → `daily_reports` query with a single PostgREST
+   call that embeds `report_status(status)`. Filters status in JS with
+   normalization for object-vs-array PostgREST shape. Reports without a
+   status entry now treated as legacy/visible (handles historical CLX-2 data
+   ingested without going through the inspector submit workflow).
+2. **% Complete and column semantics** — `% Complete` was reading 4,040,000% because the synthesized fallback `dpr_config` set `pipeline_length_metres: 0`, and `parseFloat(0) || 1` collapsed the divisor to 1m. Now: pipeline length sourced from `project_baselines.planned_metres` (max across activities = 76,300 m for CLX-2), falls back to `dpr_config.pipeline_length_metres`, renders `—` if neither. Column semantics fixed per spec: `Today = todayToKp − todayFromKp` (metres worked today, not increment-from-yesterday); `Previous = yesterday's cumulative`; `Total = Previous + Today`; `% = Total / pipelineLength`.
+
+#### G. Diagnostics + error boundary (commits `3901343`, `805be3a`)
+
+After a `'Cannot access "st" before initialization'` TDZ crash on edit-mode
+load that static analysis couldn't pinpoint:
+
+- `vite.config.js` — enabled `build.sourcemap = true` in production.
+- `src/components/ReportErrorBoundary.jsx` — class-based ErrorBoundary that catches render/effect errors anywhere inside `InspectorReport` and renders an inline panel with the full error message, stack trace, component stack, and "Try again" / "Reload page" buttons. Replaces the white-screen failure mode.
+- `src/InspectorApp.jsx` and `src/App.jsx` — wrap every `InspectorReport` mount with `ReportErrorBoundary`.
+- Defensive try/catch around the synchronous photo-status subscription handler and the per-render `formStateRef.current = collectFormState()` updater so an internal failure stays inside the effect rather than crashing the tree.
+
+#### H. Project hardcoded to CLX-2 (commit `66c8759`)
+
+Multi-project dropdown removed from DPR / CMT / EVM headers — only one active
+project right now, the dropdown was confusing. `pipelineFilter` hardcoded to
+`'CLX-2'` in all three views; each header shows a static `Project: CLX-2`
+badge. When a second active project is added, revert this commit to bring the
+dropdown back.
+
+#### Files changed across the day
+
+```
+src/offline/photoManager.js              # new — IndexedDB + background upload
+src/offline/draftAutoSave.js             # new — 30s form snapshot
+src/offline/db.js                        # DB_VERSION 1→2, formDrafts store, photo schema extensions
+src/offline/index.js                     # exports photoManager + draftAutoSave
+src/InspectorReport.jsx                  # photo persistence, autosave, recovery banner, error boundary integration
+src/ActivityBlock.jsx                    # ticket photo PhotoObj migration, status badges
+src/Dashboard.jsx                        # CMT live-data wire-through + hooks ordering fix
+src/EVMDashboard.jsx                     # null-safety, live monthly trends, live S-curve, totalLength from baselines
+src/InspectorApp.jsx                     # ReportErrorBoundary wrap
+src/App.jsx                              # ReportErrorBoundary wrap on /field-entry route
+src/components/ReportErrorBoundary.jsx   # new — render-error inline panel
+src/index.css                            # @keyframes spin
+vite.config.js                           # build.sourcemap = true
+scripts/cleanup-orphan-photos.cjs        # new — orphan storage cleanup
+```
+
+#### Required follow-ups
+
+- **Quality tab on CMT** is a placeholder. Real per-activity `qualityData`
+  aggregation is non-trivial (each activity type has a different quality
+  schema). Re-enable when ready.
+- **EVM monthly SPI/CPI** currently shows `1.00` per month for live data
+  because the per-month plan-vs-actual breakdown isn't computed yet. Phases
+  tab uses the proper formula; the Trends tab columns are placeholders.
+- **Live S-curve EV** approximates `EV ≈ AC` per data point because per-block
+  budgeted unit cost isn't carried into the cumulative loop. Phases tab uses
+  the correct EV via `calculateEVM`.
+- **No-data banners** appear when a different pipeline is selected (DPR, CMT,
+  EVM all show "no data" panels). When a second project is added, restore the
+  dropdown by reverting `66c8759`.
 
 ### Inspector Reports Wired to DPR / CMT / EVM Dashboards + CLX-2 Baselines (May 2, 2026)
 
