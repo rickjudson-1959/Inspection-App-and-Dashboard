@@ -658,6 +658,151 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### Bulk Upload — Index-Driven Reconciliation (May 11, 2026 — second pass)
+
+Reworked the Bulk Upload pipeline after the original prompt produced
+0 matches on a 130-page test PDF. The fix: instead of asking Claude
+Vision to read a handwritten ticket number on every page in isolation,
+the admin now uploads the per-day **index page** (the foreman ->
+ticket-number lookup table) as a separate step, and the package
+processor uses it as ground truth.
+
+**Step A (one-time per date) — Index OCR:**
+
+`classifyIndexFile(file)` walks every page of the index PDF and
+extracts the foreman list with a dedicated prompt that knows the
+exact format: last name / first name / role / Field Log # columns
+with a header date like `21-Jan-14`. Returns a normalized array of
+`{ first_name, last_name, role, ticket_number }` plus the parsed
+date. `saveTicketIndex` upserts the result into a new
+`ticket_indices` table keyed by `(organization_id, index_date)`,
+storing the entries as JSONB plus a link to the uploaded index PDF
+in Storage. `loadTicketIndex(orgId, date)` looks up an existing
+index so the admin only OCRs the index once — repeat bulk uploads
+for the same date skip Step A entirely.
+
+**Step B — Package OCR with reconciliation:**
+
+The per-page OCR prompt was rewritten to recognize **seven** doc
+types (was three): `lem`, `daily_ticket`, `signature_page`,
+`missed_time`, `weekly_summary`, `index_page`, `unknown`. The
+prompt lists each rule top to bottom and tells Claude to use the
+first one that fits — the Somerville Aecon LEM and Daily Ticket
+layouts are still spelled out with their exact header fields and
+column structures.
+
+After per-page OCR, `reconcileWithIndex(pages, index)`:
+- If a page has a `ticket_number`, validate it exists in the index
+  and cross-check the foreman name. Mismatches set
+  `mismatch_with_index = true` so the row is flagged for review.
+- If a page is missing `ticket_number` but has a `foreman_name`,
+  look up the index by name (with all the variants: "Last First",
+  "Last, First", first-only, last-only) and assign the ticket
+  number, marking `ticket_derived_from_index = true`.
+- If a page is missing both, leave it alone — grouping still
+  appends it to the preceding group as a continuation.
+
+**Revised grouping (`groupPagesIntoDocuments`)**:
+- Primary key is `ticket_number` (now populated for nearly every
+  page after reconciliation).
+- Signature pages with no ticket number **append** to the preceding
+  group — typically the trailing page of a LEM.
+- Special doc types (`missed_time`, `weekly_summary`, `index_page`)
+  each get their own dedicated group with `needs_review = true`
+  and live in a "Special pages" bucket on the results page.
+- Max 5 pages per ticket-number group (1-2 LEM + 0-1 signature +
+  1-2 daily ticket); if a group would exceed that, it's split into
+  `-overflow-N` chunks and flagged for review.
+- Per-page `mismatch_with_index` flag propagates to the group's
+  `needs_review` so the admin can spot a wrong-foreman pairing.
+
+**Revised matcher (`matchLemsToTickets({ hasIndex })`):**
+When an index was provided, the matcher uses the **simplified
+within-group pairing**: bucket every LEM and daily-ticket group by
+their shared `ticket_number`, then pair the first LEM with the
+first daily ticket in each bucket. Extras in either side get
+`needs_review = true`. Match confidence rises to 0.98 because both
+the LEM's printed "Field Log ID" and the daily ticket's number are
+both validated against the same external source of truth. Without
+an index, the legacy two-pass matcher (ticket # → date+foreman+crew)
+still runs.
+
+**New database table** —
+`supabase/migrations/20260511_ticket_indices.sql`:
+```sql
+CREATE TABLE ticket_indices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
+  index_date DATE NOT NULL,
+  entries JSONB NOT NULL DEFAULT '[]'::jsonb,
+  source_file_url TEXT,
+  source_filename TEXT,
+  ...
+  CONSTRAINT ticket_indices_org_date_uniq UNIQUE (organization_id, index_date)
+);
+```
+Same RLS pattern as `document_matches` (single `FOR ALL` policy
+via `is_super_admin()` + `user_organization_ids()`), updated_at
+trigger, and an `(org, date)` index. ASCII-only, IF NOT EXISTS
+throughout — safe to re-run.
+
+**Modal (`BulkUploadModal.jsx`) — two-step UI:**
+- **Stage `idle`**: pick the date (date picker). If an index exists
+  for that date, show a blue banner with a "Use this index ->
+  continue" button. Otherwise show the file picker for the index
+  PDF and an "OCR Index" button.
+- **Stage `indexProcessing`**: progress spinner while the index is
+  OCR'd page by page.
+- **Stage `indexReview`**: editable table of every detected
+  `{ ticket_number, first_name, last_name, role }` row so the
+  admin can fix OCR errors, add a missing row, or delete a junk
+  one. "Save index -> upload package" persists the row to
+  `ticket_indices` (upsert on `(org, date)`).
+- **Stage `packageIdle`**: file picker for the package PDF, with
+  the loaded-index foreman count shown above. "Process Package"
+  triggers the OCR + reconciliation + grouping + matching flow.
+- **Stages `processing` / `review` / `done`**: same as the
+  original modal, with two additions to the review page:
+  - New **"Special pages"** section listing missed_time /
+    weekly_summary / index_page groups.
+  - Per-page preview now annotates `derived from index` and
+    `⚠ foreman mismatch with index` so the admin can audit
+    the reconciliation step.
+
+**Files added:**
+```
+supabase/migrations/20260511_ticket_indices.sql
+```
+
+**Files changed:**
+```
+src/utils/bulkUploadProcessor.js
+  + classifyIndexPage / classifyIndexFile (new prompt + parser)
+  + saveTicketIndex / loadTicketIndex
+  + reconcileWithIndex (foreman -> ticket derivation +
+    cross-validation)
+  + extended doc_type vocabulary: signature_page, missed_time,
+    weekly_summary, index_page
+  + rewritten groupPagesIntoDocuments (max-5 cap, signature-page
+    appending, special-doc handling)
+  + rewritten matchLemsToTickets with hasIndex flag — simplified
+    within-group pairing at confidence 0.98 when index is present
+  + processPdfForReview accepts ticketIndex
+src/components/Reconciliation/BulkUploadModal.jsx
+  + two-step flow with index step (idle / indexProcessing /
+    indexReview / packageIdle) before the existing package flow
+  + auto-detect existing index for the chosen date
+  + editable index review table
+  + Special pages section + per-page reconciliation annotations
+src/PROJECT_MANIFEST.md  (this entry)
+```
+
+**Migration to run** (paste into Supabase SQL Editor):
+`supabase/migrations/20260511_ticket_indices.sql`
+
+**No field-guide impact** — admin-side feature only.
+
 ### Bulk Upload — Auto-Split + Classify + LEM↔Ticket Match (May 11, 2026)
 
 New end-to-end feature that lets an admin upload a single PDF containing
