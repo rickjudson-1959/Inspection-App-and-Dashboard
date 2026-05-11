@@ -64,73 +64,103 @@ export async function splitPdfToPages(file, onProgress) {
  *   }
  */
 export async function classifyPage(imageBase64) {
-  const prompt = `You are reviewing a single page from a pipeline contractor's
-documents. Two doc types are possible:
+  const prompt = `Examine this scanned construction document page carefully.
 
-  - "lem"          — Labour & Equipment Manifest. Contains rate columns,
-                     billing math, line totals, RT/OT rates, grand total.
-  - "daily_ticket" — Daily field ticket. Crew names + hours, but typically
-                     NO rates and NO cost totals. Often has signature
-                     blocks for foreman and inspector.
+Most pages will be one of two Somerville Aecon document formats, both
+with a "SOMERVILLE AECON" logo at the top right:
 
-Extract from this single page and respond with JSON ONLY:
+FORMAT 1 - LEM (Labour & Equipment Manifest, billing sheet)
+- Printed form with structured columns
+- Header area (right side) has these labelled fields:
+    "Field Log ID:"   -> ticket/LEM number (e.g. 18260) PRINTED
+    "Foreman:"        -> foreman name (e.g. Gerald Babchishin)
+    "Date:"           -> MM/DD/YYYY
+    "Account #:"      -> project code (e.g. CLX2200)
+    "Customer:"       -> client name
+- Body: labour table with columns Employee | Labour Type | RT Hours |
+  RT Rate | OT Hours | OT Rate | DT Hours | DT Rate | Total
+- Continuation page (page 2 of a LEM): equipment table with Equipment
+  ID, Equipment Type, Hours, Rate, Total, plus grand totals.
+- HAS rate columns and dollar amounts.
+
+FORMAT 2 - Daily Ticket (foreman's daily time report)
+- Says "foreman's daily time report" near the top
+- Right-side header fields:
+    "branch:"   -> project location (e.g. Foster Creek)
+    "job:"      -> job number
+    "foreman:"  -> foreman name (e.g. GERALD BABCHISHIN)
+    "crew:"     -> crew type (e.g. WELDING)
+    "date:"     -> human date (e.g. Tue, Jan 21, 2014)
+- Has a HANDWRITTEN ticket number somewhere on the page (often near
+  the top or in the margin). 4-6 digits, in pen. This is the SAME
+  number that appears as "Field Log ID" on the matching LEM.
+- Body: labour names and types with HANDWRITTEN checkmarks/hours;
+  equipment unit numbers with hours.
+- Continuation page (page 2 of a ticket): handwritten activity
+  description, signatures.
+- NO rate columns, NO dollar amounts.
+
+STEP 1 - Determine the document type:
+  - Rate columns / dollar amounts / "RT Rate" / "OT Rate" /
+    "Total Labour" / "Field Log Total" -> "lem"
+  - Equipment table with unit IDs and rates -> "lem" (continuation)
+  - "foreman's daily time report" or handwritten hours with
+    checkmarks but no rate/dollar columns -> "daily_ticket"
+  - Handwritten activity description + signatures, no rate cols ->
+    "daily_ticket" (continuation)
+  - If you genuinely cannot tell -> "unknown"
+
+STEP 2 - Extract the header fields. Look in the HEADER AREA of the
+page (top portion, usually right-aligned).
+
+For LEMs:
+  ticket_number    = the "Field Log ID:" value (printed, e.g. 18260)
+  ticket_number_confidence = "high" (it's printed, you should be sure)
+  date             = the "Date:" value, converted to YYYY-MM-DD
+  foreman_name     = the "Foreman:" value
+  crew_or_spread   = the "Account #:" value (or any crew/spread label
+                     if more specific text exists like "WELDING CREW")
+
+For Daily Tickets:
+  ticket_number    = the HANDWRITTEN number. Search the entire page
+                     (top, margins, corners). Usually 4-6 digits in
+                     pen. Also check the "job:" field if you don't
+                     see a clearer handwritten number.
+  ticket_number_confidence:
+    "high"   = clearly readable, every digit certain
+    "medium" = partially legible, one or two digits uncertain
+    "low"    = barely readable
+    null     = no handwritten ticket number found
+  date             = the "date:" value from the header (YYYY-MM-DD)
+  foreman_name     = the "foreman:" value from the header
+  crew_or_spread   = the "crew:" value from the header
+
+For continuation pages (page 2 or later):
+  - If the header fields are repeated, extract them.
+  - If there is no header on this page, return all header fields as
+    null. The system will inherit them from the previous page.
+  - Look for "Page X of Y" text and set page_indicator.
+  - Set is_continuation = true.
+
+Distinguish HANDWRITTEN from PRINTED numbers. Pre-printed numbers
+(page numbers, form revision numbers, pre-printed serials) are NOT
+the ticket number. The handwritten ticket number is added in pen by
+the foreman or inspector and on a daily ticket it usually matches
+the "Field Log ID" on the corresponding LEM.
+
+Return ONLY this JSON. No explanation, no markdown:
 
 {
-  "ticket_number": "...handwritten ticket # or null...",
-  "ticket_number_confidence": "high | medium | low | null",
-  "date": "YYYY-MM-DD or null",
-  "foreman_name": "full name as written, or null",
-  "crew_or_spread": "Spread 1 / Crew A / etc, or null",
-  "doc_type": "lem | daily_ticket | unknown",
-  "has_rates_or_costs": true/false,
-  "page_appears_to_be": "first_page | continuation | unknown"
-}
-
-Rules — read CAREFULLY:
-
-1. TICKET NUMBER (most important): Look carefully across the entire page
-   for a handwritten number that appears to be a ticket or reference
-   number. It is usually 4-6 digits, often written by hand in pen at the
-   top of the page, but it could be anywhere — corners, margins, header
-   area, or stamped at an angle. It may be circled or underlined. Return
-   this as ticket_number. If you cannot find a handwritten number that
-   looks like a ticket reference, return ticket_number as null.
-
-   Handwritten numbers look DIFFERENT from printed text. Distinguish
-   between printed form numbers (page numbers, form revision numbers,
-   pre-printed serials) and a handwritten reference number that someone
-   wrote on the page. Pre-printed numbers are NOT ticket numbers.
-
-   ticket_number_confidence:
-     - "high"   — clearly readable, you're sure of every digit
-     - "medium" — partially legible, best guess (e.g. one digit ambiguous)
-     - "low"    — barely readable, very uncertain
-     - null     — no handwritten ticket number found
-
-2. doc_type: if the page has rate columns, cost totals, or billing
-   calculations → "lem". If it has crew names + hours but no rates/costs
-   → "daily_ticket". If unclear → "unknown".
-
-3. has_rates_or_costs: true if you see dollar amounts, rate × hours math,
-   subtotals, or grand totals. False if the page is just a list of
-   names + hours with no money.
-
-4. page_appears_to_be:
-     - "first_page"   — page has a clear header, document title, ticket
-                        number area, or foreman/date fields filled in.
-     - "continuation" — page picks up mid-table with no header, or is
-                        clearly a second page of a multi-page form.
-     - "unknown"      — can't tell.
-
-5. foreman_name: extract the foreman / crew lead's name if visible.
-   Return null if not present or unreadable.
-
-6. crew_or_spread: extract crew designation like "Spread 1", "Crew A",
-   "Spread 2", etc. Return null if not present.
-
-7. date: any visible date on the page, normalised to YYYY-MM-DD.
-
-Return ONLY the JSON. No explanation, no markdown.`
+  "doc_type": "lem" | "daily_ticket" | "unknown",
+  "ticket_number": "18260" or null,
+  "ticket_number_confidence": "high" | "medium" | "low" | null,
+  "date": "2014-01-21" or null,
+  "foreman_name": "Gerald Babchishin" or null,
+  "crew_or_spread": "WELDING" or null,
+  "page_indicator": "Page 1 of 2" or null,
+  "is_continuation": false | true,
+  "has_rates_or_costs": true | false
+}`
 
   const requestBody = {
     model: 'claude-sonnet-4-20250514',
@@ -185,6 +215,17 @@ Return ONLY the JSON. No explanation, no markdown.`
       }
       const parsed = JSON.parse(jsonMatch[0])
 
+      // The new prompt returns is_continuation (boolean) + page_indicator
+      // ("Page 1 of 2"). The grouping code still keys off the older
+      // page_appears_to_be string, so derive it from the boolean. We also
+      // accept the older field name if the model returns it.
+      let page_appears_to_be = 'unknown'
+      if (typeof parsed.is_continuation === 'boolean') {
+        page_appears_to_be = parsed.is_continuation ? 'continuation' : 'first_page'
+      } else if (['first_page', 'continuation', 'unknown'].includes(parsed.page_appears_to_be)) {
+        page_appears_to_be = parsed.page_appears_to_be
+      }
+
       return {
         ticket_number: cleanTicketNumber(parsed.ticket_number),
         ticket_number_confidence: parsed.ticket_number_confidence || null,
@@ -193,7 +234,9 @@ Return ONLY the JSON. No explanation, no markdown.`
         crew_or_spread: (parsed.crew_or_spread || '').trim() || null,
         doc_type: ['lem', 'daily_ticket', 'unknown'].includes(parsed.doc_type) ? parsed.doc_type : 'unknown',
         has_rates_or_costs: !!parsed.has_rates_or_costs,
-        page_appears_to_be: ['first_page', 'continuation', 'unknown'].includes(parsed.page_appears_to_be) ? parsed.page_appears_to_be : 'unknown',
+        is_continuation: page_appears_to_be === 'continuation',
+        page_indicator: (parsed.page_indicator || '').trim() || null,
+        page_appears_to_be,
         raw_response: text,
         error: null
       }
@@ -217,6 +260,8 @@ Return ONLY the JSON. No explanation, no markdown.`
     crew_or_spread: null,
     doc_type: 'unknown',
     has_rates_or_costs: false,
+    is_continuation: false,
+    page_indicator: null,
     page_appears_to_be: 'unknown',
     raw_response: '',
     error: lastError?.message || 'OCR failed'
@@ -714,6 +759,7 @@ export async function processPdfForReview(file, onProgress, { onCreditError } = 
           ticket_number: null, ticket_number_confidence: null,
           date: null, foreman_name: null, crew_or_spread: null,
           doc_type: 'unknown', has_rates_or_costs: false,
+          is_continuation: false, page_indicator: null,
           page_appears_to_be: 'unknown',
           raw_response: '', error: err.message
         }
