@@ -1,28 +1,12 @@
--- ============================================================================
--- document_matches — pairs LEM ↔ Daily Ticket reconciliation_documents
--- ============================================================================
--- Purpose: When a bulk PDF is split, classified, and grouped, each LEM
--- group should be paired with the matching daily ticket group from the
--- same date + foreman + crew. This table records those pairings so the
--- four-panel reconciliation UI can pull both sides automatically when
--- an inspector report lands for the same date+foreman+crew.
+-- document_matches: pairs LEM and Daily Ticket reconciliation_documents.
+-- Created by the Bulk Upload feature. One row per confirmed pair; status
+-- stays 'pending' until the admin clicks Confirm and Save on the results
+-- page. ASCII-only (the Supabase SQL editor rejected box-drawing chars).
+-- Safe to re-run: every CREATE/ALTER uses IF NOT EXISTS / DROP IF EXISTS.
 --
--- Match methods:
---   ticket_number       — both docs share an explicit handwritten
---                         ticket number (highest confidence)
---   date_foreman_crew   — implicit match on date + foreman + crew when
---                         the ticket number is missing on one side
---   manual              — admin reassigned the match in the review UI
---
--- Status lifecycle:
---   pending     — auto-suggested by bulkUploadProcessor, not yet
---                 confirmed by an admin on the results page
---   confirmed   — admin clicked "Confirm and Save" on the results page
---   rejected   — admin rejected the suggested pair (kept for audit;
---                 the docs themselves are not deleted)
---
--- Safe to re-run: all CREATE statements use IF NOT EXISTS.
--- ============================================================================
+-- RLS pattern matches the rest of the codebase via the existing helpers
+-- is_super_admin() and user_organization_ids() (defined in
+-- 20260131_05_add_rls_policies.sql), not user_organizations directly.
 
 CREATE TABLE IF NOT EXISTS document_matches (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -39,13 +23,10 @@ CREATE TABLE IF NOT EXISTS document_matches (
   notes TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  -- A given LEM/ticket pair should only show up once; subsequent
-  -- bulk uploads with the same pair should update, not duplicate.
   CONSTRAINT document_matches_pair_uniq UNIQUE (lem_document_id, ticket_document_id)
 );
 
--- Lookup indexes for the auto-link logic in InspectorReport save and the
--- four-panel viewer's "find related docs" sweep.
+-- Lookup indexes for auto-link logic and four-panel viewer queries
 CREATE INDEX IF NOT EXISTS idx_document_matches_org_match_key
   ON document_matches (organization_id, match_key);
 CREATE INDEX IF NOT EXISTS idx_document_matches_lem_doc
@@ -55,7 +36,7 @@ CREATE INDEX IF NOT EXISTS idx_document_matches_ticket_doc
 CREATE INDEX IF NOT EXISTS idx_document_matches_status
   ON document_matches (organization_id, status);
 
--- Touch updated_at on every row mutation
+-- Auto-touch updated_at on every row mutation
 CREATE OR REPLACE FUNCTION document_matches_touch_updated_at()
 RETURNS TRIGGER AS $$
 BEGIN
@@ -70,49 +51,19 @@ CREATE TRIGGER document_matches_set_updated_at
   FOR EACH ROW
   EXECUTE FUNCTION document_matches_touch_updated_at();
 
--- ── RLS — same pattern as reconciliation_documents ─────────────────────────
+-- RLS: same FOR ALL helper-function pattern as every other data table
+-- in this project (see 20260131_05_add_rls_policies.sql).
 ALTER TABLE document_matches ENABLE ROW LEVEL SECURITY;
 
-DROP POLICY IF EXISTS document_matches_org_select ON document_matches;
-CREATE POLICY document_matches_org_select ON document_matches
-  FOR SELECT
-  USING (
-    organization_id IN (
-      SELECT organization_id FROM user_organizations WHERE user_id = auth.uid()
-    )
-  );
+DROP POLICY IF EXISTS "Tenant isolation for document_matches" ON document_matches;
+CREATE POLICY "Tenant isolation for document_matches"
+ON document_matches FOR ALL
+USING (
+  is_super_admin() OR
+  organization_id IN (SELECT user_organization_ids())
+);
 
-DROP POLICY IF EXISTS document_matches_org_insert ON document_matches;
-CREATE POLICY document_matches_org_insert ON document_matches
-  FOR INSERT
-  WITH CHECK (
-    organization_id IN (
-      SELECT organization_id FROM user_organizations WHERE user_id = auth.uid()
-    )
-  );
-
-DROP POLICY IF EXISTS document_matches_org_update ON document_matches;
-CREATE POLICY document_matches_org_update ON document_matches
-  FOR UPDATE
-  USING (
-    organization_id IN (
-      SELECT organization_id FROM user_organizations WHERE user_id = auth.uid()
-    )
-  );
-
-DROP POLICY IF EXISTS document_matches_org_delete ON document_matches;
-CREATE POLICY document_matches_org_delete ON document_matches
-  FOR DELETE
-  USING (
-    organization_id IN (
-      SELECT organization_id FROM user_organizations WHERE user_id = auth.uid()
-    )
-  );
-
--- ── reconciliation_documents — add crew_or_spread + bulk-upload metadata ──
--- These columns let the bulk-upload flow round-trip the per-group OCR
--- metadata (crew/spread, OCR confidence, original page range in the
--- source PDF). All NULL-safe so existing rows are unaffected.
+-- reconciliation_documents: add bulk-upload metadata columns
 ALTER TABLE reconciliation_documents
   ADD COLUMN IF NOT EXISTS crew_or_spread TEXT,
   ADD COLUMN IF NOT EXISTS bulk_upload_id UUID,
@@ -128,7 +79,7 @@ CREATE INDEX IF NOT EXISTS idx_reconciliation_documents_match_key
   WHERE date IS NOT NULL;
 
 COMMENT ON TABLE document_matches IS
-  'Pairs LEM ↔ Daily Ticket documents discovered by the Bulk Upload feature. One row per confirmed pair; status=pending until admin confirms on the results page.';
+  'Pairs LEM and Daily Ticket documents discovered by the Bulk Upload feature. One row per confirmed pair; status=pending until admin confirms on the results page.';
 COMMENT ON COLUMN reconciliation_documents.bulk_upload_id IS
   'Groups all reconciliation_documents created from a single bulk PDF upload, for audit / re-process.';
 COMMENT ON COLUMN reconciliation_documents.source_pages IS
