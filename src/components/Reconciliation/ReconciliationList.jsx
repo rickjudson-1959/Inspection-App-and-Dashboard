@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useOrgQuery } from '../../utils/queryHelpers.js'
 import ReconciliationUpload from './ReconciliationUpload.jsx'
+import BulkUploadModal from './BulkUploadModal.jsx'
 
 const BRAND = {
   navy: '#003366',
@@ -20,6 +21,7 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
   const [packages, setPackages] = useState([])
   const [loading, setLoading] = useState(true)
   const [showUpload, setShowUpload] = useState(false)
+  const [showBulkUpload, setShowBulkUpload] = useState(false)
 
   // Filters
   const [dateFilter, setDateFilter] = useState('')
@@ -303,12 +305,21 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
       {/* Header */}
       <div style={styles.header}>
         <h2 style={styles.title}>Reconciliation Packages</h2>
-        <button
-          style={styles.uploadBtn}
-          onClick={() => setShowUpload(prev => !prev)}
-        >
-          {showUpload ? 'Hide Upload' : 'Upload New'}
-        </button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button
+            style={{ ...styles.uploadBtn, backgroundColor: '#6f42c1' }}
+            onClick={() => setShowBulkUpload(true)}
+            title="Upload one PDF with multiple LEMs + daily tickets — auto-split, classify, and match"
+          >
+            📦 Bulk Upload
+          </button>
+          <button
+            style={styles.uploadBtn}
+            onClick={() => setShowUpload(prev => !prev)}
+          >
+            {showUpload ? 'Hide Upload' : 'Upload New'}
+          </button>
+        </div>
       </div>
 
       {/* Inline upload panel */}
@@ -322,6 +333,13 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
           />
         </div>
       )}
+
+      {/* Bulk upload modal — single PDF auto-split + classify + match */}
+      <BulkUploadModal
+        open={showBulkUpload}
+        onClose={() => setShowBulkUpload(false)}
+        onComplete={() => { loadPackages() }}
+      />
 
       {/* Filter bar */}
       <div style={styles.filterBar}>

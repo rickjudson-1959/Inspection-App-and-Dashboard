@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - May 4, 2026
+## Project Manifest - May 11, 2026
 
 ---
 
@@ -657,6 +657,188 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–May 2026)
+
+### Bulk Upload — Auto-Split + Classify + LEM↔Ticket Match (May 11, 2026)
+
+New end-to-end feature that lets an admin upload a single PDF containing
+every contractor LEM and daily ticket for the day. The system splits the
+PDF page-by-page, classifies each page with Claude Vision, groups
+multi-page documents, and auto-pairs each LEM with its matching daily
+ticket so the four-panel reconciliation view can pre-populate when an
+inspector report later lands for the same date + foreman + crew.
+
+**Pipeline (`src/utils/bulkUploadProcessor.js`):**
+
+1. `splitPdfToPages(file)` — pdf.js renders every page to base64 JPEG
+   via the existing `pdfToImages` helper (already used by single-LEM
+   upload). Scale auto-adjusts (1.5× for >50 pages, 2.0× otherwise).
+2. `classifyPage(imageBase64)` — sends one page to Claude
+   (`claude-sonnet-4-20250514`) with a prompt tuned for the realities
+   of the source documents:
+   - **Handwritten ticket numbers** can be anywhere on the page —
+     top right, top left, margin, stamped diagonally, circled,
+     underlined. The prompt explicitly tells Claude to distinguish
+     handwritten from pre-printed numbers (page numbers, form
+     revisions). Returns `ticket_number_confidence` as
+     `high`/`medium`/`low`/null so the admin review UI can flag
+     uncertain reads.
+   - **`doc_type`**: `lem` if the page has rate columns / cost totals /
+     billing math; `daily_ticket` if it has crew names + hours but no
+     money; `unknown` otherwise.
+   - **`has_rates_or_costs`**: explicit boolean — used as a tie-breaker
+     when `doc_type` is ambiguous.
+   - **`page_appears_to_be`**: `first_page` (clear header / title) vs
+     `continuation` (mid-table, no header) vs `unknown`. Drives the
+     grouping rule.
+   - **`foreman_name` + `crew_or_spread` + `date`** for the match key.
+   Retry logic mirrors `lemParser.js` (3 retries with backoff;
+   `CREDIT_BALANCE_TOO_LOW` aborts the whole batch and surfaces the
+   partial results so the admin doesn't lose progress).
+3. `groupPagesIntoDocuments(classifiedPages)` — collates pages into
+   multi-page documents:
+   - Pages with the same `ticket_number` group together.
+   - Pages with no `ticket_number` extend the PREVIOUS group UNLESS
+     `date`, `foreman_name`, or `crew_or_spread` changed, OR
+     `page_appears_to_be === 'first_page'` (then a new group starts).
+   - After all pages are placed, doc_type consensus: any page in the
+     group marked `lem` OR `has_rates_or_costs` locks the group to
+     `lem`; otherwise `daily_ticket` if any page was so classified;
+     else `unknown`.
+   - `match_key = normalize(date) | normalize(foreman) | normalize(crew)`.
+   - `needs_review = true` when `doc_type === 'unknown'` OR any page
+     OCR failed OR `ticket_number_confidence === 'low'`.
+4. `matchLemsToTickets(groups)` — two-pass matcher:
+   - Pass 1: exact `ticket_number` match → method `ticket_number`,
+     confidence 0.95.
+   - Pass 2: shared `match_key` (date + foreman + crew, case-insensitive
+     foreman normalisation via `normalizeName` for consistency with
+     reconciliation) → method `date_foreman_crew`, confidence 0.75.
+   - Anything left over reports as `unmatchedLems`,
+     `unmatchedTickets`, or `needsReview`.
+5. `processPdfForReview(file, onProgress, opts)` — runs steps 1-4
+   in one call so the modal can show a single progress stream.
+6. `confirmAndSave(...)` — the "Confirm and Save" action:
+   - Uploads the source PDF to Storage **once** (`reconciliation-docs`
+     bucket, path `<org>/bulk/<bulkUploadId>/source-<ts>.pdf`).
+   - Inserts one `reconciliation_documents` row per group, all pointing
+     at the same source URL with their own `source_pages[]` slice. (No
+     `pdf-lib` dependency needed — the existing pdf.js-based viewer
+     already supports jumping to a specific page index.)
+   - Runs `extractLEMFromUrl` on every LEM group and upserts into
+     `contractor_lems` (mirrors the auto-OCR behaviour of single-doc
+     upload).
+   - Writes one `document_matches` row per confirmed pair with
+     `status = 'confirmed'` and `confirmed_by / confirmed_at` set.
+
+**Component (`src/components/Reconciliation/BulkUploadModal.jsx`):**
+Four UI stages controlled by a `stage` state:
+- `idle` — drop / select PDF, shows file name + size.
+- `processing` — spinner + page-by-page progress bar.
+- `review` — the results page from the spec:
+  ```
+  Bulk Upload Results — 47 pages processed
+
+  ✓ Matched pairs (LEM ↔ Daily Ticket)
+    ✓ Ticket #18301 — Brad Whitworth, Spread 1, Jan 21 — LEM (3pg) ↔ Ticket (1pg)
+    ...
+  ⚠ Unmatched LEMs
+  ⚠ Unmatched Tickets
+  ❌ Pages that couldn't be classified
+  ```
+  Each row has a **View pages** button that opens an inline preview
+  modal showing the actual page images plus the per-page OCR readout
+  (doc_type / ticket # / confidence). Unmatched rows have inline
+  controls to reclassify (lem ↔ daily_ticket ↔ unknown), edit the
+  ticket number, foreman, or crew — and every edit re-runs the
+  matcher live so newly-pairable groups jump up to the Matched
+  section. Medium / low-confidence ticket numbers are highlighted in
+  yellow per the spec.
+- `done` — count summary after save.
+
+**Database — `supabase/migrations/20260511_document_matches.sql`:**
+
+```sql
+CREATE TABLE IF NOT EXISTS document_matches (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  project_id UUID REFERENCES projects(id) ON DELETE SET NULL,
+  lem_document_id UUID REFERENCES reconciliation_documents(id) ON DELETE CASCADE,
+  ticket_document_id UUID REFERENCES reconciliation_documents(id) ON DELETE CASCADE,
+  match_key TEXT NOT NULL,
+  match_method TEXT NOT NULL CHECK (match_method IN ('ticket_number', 'date_foreman_crew', 'manual')),
+  match_confidence NUMERIC(3,2),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'confirmed', 'rejected')),
+  confirmed_by UUID REFERENCES auth.users(id),
+  confirmed_at TIMESTAMPTZ,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT document_matches_pair_uniq UNIQUE (lem_document_id, ticket_document_id)
+);
+```
+
+Plus an `updated_at` trigger, full RLS (same `user_organizations`-based
+isolation as `reconciliation_documents`), and four indexes for the
+auto-link query patterns: `(org, match_key)`, `(lem_document_id)`,
+`(ticket_document_id)`, `(org, status)`.
+
+The migration **also adds four columns to `reconciliation_documents`**:
+- `crew_or_spread` (TEXT) — round-trips the OCR'd crew.
+- `bulk_upload_id` (UUID) — groups all rows from one bulk PDF; lets the
+  admin re-process or audit a batch.
+- `source_pages` (INT[]) — page numbers in the original PDF that
+  belong to this row.
+- `ocr_confidence` (TEXT, CHECK in `'high'|'medium'|'low'`) — strongest
+  confidence across the group's pages.
+
+Two filtered indexes back the auto-link sweep:
+- `idx_reconciliation_documents_bulk_upload (bulk_upload_id) WHERE NOT NULL`
+- `idx_reconciliation_documents_match_key (org, date, foreman, crew_or_spread) WHERE date IS NOT NULL`
+
+All `ALTER TABLE` and `CREATE TABLE` statements use `IF NOT EXISTS` /
+`ADD COLUMN IF NOT EXISTS` so the migration is safe to re-run.
+
+**Wire-up (`src/components/Reconciliation/ReconciliationList.jsx`):**
+New purple **📦 Bulk Upload** button next to the existing **Upload New**
+button at the top of the Reconciliation Packages tab. Modal renders
+inline, `onComplete` reloads the package list.
+
+**Error handling per spec:**
+- API credit balance too low → throws `CREDIT_BALANCE_TOO_LOW` from
+  `classifyPage`, processor's `onCreditError` callback fires with the
+  partial results, modal shows a yellow banner with how far it got.
+  Already-classified pages stay in `pages[]` and `groups[]` so the
+  admin can keep going after topping up.
+- Per-page OCR failure → page is marked with `error: <message>`, the
+  group inherits `needs_review = true`, the batch continues.
+- Duplicate ticket numbers across pages → grouped together (multi-page
+  document) per the grouping rule.
+
+**Future auto-matching (Step 8 from the spec, design only, not yet
+wired):** when an inspector report saves with a date + foreman + crew
+that matches an existing `reconciliation_documents` row that isn't
+yet linked to an inspector report, the system will surface the
+unmatched docs in the four-panel viewer. The indexes for this query
+are already in place via `idx_reconciliation_documents_match_key`.
+
+**Files added:**
+```
+supabase/migrations/20260511_document_matches.sql
+src/utils/bulkUploadProcessor.js
+src/components/Reconciliation/BulkUploadModal.jsx
+```
+
+**Files changed:**
+```
+src/components/Reconciliation/ReconciliationList.jsx  # Bulk Upload button + modal
+src/PROJECT_MANIFEST.md                               # this entry
+```
+
+**Migration to run** (paste into Supabase SQL Editor):
+`supabase/migrations/20260511_document_matches.sql`
+
+No field-guide impact — admin-side feature only, no inspector-report
+UX changes.
 
 ### Photo Thumbnail UX Pass (May 4, 2026 — third pass)
 
