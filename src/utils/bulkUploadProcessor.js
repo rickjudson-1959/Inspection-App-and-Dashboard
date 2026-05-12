@@ -71,42 +71,67 @@ export async function splitPdfToPages(file, onProgress) {
  *   }
  */
 export async function classifyIndexPage(imageBase64) {
-  const prompt = `This is an index page from a construction contractor's
-daily package. It lists foremen / supervisors, their roles, and their
-assigned ticket / Field Log numbers for the day.
+  const prompt = `You are reading ONE PAGE that contains ONE TABLE
+listing foremen and their assigned ticket numbers for one day.
 
-The format is a table with columns:
-  - Last name (leftmost)
-  - First name
-  - Role / title (e.g. "General Foreman", "Journeyman/Fitter Auto")
-  - Field Log # / Ticket number (rightmost — handwritten 5-digit
-    numbers in the 18xxx range)
+BEFORE extracting anything, COUNT the visible rows in the table on
+this page. Most index pages have 15 to 35 rows. If you would
+extract more than 50 rows from a single page, STOP — something is
+wrong with your read. Re-examine the page; the table is finite and
+has clear top + bottom boundaries.
 
-The date is shown at the top (often in the form "21-Jan-14" or
-"January 21, 2014").
+Each row has these four columns (in order):
+  - Last name        (one word, "Babchishin", "Whitworth")
+  - First name       (one word, "Gerald", "Brad")
+  - Role / title     ("General Foreman", "Journeyman/Fitter Auto",
+                      "Pipefitter", etc.)
+  - Field Log #      (4-6 digit ticket number, often handwritten,
+                      e.g. "18260")
 
-Extract EVERY row in the table. Convert the date to YYYY-MM-DD.
+These rows are PEOPLE. They have a real first name AND a real last
+name (or in rare cases a hyphenated last name).
 
-Return ONLY this JSON. No markdown, no commentary:
+DO NOT INCLUDE any of these — they are NOT foreman entries:
+  - Equipment names or unit IDs: "LIGHTTOWR", "POTTY PORTA",
+    "BULL BIG", "FULDETECT", "GENERATOR", "TANK", "TRUCK",
+    "TRAILER", "PUMP", "COMPRESSOR", "PICKUP", "WELDER",
+    "TORCH", "CAT", "GRINDER", "EXCAVATOR", "BACKHOE",
+    "BULLDOZER", "SIDEBOOM"
+  - Anything where the "name" cell contains digits
+  - Anything where the "name" cell is a single all-caps word with
+    no vowel pattern of a real name (real names usually contain
+    multiple vowels; "LIGHTTOWR" does not)
+  - Header rows (the row containing the column labels themselves)
+  - Total / subtotal rows at the bottom of the table
+  - Empty rows or strikethrough rows
+  - ANY content from anywhere else on the page that isn't in the
+    main foreman table
+
+Be CONSERVATIVE. If you are unsure whether a row is a real person
+or equipment, OMIT it. The admin will review the table and add any
+missing rows manually.
+
+The date is somewhere on the page (often top, e.g. "21-Jan-14",
+"January 21, 2014", "21/01/2014"). Convert to YYYY-MM-DD.
+
+Return ONLY this JSON. No markdown, no commentary, no extra text:
 
 {
   "date": "2014-01-21" or null,
+  "row_count_visible": 32,
   "entries": [
-    { "last_name": "Babchishin", "first_name": "Gerald", "role": "General Foreman", "ticket_number": "18260" },
-    { "last_name": "Baran", "first_name": "Chuck", "role": "General Foreman", "ticket_number": "18261" }
+    { "last_name": "Babchishin", "first_name": "Gerald", "role": "General Foreman", "ticket_number": "18260" }
   ]
 }
 
-Rules:
-  - Skip header rows.
-  - Skip rows where the ticket_number is illegible — include only
-    entries you can read with reasonable confidence.
-  - ticket_number is digits only. Strip any "#" or "No." prefix.
-  - If you cannot find ANY rows, return an empty entries array.`
+row_count_visible is YOUR HONEST COUNT of visible rows that look
+like people in the table. entries.length must equal
+row_count_visible. If you can't tell how many rows are visible,
+return row_count_visible: null.`
 
   const requestBody = {
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 2500,
+    max_tokens: 2000,
     messages: [{
       role: 'user',
       content: [
@@ -147,15 +172,49 @@ Rules:
       const jsonMatch = text.match(/\{[\s\S]*\}/)
       if (!jsonMatch) throw new Error('No JSON in index OCR response')
       const parsed = JSON.parse(jsonMatch[0])
-      const entries = Array.isArray(parsed.entries) ? parsed.entries : []
+      const rawEntries = Array.isArray(parsed.entries) ? parsed.entries : []
+      const rowCountVisible = Number.isFinite(parsed.row_count_visible) ? parsed.row_count_visible : null
+
+      // Normalize entries
+      const normalized = rawEntries.map(e => ({
+        last_name: (e.last_name || '').trim(),
+        first_name: (e.first_name || '').trim(),
+        role: (e.role || '').trim(),
+        ticket_number: cleanTicketNumber(e.ticket_number)
+      }))
+
+      // Drop entries with no ticket number or no name parts
+      const hasMinimum = normalized.filter(e =>
+        e.ticket_number && (e.first_name || e.last_name)
+      )
+
+      // Drop entries that look like equipment rather than people
+      const peopleOnly = hasMinimum.filter(e => !looksLikeEquipmentEntry(e))
+
+      // Hard cap per page: a single index page has at most ~50 rows.
+      // Anything beyond that is a hallucination. Truncate and flag.
+      const HARD_CAP = 50
+      const excessive = peopleOnly.length > HARD_CAP
+      const capped = peopleOnly.slice(0, HARD_CAP)
+
+      // Drop equipment that slipped past the keyword filter via the
+      // ticket-number sanity check: real foreman tickets cluster in
+      // a narrow numeric range, so dedup by ticket_number.
+      const seen = new Set()
+      const finalEntries = []
+      for (const e of capped) {
+        if (seen.has(e.ticket_number)) continue
+        seen.add(e.ticket_number)
+        finalEntries.push(e)
+      }
+
       return {
         date: cleanDate(parsed.date),
-        entries: entries.map(e => ({
-          last_name: (e.last_name || '').trim(),
-          first_name: (e.first_name || '').trim(),
-          role: (e.role || '').trim(),
-          ticket_number: cleanTicketNumber(e.ticket_number)
-        })).filter(e => e.ticket_number && (e.first_name || e.last_name)),
+        entries: finalEntries,
+        raw_count: rawEntries.length,
+        people_count: hasMinimum.length - peopleOnly.length, // rows we filtered as equipment
+        row_count_visible: rowCountVisible,
+        excessive,
         raw_response: text,
         error: null
       }
@@ -168,7 +227,58 @@ Rules:
       }
     }
   }
-  return { date: null, entries: [], raw_response: '', error: lastError?.message || 'Index OCR failed' }
+  return {
+    date: null, entries: [],
+    raw_count: 0, people_count: 0, row_count_visible: null, excessive: false,
+    raw_response: '', error: lastError?.message || 'Index OCR failed'
+  }
+}
+
+// ── Equipment-vs-person heuristic ───────────────────────────────────────────
+
+const EQUIPMENT_KEYWORDS = [
+  'TOWR', 'TOWER', 'PORTA', 'POTTY', 'BULL', 'FULDETECT',
+  'TANK', 'PUMP', 'GENERATOR', 'COMPRESSOR', 'WELDER',
+  'TORCH', 'GRINDER', 'TRUCK', 'TRAILER', 'PICKUP',
+  'EXCAVATOR', 'BACKHOE', 'BULLDOZER', 'SIDEBOOM',
+  'GENSET', 'LIGHT', 'HEATER', 'BOILER', 'BOOM',
+  'FORKLIFT', 'ZOOM', 'TELEHANDLER', 'SKIDSTEER',
+  'SKID', 'STEER', 'BOBCAT', 'LOADER', 'GRADER',
+  'DOZER', 'PADFOOT', 'PACKER', 'CRUSHER', 'SCREEN'
+]
+
+/**
+ * Heuristics to reject entries that are equipment rather than people:
+ *   - Either name field contains digits (unit/asset IDs)
+ *   - The combined name matches a known equipment keyword
+ *   - The "name" has a vowel ratio below what real names exhibit
+ *     (catches "LIGHTTOWR", "FULDETECT" without a fixed dictionary).
+ *   - Real foreman entries usually have BOTH first and last name; an
+ *     equipment row often has both columns merged into one — so if
+ *     last_name is empty AND first_name looks like a code, reject.
+ */
+function looksLikeEquipmentEntry(entry) {
+  const first = (entry.first_name || '').toUpperCase().trim()
+  const last = (entry.last_name || '').toUpperCase().trim()
+  const combined = `${first} ${last}`.trim()
+
+  if (!combined) return true
+  if (/\d/.test(combined)) return true
+  for (const kw of EQUIPMENT_KEYWORDS) {
+    if (combined.includes(kw)) return true
+  }
+
+  // Vowel-ratio check — real names usually contain >= 1 vowel per 4
+  // letters. Equipment codes like "LIGHTTOWR" have very few.
+  const letters = combined.replace(/[^A-Z]/g, '')
+  const vowels = (combined.match(/[AEIOU]/g) || []).length
+  if (letters.length >= 5 && vowels === 0) return true
+  if (letters.length >= 8 && vowels < 2) return true
+
+  // "Last name only" rows that look like code/abbreviation
+  if (!first && last && last.length <= 4 && (last.match(/[AEIOU]/g) || []).length === 0) return true
+
+  return false
 }
 
 /**
@@ -178,19 +288,40 @@ Rules:
  */
 export async function classifyIndexFile(file, onProgress) {
   const pages = await splitPdfToPages(file, onProgress)
-  const merged = { date: null, entries: [], pageCount: pages.length, errors: [] }
+  const merged = {
+    date: null,
+    entries: [],
+    pageCount: pages.length,
+    errors: [],
+    excessive: false,             // any single page exceeded 50 entries
+    rawCount: 0,                  // total entries Claude returned (pre-filter)
+    filteredEquipmentCount: 0,    // entries the equipment filter dropped
+    perPageRowCount: []           // Claude's self-reported row counts
+  }
   for (let i = 0; i < pages.length; i++) {
     onProgress?.(`Reading index page ${i + 1} of ${pages.length}...`, i + 1, pages.length)
     const result = await classifyIndexPage(pages[i].imageBase64)
     if (result.error) merged.errors.push({ page: i + 1, message: result.error })
     if (!merged.date && result.date) merged.date = result.date
+    if (result.excessive) merged.excessive = true
+    merged.rawCount += result.raw_count || 0
+    merged.filteredEquipmentCount += result.people_count || 0
+    merged.perPageRowCount.push(result.row_count_visible)
     for (const e of result.entries) {
-      // Dedup by ticket_number
+      // Dedup by ticket_number across pages
       if (!merged.entries.some(x => x.ticket_number === e.ticket_number)) {
         merged.entries.push(e)
       }
     }
   }
+
+  // Cross-page sanity: 50 entries total across the whole index PDF is
+  // already on the high side; >50 flag for admin review.
+  const TOTAL_THRESHOLD = 50
+  if (merged.entries.length > TOTAL_THRESHOLD) {
+    merged.excessive = true
+  }
+
   return merged
 }
 

@@ -126,9 +126,27 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
       } else if (!indexDate && result.date) {
         setIndexDate(result.date)
       }
+      // Compose a single warning message from any sanity-check findings.
+      // The index OCR is hallucination-prone (one field test produced
+      // 299 entries from a one-page index) so the user MUST review the
+      // result table before saving — we tell them what to look for.
+      const warnings = []
       if (result.errors?.length) {
-        setWarning(`${result.errors.length} index page${result.errors.length === 1 ? '' : 's'} had OCR errors; review entries below.`)
+        warnings.push(`${result.errors.length} OCR error${result.errors.length === 1 ? '' : 's'} occurred while reading pages.`)
       }
+      if (result.excessive) {
+        warnings.push(`OCR returned an unusually high number of entries (${result.entries.length}). This usually means the model hallucinated rows that aren't on the page. Delete any row that doesn't look like a real person before saving.`)
+      }
+      if (result.filteredEquipmentCount > 0) {
+        warnings.push(`${result.filteredEquipmentCount} entr${result.filteredEquipmentCount === 1 ? 'y' : 'ies'} that looked like equipment (no vowels, contained digits, or matched equipment keywords) were filtered out automatically.`)
+      }
+      // Compare Claude's self-reported visible row count against what we
+      // accepted — large gap = caller should sanity check.
+      const reported = (result.perPageRowCount || []).reduce((s, n) => s + (Number.isFinite(n) ? n : 0), 0)
+      if (reported > 0 && Math.abs(reported - result.entries.length) > 5) {
+        warnings.push(`Claude reported ${reported} visible rows but the cleaned list has ${result.entries.length}. Verify nothing was dropped that shouldn't have been (or added that shouldn't have been).`)
+      }
+      if (warnings.length) setWarning(warnings.join(' '))
       setIndexEntries(result.entries)
       setStage('indexReview')
     } catch (err) {
@@ -425,9 +443,10 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
 
   // ── Stage: index review (edit before saving) ─────────────────────────────
   if (stage === 'indexReview') {
+    const reviewSubtitle = `Date: ${indexDate || '(set below)'} · ${indexEntries.length} entries · review and delete any garbage rows before saving`
     return overlay(
       <>
-        {header(`Index — review ${indexEntries.length} entries`, `Date: ${indexDate || '(set below)'}`)}
+        {header(`Index — review ${indexEntries.length} entries`, reviewSubtitle)}
         {errorBanner()}
         {warningBanner()}
         <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
