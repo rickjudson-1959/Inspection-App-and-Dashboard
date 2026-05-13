@@ -1045,7 +1045,7 @@ export async function extractLEMFromUrl(docUrl) {
 /**
  * Extract billing data from a base64-encoded page image.
  */
-async function extractLEMLineItemsFromBase64(imgBase64) {
+export async function extractLEMLineItemsFromBase64(imgBase64) {
   if (!ANTHROPIC_API_KEY) return { labour: [], equipment: [], totals: {}, raw_text: '' }
 
   const prompt = `You are extracting billing data from a contractor's Labour & Equipment Manifest (LEM) page used in pipeline construction.

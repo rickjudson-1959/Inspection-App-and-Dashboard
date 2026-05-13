@@ -27,7 +27,7 @@
  */
 
 import { supabase } from '../supabase.js'
-import { pdfToImages, extractLEMFromUrl } from './lemParser.js'
+import { pdfToImages, extractLEMFromUrl, extractLEMLineItemsFromBase64 } from './lemParser.js'
 
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || ''
 const MAX_OCR_RETRIES = 3
@@ -235,6 +235,11 @@ export async function suggestPageMetadata(imageBase64) {
 export async function saveBulkUploadGroups({
   sourceFile,
   groups,
+  allPages = [],          // [{ pageNumber, imageBase64 }] — already-rendered
+                          // cache from the workspace. Used for in-memory LEM
+                          // OCR so we don't re-fetch + re-render the source
+                          // PDF and don't accidentally OCR every page of
+                          // the bulk upload as one foreman's LEM.
   orgId,
   projectId = null,
   uploadedBy = null,
@@ -244,6 +249,12 @@ export async function saveBulkUploadGroups({
   if (!sourceFile) throw new Error('saveBulkUploadGroups: sourceFile required')
   if (!orgId) throw new Error('saveBulkUploadGroups: orgId required')
   if (!bulkUploadId) throw new Error('saveBulkUploadGroups: bulkUploadId required')
+
+  // Lookup: pageNumber -> imageBase64. Used by the LEM extraction step.
+  const pageImageByNumber = new Map()
+  for (const p of allPages) {
+    if (p?.pageNumber != null) pageImageByNumber.set(p.pageNumber, p.imageBase64)
+  }
 
   onProgress?.('Uploading source PDF...', 0, 1)
   const sourceUrl = await uploadSourcePdf(sourceFile, orgId, bulkUploadId)
@@ -283,7 +294,10 @@ export async function saveBulkUploadGroups({
     }
   }
 
-  // LEM extraction on every LEM group — populates contractor_lems
+  // LEM extraction on every LEM group — populates contractor_lems.
+  // The OCR runs DIRECTLY on the in-memory page images for this
+  // group only (NOT the whole source PDF) so the extracted billing
+  // data is scoped to this foreman's LEM pages.
   let lemExtractedCount = 0
   const lemEntries = [...inserted.lems.entries()]
   for (let i = 0; i < lemEntries.length; i++) {
@@ -291,7 +305,9 @@ export async function saveBulkUploadGroups({
     const group = groups.find(g => g.id === groupId)
     onProgress?.(`Extracting LEM data ${i + 1} of ${lemEntries.length} (30-60s each)...`, i + 1, lemEntries.length)
     try {
-      const ok = await runLemExtractionForRow(row, group, orgId)
+      const ok = await runLemExtractionForGroup({
+        row, group, orgId, pageImageByNumber
+      })
       if (ok) lemExtractedCount++
     } catch (err) {
       console.warn('[bulkUpload] LEM extraction failed for', row.id, err.message)
@@ -384,45 +400,81 @@ function buildMatchKey(g) {
   return `${date}|${fm}|${role}`
 }
 
-async function runLemExtractionForRow(row, group, orgId) {
+/**
+ * Run the existing LEM OCR (`extractLEMLineItemsFromBase64`) on every
+ * page of THIS group's LEM slot and upsert the aggregated labour +
+ * equipment data into contractor_lems.
+ *
+ * Previously this called `extractLEMFromUrl(row.file_url)` — which
+ * (a) was broken because `row` never had `file_url` set, and
+ * (b) would have re-fetched and re-rendered the entire bulk-upload
+ * source PDF, so a single foreman's LEM would have been "extracted"
+ * from all 130 pages of the package. Both bugs go away now that we
+ * pass the per-page image cache straight in.
+ *
+ * Returns true if anything was written to contractor_lems.
+ */
+async function runLemExtractionForGroup({ row, group, orgId, pageImageByNumber }) {
+  const lemPages = [...(group.lemPages || []), ...(group.otherPages || [])]
+    .filter((v, idx, arr) => arr.indexOf(v) === idx)
+    .sort((a, b) => a - b)
+  if (lemPages.length === 0) return false
+
   const allLabour = []
   const allEquipment = []
   let totalLabourCost = 0
   let totalEquipCost = 0
-  let extracted
-  try {
-    extracted = await extractLEMFromUrl(row.file_url || row.file_urls?.[0])
-  } catch (err) {
-    console.warn('[bulkUpload] extractLEMFromUrl threw:', err.message)
+  let totalLabourHours = 0
+  let totalEquipHours = 0
+
+  for (const pageNumber of lemPages) {
+    const b64 = pageImageByNumber?.get(pageNumber)
+    if (!b64) {
+      console.warn(`[bulkUpload] no rendered image for page ${pageNumber} (group ${group.id})`)
+      continue
+    }
+    let pageResult
+    try {
+      pageResult = await extractLEMLineItemsFromBase64(b64)
+    } catch (err) {
+      console.warn(`[bulkUpload] LEM OCR failed on page ${pageNumber}:`, err.message)
+      continue
+    }
+    for (const l of (pageResult?.labour || [])) {
+      allLabour.push({
+        name: l.employee_name || '',
+        type: l.classification || '',
+        employee_id: '',
+        rt_hours: l.rt_hours || 0,
+        ot_hours: l.ot_hours || 0,
+        dt_hours: 0,
+        rt_rate: l.rt_rate || 0,
+        ot_rate: l.ot_rate || 0,
+        dt_rate: 0,
+        sub: 0,
+        total: l.line_total || 0
+      })
+      totalLabourCost += l.line_total || 0
+      totalLabourHours += (l.rt_hours || 0) + (l.ot_hours || 0)
+    }
+    for (const e of (pageResult?.equipment || [])) {
+      allEquipment.push({
+        type: e.equipment_type || '',
+        equipment_id: e.unit_number || '',
+        hours: e.hours || 0,
+        rate: e.rate || 0,
+        total: e.line_total || 0
+      })
+      totalEquipCost += e.line_total || 0
+      totalEquipHours += e.hours || 0
+    }
+  }
+
+  if (allLabour.length === 0 && allEquipment.length === 0) {
+    console.warn(`[bulkUpload] group ${group.id} (#${row.ticket_number}) produced no LEM rows from ${lemPages.length} page(s)`)
     return false
   }
-  for (const l of (extracted?.labour || [])) {
-    allLabour.push({
-      name: l.employee_name || '',
-      type: l.classification || '',
-      employee_id: '',
-      rt_hours: l.rt_hours || 0,
-      ot_hours: l.ot_hours || 0,
-      dt_hours: 0,
-      rt_rate: l.rt_rate || 0,
-      ot_rate: l.ot_rate || 0,
-      dt_rate: 0,
-      sub: 0,
-      total: l.line_total || 0
-    })
-    totalLabourCost += l.line_total || 0
-  }
-  for (const e of (extracted?.equipment || [])) {
-    allEquipment.push({
-      type: e.equipment_type || '',
-      equipment_id: e.unit_number || '',
-      hours: e.hours || 0,
-      rate: e.rate || 0,
-      total: e.line_total || 0
-    })
-    totalEquipCost += e.line_total || 0
-  }
-  if (allLabour.length === 0 && allEquipment.length === 0) return false
+
   const lemRow = {
     organization_id: orgId,
     field_log_id: row.ticket_number,
@@ -436,10 +488,13 @@ async function runLemExtractionForRow(row, group, orgId) {
   const { data: existing } = await supabase.from('contractor_lems')
     .select('id').eq('organization_id', orgId).eq('field_log_id', row.ticket_number).limit(1)
   if (existing && existing.length > 0) {
-    await supabase.from('contractor_lems').update(lemRow).eq('id', existing[0].id)
+    const { error } = await supabase.from('contractor_lems').update(lemRow).eq('id', existing[0].id)
+    if (error) { console.error('[bulkUpload] contractor_lems update error:', error); return false }
   } else {
-    await supabase.from('contractor_lems').insert(lemRow)
+    const { error } = await supabase.from('contractor_lems').insert(lemRow)
+    if (error) { console.error('[bulkUpload] contractor_lems insert error:', error); return false }
   }
+  console.log(`[bulkUpload] contractor_lems written for #${row.ticket_number}: ${allLabour.length} labour, ${allEquipment.length} equipment`)
   return true
 }
 

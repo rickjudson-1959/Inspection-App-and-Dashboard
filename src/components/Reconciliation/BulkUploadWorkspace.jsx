@@ -577,6 +577,11 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
       const result = await saveBulkUploadGroups({
         sourceFile: packageFile,
         groups,
+        allPages: pages,             // pass the rendered-page cache so
+                                     // LEM extraction can OCR each
+                                     // group's LEM pages directly
+                                     // instead of fetching the full
+                                     // source PDF and OCRing all 130
         orgId: getOrgId(),
         projectId: null,
         uploadedBy: user?.id || null,
