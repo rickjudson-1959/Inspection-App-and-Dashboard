@@ -658,6 +658,60 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### Reconciliation Panel — Fit-to-Container PDF Rendering (May 13, 2026 — sixth pass)
+
+The 4-panel reconciliation view's PDF panel (Contractor LEM,
+Contractor Daily Ticket) was rendering blurry/pixelated regardless
+of how high I cranked the base scale. Native PDF viewers (Adobe
+Reader, Chrome's built-in viewer) render **at the display's actual
+pixel size every time** — not at a fixed scale that gets CSS-
+downsampled. PdfViewer was doing the latter: rendering at a fixed
+3×/4× scale and letting CSS downsample, which introduces bilinear
+softness no matter how high the source scale is.
+
+**Fix — measure container, render to fit:**
+
+`PdfViewer.jsx` now:
+1. Wraps its scroll area in a ref'd container.
+2. ResizeObserver measures `container.clientWidth` in CSS pixels;
+   re-measures on every layout change.
+3. Computes a fit-to-width scale: `containerWidth / naturalViewport.width`.
+4. Sets the canvas BUFFER to `containerWidth × devicePixelRatio ×
+   zoom` (with a 3× floor so the raster has headroom for any
+   browser-zoom layered on top).
+5. Sets the canvas CSS `width = containerWidth × zoom` and
+   `height` proportionally — **no CSS downsampling**.
+
+Result: at zoom=1 the canvas's intrinsic pixels map 1:1 (or 2:1 on
+Retina) to the display's actual pixels. The page renders at print
+fidelity. Zoom > 1 grows the canvas physically; the container
+scrolls. Identical visual quality to opening the PDF in Adobe
+Reader / Chrome's viewer at the same display size.
+
+**Why the previous fixes didn't take:** they raised the source
+scale (1.5× → 3× → 4×) but kept the same fixed-scale-then-CSS-
+shrink pattern. The browser still applied bilinear downsampling
+from the large canvas to whatever the panel column was wide. At
+~650 px panel width even a 2448 px canvas was being shrunk 3.77×,
+which is enough downsampling to introduce visible softness on
+small printed text typical of contractor LEMs. The new approach
+gives the browser nothing to downsample because the canvas
+dimensions match its CSS display size.
+
+**Files changed:**
+```
+src/components/Reconciliation/PdfViewer.jsx
+  - ResizeObserver to track container width
+  - render scale = containerWidth / naturalViewport.width × DPR × zoom
+  - canvas.style.width / .height set to physical display size
+  - canvas.style.maxWidth = 'none' so the container's overflow
+    handles oversized canvases (zoom > 1)
+  - Loading state lives inside the container ref div so the
+    container width is measured immediately on mount
+```
+
+No DB / no migration / no prompt change.
+
 ### Bulk Upload — Click-to-Assign Primary Path (May 13, 2026 — fifth pass)
 
 After Rick's first hands-on attempt the drag-and-drop assignment was
