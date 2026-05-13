@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - May 11, 2026
+## Project Manifest - May 13, 2026
 
 ---
 
@@ -657,6 +657,96 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–May 2026)
+
+### Bulk Upload — Single Upload, Page 1 = Index (May 13, 2026)
+
+Dropped the separate index-upload step. The contractor's daily package
+always has the foreman/ticket index as page 1, so the system now does
+both jobs from a single PDF.
+
+**New processor functions (`src/utils/bulkUploadProcessor.js`):**
+
+- `extractIndexFromPage1(file, onProgress)` — splits the package PDF
+  into images, then OCRs **only page 1** with the index prompt. If
+  the result has at least 5 valid foreman entries (after the
+  equipment filter from the previous pass), returns
+  `{ allPages, detected: true, index, indexMeta }`; otherwise
+  `detected: false` so the caller can fall back to all-pages
+  processing. The rendered page cache is included so we don't
+  re-split the PDF for step B.
+- `processPackagePages({ allPages, startIndex, ticketIndex, ... })` —
+  classifies pages from `startIndex` (1 when page 1 was the index)
+  through the end, reconciles against the index, groups, matches.
+  Page numbers are preserved (1-based, matching the source PDF) so
+  `reconciliation_documents.source_pages` still references the right
+  pages.
+- `processPdfForReview` is now a thin wrapper around these two for
+  non-interactive callers (auto-detect → process → return). The
+  modal calls the two underlying functions directly so it can show
+  the index review step between them.
+
+**Modal (`BulkUploadModal.jsx`) — new flow:**
+
+```
+idle             pick a single package PDF
+   │
+   ▼
+indexProcessing  spinner: "Reading page 1 (index)..."
+   │
+   ├─→ detected ───────────────┐
+   │                            ▼
+   │                       indexReview
+   │                            │
+   │                            ├─ Confirm and continue
+   │                            ├─ Cancel
+   │                            └─ "This isn't an index, process all pages"
+   │                                       │
+   ├─→ not detected (warning) ──────┐      │
+   │                                ▼      ▼
+   ▼                          processing (pages 2..N or 1..N)
+                                          │
+                                          ▼
+                                       review → saving → done
+```
+
+The indexReview header now shows the count plus the ticket-number
+range (`Found 32 foremen with ticket numbers 18260–18295`) so the
+admin can spot at a glance whether the OCR returned a sane result.
+The editable table from the previous pass is unchanged — the admin
+can fix typos, delete junk rows, add missing ones. There's also an
+escape hatch button (`This isn't an index — process all pages
+anyway`) for the rare case where page 1 is actually a LEM.
+
+When page 1 doesn't look like an index, the modal sets a yellow
+warning and proceeds straight to all-pages processing — no false
+positive on the index review screen.
+
+**Removed:**
+- Separate "Step 1 / Step 2" UI with the date picker and existing-
+  index detection. The date now comes from page 1 OCR; the admin can
+  edit it on the index review screen if needed.
+- `saveTicketIndex` / `loadTicketIndex` DB calls from the modal.
+  The functions themselves stay exported in the processor so a
+  future "re-process" admin action can persist or look up indices,
+  but normal bulk uploads no longer hit the `ticket_indices` table.
+  The migration shipped May 11 is left in place — the table is
+  available for future use.
+
+**Files changed:**
+```
+src/utils/bulkUploadProcessor.js
+  + extractIndexFromPage1 (new)
+  + processPackagePages (new, takes pre-rendered allPages cache)
+  + processPdfForReview rewritten as thin wrapper around the two
+
+src/components/Reconciliation/BulkUploadModal.jsx
+  + complete UI rewrite around the single-upload flow
+  - dropped: date picker step, existing-index lookup, save-index
+    step (still possible from the processor exports for future
+    admin re-process tooling)
+```
+
+No DB schema changes. No field guide impact.
 
 ### Bulk Upload — Index-Driven Reconciliation (May 11, 2026 — second pass)
 

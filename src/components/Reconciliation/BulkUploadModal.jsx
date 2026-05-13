@@ -1,36 +1,26 @@
 /**
- * BulkUploadModal — two-step bulk PDF upload with index reconciliation.
+ * BulkUploadModal — single-upload bulk PDF processing.
  *
- * Step A — Index page (one-time per date):
- *   The admin uploads a separate PDF containing the foreman-to-ticket
- *   lookup table. We OCR it, extract every row, and save to
- *   `ticket_indices` keyed by (org, date). If a saved index already
- *   exists for the chosen date, we offer to reuse it instead of
- *   re-OCRing.
+ * One file. One process. Page 1 of the package PDF is assumed to be
+ * the foreman/ticket index page; the system OCRs it first, asks the
+ * admin to confirm the extracted foreman list, then processes pages
+ * 2..N using the confirmed index as the lookup for ticket-number
+ * derivation and cross-validation.
  *
- * Step B — Package PDF:
- *   The 130-page bulk file. Every page is OCR'd, then reconciled
- *   against the index so:
- *     - LEM pages keep their printed "Field Log ID"
- *     - Daily-ticket pages either keep their handwritten number, or
- *       have it derived from foreman -> index lookup
- *     - Cross-validation flags mismatches
+ * If page 1 doesn't look like an index (fewer than 5 valid entries
+ * after the equipment filter), the system skips the index step and
+ * processes every page normally.
  *
- *   Grouping uses ticket number as the primary key (max 5 pages per
- *   group). Signature pages append to the preceding LEM. Special
- *   doc types (missed_time / weekly_summary / index_page) get their
- *   own dedicated bucket.
- *
- * Stages: idle -> indexProcessing -> indexReview -> packageIdle ->
- *          processing -> review -> saving -> done.
+ * Stages: idle -> indexProcessing -> indexReview (skip if not
+ *         detected) -> processing -> review -> saving -> done.
  */
 
-import React, { useState, useRef, useEffect } from 'react'
+import React, { useState, useRef } from 'react'
 import { useAuth } from '../../AuthContext.jsx'
 import { useOrgQuery } from '../../utils/queryHelpers.js'
 import {
-  processPdfForReview, confirmAndSave, matchLemsToTickets,
-  classifyIndexFile, saveTicketIndex, loadTicketIndex
+  extractIndexFromPage1, processPackagePages,
+  confirmAndSave, matchLemsToTickets
 } from '../../utils/bulkUploadProcessor.js'
 
 const CONFIDENCE_COLOR = {
@@ -43,26 +33,24 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
   const { user } = useAuth()
   const { getOrgId } = useOrgQuery()
 
-  // ── Stage + progress ─────────────────────────────────────────────────────
+  // ── stage + progress ──────────────────────────────────────────────────────
   const [stage, setStage] = useState('idle')
-  // idle | indexProcessing | indexReview | packageIdle | processing | review | saving | done | error
+  // idle | indexProcessing | indexReview | processing | review | saving | done | error
   const [progressMsg, setProgressMsg] = useState('')
   const [progressCurrent, setProgressCurrent] = useState(0)
   const [progressTotal, setProgressTotal] = useState(0)
   const [error, setError] = useState('')
   const [warning, setWarning] = useState('')
 
-  // ── Index step ───────────────────────────────────────────────────────────
-  const [indexDate, setIndexDate] = useState('')
-  const [indexFile, setIndexFile] = useState(null)
-  const [existingIndex, setExistingIndex] = useState(null) // row from DB if any
-  const [indexEntries, setIndexEntries] = useState([])     // editable list
-  const [indexId, setIndexId] = useState(null)
-  const indexFileRef = useRef(null)
-
-  // ── Package step ─────────────────────────────────────────────────────────
+  // ── package + index ───────────────────────────────────────────────────────
   const [packageFile, setPackageFile] = useState(null)
   const packageFileRef = useRef(null)
+  const [allPagesCache, setAllPagesCache] = useState([])
+  const [indexDate, setIndexDate] = useState('')
+  const [indexEntries, setIndexEntries] = useState([])
+  const [indexDetected, setIndexDetected] = useState(false)
+
+  // ── processed results ─────────────────────────────────────────────────────
   const [pages, setPages] = useState([])
   const [groups, setGroups] = useState([])
   const [matchResult, setMatchResult] = useState(null)
@@ -70,171 +58,103 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
   const [saveSummary, setSaveSummary] = useState(null)
   const [bulkUploadId] = useState(() => crypto.randomUUID())
 
-  // Auto-check for an existing index whenever the date is set
-  useEffect(() => {
-    if (!open || !indexDate) { setExistingIndex(null); return }
-    let cancelled = false
-    ;(async () => {
-      const orgId = getOrgId()
-      if (!orgId) return
-      try {
-        const row = await loadTicketIndex(orgId, indexDate)
-        if (!cancelled) setExistingIndex(row)
-      } catch (e) {
-        if (!cancelled) setExistingIndex(null)
-      }
-    })()
-    return () => { cancelled = true }
-  }, [open, indexDate])
-
   if (!open) return null
+
+  const isProcessingStage = ['indexProcessing', 'processing', 'saving'].includes(stage)
 
   const reset = () => {
     setStage('idle')
     setProgressMsg(''); setProgressCurrent(0); setProgressTotal(0)
     setError(''); setWarning('')
-    setIndexDate(''); setIndexFile(null); setExistingIndex(null)
-    setIndexEntries([]); setIndexId(null)
-    setPackageFile(null)
+    setPackageFile(null); setAllPagesCache([])
+    setIndexDate(''); setIndexEntries([]); setIndexDetected(false)
     setPages([]); setGroups([]); setMatchResult(null)
     setPreviewGroup(null); setSaveSummary(null)
   }
 
-  // ── Index step handlers ──────────────────────────────────────────────────
-
-  const handleIndexFileSelect = (selected) => {
-    setError('')
-    if (!selected) return
-    if (!selected.name.toLowerCase().endsWith('.pdf')) {
-      setError('Index must be a PDF.')
-      return
-    }
-    setIndexFile(selected)
-  }
-
-  const processIndexFile = async () => {
-    if (!indexFile) return
-    setStage('indexProcessing'); setError(''); setWarning('')
-    try {
-      const result = await classifyIndexFile(indexFile, (msg, cur, tot) => {
-        setProgressMsg(msg)
-        if (typeof cur === 'number') setProgressCurrent(cur)
-        if (typeof tot === 'number') setProgressTotal(tot)
-      })
-      if (!result.date && !indexDate) {
-        setWarning('Could not detect a date on the index page. Set it manually before saving.')
-      } else if (!indexDate && result.date) {
-        setIndexDate(result.date)
-      }
-      // Compose a single warning message from any sanity-check findings.
-      // The index OCR is hallucination-prone (one field test produced
-      // 299 entries from a one-page index) so the user MUST review the
-      // result table before saving — we tell them what to look for.
-      const warnings = []
-      if (result.errors?.length) {
-        warnings.push(`${result.errors.length} OCR error${result.errors.length === 1 ? '' : 's'} occurred while reading pages.`)
-      }
-      if (result.excessive) {
-        warnings.push(`OCR returned an unusually high number of entries (${result.entries.length}). This usually means the model hallucinated rows that aren't on the page. Delete any row that doesn't look like a real person before saving.`)
-      }
-      if (result.filteredEquipmentCount > 0) {
-        warnings.push(`${result.filteredEquipmentCount} entr${result.filteredEquipmentCount === 1 ? 'y' : 'ies'} that looked like equipment (no vowels, contained digits, or matched equipment keywords) were filtered out automatically.`)
-      }
-      // Compare Claude's self-reported visible row count against what we
-      // accepted — large gap = caller should sanity check.
-      const reported = (result.perPageRowCount || []).reduce((s, n) => s + (Number.isFinite(n) ? n : 0), 0)
-      if (reported > 0 && Math.abs(reported - result.entries.length) > 5) {
-        warnings.push(`Claude reported ${reported} visible rows but the cleaned list has ${result.entries.length}. Verify nothing was dropped that shouldn't have been (or added that shouldn't have been).`)
-      }
-      if (warnings.length) setWarning(warnings.join(' '))
-      setIndexEntries(result.entries)
-      setStage('indexReview')
-    } catch (err) {
-      console.error('[BulkUpload] index OCR failed:', err)
-      setError(err.message === 'CREDIT_BALANCE_TOO_LOW'
-        ? 'Anthropic API credit balance too low. Top up and re-run.'
-        : err.message || 'Index OCR failed.')
-      setStage('idle')
-    }
-  }
-
-  const useExistingIndex = () => {
-    if (!existingIndex) return
-    setIndexEntries(existingIndex.entries || [])
-    setIndexId(existingIndex.id)
-    setStage('packageIdle')
-  }
-
-  const saveIndexAndContinue = async () => {
-    const orgId = getOrgId()
-    if (!orgId || !indexDate) {
-      setError('Date is required before saving the index.')
-      return
-    }
-    if (indexEntries.length === 0) {
-      setError('Index has no entries.')
-      return
-    }
-    try {
-      const saved = await saveTicketIndex({
-        orgId,
-        projectId: null,
-        indexDate,
-        entries: indexEntries,
-        sourceFile: indexFile,
-        uploadedBy: user?.id || null
-      })
-      setIndexId(saved.id)
-      setStage('packageIdle')
-    } catch (err) {
-      setError(err.message || 'Failed to save index.')
-    }
-  }
-
-  const updateIndexEntry = (i, field, value) => {
-    setIndexEntries(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: value } : e))
-  }
-  const deleteIndexEntry = (i) => {
-    setIndexEntries(prev => prev.filter((_, idx) => idx !== i))
-  }
-  const addIndexEntry = () => {
-    setIndexEntries(prev => [...prev, { first_name: '', last_name: '', role: '', ticket_number: '' }])
-  }
-
-  // ── Package step handlers ────────────────────────────────────────────────
+  // ── handlers ──────────────────────────────────────────────────────────────
 
   const handlePackageFileSelect = (selected) => {
     setError('')
     if (!selected) return
     if (!selected.name.toLowerCase().endsWith('.pdf')) {
-      setError('Package must be a PDF.')
+      setError('Bulk upload accepts PDFs only.')
       return
     }
     setPackageFile(selected)
   }
 
-  const startProcessing = async () => {
+  const startIndexExtraction = async () => {
     if (!packageFile) return
-    setStage('processing'); setError(''); setWarning('')
+    setStage('indexProcessing'); setError(''); setWarning('')
     try {
-      const ticketIndex = { entries: indexEntries }
-      const { pages: classifiedPages, groups: g, matchResult: m } = await processPdfForReview(
-        packageFile,
+      const detection = await extractIndexFromPage1(packageFile,
         (msg, cur, tot) => {
           setProgressMsg(msg)
           if (typeof cur === 'number') setProgressCurrent(cur)
           if (typeof tot === 'number') setProgressTotal(tot)
-        },
-        {
-          ticketIndex,
-          onCreditError: (partial) => {
-            setWarning(`OCR credit balance ran out after page ${partial.length}. Progress saved — top up credit and re-process.`)
-          }
         }
       )
-      setPages(classifiedPages)
-      setGroups(g)
-      setMatchResult(m)
+      setAllPagesCache(detection.allPages)
+
+      if (!detection.detected) {
+        // Page 1 doesn't look like an index — process every page
+        setIndexDetected(false)
+        setWarning('Page 1 does not look like a foreman index. Processing every page without an index lookup.')
+        await runPackageProcessing(detection.allPages, 0, null)
+        return
+      }
+
+      // Page 1 IS an index. Surface for admin review.
+      setIndexDetected(true)
+      setIndexEntries(detection.index.entries)
+      if (detection.index.date) setIndexDate(detection.index.date)
+
+      // Build warning banner about the OCR diagnostics
+      const meta = detection.indexMeta || {}
+      const warnings = []
+      if (meta.excessive) {
+        warnings.push(`OCR returned an unusually high number of entries (${detection.index.entries.length}). Review carefully and delete any row that isn't a real person.`)
+      }
+      const filteredOut = (meta.raw_count || 0) - (meta.raw_count - (meta.people_count || 0))
+      if (meta.people_count > 0) {
+        warnings.push(`${meta.people_count} entr${meta.people_count === 1 ? 'y' : 'ies'} that looked like equipment were filtered out automatically.`)
+      }
+      const reportedCount = Number.isFinite(meta.row_count_visible) ? meta.row_count_visible : null
+      if (reportedCount && Math.abs(reportedCount - detection.index.entries.length) > 5) {
+        warnings.push(`Claude reported ${reportedCount} visible rows but the cleaned list has ${detection.index.entries.length}. Verify nothing was dropped or hallucinated.`)
+      }
+      if (warnings.length) setWarning(warnings.join(' '))
+
+      setStage('indexReview')
+    } catch (err) {
+      console.error('[BulkUpload] index extraction failed:', err)
+      setError(err.message === 'CREDIT_BALANCE_TOO_LOW'
+        ? 'Anthropic API credit balance too low. Top up and re-run.'
+        : err.message || 'Index extraction failed.')
+      setStage('idle')
+    }
+  }
+
+  const runPackageProcessing = async (allPages, startIndex, ticketIndex) => {
+    setStage('processing'); setError('')
+    try {
+      const result = await processPackagePages({
+        allPages,
+        startIndex,
+        ticketIndex,
+        onProgress: (msg, cur, tot) => {
+          setProgressMsg(msg)
+          if (typeof cur === 'number') setProgressCurrent(cur)
+          if (typeof tot === 'number') setProgressTotal(tot)
+        },
+        onCreditError: (partial) => {
+          setWarning(`OCR credit balance ran out after page ${partial.length + startIndex}. Progress saved — top up credit and re-process.`)
+        }
+      })
+      setPages(result.pages)
+      setGroups(result.groups)
+      setMatchResult(result.matchResult)
       setStage('review')
     } catch (err) {
       console.error('[BulkUpload] processing failed:', err)
@@ -245,6 +165,29 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
     }
   }
 
+  const confirmIndexAndContinue = async () => {
+    const ticketIndex = { entries: indexEntries, date: indexDate || null }
+    await runPackageProcessing(allPagesCache, 1, ticketIndex)
+  }
+
+  const skipIndexAndProcessAll = async () => {
+    // Escape hatch: admin says page 1 isn't actually an index, process
+    // every page normally.
+    await runPackageProcessing(allPagesCache, 0, null)
+  }
+
+  // index review row edits
+  const updateIndexEntry = (i, field, value) => {
+    setIndexEntries(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: value } : e))
+  }
+  const deleteIndexEntry = (i) => {
+    setIndexEntries(prev => prev.filter((_, idx) => idx !== i))
+  }
+  const addIndexEntry = () => {
+    setIndexEntries(prev => [...prev, { first_name: '', last_name: '', role: '', ticket_number: '' }])
+  }
+
+  // review-stage edits
   const reclassifyGroup = (groupId, newDocType) => {
     setGroups(prev => {
       const next = prev.map(g => g.id === groupId ? { ...g, doc_type: newDocType, needs_review: newDocType === 'unknown' } : g)
@@ -252,7 +195,6 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
       return next
     })
   }
-
   const editGroupField = (groupId, field, value) => {
     setGroups(prev => {
       const next = prev.map(g => g.id === groupId ? { ...g, [field]: value } : g)
@@ -289,10 +231,10 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
     }
   }
 
-  // ── UI fragments ─────────────────────────────────────────────────────────
+  // ── UI fragments ──────────────────────────────────────────────────────────
 
   const overlay = (children) => (
-    <div onClick={() => { if (!['indexProcessing', 'processing', 'saving'].includes(stage)) onClose() }}
+    <div onClick={() => { if (!isProcessingStage) onClose() }}
       style={{
         position: 'fixed', inset: 0, backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 10000,
         display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 20
@@ -308,22 +250,18 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
   )
 
   const header = (title, subtitle) => (
-    <div style={{
-      padding: '18px 24px', borderBottom: '1px solid #e5e7eb',
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between'
-    }}>
+    <div style={{ padding: '18px 24px', borderBottom: '1px solid #e5e7eb', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
       <div>
         <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600, color: '#111827' }}>{title}</h2>
         {subtitle && <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{subtitle}</div>}
       </div>
       <button type="button"
-        onClick={() => { if (!['indexProcessing', 'processing', 'saving'].includes(stage)) onClose() }}
-        disabled={['indexProcessing', 'processing', 'saving'].includes(stage)}
+        onClick={() => { if (!isProcessingStage) onClose() }}
+        disabled={isProcessingStage}
         style={{
           padding: '6px 12px', backgroundColor: 'transparent', color: '#6b7280',
           border: '1px solid #d1d5db', borderRadius: 6,
-          cursor: ['indexProcessing', 'processing', 'saving'].includes(stage) ? 'not-allowed' : 'pointer',
-          fontSize: 13
+          cursor: isProcessingStage ? 'not-allowed' : 'pointer', fontSize: 13
         }}
       >Close</button>
     </div>
@@ -340,54 +278,33 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
     </div>
   )
 
-  // ── Stage: idle — pick a date + index PDF ────────────────────────────────
+  // ── stage: idle — pick PDF ───────────────────────────────────────────────
   if (stage === 'idle' || stage === 'error') {
     return overlay(
       <>
-        {header('Bulk Upload — Step 1 of 2: Index Page', 'Upload the foreman / ticket-number lookup PDF for this date.')}
+        {header('Bulk Upload — Contractor Package PDF',
+          'Single PDF containing the foreman index on page 1, plus all LEMs and daily tickets.')}
         {errorBanner()}
         {warningBanner()}
         <div style={{ padding: 24, flex: 1, overflow: 'auto' }}>
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#374151', marginBottom: 4 }}>
-              Index date <span style={{ color: '#ef4444' }}>*</span>
-            </label>
-            <input type="date" value={indexDate} onChange={e => setIndexDate(e.target.value)}
-              style={{ padding: '8px 12px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 14, width: 200 }} />
-          </div>
-
-          {existingIndex && (
-            <div style={{ padding: 14, marginBottom: 16, backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: 6 }}>
-              <div style={{ fontSize: 13, color: '#1e40af', marginBottom: 8 }}>
-                <strong>Existing index found for {indexDate}</strong> — {existingIndex.entries?.length || 0} foreman entries
-                <span style={{ color: '#6b7280', marginLeft: 6 }}>(uploaded {new Date(existingIndex.updated_at).toLocaleString()})</span>
-              </div>
-              <button type="button" onClick={useExistingIndex}
-                style={{ padding: '6px 14px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-                Use this index → continue to package upload
-              </button>
-              <span style={{ fontSize: 12, color: '#6b7280', marginLeft: 12 }}>or upload a new one below to replace it</span>
-            </div>
-          )}
-
-          <div onClick={() => indexFileRef.current?.click()}
+          <div onClick={() => packageFileRef.current?.click()}
             style={{
-              border: '2px dashed #d1d5db', borderRadius: 8, padding: '32px 20px',
+              border: '2px dashed #d1d5db', borderRadius: 8, padding: '40px 20px',
               textAlign: 'center', cursor: 'pointer', backgroundColor: '#f9fafb'
             }}>
             <div style={{ fontSize: 14, color: '#374151', marginBottom: 6 }}>
-              Drop or click to upload the <strong>index PDF</strong>
+              Drop a PDF here or click to browse
             </div>
             <div style={{ fontSize: 12, color: '#6b7280' }}>
-              The page that lists foremen and their Field Log numbers
+              Page 1 is auto-OCR'd as the foreman index. You'll review the
+              extracted list before the rest of the pages are processed.
             </div>
-            <input ref={indexFileRef} type="file" accept=".pdf" style={{ display: 'none' }}
-              onChange={e => handleIndexFileSelect(e.target.files?.[0])} />
+            <input ref={packageFileRef} type="file" accept=".pdf" style={{ display: 'none' }}
+              onChange={e => handlePackageFileSelect(e.target.files?.[0])} />
           </div>
-
-          {indexFile && (
-            <div style={{ marginTop: 14, padding: 12, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, fontSize: 13, color: '#166534' }}>
-              <strong>{indexFile.name}</strong> · {(indexFile.size / 1024 / 1024).toFixed(1)} MB
+          {packageFile && (
+            <div style={{ marginTop: 16, padding: 12, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, fontSize: 13, color: '#166534' }}>
+              <strong>{packageFile.name}</strong> · {(packageFile.size / 1024 / 1024).toFixed(1)} MB
             </div>
           )}
         </div>
@@ -396,29 +313,29 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
             style={{ padding: '8px 16px', backgroundColor: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
             Cancel
           </button>
-          <button onClick={processIndexFile} disabled={!indexFile}
+          <button onClick={startIndexExtraction} disabled={!packageFile}
             style={{
               padding: '8px 16px',
-              backgroundColor: indexFile ? '#2563eb' : '#d1d5db', color: 'white',
-              border: 'none', borderRadius: 6, cursor: indexFile ? 'pointer' : 'not-allowed',
+              backgroundColor: packageFile ? '#2563eb' : '#d1d5db', color: 'white',
+              border: 'none', borderRadius: 6, cursor: packageFile ? 'pointer' : 'not-allowed',
               fontSize: 13, fontWeight: 600
             }}>
-            OCR Index
+            Process PDF
           </button>
         </div>
       </>
     )
   }
 
-  // ── Stage: index processing ──────────────────────────────────────────────
-  if (stage === 'indexProcessing' || stage === 'processing' || stage === 'saving') {
+  // ── stages: indexProcessing / processing / saving (spinner) ──────────────
+  if (isProcessingStage) {
     const pct = progressTotal > 0 ? Math.round((progressCurrent / progressTotal) * 100) : 0
-    const title = stage === 'indexProcessing' ? 'Reading index…'
+    const title = stage === 'indexProcessing' ? 'Reading page 1 (index)…'
       : stage === 'saving' ? 'Saving documents…'
-      : 'Processing package…'
+      : 'Processing package pages…'
     return overlay(
       <>
-        {header(title, packageFile?.name || indexFile?.name)}
+        {header(title, packageFile?.name)}
         {warningBanner()}
         <div style={{ padding: 40, textAlign: 'center' }}>
           <div style={{
@@ -441,22 +358,24 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
     )
   }
 
-  // ── Stage: index review (edit before saving) ─────────────────────────────
+  // ── stage: indexReview — confirm extracted foreman list ──────────────────
   if (stage === 'indexReview') {
-    const reviewSubtitle = `Date: ${indexDate || '(set below)'} · ${indexEntries.length} entries · review and delete any garbage rows before saving`
+    const ticketNumbers = indexEntries.map(e => e.ticket_number).filter(Boolean).sort()
+    const range = ticketNumbers.length > 0
+      ? `${ticketNumbers[0]}–${ticketNumbers[ticketNumbers.length - 1]}`
+      : '(none)'
     return overlay(
       <>
-        {header(`Index — review ${indexEntries.length} entries`, reviewSubtitle)}
+        {header(`Confirm index — ${indexEntries.length} foremen found`,
+          `Ticket range: ${range}${indexDate ? ` · Date: ${indexDate}` : ''}`)}
         {errorBanner()}
         {warningBanner()}
         <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
-          {!indexDate && (
-            <div style={{ marginBottom: 14 }}>
-              <label style={{ fontSize: 13, fontWeight: 600, color: '#374151', marginRight: 8 }}>Index date:</label>
-              <input type="date" value={indexDate} onChange={e => setIndexDate(e.target.value)}
-                style={{ padding: '6px 10px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 13 }} />
-            </div>
-          )}
+          <div style={{ marginBottom: 12 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151', marginRight: 8 }}>Date:</label>
+            <input type="date" value={indexDate} onChange={e => setIndexDate(e.target.value)}
+              style={{ padding: '4px 8px', border: '1px solid #d1d5db', borderRadius: 4, fontSize: 12 }} />
+          </div>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
             <thead>
               <tr style={{ backgroundColor: '#f3f4f6' }}>
@@ -471,20 +390,16 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
               {indexEntries.map((e, i) => (
                 <tr key={i} style={{ borderBottom: '1px solid #f3f4f6' }}>
                   <td style={tdStyle}>
-                    <input value={e.ticket_number || ''} onChange={ev => updateIndexEntry(i, 'ticket_number', ev.target.value)}
-                      style={inputStyle} />
+                    <input value={e.ticket_number || ''} onChange={ev => updateIndexEntry(i, 'ticket_number', ev.target.value)} style={inputStyle} />
                   </td>
                   <td style={tdStyle}>
-                    <input value={e.first_name || ''} onChange={ev => updateIndexEntry(i, 'first_name', ev.target.value)}
-                      style={inputStyle} />
+                    <input value={e.first_name || ''} onChange={ev => updateIndexEntry(i, 'first_name', ev.target.value)} style={inputStyle} />
                   </td>
                   <td style={tdStyle}>
-                    <input value={e.last_name || ''} onChange={ev => updateIndexEntry(i, 'last_name', ev.target.value)}
-                      style={inputStyle} />
+                    <input value={e.last_name || ''} onChange={ev => updateIndexEntry(i, 'last_name', ev.target.value)} style={inputStyle} />
                   </td>
                   <td style={tdStyle}>
-                    <input value={e.role || ''} onChange={ev => updateIndexEntry(i, 'role', ev.target.value)}
-                      style={inputStyle} />
+                    <input value={e.role || ''} onChange={ev => updateIndexEntry(i, 'role', ev.target.value)} style={inputStyle} />
                   </td>
                   <td style={{ ...tdStyle, textAlign: 'center' }}>
                     <button type="button" onClick={() => deleteIndexEntry(i)}
@@ -499,75 +414,33 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
             + Add row
           </button>
         </div>
-        <div style={{ padding: '14px 24px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button onClick={() => setStage('idle')}
-            style={{ padding: '8px 16px', backgroundColor: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
-            Back
+        <div style={{ padding: '14px 24px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <button onClick={skipIndexAndProcessAll}
+            style={{ padding: '8px 14px', backgroundColor: 'white', color: '#92400e', border: '1px solid #fbbf24', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
+            This isn't an index — process all pages anyway
           </button>
-          <button onClick={saveIndexAndContinue} disabled={!indexDate || indexEntries.length === 0}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: (indexDate && indexEntries.length) ? '#16a34a' : '#d1d5db',
-              color: 'white', border: 'none', borderRadius: 6,
-              cursor: (indexDate && indexEntries.length) ? 'pointer' : 'not-allowed',
-              fontSize: 13, fontWeight: 600
-            }}>
-            Save index → upload package
-          </button>
-        </div>
-      </>
-    )
-  }
-
-  // ── Stage: package idle (index is locked in; pick the package PDF) ──────
-  if (stage === 'packageIdle') {
-    return overlay(
-      <>
-        {header('Bulk Upload — Step 2 of 2: Package PDF',
-          `Index loaded: ${indexEntries.length} foreman entries for ${indexDate}`)}
-        {errorBanner()}
-        <div style={{ padding: 24 }}>
-          <div onClick={() => packageFileRef.current?.click()}
-            style={{
-              border: '2px dashed #d1d5db', borderRadius: 8, padding: '40px 20px',
-              textAlign: 'center', cursor: 'pointer', backgroundColor: '#f9fafb'
-            }}>
-            <div style={{ fontSize: 14, color: '#374151', marginBottom: 6 }}>
-              Drop or click to upload the <strong>package PDF</strong>
-            </div>
-            <div style={{ fontSize: 12, color: '#6b7280' }}>
-              All LEMs + daily tickets for {indexDate}
-            </div>
-            <input ref={packageFileRef} type="file" accept=".pdf" style={{ display: 'none' }}
-              onChange={e => handlePackageFileSelect(e.target.files?.[0])} />
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={onClose}
+              style={{ padding: '8px 16px', backgroundColor: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
+              Cancel
+            </button>
+            <button onClick={confirmIndexAndContinue} disabled={indexEntries.length === 0}
+              style={{
+                padding: '8px 16px',
+                backgroundColor: indexEntries.length === 0 ? '#d1d5db' : '#16a34a',
+                color: 'white', border: 'none', borderRadius: 6,
+                cursor: indexEntries.length === 0 ? 'not-allowed' : 'pointer',
+                fontSize: 13, fontWeight: 600
+              }}>
+              Confirm index → process remaining pages
+            </button>
           </div>
-          {packageFile && (
-            <div style={{ marginTop: 14, padding: 12, backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: 6, fontSize: 13, color: '#166534' }}>
-              <strong>{packageFile.name}</strong> · {(packageFile.size / 1024 / 1024).toFixed(1)} MB
-            </div>
-          )}
-        </div>
-        <div style={{ padding: '14px 24px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between' }}>
-          <button onClick={() => setStage('idle')}
-            style={{ padding: '8px 16px', backgroundColor: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
-            ← Re-do index
-          </button>
-          <button onClick={startProcessing} disabled={!packageFile}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: packageFile ? '#2563eb' : '#d1d5db', color: 'white',
-              border: 'none', borderRadius: 6,
-              cursor: packageFile ? 'pointer' : 'not-allowed',
-              fontSize: 13, fontWeight: 600
-            }}>
-            Process Package
-          </button>
         </div>
       </>
     )
   }
 
-  // ── Stage: review ────────────────────────────────────────────────────────
+  // ── stage: review ────────────────────────────────────────────────────────
   if (stage === 'review') {
     const { matches = [], unmatchedLems = [], unmatchedTickets = [], needsReview = [], specials = [] } = matchResult || {}
     const totalGroups = groups.length
@@ -576,16 +449,13 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
     return overlay(
       <>
         {header(`Bulk Upload Results — ${totalPages} pages processed`,
-          `${totalGroups} groups · ${matches.length} matched pair${matches.length === 1 ? '' : 's'}`)}
+          `${totalGroups} groups · ${matches.length} matched pair${matches.length === 1 ? '' : 's'}${indexDetected ? ' · using page-1 index' : ' · no index'}`)}
         {errorBanner()}
         {warningBanner()}
         <div style={{ flex: 1, overflow: 'auto', padding: 24 }}>
-
           <SectionHeader title="Matched pairs (LEM ↔ Daily Ticket)" count={matches.length} color="#10b981" />
           {matches.length === 0 && <EmptyHint>No automatic matches yet.</EmptyHint>}
-          {matches.map((m, idx) => (
-            <MatchRow key={`m-${idx}`} match={m} onPreview={setPreviewGroup} />
-          ))}
+          {matches.map((m, idx) => <MatchRow key={`m-${idx}`} match={m} onPreview={setPreviewGroup} />)}
 
           <SectionHeader title="Unmatched LEMs (no corresponding ticket found)" count={unmatchedLems.length} color="#f59e0b" />
           {unmatchedLems.map(g => (
@@ -632,7 +502,7 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
     )
   }
 
-  // ── Stage: done ─────────────────────────────────────────────────────────
+  // ── stage: done ──────────────────────────────────────────────────────────
   if (stage === 'done') {
     return overlay(
       <>
@@ -664,7 +534,7 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
   return null
 }
 
-// ── Section helpers ────────────────────────────────────────────────────────
+// ── helpers ────────────────────────────────────────────────────────────────
 
 function specialLabel(docType) {
   if (docType === 'missed_time') return 'Missed Time'
@@ -690,8 +560,7 @@ function EmptyHint({ children }) {
 function MatchRow({ match, onPreview }) {
   const { lem, ticket, method, confidence } = match
   const methodLabel = method === 'ticket_number' ? '#-match'
-    : method === 'date_foreman_crew' ? 'date+foreman+crew'
-    : 'manual'
+    : method === 'date_foreman_crew' ? 'date+foreman+crew' : 'manual'
   const conf = lem.ticket_number_confidence
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 12px', borderBottom: '1px solid #f3f4f6' }}>

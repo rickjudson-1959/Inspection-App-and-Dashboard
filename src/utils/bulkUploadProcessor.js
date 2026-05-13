@@ -1266,36 +1266,103 @@ export async function confirmAndSave({
   }
 }
 
-// ── Helper: process the whole pipeline up to (but not including) save ────────
+// ── Step A1: extract the index from page 1 of the package ───────────────────
 
 /**
- * Run steps 1-4 end to end. The caller (modal) then shows the results
- * for review and finally calls confirmAndSave() when the admin confirms.
+ * Render every page of the package PDF, then OCR PAGE 1 with the index
+ * prompt. If page 1 looks like an index (>= 5 valid foreman entries),
+ * return the index plus the full rendered-pages cache so the caller
+ * doesn't have to re-render. If page 1 doesn't look like an index, we
+ * return detected:false and the caller processes every page normally.
  *
- * Pass a `ticketIndex` (the row returned from loadTicketIndex /
- * classifyIndexFile) and the processor will:
- *   - filter out any page Claude classifies as the index_page itself,
- *   - run reconcileWithIndex to fill in missing ticket numbers from
- *     foreman name and cross-validate the ones the OCR did read,
- *   - tell the matcher it can use the simplified within-group pairing.
+ * Returns:
+ *   {
+ *     allPages: [{ pageNumber, imageBase64 }, ...],   // every page
+ *     detected: boolean,                              // page 1 is an index
+ *     index: { entries: [...], date: 'YYYY-MM-DD' | null } | null,
+ *     indexMeta: { raw_count, people_count, row_count_visible, excessive,
+ *                  raw_response, error }   // diagnostics for the warning UI
+ *   }
  */
-export async function processPdfForReview(file, onProgress, { onCreditError, ticketIndex } = {}) {
+export async function extractIndexFromPage1(file, onProgress, { onCreditError } = {}) {
+  if (!file) throw new Error('extractIndexFromPage1: file is required')
   onProgress?.('Splitting PDF into pages...', 0, 1)
-  const pages = await splitPdfToPages(file, (msg) => onProgress?.(msg))
+  const allPages = await splitPdfToPages(file, (msg) => onProgress?.(msg))
+  if (allPages.length === 0) {
+    return { allPages: [], detected: false, index: null, indexMeta: null }
+  }
+  onProgress?.('Reading page 1 (index)...', 1, allPages.length)
+  let indexResult
+  try {
+    indexResult = await classifyIndexPage(allPages[0].imageBase64)
+  } catch (err) {
+    if (err.message === 'CREDIT_BALANCE_TOO_LOW') {
+      onCreditError?.(allPages)
+      throw err
+    }
+    return { allPages, detected: false, index: null, indexMeta: { error: err.message } }
+  }
 
+  // Detection threshold: >= 5 entries that survived the equipment
+  // filter. A LEM or daily ticket page won't pass this — its prompt
+  // matches a different format entirely.
+  const detected = (indexResult.entries?.length || 0) >= 5
+
+  return {
+    allPages,
+    detected,
+    index: detected ? { entries: indexResult.entries, date: indexResult.date } : null,
+    indexMeta: {
+      raw_count: indexResult.raw_count,
+      people_count: indexResult.people_count,
+      row_count_visible: indexResult.row_count_visible,
+      excessive: indexResult.excessive,
+      raw_response: indexResult.raw_response,
+      error: indexResult.error || null
+    }
+  }
+}
+
+// ── Step A2: process the package pages (everything after the index) ─────────
+
+/**
+ * Classify every page from `startIndex` onwards, reconcile against the
+ * provided ticketIndex (if any), group, and match. The caller passes
+ * the already-rendered page cache from extractIndexFromPage1 so we
+ * don't re-split the PDF.
+ *
+ * startIndex defaults to 0 (process every page). When page 1 was the
+ * index, the caller passes startIndex: 1 so page 1 is skipped.
+ *
+ * Page numbers in the returned pages array are preserved (1-based,
+ * matching their position in the source PDF) so source_pages on
+ * reconciliation_documents still refers to the right pages.
+ */
+export async function processPackagePages({
+  allPages,
+  startIndex = 0,
+  ticketIndex = null,
+  onProgress,
+  onCreditError
+}) {
+  if (!Array.isArray(allPages)) throw new Error('processPackagePages: allPages array required')
+
+  const pagesToProcess = allPages.slice(startIndex)
   const classifiedPages = []
-  for (let i = 0; i < pages.length; i++) {
-    onProgress?.(`Classifying page ${i + 1} of ${pages.length}...`, i + 1, pages.length)
+
+  for (let i = 0; i < pagesToProcess.length; i++) {
+    const page = pagesToProcess[i]
+    onProgress?.(`Classifying page ${page.pageNumber} of ${allPages.length}...`, i + 1, pagesToProcess.length)
     try {
-      const classification = await classifyPage(pages[i].imageBase64)
-      classifiedPages.push({ ...pages[i], classification })
+      const classification = await classifyPage(page.imageBase64)
+      classifiedPages.push({ ...page, classification })
     } catch (err) {
       if (err.message === 'CREDIT_BALANCE_TOO_LOW') {
-        onCreditError?.(classifiedPages, pages)
+        onCreditError?.(classifiedPages, allPages)
         throw err
       }
       classifiedPages.push({
-        ...pages[i],
+        ...page,
         classification: {
           ticket_number: null, ticket_number_confidence: null,
           date: null, foreman_name: null, crew_or_spread: null,
@@ -1308,19 +1375,54 @@ export async function processPdfForReview(file, onProgress, { onCreditError, tic
     }
   }
 
-  // Reconcile against the per-date index, if provided. Fills in missing
-  // ticket numbers from foreman -> index lookup, cross-validates when
-  // both sides are present.
   if (ticketIndex?.entries?.length) {
-    onProgress?.('Reconciling pages against index...', pages.length, pages.length)
+    onProgress?.('Reconciling pages against index...', pagesToProcess.length, pagesToProcess.length)
     reconcileWithIndex(classifiedPages, ticketIndex)
   }
 
-  onProgress?.('Grouping pages into documents...', pages.length, pages.length)
+  onProgress?.('Grouping pages into documents...', pagesToProcess.length, pagesToProcess.length)
   const groups = groupPagesIntoDocuments(classifiedPages)
 
-  onProgress?.('Matching LEMs to daily tickets...', pages.length, pages.length)
+  onProgress?.('Matching LEMs to daily tickets...', pagesToProcess.length, pagesToProcess.length)
   const matchResult = matchLemsToTickets(groups, { hasIndex: !!ticketIndex?.entries?.length })
 
-  return { pages: classifiedPages, groups, matchResult }
+  return { pages: classifiedPages, allPages, groups, matchResult }
+}
+
+// ── Legacy convenience wrapper ──────────────────────────────────────────────
+
+/**
+ * One-shot: auto-detect page 1 as index, then process pages 2..N. Used
+ * by callers that want the entire pipeline in a single call (no
+ * interactive index review step).
+ *
+ * Pass `autoDetectIndex: false` to skip page-1 detection and process
+ * every page normally.
+ */
+export async function processPdfForReview(file, onProgress, opts = {}) {
+  const { onCreditError, ticketIndex: providedIndex, autoDetectIndex = true } = opts
+
+  let workingIndex = providedIndex
+  let allPages
+  let startIndex = 0
+
+  if (autoDetectIndex && !providedIndex) {
+    const detection = await extractIndexFromPage1(file, onProgress, { onCreditError })
+    allPages = detection.allPages
+    if (detection.detected) {
+      workingIndex = detection.index
+      startIndex = 1
+    }
+  } else {
+    onProgress?.('Splitting PDF into pages...', 0, 1)
+    allPages = await splitPdfToPages(file, (msg) => onProgress?.(msg))
+  }
+
+  return processPackagePages({
+    allPages,
+    startIndex,
+    ticketIndex: workingIndex,
+    onProgress,
+    onCreditError
+  })
 }
