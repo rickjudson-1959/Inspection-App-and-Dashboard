@@ -57,6 +57,10 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
   const [selectedPageNumbers, setSelectedPageNumbers] = useState(() => new Set())
   const [lightboxPage, setLightboxPage] = useState(null)
 
+  // Undo history — each entry is a snapshot of { groups, skipPages,
+  // pageMetadata } captured BEFORE a mutating action. Capped at 50.
+  const [history, setHistory] = useState([])
+
   // OCR background state
   const [ocrStatus, setOcrStatus] = useState('idle')  // idle | running | done | failed
   const [ocrProgress, setOcrProgress] = useState({ done: 0, total: 0 })
@@ -301,6 +305,32 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
   }
   const clearSelection = () => setSelectedPageNumbers(new Set())
 
+  // ── Undo history ───────────────────────────────────────────────────────
+  // Every mutating action calls pushHistory() at the START so a single
+  // click of Undo reverses the most recent edit. Capped at 50 entries
+  // to keep localStorage / memory bounded.
+  const pushHistory = () => {
+    setHistory(prev => {
+      const snap = {
+        groups: groups.map(g => ({ ...g })),
+        skipPages: [...skipPages],
+        pageMetadata: new Map(pageMetadata)
+      }
+      const next = [...prev, snap]
+      return next.length > 50 ? next.slice(-50) : next
+    })
+  }
+  const undo = () => {
+    setHistory(prev => {
+      if (prev.length === 0) return prev
+      const snap = prev[prev.length - 1]
+      setGroups(snap.groups)
+      setSkipPages(snap.skipPages)
+      setPageMetadata(snap.pageMetadata)
+      return prev.slice(0, -1)
+    })
+  }
+
   // ── Page unassign / move helpers ───────────────────────────────────────
   const removePagesFromAll = (pageNumbers) => {
     const set = new Set(pageNumbers)
@@ -326,6 +356,13 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
     setSkipPages(prev => Array.from(new Set([...prev, ...pageNumbers])).sort((a, b) => a - b))
   }
 
+  // Public wrappers that record history before applying the change
+  const unassignPagesUndoable = (pageNumbers) => {
+    if (!pageNumbers?.length) return
+    pushHistory()
+    removePagesFromAll(pageNumbers)
+  }
+
   // ── Group lifecycle ────────────────────────────────────────────────────
   const makeGroupId = () =>
     (typeof crypto !== 'undefined' && crypto.randomUUID)
@@ -333,6 +370,7 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
       : `g-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
 
   const createGroupFromIndex = (entry) => {
+    pushHistory()
     const id = makeGroupId()
     setGroups(prev => [...prev, {
       id,
@@ -344,6 +382,7 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
     }])
   }
   const createEmptyGroup = () => {
+    pushHistory()
     const id = makeGroupId()
     setGroups(prev => [...prev, {
       id, ticket_number: '', foreman_name: '', role: '', date: indexDate || '',
@@ -351,21 +390,25 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
     }])
   }
   const updateGroupField = (groupId, field, value) => {
+    // Per-keystroke field edits are not pushed to history (too noisy).
     setGroups(prev => prev.map(g => g.id === groupId ? { ...g, [field]: value } : g))
   }
   const removeGroup = (groupId) => {
     if (!window.confirm('Remove this group? Pages will return to ungrouped.')) return
+    pushHistory()
     setGroups(prev => prev.filter(g => g.id !== groupId))
   }
 
   // ── Drop handlers ──────────────────────────────────────────────────────
   const handleDropOnSlot = (groupId, slot, payload) => {
     if (!payload?.pageNumbers?.length) return
+    pushHistory()
     assignPagesToGroupSlot(groupId, slot, payload.pageNumbers)
     clearSelection()
   }
   const handleDropOnNewGroup = (payload) => {
     if (!payload?.pageNumbers?.length) return
+    pushHistory()
     const id = makeGroupId()
     // Default new pages into LEM unless meta says otherwise
     const lemPages = []
@@ -394,6 +437,7 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
   }
   const handleDropOnSkip = (payload) => {
     if (!payload?.pageNumbers?.length) return
+    pushHistory()
     sendPagesToSkip(payload.pageNumbers)
     clearSelection()
   }
@@ -402,6 +446,7 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
   const sequentialAssign = ({ entry, pageCount, slot }) => {
     const targetPages = ungroupedPageNumbers.slice(0, pageCount)
     if (targetPages.length === 0) return
+    pushHistory()
     const id = makeGroupId()
     setGroups(prev => [...prev, {
       id,
@@ -413,8 +458,24 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
       ticketPages: slot === 'ticketPages' ? targetPages : [],
       otherPages: slot === 'otherPages' ? targetPages : []
     }])
+
+    // Auto-advance the viewport to the next ungrouped page so the
+    // admin's eyes never have to leave the thumbnail area. The next
+    // ungrouped page is whatever's left in ungroupedPageNumbers
+    // after we slice off targetPages — DOM positions are unchanged
+    // (the thumbnails just gain a "✓ assigned" overlay), so we can
+    // compute and scroll in the next frame.
+    const justAssigned = new Set(targetPages)
+    const nextUngrouped = ungroupedPageNumbers.find(n => !justAssigned.has(n))
+    if (nextUngrouped) {
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`page-thumb-${nextUngrouped}`)
+        el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    }
   }
   const bulkClassify = (docType) => {
+    pushHistory()
     setPageMetadata(prev => {
       const next = new Map(prev)
       for (const n of selectedPageNumbers) {
@@ -586,11 +647,13 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
                 usedTicketNumbers={usedTicketNumbers}
                 onSequentialAssign={sequentialAssign}
                 onBulkClassify={bulkClassify}
-                onSendSelectedToSkip={() => { sendPagesToSkip(Array.from(selectedPageNumbers)); clearSelection() }}
+                onSendSelectedToSkip={() => { pushHistory(); sendPagesToSkip(Array.from(selectedPageNumbers)); clearSelection() }}
                 onStartOcr={runBackgroundOcr}
                 onClearSelection={clearSelection}
                 ocrStatus={ocrStatus}
                 ocrProgress={ocrProgress}
+                historyDepth={history.length}
+                onUndo={undo}
               />
 
               <ThumbnailGrid
@@ -614,7 +677,7 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
                 onDropOnSlot={handleDropOnSlot}
                 onDropOnNewGroup={handleDropOnNewGroup}
                 onDropOnSkip={handleDropOnSkip}
-                onUnassignPages={(ns) => removePagesFromAll(ns)}
+                onUnassignPages={unassignPagesUndoable}
               />
 
               {groups.length > 0 && (

@@ -62,6 +62,7 @@ export default function ThumbnailGrid({
 
         return (
           <div key={p.pageNumber}
+            id={`page-thumb-${p.pageNumber}`}
             draggable
             onDragStart={(e) => handleDragStart(e, p.pageNumber)}
             onClick={(e) => {

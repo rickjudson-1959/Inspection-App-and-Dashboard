@@ -24,7 +24,9 @@ export default function QuickAssignToolbar({
   onStartOcr,
   onClearSelection,
   ocrStatus,                    // 'idle' | 'running' | 'done' | 'failed'
-  ocrProgress                   // { done, total }
+  ocrProgress,                  // { done, total }
+  historyDepth = 0,
+  onUndo
 }) {
   const nextEntry = indexEntries.find(e => e.ticket_number && !usedTicketNumbers.has(String(e.ticket_number)))
   const [seqPageCount, setSeqPageCount] = useState(4)
@@ -32,9 +34,11 @@ export default function QuickAssignToolbar({
 
   return (
     <div style={{
+      position: 'sticky', top: 0, zIndex: 20,
       backgroundColor: 'white', border: '1px solid #e5e7eb', borderRadius: 6,
       padding: 10, marginBottom: 10,
-      display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap'
+      display: 'flex', gap: 12, alignItems: 'center', flexWrap: 'wrap',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.06)'
     }}>
       {/* OCR control */}
       <button onClick={onStartOcr} disabled={ocrStatus === 'running' || ocrStatus === 'done'}
@@ -49,6 +53,21 @@ export default function QuickAssignToolbar({
         {ocrStatus === 'running' && `OCR ${ocrProgress.done}/${ocrProgress.total}`}
         {ocrStatus === 'done' && '✓ OCR done'}
         {ocrStatus === 'failed' && '⚠ OCR failed'}
+      </button>
+
+      {/* Undo last action */}
+      <button onClick={onUndo} disabled={historyDepth === 0}
+        title={historyDepth === 0 ? 'Nothing to undo' : `Undo (${historyDepth} step${historyDepth === 1 ? '' : 's'} available)`}
+        style={{
+          padding: '6px 10px',
+          backgroundColor: historyDepth === 0 ? '#f3f4f6' : 'white',
+          color: historyDepth === 0 ? '#9ca3af' : '#374151',
+          border: '1px solid ' + (historyDepth === 0 ? '#e5e7eb' : '#d1d5db'),
+          borderRadius: 4,
+          cursor: historyDepth === 0 ? 'not-allowed' : 'pointer',
+          fontSize: 12, fontWeight: 500
+        }}>
+        ↶ Undo{historyDepth > 0 ? ` (${historyDepth})` : ''}
       </button>
 
       {/* Sequential assign */}

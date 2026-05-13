@@ -131,6 +131,17 @@ export default function GroupingArea({
 }
 
 function GroupCard({ group, onUpdateGroupField, onRemoveGroup, onDropOnSlot, onUnassignPages, handleDragOver, readPayload }) {
+  // Each chip can be picked up and dragged to another group's slot
+  // (the receiving onDropOnSlot calls assignPagesToGroupSlot which
+  // first calls removePagesFromAll, so a drag-between-groups is
+  // effectively a move). Click on the chip body opens the page in
+  // the lightbox via the parent (we don't have a reference here, so
+  // the click target is "remove from this group" via the X button).
+  const chipDragStart = (e, pageNumber) => {
+    e.dataTransfer.setData('application/json', JSON.stringify({ pageNumbers: [pageNumber] }))
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
   const slot = (label, key, pages, accentColor) => (
     <div onDragOver={handleDragOver}
       onDrop={(e) => { const p = readPayload(e); if (p) onDropOnSlot(group.id, key, p) }}
@@ -146,14 +157,26 @@ function GroupCard({ group, onUpdateGroupField, onRemoveGroup, onDropOnSlot, onU
         {pages.length === 0 && <span style={{ color: '#9ca3af' }}>(drop pages)</span>}
         {pages.map(n => (
           <span key={n}
-            title="Click to remove from this group"
-            onClick={() => onUnassignPages([n])}
+            draggable
+            onDragStart={(e) => chipDragStart(e, n)}
+            title={`Page ${n} — drag to another group, or click × to send back to ungrouped`}
             style={{
-              padding: '1px 6px', backgroundColor: 'white',
+              padding: '1px 4px 1px 6px', backgroundColor: 'white',
               border: '1px solid ' + accentColor, borderRadius: 3,
-              color: accentColor, cursor: 'pointer'
+              color: accentColor, cursor: 'grab', userSelect: 'none',
+              display: 'inline-flex', alignItems: 'center', gap: 4
             }}>
             pg {n}
+            <button type="button"
+              onClick={(e) => { e.stopPropagation(); onUnassignPages([n]) }}
+              title="Remove from this group"
+              style={{
+                width: 14, height: 14, lineHeight: 1,
+                padding: 0, marginLeft: 2,
+                backgroundColor: accentColor, color: 'white',
+                border: 'none', borderRadius: '50%',
+                fontSize: 10, fontWeight: 700, cursor: 'pointer'
+              }}>×</button>
           </span>
         ))}
       </div>
