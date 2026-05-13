@@ -20,7 +20,9 @@ export default function GroupingArea({
   onDropOnSlot,              // (groupId, slot, payload) => void
   onDropOnNewGroup,          // (payload) => void
   onDropOnSkip,              // (payload) => void
-  onUnassignPages            // (pageNumbers) => void
+  onUnassignPages,           // (pageNumbers) => void
+  onResumeSequential,        // (group) => void — re-open group in sequential mode
+  seqWorkingGroupId          // currently-active group, for highlighting
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -45,7 +47,7 @@ export default function GroupingArea({
         <div style={{ position: 'relative' }}>
           <button onClick={() => setPickerOpen(o => !o)}
             style={{ padding: '5px 10px', backgroundColor: '#7c3aed', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600 }}>
-            + New group from index ▾
+            Foreman picker / resume ▾
           </button>
           {pickerOpen && (
             <div style={{
@@ -60,18 +62,31 @@ export default function GroupingArea({
               )}
               {indexEntries.map((e, i) => {
                 const used = e.ticket_number && usedTicketNumbers.has(String(e.ticket_number))
+                // When used, find the existing group so the admin can
+                // re-open it in sequential mode. When not used, create
+                // a new empty group from the entry.
+                const existingGroup = used
+                  ? groups.find(g => String(g.ticket_number) === String(e.ticket_number))
+                  : null
                 return (
                   <div key={i}
-                    onClick={() => { if (!used) { onCreateGroupFromIndex(e); setPickerOpen(false) } }}
+                    onClick={() => {
+                      if (used && existingGroup && onResumeSequential) {
+                        onResumeSequential(existingGroup)
+                      } else if (!used) {
+                        onCreateGroupFromIndex(e)
+                      }
+                      setPickerOpen(false)
+                    }}
                     style={{
-                      padding: '7px 10px', cursor: used ? 'not-allowed' : 'pointer',
-                      fontSize: 12, color: used ? '#9ca3af' : '#111827',
+                      padding: '7px 10px', cursor: 'pointer',
+                      fontSize: 12, color: '#111827',
                       borderBottom: '1px solid #f3f4f6',
-                      backgroundColor: used ? '#f9fafb' : 'white'
+                      backgroundColor: used ? '#f5f3ff' : 'white'
                     }}>
                     <strong>#{e.ticket_number || '?'}</strong> — {e.first_name} {e.last_name}
                     {e.role && <span style={{ color: '#7c3aed', marginLeft: 4 }}>({e.role})</span>}
-                    {used && <span style={{ marginLeft: 6, color: '#10b981' }}>✓ assigned</span>}
+                    {used && <span style={{ marginLeft: 6, color: '#7c3aed', fontWeight: 600 }}>↻ resume / edit</span>}
                   </div>
                 )
               })}
@@ -100,6 +115,8 @@ export default function GroupingArea({
           onRemoveGroup={onRemoveGroup}
           onDropOnSlot={onDropOnSlot}
           onUnassignPages={onUnassignPages}
+          onResumeSequential={onResumeSequential}
+          isActiveSeq={g.id === seqWorkingGroupId}
           handleDragOver={handleDragOver}
           readPayload={readPayload} />
       ))}
@@ -130,7 +147,7 @@ export default function GroupingArea({
   )
 }
 
-function GroupCard({ group, onUpdateGroupField, onRemoveGroup, onDropOnSlot, onUnassignPages, handleDragOver, readPayload }) {
+function GroupCard({ group, onUpdateGroupField, onRemoveGroup, onDropOnSlot, onUnassignPages, onResumeSequential, isActiveSeq, handleDragOver, readPayload }) {
   // Each chip can be picked up and dragged to another group's slot
   // (the receiving onDropOnSlot calls assignPagesToGroupSlot which
   // first calls removePagesFromAll, so a drag-between-groups is
@@ -185,10 +202,12 @@ function GroupCard({ group, onUpdateGroupField, onRemoveGroup, onDropOnSlot, onU
 
   return (
     <div style={{
-      border: '1px solid #e5e7eb', borderRadius: 6, padding: 10, marginBottom: 8,
-      backgroundColor: '#fafbfc'
+      border: isActiveSeq ? '2px solid #7c3aed' : '1px solid #e5e7eb',
+      borderRadius: 6, padding: 10, marginBottom: 8,
+      backgroundColor: isActiveSeq ? '#faf5ff' : '#fafbfc',
+      boxShadow: isActiveSeq ? '0 0 0 3px rgba(124,58,237,0.12)' : 'none'
     }}>
-      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8 }}>
+      <div style={{ display: 'flex', gap: 10, alignItems: 'center', marginBottom: 8, flexWrap: 'wrap' }}>
         <span style={{ fontSize: 11, color: '#6b7280' }}>Ticket #</span>
         <input value={group.ticket_number || ''} onChange={(e) => onUpdateGroupField(group.id, 'ticket_number', e.target.value)}
           placeholder="—"
@@ -205,6 +224,23 @@ function GroupCard({ group, onUpdateGroupField, onRemoveGroup, onDropOnSlot, onU
         <input type="date" value={group.date || ''} onChange={(e) => onUpdateGroupField(group.id, 'date', e.target.value)}
           style={{ padding: '3px 6px', border: '1px solid #d1d5db', borderRadius: 3, fontSize: 12 }} />
         <div style={{ flex: 1 }} />
+        {/* Resume sequential mode for this foreman — lets the admin
+            go BACK to fix a mistake (wrong LEM count, missed ticket
+            page, etc.) without losing the rest of the workspace.
+            Hidden while this group is already the active sequential
+            target; "Done with foreman" in the toolbar exits. */}
+        {onResumeSequential && !isActiveSeq && (
+          <button onClick={() => onResumeSequential(group)}
+            title="Re-open this foreman in sequential mode to fix a mistake"
+            style={{ padding: '3px 9px', backgroundColor: 'white', color: '#5b21b6', border: '1px solid #c4b5fd', borderRadius: 3, cursor: 'pointer', fontSize: 11, fontWeight: 600 }}>
+            ↻ Resume / edit
+          </button>
+        )}
+        {isActiveSeq && (
+          <span style={{ padding: '3px 9px', backgroundColor: '#7c3aed', color: 'white', borderRadius: 3, fontSize: 11, fontWeight: 600 }}>
+            ⚡ Editing now
+          </span>
+        )}
         <button onClick={() => onRemoveGroup(group.id)}
           style={{ padding: '3px 9px', backgroundColor: 'transparent', color: '#dc3545', border: '1px solid #dc3545', borderRadius: 3, cursor: 'pointer', fontSize: 11 }}>
           ✕ Remove group

@@ -503,6 +503,27 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
     scrollToNextUngrouped()
   }
 
+  /**
+   * Re-open an already-built group in sequential mode so the admin can
+   * fix a mistake on a previous foreman without losing the rest of the
+   * workspace. Step always starts at 'lem' — the admin can skip
+   * forward to 'ticket' if needed. Existing pages stay assigned;
+   * "Assign" appends rather than replaces, "Skip this step" advances,
+   * "Done" exits.
+   */
+  const resumeSequentialFor = (group) => {
+    if (!group) return
+    setSeqWorkingGroupId(group.id)
+    setSeqStep('lem')
+    const firstPage = (group.lemPages?.[0] || group.ticketPages?.[0] || group.otherPages?.[0])
+    if (firstPage) {
+      requestAnimationFrame(() => {
+        const el = document.getElementById(`page-thumb-${firstPage}`)
+        el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+      })
+    }
+  }
+
   const sequentialStep = ({ pageCount }) => {
     if (!seqWorkingGroupId) return
     const targetPages = (pageCount > 0)
@@ -741,6 +762,8 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
                 onDropOnNewGroup={handleDropOnNewGroup}
                 onDropOnSkip={handleDropOnSkip}
                 onUnassignPages={unassignPagesUndoable}
+                onResumeSequential={resumeSequentialFor}
+                seqWorkingGroupId={seqWorkingGroupId}
               />
 
               {groups.length > 0 && (
