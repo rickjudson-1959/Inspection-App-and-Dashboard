@@ -12,16 +12,38 @@ async function ensurePdfJs() {
   window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
 }
 
-export default function PdfViewer({ url, zoom = 1 }) {
-  const [totalPages, setTotalPages] = useState(0)
-  const [currentPage, setCurrentPage] = useState(1)
+/**
+ * PdfViewer
+ *   url       — public URL of the PDF
+ *   zoom      — scale multiplier
+ *   pageList  — OPTIONAL. When provided, navigation is constrained to
+ *               just these page numbers. Used by the bulk-upload flow
+ *               where many reconciliation_documents rows share one
+ *               source PDF but each row only "owns" a specific page
+ *               slice (source_pages on reconciliation_documents). The
+ *               default (null) walks every page of the PDF.
+ */
+export default function PdfViewer({ url, zoom = 1, pageList = null }) {
+  const [allPagesTotal, setAllPagesTotal] = useState(0)
+  const [pageIndex, setPageIndex] = useState(0)  // index into effectivePageList
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const canvasRef = useRef(null)
   const pdfRef = useRef(null)
 
+  // Sanitise pageList: drop falsy / non-numeric / duplicates / out-of-range
+  // (out-of-range needs allPagesTotal so we recompute after load).
+  const effectivePageList = (pageList && pageList.length > 0)
+    ? Array.from(new Set(pageList.map(n => parseInt(n, 10)).filter(Number.isFinite)))
+        .sort((a, b) => a - b)
+    : null
+  const visibleTotal = effectivePageList ? effectivePageList.length : allPagesTotal
+  const currentPdfPage = effectivePageList
+    ? effectivePageList[Math.max(0, Math.min(pageIndex, effectivePageList.length - 1))]
+    : (pageIndex + 1)
+
   const renderPage = useCallback(async (pageNum) => {
-    if (!pdfRef.current || !canvasRef.current) return
+    if (!pdfRef.current || !canvasRef.current || !pageNum) return
     try {
       const page = await pdfRef.current.getPage(pageNum)
       const viewport = page.getViewport({ scale: 1.5 * zoom })
@@ -35,7 +57,9 @@ export default function PdfViewer({ url, zoom = 1 }) {
     }
   }, [zoom])
 
-  // Load PDF when URL changes
+  // Load PDF when URL changes. Reset pageIndex so the viewer starts
+  // on the first page of the constrained list (or page 1 if no
+  // constraint).
   useEffect(() => {
     let cancelled = false
     async function load() {
@@ -46,9 +70,8 @@ export default function PdfViewer({ url, zoom = 1 }) {
         const pdf = await window.pdfjsLib.getDocument(url).promise
         if (cancelled) return
         pdfRef.current = pdf
-        setTotalPages(pdf.numPages)
-        setCurrentPage(1)
-        // Don't render here — canvas isn't mounted yet while loading=true
+        setAllPagesTotal(pdf.numPages)
+        setPageIndex(0)
       } catch (err) {
         if (!cancelled) setError('Failed to load PDF: ' + err.message)
       }
@@ -58,13 +81,16 @@ export default function PdfViewer({ url, zoom = 1 }) {
     return () => { cancelled = true }
   }, [url])
 
-  // Render page whenever currentPage, zoom, or loading changes
-  // This ensures the first page renders after loading=false exposes the canvas
+  // Also reset when pageList changes (different row, same source PDF)
+  // so the viewer doesn't get stuck on a stale index.
+  useEffect(() => { setPageIndex(0) }, [pageList])
+
+  // Render whenever the effective page changes
   useEffect(() => {
-    if (!loading && pdfRef.current && currentPage > 0) {
-      renderPage(currentPage)
+    if (!loading && pdfRef.current && currentPdfPage > 0) {
+      renderPage(currentPdfPage)
     }
-  }, [currentPage, zoom, loading, renderPage])
+  }, [currentPdfPage, zoom, loading, renderPage])
 
   if (error) return <div style={{ padding: 20, color: '#dc2626', fontSize: 13 }}>{error}</div>
   if (loading) return <div style={{ padding: 20, color: '#6b7280', fontSize: 13, textAlign: 'center' }}>Loading PDF...</div>
@@ -74,13 +100,20 @@ export default function PdfViewer({ url, zoom = 1 }) {
       <div style={{ flex: 1, overflow: 'auto', display: 'flex', justifyContent: 'center', padding: 4 }}>
         <canvas ref={canvasRef} style={{ maxWidth: '100%', height: 'auto' }} />
       </div>
-      {totalPages > 1 && (
+      {visibleTotal > 1 && (
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '6px 0', borderTop: '1px solid #e5e7eb', fontSize: 12 }}>
-          <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage <= 1}
-            style={{ padding: '2px 8px', border: '1px solid #d1d5db', borderRadius: 3, cursor: currentPage > 1 ? 'pointer' : 'not-allowed', backgroundColor: 'white' }}>&#9664;</button>
-          <span style={{ color: '#6b7280' }}>Page {currentPage} of {totalPages}</span>
-          <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage >= totalPages}
-            style={{ padding: '2px 8px', border: '1px solid #d1d5db', borderRadius: 3, cursor: currentPage < totalPages ? 'pointer' : 'not-allowed', backgroundColor: 'white' }}>&#9654;</button>
+          <button onClick={() => setPageIndex(p => Math.max(0, p - 1))} disabled={pageIndex <= 0}
+            style={{ padding: '2px 8px', border: '1px solid #d1d5db', borderRadius: 3, cursor: pageIndex > 0 ? 'pointer' : 'not-allowed', backgroundColor: 'white' }}>&#9664;</button>
+          <span style={{ color: '#6b7280' }}>
+            Page {pageIndex + 1} of {visibleTotal}
+            {effectivePageList && (
+              <span style={{ marginLeft: 6, color: '#9ca3af' }}>
+                (source #{currentPdfPage} of {allPagesTotal})
+              </span>
+            )}
+          </span>
+          <button onClick={() => setPageIndex(p => Math.min(visibleTotal - 1, p + 1))} disabled={pageIndex >= visibleTotal - 1}
+            style={{ padding: '2px 8px', border: '1px solid #d1d5db', borderRadius: 3, cursor: pageIndex < visibleTotal - 1 ? 'pointer' : 'not-allowed', backgroundColor: 'white' }}>&#9654;</button>
         </div>
       )}
     </div>

@@ -157,7 +157,12 @@ export default function DocumentPanel({
     }
 
     if (isPdf) {
-      return <PdfViewer url={currentUrl} zoom={zoom} />
+      // For bulk-uploaded documents, source_pages constrains the
+      // viewer to just this row's pages within the shared source
+      // PDF — otherwise both the LEM and Ticket panels would
+      // display the source PDF's page 1 (the index page) for
+      // every ticket.
+      return <PdfViewer url={currentUrl} zoom={zoom} pageList={document?.source_pages || null} />
     }
 
     return (
