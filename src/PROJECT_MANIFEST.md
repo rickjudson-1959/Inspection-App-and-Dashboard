@@ -658,6 +658,141 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### Bulk Upload — Full Rebuild: Human-in-the-Loop Workspace (May 13, 2026 — fourth pass)
+
+Three iterations of fully-automatic OCR classification on the 130-page
+CLX-2 Jan 21 package returned 0% match rate. Scanned 2014 documents
+with handwritten ticket numbers, faded scans, and inconsistent
+layouts are not a problem AI vision should be expected to solve at
+scale. Replaced the entire approach with a **human-in-the-loop
+workspace**: every page renders as a thumbnail, OCR suggests metadata
+in the background, and the admin sorts pages into groups via drag-
+and-drop with one-click sequential assignment from the index.
+
+**Old code deleted:**
+```
+src/components/Reconciliation/BulkUploadModal.jsx       (deleted)
+src/utils/bulkUploadProcessor.js                        (replaced)
+```
+
+**New code:**
+```
+src/components/Reconciliation/BulkUploadWorkspace.jsx
+src/components/Reconciliation/bulkUpload/
+    ThumbnailGrid.jsx
+    PageLightbox.jsx
+    IndexReview.jsx
+    GroupingArea.jsx
+    QuickAssignToolbar.jsx
+    ProcessingProgress.jsx
+src/utils/bulkUploadProcessor.js                        (rewritten)
+```
+
+**Workflow (full-screen modal launched from the Reconciliation tab):**
+
+1. **Pick a PDF.** The system renders every page to a JPEG and shows
+   them as a scrolling thumbnail grid (~140 px wide; readable enough
+   that the admin can tell a LEM from a daily ticket without
+   clicking).
+2. **Page 1 auto-detection.** A single OCR call asks "is this an
+   index?". If yes and the table has ≥3 valid foreman entries, an
+   editable **IndexReview** panel opens above the grid. Admin fixes
+   any OCR errors, deletes garbage rows, adds missing entries, and
+   clicks **Use as reference**. Page 1 is auto-routed to Skip.
+3. **(Optional) Background OCR suggestions.** Clicking **▶ Start OCR
+   suggestions** runs a minimal prompt on every page — `doc_type`
+   (lem / daily_ticket / signature / summary / index / unknown),
+   `field_log_id` (PRINTED only, not handwritten), `foreman_name`
+   (PRINTED only), `date`. Results appear as coloured badges on each
+   thumbnail (`LEM` / `TKT` / `SIG` / `SUM` / `IDX` / `?`) with the
+   foreman / `#field_log_id` text below. The admin can work ahead of
+   the OCR or wait for it; both are fine.
+4. **Sort into groups** via three mechanisms:
+   - **Sequential assign** (fastest). Toolbar shows the next unused
+     index entry plus a stepper for page count and a slot picker
+     (LEM / Ticket / Other). Clicking **Assign →** creates the
+     group and assigns the next N ungrouped pages. For a 32-foreman
+     package this turns sorting into 32 clicks.
+   - **Drag and drop.** Drag a thumbnail (or shift-click multiple,
+     then drag any one) onto a group's LEM / Ticket / Other slot,
+     or onto **+ New group** to create a group seeded with those
+     pages, or onto **🗑 Skip** to discard.
+   - **+ New group from index ▾.** Dropdown picker showing every
+     index entry; click one to create an empty group with foreman /
+     ticket pre-filled, then drag pages in.
+5. **Bulk classify.** When pages are shift-selected, the toolbar
+   gains a row of one-click classify buttons (LEM / Daily Ticket /
+   Signature / Summary / Unknown / Skip) that apply to every
+   selected page.
+6. **Pre-confirmation summary.** Once at least one group exists, a
+   green panel appears showing complete groups (LEM + Ticket),
+   LEM-only, ticket-only, skipped pages, and remaining ungrouped
+   pages. **Process All Groups** kicks off the save.
+7. **Save.** For each group:
+   - Source PDF is uploaded once per bulk-upload to
+     `reconciliation-docs` storage.
+   - LEM pages → `reconciliation_documents` row with
+     `doc_type = 'contractor_lem'` and `source_pages = [n,...]`.
+   - Ticket pages → similar row with
+     `doc_type = 'contractor_ticket'`.
+   - Both present → `document_matches` row with
+     `match_method = 'manual'`, `match_confidence = 1.0`,
+     `status = 'confirmed'`.
+   - Each LEM row triggers the existing `extractLEMFromUrl` from
+     `lemParser.js` and upserts `contractor_lems` with structured
+     labour + equipment data. This is the same path the
+     single-doc upload uses, so the downstream four-panel
+     reconciliation works without changes.
+
+**Processor (`src/utils/bulkUploadProcessor.js`, rewritten):**
+```
+splitPdfToPages(file)        — pdf.js render to JPEGs
+classifyIndexPage(image)     — one-shot index detection (~$0.05/run)
+suggestPageMetadata(image)   — minimal background OCR (~$3-5 for 130
+                               pages — printed labels only, no
+                               handwriting hunting)
+saveBulkUploadGroups({...})  — uploads source, inserts
+                               reconciliation_documents, runs LEM
+                               extraction, writes document_matches
+createDiagnosticsRecorder    — kept; streams raw OCR JSON to
+                               localStorage so we can debug bad runs
+saveWorkspace / loadWorkspace / workspaceIdFor — localStorage
+                               persistence keyed by filename+size so
+                               a closed-then-reopened browser resumes
+                               grouping work without losing it
+```
+
+**Cost:** ~$5-8 per 130-page upload total — same as the previous
+automatic approach BUT with reliable results because the human
+verified every assignment. Admin can skip background OCR entirely
+("Skip OCR" by just not clicking the button) and rely on the index
++ sequential assign for ~$0.05 + a $2-3 LEM extraction pass at save
+time.
+
+**Drag and drop:** native HTML5 (`draggable={true}` +
+`dataTransfer.setData('application/json', ...)`); no `react-dnd`
+dependency added.
+
+**Diagnostics:** Every run still records its index OCR + per-page
+suggestion responses + confirmed groups + save summary to
+`localStorage` under `bulk_upload_diag_<bulkUploadId>`. The
+workspace header has a purple **⬇ Diagnostics** button that
+downloads the JSON file at any time.
+
+**Workspace persistence:** Saved to localStorage under
+`bulk_upload_workspace_<filename>__<filesize>`. On re-upload of the
+same file, the modal offers to resume the prior grouping state. Page
+images are NOT persisted (too large for localStorage); the file
+itself has to be re-uploaded but the sorting work survives.
+
+**No DB migrations.** Reuses the existing tables and columns:
+`reconciliation_documents` (with `bulk_upload_id`, `source_pages`,
+`crew_or_spread`, `ocr_confidence` from the May 11 migration),
+`document_matches` (May 11), `contractor_lems`. The
+`ticket_indices` table from earlier is unused by this rewrite (the
+index lives in component state only) but the table remains for any
+future "re-process old upload" admin tooling.
+
 ### Bulk Upload — Foreman-Name-Only Strategy, No Handwriting OCR (May 13, 2026 — second pass)
 
 Stopped trying to read handwritten ticket numbers off daily-ticket

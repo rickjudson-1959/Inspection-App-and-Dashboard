@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../supabase'
 import { useOrgQuery } from '../../utils/queryHelpers.js'
 import ReconciliationUpload from './ReconciliationUpload.jsx'
-import BulkUploadModal from './BulkUploadModal.jsx'
+import BulkUploadWorkspace from './BulkUploadWorkspace.jsx'
 
 const BRAND = {
   navy: '#003366',
@@ -334,8 +334,8 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
         </div>
       )}
 
-      {/* Bulk upload modal — single PDF auto-split + classify + match */}
-      <BulkUploadModal
+      {/* Bulk upload workspace — semi-automated PDF sort + group + save */}
+      <BulkUploadWorkspace
         open={showBulkUpload}
         onClose={() => setShowBulkUpload(false)}
         onComplete={() => { loadPackages() }}
