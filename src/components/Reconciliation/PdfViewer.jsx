@@ -56,23 +56,30 @@ export default function PdfViewer({ url, zoom = 1, rotation = 0, pageList = null
       // Render at a high base scale so the canvas has plenty of
       // pixels for the CSS-downsampled display to look sharp. The
       // old base of 1.5× rendered an 8.5×11 page at ~900×1188 px;
-      // when the panel CSS-scaled that to fit a 1200 px column
-      // browsers were UPSAMPLING, producing the fuzzy result Rick
-      // saw on ticket 18284. At 3× we get ~1836×2376 px which the
-      // panel comfortably downsamples to crisp output on both
-      // standard and Retina displays.
+      // when the panel CSS-scaled that to fit a 1200 px column the
+      // browser was UPSAMPLING, producing the fuzzy result Rick
+      // saw on ticket 18284. At 3× × devicePixelRatio we get
+      // ~1836×2376 px (standard) / ~3672×4752 px (Retina) — the
+      // panel comfortably downsamples to a crisp image.
       const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
       const renderScale = Math.min(8, 3 * pixelRatio * zoom)
       const viewport = page.getViewport({ scale: renderScale, rotation: safeRotation })
       const canvas = canvasRef.current
+      // Set the BUFFER (intrinsic) dimensions for hi-DPI rendering.
+      // CSS sizing is left to the JSX style `maxWidth: 100%; height:
+      // auto;` — the browser uses the canvas's intrinsic ratio for
+      // height computation, so the displayed image keeps its aspect
+      // regardless of panel width. Explicitly setting style.width
+      // here (which the previous version did) caused some pages to
+      // stretch because the explicit width + maxWidth + height:auto
+      // combination misbehaved across browsers when the cap kicked in.
       canvas.width = viewport.width
       canvas.height = viewport.height
-      // Cap CSS width so the canvas downsamples to the panel size
-      // instead of overflowing horizontally. Height auto-scales to
-      // preserve aspect ratio.
-      canvas.style.width = (viewport.width / pixelRatio) + 'px'
-      canvas.style.height = 'auto'
-      canvas.style.maxWidth = '100%'
+      // Use the aspect-ratio CSS property as a defensive belt — when
+      // max-width caps the displayed width, the browser uses this
+      // ratio to compute height even if intrinsic-ratio resolution
+      // falters.
+      canvas.style.aspectRatio = `${viewport.width} / ${viewport.height}`
       const ctx = canvas.getContext('2d')
       await page.render({ canvasContext: ctx, viewport }).promise
     } catch (err) {
