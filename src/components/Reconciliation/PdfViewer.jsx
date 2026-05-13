@@ -45,6 +45,13 @@ export default function PdfViewer({ url, zoom = 1, rotation = 0, pageList = null
   const containerRef = useRef(null)
   const canvasRef = useRef(null)
   const pdfRef = useRef(null)
+  // Track the in-flight pdf.js render so we can cancel it before
+  // starting a new one. Without this, rapid state changes (panel
+  // resize, page nav, rotation toggle) cause overlapping
+  // page.render() calls on the same canvas — pdf.js throws
+  // "Cannot use the same canvas during multiple render() operations"
+  // and the canvas ends up blank.
+  const currentRenderTask = useRef(null)
 
   const effectivePageList = (pageList && pageList.length > 0)
     ? Array.from(new Set(pageList.map(n => parseInt(n, 10)).filter(Number.isFinite)))
@@ -76,6 +83,17 @@ export default function PdfViewer({ url, zoom = 1, rotation = 0, pageList = null
 
   const renderPage = useCallback(async (pageNum) => {
     if (!pdfRef.current || !canvasRef.current || !pageNum || !containerWidth) return
+
+    // CANCEL any in-flight render before starting a new one. Without
+    // this, rapid prop / state churn (panel resize, currentPage
+    // change, rotation toggle) overlaps render() calls on the same
+    // canvas — pdf.js throws "Cannot use the same canvas during
+    // multiple render() operations" and the canvas goes blank.
+    if (currentRenderTask.current) {
+      try { currentRenderTask.current.cancel() } catch (_) { /* idempotent */ }
+      currentRenderTask.current = null
+    }
+
     try {
       const page = await pdfRef.current.getPage(pageNum)
       const safeRotation = ((rotation % 360) + 360) % 360
@@ -90,33 +108,34 @@ export default function PdfViewer({ url, zoom = 1, rotation = 0, pageList = null
 
       const viewport = page.getViewport({ scale: renderScale, rotation: safeRotation })
       const canvas = canvasRef.current
-      // Setting canvas.width clears the buffer — do it BEFORE the
-      // render call, never during normal operation.
       canvas.width = viewport.width
       canvas.height = viewport.height
 
-      // Compute the canvas's CSS layout size (unzoomed). The
-      // placeholder wrapper below uses this × zoom for scrolling;
-      // CSS transform on the canvas scales the visual to match.
       const cssWidth = containerWidth
       const cssHeight = cssWidth * (viewport.height / viewport.width)
       canvas.style.width = cssWidth + 'px'
       canvas.style.height = cssHeight + 'px'
       canvas.style.transformOrigin = 'top left'
-      // Zoom transform is applied by the cheap effect below; set it
-      // here too so the initial render reflects the current zoom.
       canvas.style.transform = `scale(${zoom})`
       setCanvasDims({ cssWidth, cssHeight })
 
       const ctx = canvas.getContext('2d')
-      await page.render({ canvasContext: ctx, viewport }).promise
+      const task = page.render({ canvasContext: ctx, viewport })
+      currentRenderTask.current = task
+      try {
+        await task.promise
+      } finally {
+        // Clear the ref only if this task is still the current one
+        // (another render may have started while we awaited).
+        if (currentRenderTask.current === task) currentRenderTask.current = null
+      }
     } catch (err) {
-      console.error('PDF render error:', err)
+      // pdf.js raises a RenderingCancelledException when we cancel
+      // an in-flight task; that's not an error condition, swallow.
+      if (err?.name !== 'RenderingCancelledException') {
+        console.error('PDF render error:', err)
+      }
     }
-    // zoom intentionally NOT in deps — see the cheap CSS-only
-    // zoom effect below. Including it here was the source of the
-    // "image disappears on zoom +" bug: a zoom change cleared the
-    // canvas buffer mid-display.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rotation, containerWidth])
 
@@ -149,6 +168,17 @@ export default function PdfViewer({ url, zoom = 1, rotation = 0, pageList = null
       renderPage(currentPdfPage)
     }
   }, [currentPdfPage, rotation, loading, containerWidth, renderPage])
+
+  // Cancel any in-flight render on unmount so we don't leak a
+  // pdf.js task or write to a stale canvas after React removes it.
+  useEffect(() => {
+    return () => {
+      if (currentRenderTask.current) {
+        try { currentRenderTask.current.cancel() } catch (_) { /* ignore */ }
+        currentRenderTask.current = null
+      }
+    }
+  }, [])
 
   // Cheap: zoom is a CSS transform on the already-rasterised canvas.
   // No pdf.js call, no buffer reallocation, can't clear the canvas.
