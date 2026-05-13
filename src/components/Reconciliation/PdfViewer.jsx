@@ -52,10 +52,27 @@ export default function PdfViewer({ url, zoom = 1, rotation = 0, pageList = null
       // Normalise rotation to one of 0/90/180/270; pdf.js silently
       // ignores invalid values but we'd rather not surprise it.
       const safeRotation = ((rotation % 360) + 360) % 360
-      const viewport = page.getViewport({ scale: 1.5 * zoom, rotation: safeRotation })
+
+      // Render at a high base scale so the canvas has plenty of
+      // pixels for the CSS-downsampled display to look sharp. The
+      // old base of 1.5× rendered an 8.5×11 page at ~900×1188 px;
+      // when the panel CSS-scaled that to fit a 1200 px column
+      // browsers were UPSAMPLING, producing the fuzzy result Rick
+      // saw on ticket 18284. At 3× we get ~1836×2376 px which the
+      // panel comfortably downsamples to crisp output on both
+      // standard and Retina displays.
+      const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
+      const renderScale = Math.min(8, 3 * pixelRatio * zoom)
+      const viewport = page.getViewport({ scale: renderScale, rotation: safeRotation })
       const canvas = canvasRef.current
       canvas.width = viewport.width
       canvas.height = viewport.height
+      // Cap CSS width so the canvas downsamples to the panel size
+      // instead of overflowing horizontally. Height auto-scales to
+      // preserve aspect ratio.
+      canvas.style.width = (viewport.width / pixelRatio) + 'px'
+      canvas.style.height = 'auto'
+      canvas.style.maxWidth = '100%'
       const ctx = canvas.getContext('2d')
       await page.render({ canvasContext: ctx, viewport }).promise
     } catch (err) {

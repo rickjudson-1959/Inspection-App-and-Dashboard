@@ -803,7 +803,7 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
               )}
 
               {lightboxPage && (
-                <PageLightbox page={lightboxPage} onClose={() => setLightboxPage(null)} />
+                <PageLightbox page={lightboxPage} sourceFile={packageFile} onClose={() => setLightboxPage(null)} />
               )}
             </>
           )}
