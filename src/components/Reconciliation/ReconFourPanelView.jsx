@@ -49,9 +49,14 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
     setLoading(true)
 
     // --- Source 1: Uploaded contractor documents ---
+    // ORDER BY created_at DESC so the most recent upload wins when
+    // multiple rows exist for the same ticket (re-uploads, old test
+    // runs, etc.). Without this, .find() below picks an arbitrary
+    // match and the panel can end up showing a stale row.
     let dq = supabase.from('reconciliation_documents')
       .select('*')
       .eq('ticket_number', ticketNumber)
+      .order('created_at', { ascending: false })
     dq = addOrgFilter(dq, true)
     const { data: docs } = await dq
     setUploadedDocs(docs || [])
@@ -203,14 +208,34 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
     setLoading(false)
   }
 
-  // Organize uploaded docs by type
-  const panels = {
-    lem: uploadedDocs.find(d => d.doc_type === 'contractor_lem') || null,
-    ticket: uploadedDocs.find(d => d.doc_type === 'contractor_ticket') || null,
+  // Organize uploaded docs by type.
+  //
+  // PREFERENCE ORDER per slot:
+  //   1. New-format bulk uploads — file_urls is a list of per-page
+  //      JPEGs (multiple URLs, none ending in .pdf). Each row
+  //      contains ONLY the pages assigned to it during bulk-upload
+  //      sorting, so the panel shows just this ticket's pages.
+  //   2. Legacy single-doc uploads — file_urls is one URL, an image
+  //      OR a single-document PDF (the row IS the whole document).
+  //   3. Legacy bulk uploads — file_urls is [sourcePdfUrl] (a PDF),
+  //      containing every page of the shared bulk upload. The
+  //      iframe shows the whole PDF; not great, but kept as a
+  //      visible fallback until the admin re-bulk-uploads.
+  //
+  // Within a preference tier, the query above sorts by created_at
+  // DESC so the newest matching row wins.
+  const isJpegRow = (d) => Array.isArray(d?.file_urls)
+    && d.file_urls.length > 0
+    && d.file_urls.every(u => typeof u === 'string' && !u.split('?')[0].toLowerCase().endsWith('.pdf'))
+  const pickPanelDoc = (docType) => {
+    const matches = uploadedDocs.filter(d => d.doc_type === docType)
+    if (matches.length === 0) return null
+    return matches.find(isJpegRow) || matches[0]
   }
-  // (debug console.log lines removed — every state setter in
-  // loadAllData was re-running these on each re-render, producing
-  // the 15+ noisy lines that masked real errors.)
+  const panels = {
+    lem: pickPanelDoc('contractor_lem'),
+    ticket: pickPanelDoc('contractor_ticket'),
+  }
 
   // Build photo panel data (auto-linked, not uploaded)
   const photoPanel = ticketPhotoUrls.length > 0
