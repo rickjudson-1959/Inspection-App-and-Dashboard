@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react'
 import ImageViewer from './ImageViewer'
 import PdfViewer from './PdfViewer'
+import OriginalPagesLightbox from './OriginalPagesLightbox'
 import InspectorReportPanel from './InspectorReportPanel'
 
 /**
@@ -58,6 +59,7 @@ export default function DocumentPanel({
   const [currentPage, setCurrentPage] = useState(0)
   const [zoom, setZoom] = useState(1)
   const [rotation, setRotation] = useState(defaultRotation)
+  const [originalLightboxOpen, setOriginalLightboxOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
   const fileUrls = useMemo(() => (document?.file_urls || []).filter(Boolean), [document])
@@ -82,24 +84,23 @@ export default function DocumentPanel({
     a.click()
   }
 
-  // Open the original uploaded PDF in a new browser tab at the
-  // first source page (for bulk-uploaded docs that share one PDF
-  // across many reconciliation rows). The native browser PDF
-  // viewer renders at full quality — guaranteed-readable
-  // fallback regardless of how the in-app canvas viewer turns out.
+  // Open just THIS row's pages at print resolution. For
+  // bulk-uploaded docs the row's source_pages is a slice of a
+  // shared 130-page source PDF — we render only those specific
+  // pages in an in-app lightbox so the admin never sees the
+  // unrelated pages. For single-doc uploads (no source_pages),
+  // file_urls[0] IS the entire document for this row, so we open
+  // it in a new tab with the browser's native PDF viewer.
+  const hasPageSlice = Array.isArray(document?.source_pages)
+                       && document.source_pages.length > 0
+                       && isPdf
   const handleOpenOriginal = () => {
     if (!currentUrl) return
-    let url = currentUrl
-    const sourcePages = document?.source_pages
-    if (Array.isArray(sourcePages) && sourcePages.length > 0) {
-      const firstPage = sourcePages[0]
-      if (Number.isFinite(firstPage)) {
-        // Standard PDF URL fragment honoured by Chrome / Edge /
-        // Firefox / Safari's built-in PDF viewers.
-        url = `${currentUrl}#page=${firstPage}`
-      }
+    if (hasPageSlice) {
+      setOriginalLightboxOpen(true)
+    } else {
+      window.open(currentUrl, '_blank', 'noopener,noreferrer')
     }
-    window.open(url, '_blank', 'noopener,noreferrer')
   }
 
   const hasContent = panelType === 'report' ? !!reportData : totalPages > 0
@@ -286,6 +287,19 @@ export default function DocumentPanel({
 
       {/* Page navigation */}
       {renderPageNav(color)}
+
+      {/* "Open at print resolution" lightbox — renders ONLY this
+          row's source_pages from the bulk PDF, not the whole 130
+          pages. */}
+      {originalLightboxOpen && hasPageSlice && (
+        <OriginalPagesLightbox
+          url={currentUrl}
+          pageNumbers={document.source_pages}
+          title={`${title}${document?.ticket_number ? ' — Ticket #' + document.ticket_number : ''}`}
+          defaultRotation={defaultRotation}
+          onClose={() => setOriginalLightboxOpen(false)}
+        />
+      )}
     </div>
   )
 }
