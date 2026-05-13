@@ -16,6 +16,9 @@ async function ensurePdfJs() {
  * PdfViewer
  *   url       — public URL of the PDF
  *   zoom      — scale multiplier
+ *   rotation  — degrees, must be 0|90|180|270. Passed to pdf.js
+ *               getViewport so the canvas comes out pre-rotated;
+ *               the dimensions auto-swap when rotation is 90 or 270.
  *   pageList  — OPTIONAL. When provided, navigation is constrained to
  *               just these page numbers. Used by the bulk-upload flow
  *               where many reconciliation_documents rows share one
@@ -23,7 +26,7 @@ async function ensurePdfJs() {
  *               slice (source_pages on reconciliation_documents). The
  *               default (null) walks every page of the PDF.
  */
-export default function PdfViewer({ url, zoom = 1, pageList = null }) {
+export default function PdfViewer({ url, zoom = 1, rotation = 0, pageList = null }) {
   const [allPagesTotal, setAllPagesTotal] = useState(0)
   const [pageIndex, setPageIndex] = useState(0)  // index into effectivePageList
   const [loading, setLoading] = useState(true)
@@ -46,7 +49,10 @@ export default function PdfViewer({ url, zoom = 1, pageList = null }) {
     if (!pdfRef.current || !canvasRef.current || !pageNum) return
     try {
       const page = await pdfRef.current.getPage(pageNum)
-      const viewport = page.getViewport({ scale: 1.5 * zoom })
+      // Normalise rotation to one of 0/90/180/270; pdf.js silently
+      // ignores invalid values but we'd rather not surprise it.
+      const safeRotation = ((rotation % 360) + 360) % 360
+      const viewport = page.getViewport({ scale: 1.5 * zoom, rotation: safeRotation })
       const canvas = canvasRef.current
       canvas.width = viewport.width
       canvas.height = viewport.height
@@ -55,7 +61,7 @@ export default function PdfViewer({ url, zoom = 1, pageList = null }) {
     } catch (err) {
       console.error('PDF render error:', err)
     }
-  }, [zoom])
+  }, [zoom, rotation])
 
   // Load PDF when URL changes. Reset pageIndex so the viewer starts
   // on the first page of the constrained list (or page 1 if no
@@ -85,12 +91,12 @@ export default function PdfViewer({ url, zoom = 1, pageList = null }) {
   // so the viewer doesn't get stuck on a stale index.
   useEffect(() => { setPageIndex(0) }, [pageList])
 
-  // Render whenever the effective page changes
+  // Render whenever the effective page, zoom, or rotation changes.
   useEffect(() => {
     if (!loading && pdfRef.current && currentPdfPage > 0) {
       renderPage(currentPdfPage)
     }
-  }, [currentPdfPage, zoom, loading, renderPage])
+  }, [currentPdfPage, zoom, rotation, loading, renderPage])
 
   if (error) return <div style={{ padding: 20, color: '#dc2626', fontSize: 13 }}>{error}</div>
   if (loading) return <div style={{ padding: 20, color: '#6b7280', fontSize: 13, textAlign: 'center' }}>Loading PDF...</div>

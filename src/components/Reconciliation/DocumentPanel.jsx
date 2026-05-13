@@ -50,10 +50,14 @@ export default function DocumentPanel({
   hasLemPdf,
   lemPdfUrls,
   onLemExtracted,
+  defaultRotation = 0,         // 0|90|180|270 — initial PDF / image
+                               // rotation. Used by the four-panel
+                               // viewer to display LEM + Ticket
+                               // scans landscape by default.
 }) {
   const [currentPage, setCurrentPage] = useState(0)
   const [zoom, setZoom] = useState(1)
-  const [rotation, setRotation] = useState(0)
+  const [rotation, setRotation] = useState(defaultRotation)
   const [expanded, setExpanded] = useState(false)
 
   const fileUrls = useMemo(() => (document?.file_urls || []).filter(Boolean), [document])
@@ -94,9 +98,7 @@ export default function DocumentPanel({
             <button onClick={() => setZoom(z => Math.min(5, z + 0.3))} title="Zoom in" style={btnBase}>+</button>
             <button onClick={() => setZoom(z => Math.max(0.5, z - 0.3))} title="Zoom out" style={btnBase}>-</button>
             <button onClick={() => setZoom(1)} title="Reset zoom" style={{ ...btnBase, fontSize: '10px' }}>1:1</button>
-            {!isPdf && (
-              <button onClick={() => setRotation(r => (r + 90) % 360)} title="Rotate 90°" style={btnBase}>&#x21BB;</button>
-            )}
+            <button onClick={() => setRotation(r => (r + 90) % 360)} title="Rotate 90°" style={btnBase}>&#x21BB;</button>
             <button onClick={handleDownload} title="Download original" style={btnBase}>&#x2913;</button>
           </>
         )}
@@ -161,8 +163,9 @@ export default function DocumentPanel({
       // viewer to just this row's pages within the shared source
       // PDF — otherwise both the LEM and Ticket panels would
       // display the source PDF's page 1 (the index page) for
-      // every ticket.
-      return <PdfViewer url={currentUrl} zoom={zoom} pageList={document?.source_pages || null} />
+      // every ticket. rotation lets the panel render landscape
+      // scans without forcing the admin to tilt their head.
+      return <PdfViewer url={currentUrl} zoom={zoom} rotation={rotation} pageList={document?.source_pages || null} />
     }
 
     return (
