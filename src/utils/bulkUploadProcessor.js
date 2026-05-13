@@ -256,16 +256,12 @@ export async function saveBulkUploadGroups({
     if (p?.pageNumber != null) pageImageByNumber.set(p.pageNumber, p.imageBase64)
   }
 
-  // Load the source PDF once for re-rendering at high resolution.
-  // Each group's assigned pages get rasterised to JPEG and uploaded
-  // as image files — file_urls then references JPEGs, not a PDF.
-  // This eliminates pdf.js canvas rendering on the reconciliation
-  // panel side (where the "image disappears on zoom" bug lived) —
-  // the panel just shows <img> tags.
-  onProgress?.('Loading source PDF for re-rendering...', 0, 1)
-  await ensurePdfJsForProcessor()
-  const sourceArrayBuffer = await sourceFile.arrayBuffer()
-  const pdfDoc = await window.pdfjsLib.getDocument({ data: sourceArrayBuffer }).promise
+  // file_urls now references one JPEG per page (uploaded straight
+  // from the in-memory base64 already rendered during the bulk-upload
+  // split step). No pdf.js on the reconciliation panel side — just
+  // <img> tags. No re-rendering at save time either: the workspace
+  // already has the page images, we just convert base64 -> Blob and
+  // upload.
 
   const inserted = { lems: new Map(), tickets: new Map() } // groupId -> row id
 
@@ -280,8 +276,8 @@ export async function saveBulkUploadGroups({
     const ticketPages = (g.ticketPages || []).slice().sort((a, b) => a - b)
 
     if (lemAllPages.length > 0) {
-      onProgress?.(`Rendering ${lemAllPages.length} LEM page${lemAllPages.length === 1 ? '' : 's'} for ${g.foreman_name || 'unknown'} #${ticketLabel}…`, i + 1, total)
-      const lemUrls = await renderPagesToJpegUrls(pdfDoc, lemAllPages, { orgId, bulkUploadId, groupId: g.id, kind: 'lem' })
+      onProgress?.(`Uploading ${lemAllPages.length} LEM page${lemAllPages.length === 1 ? '' : 's'} for ${g.foreman_name || 'unknown'} #${ticketLabel}…`, i + 1, total)
+      const lemUrls = await uploadPagesAsJpegs(lemAllPages, pageImageByNumber, { orgId, bulkUploadId, groupId: g.id, kind: 'lem' })
       const lemId = await insertGroupRow({
         orgId, uploadedBy, bulkUploadId,
         docType: 'contractor_lem',
@@ -292,8 +288,8 @@ export async function saveBulkUploadGroups({
       inserted.lems.set(g.id, { id: lemId, ticket_number: ticketNumberForRow(g), foreman: g.foreman_name })
     }
     if (ticketPages.length > 0) {
-      onProgress?.(`Rendering ${ticketPages.length} ticket page${ticketPages.length === 1 ? '' : 's'} for ${g.foreman_name || 'unknown'} #${ticketLabel}…`, i + 1, total)
-      const ticketUrls = await renderPagesToJpegUrls(pdfDoc, ticketPages, { orgId, bulkUploadId, groupId: g.id, kind: 'ticket' })
+      onProgress?.(`Uploading ${ticketPages.length} ticket page${ticketPages.length === 1 ? '' : 's'} for ${g.foreman_name || 'unknown'} #${ticketLabel}…`, i + 1, total)
+      const ticketUrls = await uploadPagesAsJpegs(ticketPages, pageImageByNumber, { orgId, bulkUploadId, groupId: g.id, kind: 'ticket' })
       const tktId = await insertGroupRow({
         orgId, uploadedBy, bulkUploadId,
         docType: 'contractor_ticket',
@@ -361,37 +357,38 @@ export async function saveBulkUploadGroups({
 
 // ── DB / Storage helpers ───────────────────────────────────────────────────
 
-async function ensurePdfJsForProcessor() {
-  if (window.pdfjsLib) return
-  await new Promise((resolve, reject) => {
-    const script = document.createElement('script')
-    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
-    script.onload = resolve
-    script.onerror = () => reject(new Error('Failed to load PDF.js'))
-    document.head.appendChild(script)
-  })
-  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
+/**
+ * Take a base64 JPEG string and convert to a Blob — cheap, no
+ * canvas allocation. Used to ship the workspace's in-memory page
+ * images straight to Storage.
+ */
+function base64JpegToBlob(base64) {
+  const byteString = atob(base64)
+  const bytes = new Uint8Array(byteString.length)
+  for (let i = 0; i < byteString.length; i++) bytes[i] = byteString.charCodeAt(i)
+  return new Blob([bytes], { type: 'image/jpeg' })
 }
 
 /**
- * Render a list of PDF pages to JPEGs at scale 3 (~216 DPI) and
- * upload each to Storage. Returns the public URLs in the same order
- * as pageNumbers. Scale 3 keeps file size manageable (~400-600 KB
- * per page) while producing sharp text for the in-panel viewer.
+ * Upload the workspace's in-memory page images (one JPEG per page,
+ * already rendered by pdfToImages during the split step) to
+ * reconciliation-docs storage. Returns the public URLs in pageNumbers
+ * order so reconciliation_documents.file_urls = [page1.jpg, page2.jpg]
+ * with the same ordering as source_pages.
+ *
+ * NO pdf.js, NO canvas, NO re-rendering. The base64 is already in
+ * memory from the bulk-upload split step.
  */
-async function renderPagesToJpegUrls(pdfDoc, pageNumbers, ctx) {
+async function uploadPagesAsJpegs(pageNumbers, pageImageByNumber, ctx) {
   const { orgId, bulkUploadId, groupId, kind } = ctx
   const urls = []
   for (const pageNumber of pageNumbers) {
-    const page = await pdfDoc.getPage(pageNumber)
-    const viewport = page.getViewport({ scale: 3 })
-    const canvas = document.createElement('canvas')
-    canvas.width = viewport.width
-    canvas.height = viewport.height
-    const renderCtx = canvas.getContext('2d')
-    await page.render({ canvasContext: renderCtx, viewport }).promise
-    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.88))
-    if (!blob) throw new Error(`canvas.toBlob returned null for page ${pageNumber}`)
+    const base64 = pageImageByNumber?.get(pageNumber)
+    if (!base64) {
+      console.warn(`[bulkUpload] no in-memory image for page ${pageNumber} (group ${groupId}) — skipping`)
+      continue
+    }
+    const blob = base64JpegToBlob(base64)
     const path = `${orgId}/bulk/${bulkUploadId}/${kind}/${groupId}/page-${pageNumber}.jpg`
     const { error } = await supabase.storage.from('reconciliation-docs')
       .upload(path, blob, { upsert: true, contentType: 'image/jpeg' })

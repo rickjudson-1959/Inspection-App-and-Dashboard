@@ -1,6 +1,4 @@
 import React, { useState, useMemo } from 'react'
-import ImageViewer from './ImageViewer'
-import PdfViewer from './PdfViewer'
 import OriginalPagesLightbox from './OriginalPagesLightbox'
 import InspectorReportPanel from './InspectorReportPanel'
 
@@ -84,12 +82,13 @@ export default function DocumentPanel({
     a.click()
   }
 
-  // Open in a new tab at full quality. For bulk-uploaded docs
-  // (May 2026+) each page is its own JPEG URL — open whichever
-  // page is currently shown. For legacy single-doc PDF uploads
-  // that still have source_pages metadata, open the slice in
-  // the dedicated lightbox so the admin doesn't see unrelated
-  // pages from a shared source PDF.
+  // Open in a new tab at full quality. For bulk-uploaded docs each
+  // page is its own JPEG; open them ALL in one tab as a stacked
+  // page (one tab per page would be a usability mess for 2-3 page
+  // LEMs, so we stay in-app). For legacy single-doc PDF uploads
+  // that still have source_pages metadata, open the lightbox so
+  // the admin doesn't see unrelated pages from a shared source PDF.
+  // For other PDFs, open file_urls[0] natively.
   const hasPageSlice = Array.isArray(document?.source_pages)
                        && document.source_pages.length > 0
                        && isPdf
@@ -97,8 +96,17 @@ export default function DocumentPanel({
     if (!currentUrl) return
     if (hasPageSlice) {
       setOriginalLightboxOpen(true)
-    } else {
+    } else if (isPdf) {
       window.open(currentUrl, '_blank', 'noopener,noreferrer')
+    } else {
+      // Image-based row: open every page in a new blank tab as a
+      // simple html stack. The native image viewer doesn't handle
+      // multi-image grouping itself.
+      const html = `<!doctype html><html><head><title>${(title || 'Document').replace(/</g, '&lt;')}</title>
+        <style>body{margin:0;background:#222;text-align:center}img{display:block;margin:0 auto 12px;max-width:100%}</style></head>
+        <body>${fileUrls.map((u, i) => `<img src="${u}" alt="Page ${i + 1}" />`).join('')}</body></html>`
+      const w = window.open('', '_blank', 'noopener,noreferrer')
+      if (w) { w.document.write(html); w.document.close() }
     }
   }
 
@@ -183,53 +191,69 @@ export default function DocumentPanel({
       )
     }
 
-    // Pre-Apr 2026 single-doc PDF uploads (rare) still come through
-    // as a PDF file_url. Keep PdfViewer for that fallback path. The
-    // dominant case after the May 13 bulk-upload rewrite is JPEG
-    // file_urls — handled by the simple <img> block below.
-    if (isPdf) {
-      return <PdfViewer url={currentUrl} zoom={zoom} rotation={rotation} pageList={document?.source_pages || null} />
-    }
-
-    // PRIMARY VIEWER: plain <img> with CSS-only zoom. An img tag
-    // has no canvas buffer, no async rasterisation, no
-    // ResizeObserver feedback loop — it either shows or doesn't,
-    // and zoom is one CSS property change. This is the fix for
-    // the "image disappears when you click +" bug class.
+    // STACKED IMG VIEWER — the only viewer for uploaded documents.
+    //
+    // file_urls is a list of one-page-per-URL JPEGs (the bulk-upload
+    // flow writes them that way; pre-2026 single-doc uploads put one
+    // PDF in file_urls[0], in which case we hide the inline viewer
+    // and surface the "↗ Open" button for the browser-native PDF
+    // viewer in a new tab — pdf.js is gone from this panel entirely).
     //
     // Layout:
     //   container — overflow: auto, scrolls horizontally + vertically
-    //   img       — width = zoom × 100% of container width
-    //               height auto-scales (preserves aspect)
-    //               rotation via transform: rotate()
+    //   inner div — width = 100%, transform: scale(zoom),
+    //               transform-origin: top left so growth flows
+    //               down + right into the scroll viewport
+    //   <img>     — width: 100% of inner div, stacked vertically with
+    //               an 8 px gap so multi-page docs read top to bottom
+    //
+    // Rotation, when set, is applied per <img> via a CSS rotate
+    // transform composed with the wrapper scale. The four-panel
+    // view defaults to rotation=90 for landscape Aecon scans.
+    if (isPdf) {
+      return (
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f3f4f6', padding: 20, textAlign: 'center', fontSize: 12, color: '#6b7280' }}>
+          <div>
+            This document is a legacy single-PDF upload.<br />
+            Click <strong>↗ Open</strong> in the toolbar to view it in a new tab.
+          </div>
+        </div>
+      )
+    }
+
+    const safeRotation = ((rotation % 360) + 360) % 360
+    const imgRotateTransform = safeRotation ? ` rotate(${safeRotation}deg)` : ''
+
     return (
       <div style={{ width: '100%', height: '100%', overflow: 'auto', backgroundColor: '#f3f4f6' }}>
-        <img src={currentUrl} alt="Document"
-          style={{
-            display: 'block',
-            width: `${zoom * 100}%`,
-            height: 'auto',
-            maxWidth: 'none',
-            transformOrigin: rotation === 90 || rotation === 270 ? 'center center' : 'top left',
-            transform: rotation ? `rotate(${rotation}deg)` : 'none'
-          }} />
+        <div style={{
+          width: '100%',
+          transform: `scale(${zoom})`,
+          transformOrigin: 'top left',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          padding: 4
+        }}>
+          {fileUrls.map((u, i) => (
+            <img key={i} src={u} alt={`Page ${i + 1}`}
+              style={{
+                width: '100%',
+                height: 'auto',
+                display: 'block',
+                transform: imgRotateTransform || 'none',
+                transformOrigin: 'center center'
+              }} />
+          ))}
+        </div>
       </div>
     )
   }
 
-  // --- Page navigation footer ---
-  function renderPageNav(borderColor) {
-    if (isPdf || totalPages <= 1) return null
-    return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '6px 0', borderTop: `1px solid ${borderColor}`, fontSize: 12 }}>
-        <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage <= 0}
-          style={{ padding: '2px 8px', border: '1px solid #d1d5db', borderRadius: 3, cursor: currentPage > 0 ? 'pointer' : 'not-allowed', backgroundColor: 'white' }}>&#9664;</button>
-        <span style={{ color: '#6b7280' }}>Page {currentPage + 1} of {totalPages}</span>
-        <button onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1}
-          style={{ padding: '2px 8px', border: '1px solid #d1d5db', borderRadius: 3, cursor: currentPage < totalPages - 1 ? 'pointer' : 'not-allowed', backgroundColor: 'white' }}>&#9654;</button>
-      </div>
-    )
-  }
+  // Page navigation footer is no longer needed for image-based docs
+  // — all pages are stacked vertically in one scrollable panel. Kept
+  // as a no-op so existing renderPageNav() call sites don't break.
+  function renderPageNav() { return null }
 
   // --- Fullscreen overlay ---
   if (expanded) {
