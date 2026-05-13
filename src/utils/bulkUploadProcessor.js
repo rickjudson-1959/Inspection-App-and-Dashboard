@@ -126,27 +126,47 @@ export async function classifyIndexPage(imageBase64) {
 
 const SUGGEST_PROMPT = `Look at this scanned construction document page.
 
-Extract ONLY fields that are clearly PRINTED (not handwritten):
+Classify the page by its DATA CONTENT, not by the presence of a
+signature. A signature on a page does NOT change its document type:
+- A LEM page with labour rows + equipment rows + a signature at the
+  bottom is STILL a LEM (its content is billing data).
+- A daily ticket page with crew hours + a signature at the bottom
+  is STILL a daily_ticket (its content is crew hours).
+- Only classify as "signature" when the page has NOTHING but
+  signatures, stamps, or verification marks — no labour rows, no
+  equipment rows, no rate columns, no crew hours, no activity
+  description.
+
+Then extract metadata ONLY from clearly PRINTED labels.
 
 1. doc_type:
-   - "lem" if you see rate columns, dollar amounts, "RT Rate", "OT Rate",
-     "Total Labour", or "Field Log Total"
-   - "daily_ticket" if you see "foreman's daily time report" or crew
-     hours without rate columns
-   - "signature" if it's mostly signature blocks / sign-offs with no
-     labour or equipment hours
-   - "summary" if it's a weekly summary with date ranges
-   - "index" if it lists multiple foremen with ticket numbers
-   - "unknown" otherwise
+   - "lem" if the page has rate columns, dollar amounts, "RT Rate",
+     "OT Rate", "Total Labour", "Field Log Total", or an equipment
+     table with unit IDs and rates. (Signatures may also be present
+     — irrelevant; the rate columns make it a LEM.)
+   - "daily_ticket" if the page has crew names + hours WITHOUT rate
+     columns, or "foreman's daily time report" header, or a
+     handwritten activity description belonging to a daily ticket.
+     (Signatures may also be present — irrelevant; the data
+     content makes it a daily_ticket.)
+   - "signature" ONLY if the page contains NOTHING but signatures,
+     stamps, approval marks. No data rows of any kind.
+   - "summary" if it's a weekly summary with date ranges.
+   - "index" if it lists multiple foremen with ticket numbers.
+   - "unknown" otherwise.
 
-2. field_log_id: ONLY if you see a PRINTED label "Field Log ID:"
+2. has_signature: true if any signature, stamp, or approval mark is
+   visible ANYWHERE on the page. false otherwise. This is a separate
+   flag — it does NOT change doc_type.
+
+3. field_log_id: ONLY if you see a PRINTED label "Field Log ID:"
    followed by a number. Ignore any handwritten numbers. null if no
    printed label.
 
-3. foreman_name: ONLY if you see a PRINTED label "Foreman:" or
+4. foreman_name: ONLY if you see a PRINTED label "Foreman:" or
    "foreman:" followed by a name. null otherwise.
 
-4. date: ONLY if clearly printed in a header field. null otherwise.
+5. date: ONLY if clearly printed in a header field. null otherwise.
 
 If a field isn't clearly PRINTED and LABELED, return null. Do NOT
 guess. Do NOT read handwriting.
@@ -154,6 +174,7 @@ guess. Do NOT read handwriting.
 Return JSON only:
 {
   "doc_type": "lem"|"daily_ticket"|"signature"|"summary"|"index"|"unknown",
+  "has_signature": true|false,
   "field_log_id": "18260" or null,
   "foreman_name": "Gerald Babchishin" or null,
   "date": "2014-01-21" or null
@@ -162,7 +183,7 @@ Return JSON only:
 export async function suggestPageMetadata(imageBase64) {
   const body = {
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 300,
+    max_tokens: 400,
     messages: [{
       role: 'user',
       content: [
@@ -176,6 +197,7 @@ export async function suggestPageMetadata(imageBase64) {
   const validDocTypes = ['lem', 'daily_ticket', 'signature', 'summary', 'index', 'unknown']
   return {
     doc_type: validDocTypes.includes(parsed?.doc_type) ? parsed.doc_type : 'unknown',
+    has_signature: !!parsed?.has_signature,
     field_log_id: cleanTicketNumber(parsed?.field_log_id),
     foreman_name: (parsed?.foreman_name || '').trim() || null,
     date: cleanDate(parsed?.date),

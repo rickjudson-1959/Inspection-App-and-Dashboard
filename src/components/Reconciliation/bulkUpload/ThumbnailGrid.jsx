@@ -95,13 +95,20 @@ export default function ThumbnailGrid({
 
             {/* OCR suggestion badge */}
             {meta?.ocrStatus === 'done' && (
-              <div title={`Suggested doc type: ${docType}`}
+              <div title={`Suggested doc type: ${docType}${meta?.has_signature ? ' (page also has a signature)' : ''}`}
                 style={{
                   position: 'absolute', top: 6, right: 6,
                   padding: '1px 6px', borderRadius: 4,
                   backgroundColor: badge.bg, color: badge.fg,
-                  fontSize: 10, fontWeight: 700, letterSpacing: 0.4
-                }}>{badge.label}</div>
+                  fontSize: 10, fontWeight: 700, letterSpacing: 0.4,
+                  display: 'flex', alignItems: 'center', gap: 3
+                }}>
+                {badge.label}
+                {meta?.has_signature && (
+                  <span title="Signature visible on this page"
+                    style={{ fontSize: 9, opacity: 0.85 }}>✍</span>
+                )}
+              </div>
             )}
             {meta?.ocrStatus === 'running' && (
               <div style={{

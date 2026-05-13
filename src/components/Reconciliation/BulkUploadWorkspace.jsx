@@ -61,6 +61,15 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
   // pageMetadata } captured BEFORE a mutating action. Capped at 50.
   const [history, setHistory] = useState([])
 
+  // Sequential assign state machine. For each foreman the admin walks
+  // through three steps (LEM -> Ticket -> Other), assigning pages to
+  // the SAME group at each step before the toolbar advances to the
+  // next foreman. seqWorkingGroupId is null when no foreman is in
+  // progress; once "Start sequential" fires it points at the new
+  // group's id and seqStep tracks which slot to fill next.
+  const [seqWorkingGroupId, setSeqWorkingGroupId] = useState(null)
+  const [seqStep, setSeqStep] = useState('lem') // 'lem' | 'ticket' | 'other'
+
   // OCR background state
   const [ocrStatus, setOcrStatus] = useState('idle')  // idle | running | done | failed
   const [ocrProgress, setOcrProgress] = useState({ done: 0, total: 0 })
@@ -246,6 +255,7 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
           const next = new Map(prev)
           next.set(p.pageNumber, {
             doc_type: suggestion.doc_type,
+            has_signature: suggestion.has_signature,
             field_log_id: suggestion.field_log_id,
             foreman_name: suggestion.foreman_name,
             date: suggestion.date,
@@ -442,30 +452,35 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
     clearSelection()
   }
 
-  // ── Quick assign ───────────────────────────────────────────────────────
-  const sequentialAssign = ({ entry, pageCount, slot }) => {
-    const targetPages = ungroupedPageNumbers.slice(0, pageCount)
-    if (targetPages.length === 0) return
-    pushHistory()
-    const id = makeGroupId()
-    setGroups(prev => [...prev, {
-      id,
-      ticket_number: entry.ticket_number,
-      foreman_name: [entry.first_name, entry.last_name].filter(Boolean).join(' '),
-      role: entry.role || '',
-      date: indexDate || '',
-      lemPages: slot === 'lemPages' ? targetPages : [],
-      ticketPages: slot === 'ticketPages' ? targetPages : [],
-      otherPages: slot === 'otherPages' ? targetPages : []
-    }])
+  // ── Sequential assign (2-step state machine) ───────────────────────────
+  //
+  // Flow per foreman:
+  //   Start  -> creates an empty group keyed to the index entry,
+  //             enters step 'lem'.
+  //   Assign N (LEM)    -> next N ungrouped pages go to the group's LEM
+  //                        slot, step advances to 'ticket'. The last
+  //                        page of a LEM (data + signature) belongs in
+  //                        this slot — do NOT carve signatures into a
+  //                        separate step.
+  //   Assign N (Ticket) -> next N go to ticket slot, foreman is
+  //                        finished, seqWorkingGroupId is cleared and
+  //                        the toolbar's nextEntry auto-derives to the
+  //                        next foreman.
+  //   Skip step         -> advances step without assigning (used when
+  //                        the foreman has no LEM or no ticket).
+  //   Done with foreman -> finishes the foreman at any step.
+  //
+  // The group still has an "otherPages" slot for the rare edge case
+  // where a standalone signature-only page or unrelated attachment
+  // belongs to this foreman — the admin reaches it via drag-and-drop,
+  // not via the sequential walk.
 
-    // Auto-advance the viewport to the next ungrouped page so the
-    // admin's eyes never have to leave the thumbnail area. The next
-    // ungrouped page is whatever's left in ungroupedPageNumbers
-    // after we slice off targetPages — DOM positions are unchanged
-    // (the thumbnails just gain a "✓ assigned" overlay), so we can
-    // compute and scroll in the next frame.
-    const justAssigned = new Set(targetPages)
+  const slotForStep = (step) => step === 'lem' ? 'lemPages' : 'ticketPages'
+  const nextStep = (step) => step === 'lem' ? 'ticket' : 'done'
+  const stepLabel = (step) => step === 'lem' ? 'LEM' : 'Ticket'
+
+  const scrollToNextUngrouped = (justAssignedPages = []) => {
+    const justAssigned = new Set(justAssignedPages)
     const nextUngrouped = ungroupedPageNumbers.find(n => !justAssigned.has(n))
     if (nextUngrouped) {
       requestAnimationFrame(() => {
@@ -474,6 +489,66 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
       })
     }
   }
+
+  const startSequentialFor = (entry) => {
+    pushHistory()
+    const id = makeGroupId()
+    setGroups(prev => [...prev, {
+      id,
+      ticket_number: entry.ticket_number || '',
+      foreman_name: [entry.first_name, entry.last_name].filter(Boolean).join(' '),
+      role: entry.role || '',
+      date: indexDate || '',
+      lemPages: [], ticketPages: [], otherPages: []
+    }])
+    setSeqWorkingGroupId(id)
+    setSeqStep('lem')
+    scrollToNextUngrouped()
+  }
+
+  const sequentialStep = ({ pageCount }) => {
+    if (!seqWorkingGroupId) return
+    const targetPages = (pageCount > 0)
+      ? ungroupedPageNumbers.slice(0, pageCount)
+      : []
+    if (targetPages.length > 0) {
+      pushHistory()
+      assignPagesToGroupSlot(seqWorkingGroupId, slotForStep(seqStep), targetPages)
+    }
+    const after = nextStep(seqStep)
+    if (after === 'done') {
+      sequentialDone(targetPages)
+    } else {
+      setSeqStep(after)
+      scrollToNextUngrouped(targetPages)
+    }
+  }
+
+  const sequentialSkipStep = () => {
+    if (!seqWorkingGroupId) return
+    const after = nextStep(seqStep)
+    if (after === 'done') {
+      sequentialDone()
+    } else {
+      setSeqStep(after)
+    }
+  }
+
+  const sequentialDone = (justAssignedPages = []) => {
+    setSeqWorkingGroupId(null)
+    setSeqStep('lem')
+    scrollToNextUngrouped(justAssignedPages)
+  }
+
+  // Safety net: if undo (or any other action) deletes the group we're
+  // sequentially editing, reset the state machine so the toolbar
+  // doesn't end up pointing at a ghost.
+  useEffect(() => {
+    if (seqWorkingGroupId && !groups.some(g => g.id === seqWorkingGroupId)) {
+      setSeqWorkingGroupId(null)
+      setSeqStep('lem')
+    }
+  }, [groups, seqWorkingGroupId])
   const bulkClassify = (docType) => {
     pushHistory()
     setPageMetadata(prev => {
@@ -645,7 +720,6 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
                 ungroupedCount={ungroupedPageNumbers.length}
                 indexEntries={indexConfirmed ? indexEntries : []}
                 usedTicketNumbers={usedTicketNumbers}
-                onSequentialAssign={sequentialAssign}
                 onBulkClassify={bulkClassify}
                 onSendSelectedToSkip={() => { pushHistory(); sendPagesToSkip(Array.from(selectedPageNumbers)); clearSelection() }}
                 onStartOcr={runBackgroundOcr}
@@ -654,6 +728,12 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
                 ocrProgress={ocrProgress}
                 historyDepth={history.length}
                 onUndo={undo}
+                seqWorkingGroup={groups.find(g => g.id === seqWorkingGroupId) || null}
+                seqStep={seqStep}
+                onSequentialStart={startSequentialFor}
+                onSequentialStep={sequentialStep}
+                onSequentialSkipStep={sequentialSkipStep}
+                onSequentialDone={() => sequentialDone()}
               />
 
               <ThumbnailGrid
