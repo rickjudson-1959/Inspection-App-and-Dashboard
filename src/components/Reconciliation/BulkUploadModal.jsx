@@ -20,7 +20,8 @@ import { useAuth } from '../../AuthContext.jsx'
 import { useOrgQuery } from '../../utils/queryHelpers.js'
 import {
   extractIndexFromPage1, processPackagePages,
-  confirmAndSave, matchLemsToTickets
+  confirmAndSave, matchLemsToTickets,
+  createDiagnosticsRecorder
 } from '../../utils/bulkUploadProcessor.js'
 
 const CONFIDENCE_COLOR = {
@@ -57,6 +58,11 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
   const [previewGroup, setPreviewGroup] = useState(null)
   const [saveSummary, setSaveSummary] = useState(null)
   const [bulkUploadId] = useState(() => crypto.randomUUID())
+  // Diagnostics recorder is created once per modal mount and shared
+  // across every step. Streams raw OCR results to localStorage at
+  // bulk_upload_diag_<bulkUploadId>. The review-stage Download
+  // button reads this key back as a JSON file.
+  const [recorder] = useState(() => createDiagnosticsRecorder(bulkUploadId))
 
   if (!open) return null
 
@@ -93,7 +99,8 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
           setProgressMsg(msg)
           if (typeof cur === 'number') setProgressCurrent(cur)
           if (typeof tot === 'number') setProgressTotal(tot)
-        }
+        },
+        { recorder }
       )
       setAllPagesCache(detection.allPages)
 
@@ -143,6 +150,7 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
         allPages,
         startIndex,
         ticketIndex,
+        recorder,
         onProgress: (msg, cur, tot) => {
           setProgressMsg(msg)
           if (typeof cur === 'number') setProgressCurrent(cur)
@@ -486,6 +494,11 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
             {needsReview.length > 0 && `${needsReview.length} group${needsReview.length === 1 ? '' : 's'} still need classification.`}
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => downloadDiagnostics(recorder, packageFile?.name)}
+              title="Save the full raw OCR output for every page as JSON (for debugging)"
+              style={{ padding: '8px 14px', backgroundColor: 'white', color: '#6b21a8', border: '1px solid #c084fc', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
+              ⬇ Download diagnostics
+            </button>
             <button onClick={onClose}
               style={{ padding: '8px 16px', backgroundColor: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
               Cancel
@@ -517,21 +530,48 @@ export default function BulkUploadModal({ open, onClose, onComplete }) {
             {saveSummary?.skippedUnknown > 0 && ` ${saveSummary.skippedUnknown} unclassified group${saveSummary.skippedUnknown === 1 ? '' : 's'} skipped.`}
           </div>
         </div>
-        <div style={{ padding: '14px 24px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-          <button onClick={() => reset()}
-            style={{ padding: '8px 16px', backgroundColor: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
-            Upload another
+        <div style={{ padding: '14px 24px', borderTop: '1px solid #e5e7eb', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+          <button onClick={() => downloadDiagnostics(recorder, packageFile?.name)}
+            style={{ padding: '8px 14px', backgroundColor: 'white', color: '#6b21a8', border: '1px solid #c084fc', borderRadius: 6, cursor: 'pointer', fontSize: 12 }}>
+            ⬇ Download diagnostics
           </button>
-          <button onClick={() => { reset(); onClose() }}
-            style={{ padding: '8px 16px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
-            Done
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button onClick={() => reset()}
+              style={{ padding: '8px 16px', backgroundColor: 'white', color: '#374151', border: '1px solid #d1d5db', borderRadius: 6, cursor: 'pointer', fontSize: 13 }}>
+              Upload another
+            </button>
+            <button onClick={() => { reset(); onClose() }}
+              style={{ padding: '8px 16px', backgroundColor: '#2563eb', color: 'white', border: 'none', borderRadius: 6, cursor: 'pointer', fontSize: 13, fontWeight: 600 }}>
+              Done
+            </button>
+          </div>
         </div>
       </>
     )
   }
 
   return null
+}
+
+/**
+ * Download the in-memory diagnostics snapshot as a JSON file the
+ * admin can attach to a bug report. Uses the recorder's accessor
+ * rather than reading localStorage directly so the file is fresh.
+ */
+function downloadDiagnostics(recorder, packageFilename) {
+  if (!recorder) { alert('No diagnostics recorded for this session.'); return }
+  const snap = recorder.snapshot()
+  const blob = new Blob([JSON.stringify(snap, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const stamp = (snap.startedAt || new Date().toISOString()).replace(/[:.]/g, '-')
+  const base = (packageFilename || 'bulk_upload').replace(/\.pdf$/i, '')
+  const a = document.createElement('a')
+  a.href = url
+  a.download = `${base}__diagnostics__${stamp}.json`
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
 }
 
 // ── helpers ────────────────────────────────────────────────────────────────

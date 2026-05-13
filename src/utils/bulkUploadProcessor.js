@@ -48,6 +48,171 @@ import { normalizeName } from './nameMatchingUtils.js'
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || ''
 const MAX_OCR_RETRIES = 3
 
+// ── Diagnostics recorder ─────────────────────────────────────────────────────
+//
+// Captures every per-page classification (including the raw Claude response
+// text), the index OCR result, the post-reconcile state, the groups, and
+// the matchResult — streaming to localStorage as each piece arrives. The
+// modal exposes a "Download diagnostics" button that exports the full
+// snapshot as JSON for offline analysis.
+//
+// Storage key: bulk_upload_diag_<bulkUploadId>. ~130 pages with the new
+// simplified prompt fit comfortably under localStorage's per-origin
+// quota (~5 MB).
+//
+// Callers that don't want diagnostics can pass `null` for the recorder
+// — every method is a no-op in that case via the optional-chaining
+// guard in the consumers.
+
+const DIAG_KEY_PREFIX = 'bulk_upload_diag_'
+
+export function createDiagnosticsRecorder(bulkUploadId) {
+  if (!bulkUploadId) return null
+  const key = DIAG_KEY_PREFIX + bulkUploadId
+  const state = {
+    schemaVersion: 1,
+    bulkUploadId,
+    startedAt: new Date().toISOString(),
+    packageFilename: null,
+    pageCount: null,
+    index: null,           // { detected, raw_response, parsed: { entries, ... }, meta }
+    pages: [],             // [{ pageNumber, classification (with raw_response) }]
+    postReconcile: [],     // pages after reconcileWithIndex mutates them
+    groups: null,          // groupPagesIntoDocuments output
+    matchResult: null,     // matchLemsToTickets output
+    completedAt: null
+  }
+  const flush = () => {
+    try {
+      localStorage.setItem(key, JSON.stringify(state))
+    } catch (err) {
+      // Quota exceeded or storage disabled — log and keep going. The
+      // recorder is best-effort; the rest of the pipeline must still
+      // function.
+      console.warn('[bulk-upload diag] localStorage write failed:', err.message)
+    }
+  }
+  flush() // create the key immediately so the modal's download button
+          // has something to read even mid-run
+  return {
+    key,
+    setPackageMeta: ({ filename, pageCount }) => {
+      if (filename) state.packageFilename = filename
+      if (Number.isFinite(pageCount)) state.pageCount = pageCount
+      flush()
+    },
+    setIndex: (indexEntry) => {
+      // indexEntry is the full result returned by extractIndexFromPage1
+      state.index = indexEntry
+      flush()
+    },
+    addPage: (pageWithClassification) => {
+      // Strip the imageBase64 to keep the JSON light — we only need
+      // the classification and page number.
+      const { imageBase64, ...rest } = pageWithClassification
+      state.pages.push(rest)
+      flush()
+    },
+    setPostReconcile: (classifiedPages) => {
+      state.postReconcile = classifiedPages.map(p => ({
+        pageNumber: p.pageNumber,
+        classification: p.classification
+      }))
+      flush()
+    },
+    setGroups: (groups) => {
+      // Drop imageBase64 from every page reference inside the groups
+      // so the JSON is grep-friendly.
+      state.groups = groups.map(g => ({
+        ...g,
+        pages: g.pages.map(p => ({
+          pageNumber: p.pageNumber,
+          classification: p.classification
+        }))
+      }))
+      flush()
+    },
+    setMatchResult: (mr) => {
+      // matchResult contains group references — flatten the same way
+      const stripGroup = (g) => g && ({
+        ...g,
+        pages: g.pages.map(p => ({
+          pageNumber: p.pageNumber,
+          classification: p.classification
+        }))
+      })
+      state.matchResult = {
+        matches: (mr.matches || []).map(m => ({
+          method: m.method, confidence: m.confidence, match_key: m.match_key,
+          lem: stripGroup(m.lem), ticket: stripGroup(m.ticket)
+        })),
+        unmatchedLems: (mr.unmatchedLems || []).map(stripGroup),
+        unmatchedTickets: (mr.unmatchedTickets || []).map(stripGroup),
+        needsReview: (mr.needsReview || []).map(stripGroup),
+        specials: (mr.specials || []).map(stripGroup)
+      }
+      flush()
+    },
+    finalize: () => {
+      state.completedAt = new Date().toISOString()
+      flush()
+      // Echo a useful summary to the console so DevTools shows the
+      // headline numbers without needing to download the JSON.
+      try {
+        console.groupCollapsed(`[bulk-upload diag] ${bulkUploadId} — ${state.packageFilename || '(unknown file)'}`)
+        console.log('Index entries:', state.index?.parsed?.entries?.length || 0,
+                    'detected:', state.index?.detected)
+        console.log('Pages classified:', state.pages.length)
+        console.table(state.pages.map(p => ({
+          page: p.pageNumber,
+          doc_type: p.classification?.doc_type,
+          foreman: p.classification?.foreman_name,
+          crew: p.classification?.crew_or_activity || p.classification?.crew_or_spread,
+          field_log_id: p.classification?.field_log_id,
+          is_continuation: p.classification?.is_continuation,
+          error: p.classification?.error || ''
+        })))
+        if (state.matchResult) {
+          console.log('Matches:', state.matchResult.matches?.length || 0,
+                      'Unmatched LEMs:', state.matchResult.unmatchedLems?.length || 0,
+                      'Unmatched Tickets:', state.matchResult.unmatchedTickets?.length || 0,
+                      'Specials:', state.matchResult.specials?.length || 0,
+                      'Needs review:', state.matchResult.needsReview?.length || 0)
+        }
+        console.log('Full snapshot: JSON.parse(localStorage.getItem("' + key + '"))')
+        console.groupEnd()
+      } catch (_) { /* ignore */ }
+    },
+    snapshot: () => ({ ...state }),
+    getKey: () => key
+  }
+}
+
+/**
+ * Convenience: list every diagnostic snapshot currently in localStorage
+ * so the admin can pick a past run to download.
+ */
+export function listDiagnosticsSnapshots() {
+  const out = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const k = localStorage.key(i)
+    if (k && k.startsWith(DIAG_KEY_PREFIX)) {
+      try {
+        const s = JSON.parse(localStorage.getItem(k))
+        out.push({
+          key: k,
+          bulkUploadId: s.bulkUploadId,
+          startedAt: s.startedAt,
+          completedAt: s.completedAt,
+          packageFilename: s.packageFilename,
+          pageCount: s.pageCount
+        })
+      } catch (_) { /* skip corrupt entry */ }
+    }
+  }
+  return out.sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''))
+}
+
 // ── Step 1: split PDF into per-page base64 JPEGs ─────────────────────────────
 
 export async function splitPdfToPages(file, onProgress) {
@@ -1331,12 +1496,15 @@ export async function confirmAndSave({
  *                  raw_response, error }   // diagnostics for the warning UI
  *   }
  */
-export async function extractIndexFromPage1(file, onProgress, { onCreditError } = {}) {
+export async function extractIndexFromPage1(file, onProgress, { onCreditError, recorder } = {}) {
   if (!file) throw new Error('extractIndexFromPage1: file is required')
   onProgress?.('Splitting PDF into pages...', 0, 1)
   const allPages = await splitPdfToPages(file, (msg) => onProgress?.(msg))
+  recorder?.setPackageMeta({ filename: file.name, pageCount: allPages.length })
   if (allPages.length === 0) {
-    return { allPages: [], detected: false, index: null, indexMeta: null }
+    const out = { allPages: [], detected: false, index: null, indexMeta: null }
+    recorder?.setIndex({ ...out, parsed: null })
+    return out
   }
   onProgress?.('Reading page 1 (index)...', 1, allPages.length)
   let indexResult
@@ -1347,7 +1515,9 @@ export async function extractIndexFromPage1(file, onProgress, { onCreditError } 
       onCreditError?.(allPages)
       throw err
     }
-    return { allPages, detected: false, index: null, indexMeta: { error: err.message } }
+    const out = { allPages, detected: false, index: null, indexMeta: { error: err.message } }
+    recorder?.setIndex({ detected: false, error: err.message, parsed: null })
+    return out
   }
 
   // Detection threshold: >= 5 entries that survived the equipment
@@ -1355,7 +1525,7 @@ export async function extractIndexFromPage1(file, onProgress, { onCreditError } 
   // matches a different format entirely.
   const detected = (indexResult.entries?.length || 0) >= 5
 
-  return {
+  const indexOut = {
     allPages,
     detected,
     index: detected ? { entries: indexResult.entries, date: indexResult.date } : null,
@@ -1368,6 +1538,16 @@ export async function extractIndexFromPage1(file, onProgress, { onCreditError } 
       error: indexResult.error || null
     }
   }
+
+  // Diagnostics: capture the full raw response + the parsed entries
+  recorder?.setIndex({
+    detected,
+    raw_response: indexResult.raw_response,
+    parsed: { entries: indexResult.entries, date: indexResult.date },
+    meta: indexOut.indexMeta
+  })
+
+  return indexOut
 }
 
 // ── Step A2: process the package pages (everything after the index) ─────────
@@ -1390,7 +1570,8 @@ export async function processPackagePages({
   startIndex = 0,
   ticketIndex = null,
   onProgress,
-  onCreditError
+  onCreditError,
+  recorder
 }) {
   if (!Array.isArray(allPages)) throw new Error('processPackagePages: allPages array required')
 
@@ -1400,15 +1581,16 @@ export async function processPackagePages({
   for (let i = 0; i < pagesToProcess.length; i++) {
     const page = pagesToProcess[i]
     onProgress?.(`Classifying page ${page.pageNumber} of ${allPages.length}...`, i + 1, pagesToProcess.length)
+    let classifiedEntry
     try {
       const classification = await classifyPage(page.imageBase64)
-      classifiedPages.push({ ...page, classification })
+      classifiedEntry = { ...page, classification }
     } catch (err) {
       if (err.message === 'CREDIT_BALANCE_TOO_LOW') {
         onCreditError?.(classifiedPages, allPages)
         throw err
       }
-      classifiedPages.push({
+      classifiedEntry = {
         ...page,
         classification: {
           ticket_number: null, ticket_number_confidence: null, field_log_id: null,
@@ -1418,20 +1600,32 @@ export async function processPackagePages({
           page_appears_to_be: 'unknown',
           raw_response: '', error: err.message
         }
-      })
+      }
     }
+    classifiedPages.push(classifiedEntry)
+    // Stream per-page diagnostics so the snapshot is up-to-date even
+    // if the user aborts before the run completes.
+    recorder?.addPage(classifiedEntry)
   }
 
   if (ticketIndex?.entries?.length) {
     onProgress?.('Reconciling pages against index...', pagesToProcess.length, pagesToProcess.length)
     reconcileWithIndex(classifiedPages, ticketIndex)
+    // Re-snapshot after the mutation so diagnostics shows both the
+    // raw-OCR state (state.pages) and the post-reconcile state
+    // (state.postReconcile). reconcileWithIndex mutates in place so
+    // state.pages now also reflects the index-derived ticket numbers.
+    recorder?.setPostReconcile(classifiedPages)
   }
 
   onProgress?.('Grouping pages into documents...', pagesToProcess.length, pagesToProcess.length)
   const groups = groupPagesIntoDocuments(classifiedPages)
+  recorder?.setGroups(groups)
 
   onProgress?.('Matching LEMs to daily tickets...', pagesToProcess.length, pagesToProcess.length)
   const matchResult = matchLemsToTickets(groups, { hasIndex: !!ticketIndex?.entries?.length })
+  recorder?.setMatchResult(matchResult)
+  recorder?.finalize()
 
   return { pages: classifiedPages, allPages, groups, matchResult }
 }
