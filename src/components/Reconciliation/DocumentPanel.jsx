@@ -191,44 +191,52 @@ export default function DocumentPanel({
       )
     }
 
-    // STACKED IMG VIEWER — the only viewer for uploaded documents.
+    // VIEWER:
+    //   • PDF rows (legacy pre-JPEG bulk uploads, or single-doc
+    //     PDF uploads) — browser-native <iframe> viewer. No pdf.js,
+    //     no canvas. Chrome, Firefox, Safari, Edge all render PDFs
+    //     inline natively.
+    //   • Image rows (new bulk uploads after May 13) — stacked
+    //     <img> tags inside a wrapper that's CSS-scaled by zoom.
     //
-    // file_urls is a list of one-page-per-URL JPEGs (the bulk-upload
-    // flow writes them that way; pre-2026 single-doc uploads put one
-    // PDF in file_urls[0], in which case we hide the inline viewer
-    // and surface the "↗ Open" button for the browser-native PDF
-    // viewer in a new tab — pdf.js is gone from this panel entirely).
-    //
-    // Layout:
-    //   container — overflow: auto, scrolls horizontally + vertically
-    //   inner div — width = 100%, transform: scale(zoom),
-    //               transform-origin: top left so growth flows
-    //               down + right into the scroll viewport
-    //   <img>     — width: 100% of inner div, stacked vertically with
-    //               an 8 px gap so multi-page docs read top to bottom
-    //
-    // Rotation, when set, is applied per <img> via a CSS rotate
-    // transform composed with the wrapper scale. The four-panel
-    // view defaults to rotation=90 for landscape Aecon scans.
+    // Rotation is applied via a CSS transform on the wrapper for
+    // both paths. The four-panel view defaults to rotation=90 for
+    // landscape Aecon scans.
+
+    const safeRotation = ((rotation % 360) + 360) % 360
+
     if (isPdf) {
+      // Browser-native PDF viewer. #page=N jumps to the first page
+      // belonging to this row (matters for legacy bulk uploads
+      // where file_urls[0] points at the shared 130-page source
+      // PDF and source_pages identifies the slice). FitH scales
+      // the page to the iframe width.
+      const pageJump = Array.isArray(document?.source_pages) && document.source_pages.length > 0
+        ? `#page=${document.source_pages[0]}&view=FitH`
+        : '#view=FitH'
       return (
-        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f3f4f6', padding: 20, textAlign: 'center', fontSize: 12, color: '#6b7280' }}>
-          <div>
-            This document is a legacy single-PDF upload.<br />
-            Click <strong>↗ Open</strong> in the toolbar to view it in a new tab.
-          </div>
+        <div style={{ width: '100%', height: '100%', overflow: 'hidden', backgroundColor: '#f3f4f6' }}>
+          <iframe
+            src={`${currentUrl}${pageJump}`}
+            style={{
+              width: '100%',
+              height: '100%',
+              border: 'none',
+              transform: safeRotation ? `rotate(${safeRotation}deg)` : 'none',
+              transformOrigin: 'center center'
+            }}
+            title="Document"
+          />
         </div>
       )
     }
 
-    const safeRotation = ((rotation % 360) + 360) % 360
-    const imgRotateTransform = safeRotation ? ` rotate(${safeRotation}deg)` : ''
-
+    // Image stack — one <img> per file_url. No PdfViewer.
     return (
       <div style={{ width: '100%', height: '100%', overflow: 'auto', backgroundColor: '#f3f4f6' }}>
         <div style={{
           width: '100%',
-          transform: `scale(${zoom})`,
+          transform: `scale(${zoom})${safeRotation ? ` rotate(${safeRotation}deg)` : ''}`,
           transformOrigin: 'top left',
           display: 'flex',
           flexDirection: 'column',
@@ -240,9 +248,7 @@ export default function DocumentPanel({
               style={{
                 width: '100%',
                 height: 'auto',
-                display: 'block',
-                transform: imgRotateTransform || 'none',
-                transformOrigin: 'center center'
+                display: 'block'
               }} />
           ))}
         </div>
