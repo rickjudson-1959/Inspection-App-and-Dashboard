@@ -79,42 +79,43 @@ export default function PdfViewer({ url, zoom = 1, rotation = 0, pageList = null
       const page = await pdfRef.current.getPage(pageNum)
       const safeRotation = ((rotation % 360) + 360) % 360
 
-      // Page's natural dimensions (at scale=1) — we need the width
-      // to compute what scale puts the page at exactly the
-      // container's CSS-pixel width.
+      // Page's natural dimensions at scale=1 — used to compute the
+      // fit-to-width factor.
       const naturalViewport = page.getViewport({ scale: 1, rotation: safeRotation })
 
-      // Fit-to-width: scale so naturalViewport.width × scale =
-      // containerWidth × pixelRatio × zoom. That gives us a canvas
-      // BUFFER sized for the display's actual pixels, with zoom
-      // physically growing the canvas (scroll-to-pan when zoom > 1).
+      // FIXED high-resolution raster — decoupled from `zoom`. The
+      // buffer always has enough pixels for ~4× CSS zoom without
+      // going blurry. Re-rasterising on every zoom click was the
+      // previous bug: at zoom=4 the canvas buffer needed
+      // containerWidth × DPR × 4 ≈ 5000+ px which produces a
+      // ~140 MB allocation that some browsers silently refuse,
+      // leaving an empty canvas (= image vanishes on the + click).
       const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
       const fitScale = containerWidth / naturalViewport.width
-      // Floor renderScale at 3× the fit scale even at zoom=1, so the
-      // raster has headroom for any CSS transform / browser zoom the
-      // admin might layer on top without going blurry.
-      const renderScale = Math.max(fitScale * 3, fitScale * pixelRatio * zoom)
+      const RASTER_HEADROOM = 4   // canvas-pixel headroom for zoom up to 4×
+      const renderScale = fitScale * pixelRatio * RASTER_HEADROOM
 
       const viewport = page.getViewport({ scale: renderScale, rotation: safeRotation })
       const canvas = canvasRef.current
-      // Buffer (intrinsic) — high resolution
+      // Buffer (intrinsic) — high resolution, INDEPENDENT of zoom.
       canvas.width = viewport.width
       canvas.height = viewport.height
-      // CSS — display size. At zoom=1 this is exactly the container
-      // width (with aspect-preserving height). Above zoom=1 the
-      // canvas overflows horizontally and the container scrolls.
+      canvas.style.maxWidth = 'none'
+
+      // Initial CSS size matches current zoom. The dedicated zoom
+      // effect below also sets these on zoom changes without
+      // re-rasterising.
       const cssWidth = containerWidth * zoom
-      const cssHeight = cssWidth * (viewport.height / viewport.width)
+      const ar = viewport.height / viewport.width
       canvas.style.width = cssWidth + 'px'
-      canvas.style.height = cssHeight + 'px'
-      canvas.style.maxWidth = 'none'  // override any stylesheet defaults
+      canvas.style.height = (cssWidth * ar) + 'px'
 
       const ctx = canvas.getContext('2d')
       await page.render({ canvasContext: ctx, viewport }).promise
     } catch (err) {
       console.error('PDF render error:', err)
     }
-  }, [zoom, rotation, containerWidth])
+  }, [rotation, containerWidth])
 
   useEffect(() => {
     let cancelled = false
@@ -138,11 +139,28 @@ export default function PdfViewer({ url, zoom = 1, rotation = 0, pageList = null
 
   useEffect(() => { setPageIndex(0) }, [pageList])
 
+  // Heavy: re-rasterise the page on URL / page / rotation / container
+  // size changes. Zoom is NOT in this dep list — see the cheap CSS-
+  // only zoom effect below.
   useEffect(() => {
     if (!loading && pdfRef.current && currentPdfPage > 0 && containerWidth > 0) {
       renderPage(currentPdfPage)
     }
-  }, [currentPdfPage, zoom, rotation, loading, containerWidth, renderPage])
+  }, [currentPdfPage, rotation, loading, containerWidth, renderPage])
+
+  // Cheap: zoom is a CSS-only resize on the already-rasterised
+  // canvas. No pdf.js work, no canvas-buffer reallocation. Browser
+  // bilinearly stretches the canvas-buffer pixels into the new CSS
+  // size; the RASTER_HEADROOM in renderPage guarantees the buffer
+  // has enough pixels for sharp output up to ~4× zoom.
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas || !containerWidth || !canvas.width) return
+    const cssWidth = containerWidth * zoom
+    const ar = canvas.height / canvas.width
+    canvas.style.width = cssWidth + 'px'
+    canvas.style.height = (cssWidth * ar) + 'px'
+  }, [zoom, containerWidth])
 
   if (error) return <div style={{ padding: 20, color: '#dc2626', fontSize: 13 }}>{error}</div>
 

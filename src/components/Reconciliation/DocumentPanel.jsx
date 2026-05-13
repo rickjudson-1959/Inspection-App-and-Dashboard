@@ -116,9 +116,9 @@ export default function DocumentPanel({
         )}
         {hasContent && panelType !== 'report' && (
           <>
-            <button onClick={() => setZoom(z => Math.min(5, z + 0.3))} title="Zoom in" style={btnBase}>+</button>
-            <button onClick={() => setZoom(z => Math.max(0.5, z - 0.3))} title="Zoom out" style={btnBase}>-</button>
-            <button onClick={() => setZoom(1)} title="Reset zoom" style={{ ...btnBase, fontSize: '10px' }}>1:1</button>
+            <button onClick={() => setZoom(z => Math.min(4, +(z + 0.25).toFixed(2)))} title="Zoom in (+0.25)" style={btnBase}>+</button>
+            <button onClick={() => setZoom(z => Math.max(0.5, +(z - 0.25).toFixed(2)))} title="Zoom out (-0.25)" style={btnBase}>-</button>
+            <button onClick={() => setZoom(1)} title="Reset zoom (1×)" style={{ ...btnBase, fontSize: '10px' }}>1:1</button>
             <button onClick={() => setRotation(r => (r + 90) % 360)} title="Rotate 90°" style={btnBase}>&#x21BB;</button>
             <button onClick={handleOpenOriginal}
               title="Open original PDF in new tab (full quality)"
