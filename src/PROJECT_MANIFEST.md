@@ -658,6 +658,67 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### Bulk Upload — Click-to-Assign Primary Path (May 13, 2026 — fifth pass)
+
+After Rick's first hands-on attempt the drag-and-drop assignment was
+proving unreliable (typical for HTML5 native drag — works on some
+browsers + pointer devices but fails on others, and there's no error
+to debug when it silently doesn't fire). The fix is to make
+**click-based assignment the primary interaction** and keep drag as a
+backup for power users.
+
+**ThumbnailGrid.jsx**: bare click on a thumbnail now toggles
+selection. The thumbnail picks up a 3 px blue border, drops to
+0.97x scale for a tactile "pressed" feel, and the page number
+badge flips to a checkmark + page number on blue. Right-click also
+toggles (for trackpad users). A small **🔍 magnifying-glass
+button** in the bottom-right opens the full-size lightbox via a
+separate click target (with `stopPropagation` so it doesn't toggle
+selection at the same time). Multi-select is plain clicks — no
+shift key required.
+
+**GroupingArea.jsx** — each group's LEM / Ticket / Other slot now
+has a coloured **`+ Add N`** button in its header that's only
+visible when the thumbnail grid has selected pages. Clicking the
+button sends the selected pages to that slot and clears the
+selection.
+
+**The bottom drop zones** become clickable shortcuts when
+selection is non-empty:
+  - `+ New group from N selected pages — click here` (replaces the
+    drop hint when N > 0)
+  - `🗑 Send N selected to Skip — click here` (replaces the drop
+    hint when N > 0)
+
+Drag-and-drop is unchanged underneath — power users who prefer
+drag can still grab a thumbnail and drop it on a slot. The native
+HTML5 drag handlers, `dataTransfer.setData('application/json',
+...)`, and the per-chip in-group drag (move pages between groups)
+all still work. The click path is just additive.
+
+**Sequential assign mode** was already entirely click-based — that
+hasn't changed. The "Assign N pages → next slot" button in the
+sticky toolbar continues to slice the next N ungrouped pages off
+the top of the queue.
+
+**Files changed:**
+```
+src/components/Reconciliation/bulkUpload/ThumbnailGrid.jsx
+  - bare click = toggle selection (was: open lightbox)
+  - lightbox now triggered via 🔍 button overlay
+  - selected state: thicker border, scale 0.97, checkmark badge
+src/components/Reconciliation/bulkUpload/GroupingArea.jsx
+  - per-slot "+ Add N" button when selection non-empty
+  - bottom "+ New group" and "🗑 Skip" zones become clickable
+    shortcuts when selection non-empty
+  - new props: selectedPageCount, onAddSelectedToSlot,
+    onAddSelectedToNewGroup, onSendSelectedToSkip
+src/components/Reconciliation/BulkUploadWorkspace.jsx
+  - wires the three new handlers from selection state
+```
+
+No DB / no migration. No prompt change. No data model change.
+
 ### Bulk Upload — Full Rebuild: Human-in-the-Loop Workspace (May 13, 2026 — fourth pass)
 
 Three iterations of fully-automatic OCR classification on the 130-page

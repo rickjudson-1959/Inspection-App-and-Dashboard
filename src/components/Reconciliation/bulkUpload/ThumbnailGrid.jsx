@@ -27,7 +27,7 @@ export default function ThumbnailGrid({
   pageMetadata,           // Map<pageNumber, { doc_type, foreman_name, field_log_id, ocrStatus }>
   pageGroupMap,           // Map<pageNumber, { groupId, ticketNumber, foremanName, slot }>
   selectedPageNumbers,    // Set<number>
-  onTogglePage,           // (pageNumber, shiftKey) => void
+  onTogglePage,           // (pageNumber) => void
   onOpenLightbox,         // (page) => void
   onDragStartPages        // (pageNumbers) => DataTransfer payload
 }) {
@@ -65,21 +65,25 @@ export default function ThumbnailGrid({
             id={`page-thumb-${p.pageNumber}`}
             draggable
             onDragStart={(e) => handleDragStart(e, p.pageNumber)}
-            onClick={(e) => {
-              if (e.shiftKey || e.metaKey || e.ctrlKey) onTogglePage(p.pageNumber, true)
-              else onOpenLightbox(p)
-            }}
-            onContextMenu={(e) => { e.preventDefault(); onTogglePage(p.pageNumber, true) }}
+            // PRIMARY INTERACTION: bare click toggles selection.
+            // Lightbox opens via the 🔍 button overlay below — that
+            // way the admin can build a selection by clicking
+            // multiple thumbnails (more reliable than drag-and-drop
+            // across browsers / touch devices).
+            onClick={() => onTogglePage(p.pageNumber)}
+            onContextMenu={(e) => { e.preventDefault(); onTogglePage(p.pageNumber) }}
             style={{
               position: 'relative',
               backgroundColor: 'white',
-              border: `2px solid ${inSel ? '#2563eb' : '#d1d5db'}`,
+              border: `3px solid ${inSel ? '#2563eb' : '#d1d5db'}`,
               borderRadius: 6,
               padding: 4,
-              cursor: 'grab',
+              cursor: 'pointer',
               userSelect: 'none',
               opacity: groupInfo ? 0.55 : 1,
-              boxShadow: inSel ? '0 0 0 3px rgba(37,99,235,0.15)' : 'none'
+              boxShadow: inSel ? '0 0 0 3px rgba(37,99,235,0.20)' : 'none',
+              transform: inSel ? 'scale(0.97)' : 'none',
+              transition: 'transform 0.08s, border-color 0.08s'
             }}>
             <img src={`data:image/jpeg;base64,${p.imageBase64}`}
               alt={`Page ${p.pageNumber}`}
@@ -89,9 +93,25 @@ export default function ThumbnailGrid({
             <div style={{
               position: 'absolute', top: 6, left: 6,
               padding: '1px 6px', borderRadius: 4,
-              backgroundColor: 'rgba(17,24,39,0.78)', color: 'white',
+              backgroundColor: inSel ? '#2563eb' : 'rgba(17,24,39,0.78)',
+              color: 'white',
               fontSize: 11, fontWeight: 600
-            }}>{p.pageNumber}</div>
+            }}>
+              {inSel ? `✓ ${p.pageNumber}` : p.pageNumber}
+            </div>
+
+            {/* Lightbox trigger — separate target so the bare
+                thumbnail click stays for selection. */}
+            <button type="button"
+              onClick={(e) => { e.stopPropagation(); onOpenLightbox(p) }}
+              title="View full size"
+              style={{
+                position: 'absolute', bottom: 6, right: 6,
+                width: 24, height: 24, padding: 0,
+                backgroundColor: 'rgba(17,24,39,0.78)', color: 'white',
+                border: 'none', borderRadius: '50%',
+                cursor: 'pointer', fontSize: 11, lineHeight: 1
+              }}>🔍</button>
 
             {/* OCR suggestion badge */}
             {meta?.ocrStatus === 'done' && (

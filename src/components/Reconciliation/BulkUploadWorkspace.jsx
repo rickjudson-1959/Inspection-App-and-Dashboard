@@ -769,6 +769,26 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
                 onUnassignPages={unassignPagesUndoable}
                 onResumeSequential={resumeSequentialFor}
                 seqWorkingGroupId={seqWorkingGroupId}
+                selectedPageCount={selectedPageNumbers.size}
+                onAddSelectedToSlot={(groupId, slot) => {
+                  const pageNumbers = Array.from(selectedPageNumbers).sort((a, b) => a - b)
+                  if (pageNumbers.length === 0) return
+                  pushHistory()
+                  assignPagesToGroupSlot(groupId, slot, pageNumbers)
+                  clearSelection()
+                }}
+                onAddSelectedToNewGroup={() => {
+                  const pageNumbers = Array.from(selectedPageNumbers).sort((a, b) => a - b)
+                  if (pageNumbers.length === 0) return
+                  handleDropOnNewGroup({ pageNumbers })
+                }}
+                onSendSelectedToSkip={() => {
+                  const pageNumbers = Array.from(selectedPageNumbers).sort((a, b) => a - b)
+                  if (pageNumbers.length === 0) return
+                  pushHistory()
+                  sendPagesToSkip(pageNumbers)
+                  clearSelection()
+                }}
               />
 
               {groups.length > 0 && (

@@ -22,7 +22,11 @@ export default function GroupingArea({
   onDropOnSkip,              // (payload) => void
   onUnassignPages,           // (pageNumbers) => void
   onResumeSequential,        // (group) => void — re-open group in sequential mode
-  seqWorkingGroupId          // currently-active group, for highlighting
+  seqWorkingGroupId,         // currently-active group, for highlighting
+  selectedPageCount = 0,     // number of thumbnails currently selected
+  onAddSelectedToSlot,       // (groupId, slot) => void — click-to-assign
+  onAddSelectedToNewGroup,   // () => void — click-to-create-new-group
+  onSendSelectedToSkip       // () => void — click-to-skip
 }) {
   const [pickerOpen, setPickerOpen] = useState(false)
 
@@ -117,6 +121,8 @@ export default function GroupingArea({
           onUnassignPages={onUnassignPages}
           onResumeSequential={onResumeSequential}
           isActiveSeq={g.id === seqWorkingGroupId}
+          selectedPageCount={selectedPageCount}
+          onAddSelectedToSlot={onAddSelectedToSlot}
           handleDragOver={handleDragOver}
           readPayload={readPayload} />
       ))}
@@ -124,30 +130,53 @@ export default function GroupingArea({
       <div style={{ display: 'flex', gap: 10, marginTop: 10 }}>
         <div onDragOver={handleDragOver}
           onDrop={(e) => { const p = readPayload(e); if (p) onDropOnNewGroup(p) }}
+          onClick={() => {
+            if (selectedPageCount > 0 && onDropOnNewGroup) {
+              // Synthesise a payload from the current selection so a
+              // bare click works the same as a drop.
+              // Workspace's handleDropOnNewGroup reads pageNumbers
+              // from the payload; we pull the selection from the
+              // assign-slot handler's closure since the workspace
+              // owns selection.
+              // The Add-to-slot path already clears selection — we
+              // need the same flow for new-group. Trigger via
+              // onAddSelectedToSlot with a sentinel "newGroup" key.
+              onAddSelectedToNewGroup?.()
+            }
+          }}
           style={{
             flex: 1,
             padding: 14, border: '2px dashed #c4b5fd', borderRadius: 6,
             backgroundColor: '#faf5ff', textAlign: 'center',
-            fontSize: 12, color: '#5b21b6', cursor: 'copy'
+            fontSize: 12, color: '#5b21b6',
+            cursor: selectedPageCount > 0 ? 'pointer' : 'copy'
           }}>
-          + New group (drop pages here to create)
+          {selectedPageCount > 0
+            ? `+ New group from ${selectedPageCount} selected page${selectedPageCount === 1 ? '' : 's'} — click here`
+            : '+ New group (drop pages here to create)'}
         </div>
         <div onDragOver={handleDragOver}
           onDrop={(e) => { const p = readPayload(e); if (p) onDropOnSkip(p) }}
+          onClick={() => {
+            if (selectedPageCount > 0 && onSendSelectedToSkip) onSendSelectedToSkip()
+          }}
           style={{
             flex: 1,
             padding: 14, border: '2px dashed #fca5a5', borderRadius: 6,
             backgroundColor: '#fef2f2', textAlign: 'center',
-            fontSize: 12, color: '#991b1b', cursor: 'copy'
+            fontSize: 12, color: '#991b1b',
+            cursor: selectedPageCount > 0 ? 'pointer' : 'copy'
           }}>
-          🗑 Skip / Unclassified ({skipPages.length}) — drop pages to ignore
+          {selectedPageCount > 0
+            ? `🗑 Send ${selectedPageCount} selected to Skip — click here`
+            : `🗑 Skip / Unclassified (${skipPages.length}) — drop pages to ignore`}
         </div>
       </div>
     </div>
   )
 }
 
-function GroupCard({ group, onUpdateGroupField, onRemoveGroup, onDropOnSlot, onUnassignPages, onResumeSequential, isActiveSeq, handleDragOver, readPayload }) {
+function GroupCard({ group, onUpdateGroupField, onRemoveGroup, onDropOnSlot, onUnassignPages, onResumeSequential, isActiveSeq, selectedPageCount = 0, onAddSelectedToSlot, handleDragOver, readPayload }) {
   // Each chip can be picked up and dragged to another group's slot
   // (the receiving onDropOnSlot calls assignPagesToGroupSlot which
   // first calls removePagesFromAll, so a drag-between-groups is
@@ -167,11 +196,29 @@ function GroupCard({ group, onUpdateGroupField, onRemoveGroup, onDropOnSlot, onU
         border: `1px dashed ${accentColor}`, backgroundColor: accentColor + '10',
         borderRadius: 4, padding: 6, fontSize: 11
       }}>
-      <div style={{ fontWeight: 600, color: accentColor, marginBottom: 4 }}>
-        {label} <span style={{ color: '#6b7280', fontWeight: 400 }}>({pages.length})</span>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+        <div style={{ fontWeight: 600, color: accentColor }}>
+          {label} <span style={{ color: '#6b7280', fontWeight: 400 }}>({pages.length})</span>
+        </div>
+        {/* Click-to-assign — primary input path because drag-and-drop
+            is unreliable across browsers / touch devices. Active only
+            when there is a selection on the thumbnail grid. */}
+        {selectedPageCount > 0 && onAddSelectedToSlot && (
+          <button type="button"
+            onClick={() => onAddSelectedToSlot(group.id, key)}
+            title={`Add ${selectedPageCount} selected page${selectedPageCount === 1 ? '' : 's'} to this slot`}
+            style={{
+              padding: '2px 8px', fontSize: 10, fontWeight: 700,
+              backgroundColor: accentColor, color: 'white',
+              border: 'none', borderRadius: 3, cursor: 'pointer',
+              lineHeight: 1.4
+            }}>
+            + Add {selectedPageCount}
+          </button>
+        )}
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
-        {pages.length === 0 && <span style={{ color: '#9ca3af' }}>(drop pages)</span>}
+        {pages.length === 0 && <span style={{ color: '#9ca3af' }}>(click + Add above, or drop pages here)</span>}
         {pages.map(n => (
           <span key={n}
             draggable
