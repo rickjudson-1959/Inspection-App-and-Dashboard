@@ -53,16 +53,15 @@ export default function PdfViewer({ url, zoom = 1, rotation = 0, pageList = null
       // ignores invalid values but we'd rather not surprise it.
       const safeRotation = ((rotation % 360) + 360) % 360
 
-      // Render at a high base scale so the canvas has plenty of
-      // pixels for the CSS-downsampled display to look sharp. The
-      // old base of 1.5× rendered an 8.5×11 page at ~900×1188 px;
-      // when the panel CSS-scaled that to fit a 1200 px column the
-      // browser was UPSAMPLING, producing the fuzzy result Rick
-      // saw on ticket 18284. At 3× × devicePixelRatio we get
-      // ~1836×2376 px (standard) / ~3672×4752 px (Retina) — the
-      // panel comfortably downsamples to a crisp image.
+      // Render at PRINT resolution (~288 DPI). A 8.5×11 page in PDF
+      // units is 612×792; at scale 4 the canvas comes out
+      // ~2448×3168 px — comfortably above the "2000 px wide for a
+      // letter page" floor needed for sharp text downsampled into
+      // any reasonable panel size. On Retina (devicePixelRatio=2)
+      // the canvas grows to ~4896×6336 px which yields print-quality
+      // sharpness even when the panel is wide.
       const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
-      const renderScale = Math.min(8, 3 * pixelRatio * zoom)
+      const renderScale = Math.min(10, 4 * pixelRatio * zoom)
       const viewport = page.getViewport({ scale: renderScale, rotation: safeRotation })
       const canvas = canvasRef.current
       // Set the BUFFER (intrinsic) dimensions for hi-DPI rendering.

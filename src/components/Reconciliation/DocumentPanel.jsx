@@ -82,6 +82,26 @@ export default function DocumentPanel({
     a.click()
   }
 
+  // Open the original uploaded PDF in a new browser tab at the
+  // first source page (for bulk-uploaded docs that share one PDF
+  // across many reconciliation rows). The native browser PDF
+  // viewer renders at full quality — guaranteed-readable
+  // fallback regardless of how the in-app canvas viewer turns out.
+  const handleOpenOriginal = () => {
+    if (!currentUrl) return
+    let url = currentUrl
+    const sourcePages = document?.source_pages
+    if (Array.isArray(sourcePages) && sourcePages.length > 0) {
+      const firstPage = sourcePages[0]
+      if (Number.isFinite(firstPage)) {
+        // Standard PDF URL fragment honoured by Chrome / Edge /
+        // Firefox / Safari's built-in PDF viewers.
+        url = `${currentUrl}#page=${firstPage}`
+      }
+    }
+    window.open(url, '_blank', 'noopener,noreferrer')
+  }
+
   const hasContent = panelType === 'report' ? !!reportData : totalPages > 0
 
   // --- Controls bar (shared between normal and expanded) ---
@@ -99,6 +119,11 @@ export default function DocumentPanel({
             <button onClick={() => setZoom(z => Math.max(0.5, z - 0.3))} title="Zoom out" style={btnBase}>-</button>
             <button onClick={() => setZoom(1)} title="Reset zoom" style={{ ...btnBase, fontSize: '10px' }}>1:1</button>
             <button onClick={() => setRotation(r => (r + 90) % 360)} title="Rotate 90°" style={btnBase}>&#x21BB;</button>
+            <button onClick={handleOpenOriginal}
+              title="Open original PDF in new tab (full quality)"
+              style={{ ...btnBase, backgroundColor: color, color: 'white', borderColor: color, fontWeight: 700, padding: '0 8px' }}>
+              ↗ Open
+            </button>
             <button onClick={handleDownload} title="Download original" style={btnBase}>&#x2913;</button>
           </>
         )}
