@@ -387,14 +387,25 @@ export async function loadTicketIndex(orgId, date) {
 // ── Index lookup helpers ─────────────────────────────────────────────────────
 
 /**
- * Build a Map from normalized foreman name -> index entry, with both
- * "last, first" and "first last" forms to forgive the variations
- * the OCR returns.
+ * Build TWO lookup structures from the index:
+ *   byName    Map<normalizedName, IndexEntry[]>   — one normalized name
+ *             can map to MANY entries when a foreman holds multiple
+ *             tickets (e.g. Kevin Labelle has 18272 for Tie-In Coating
+ *             AND 18273 for Mainline Coating). The pickIndexEntry
+ *             helper disambiguates using the page's crew/activity.
+ *   byTicket  Map<ticketNumber, IndexEntry>       — for cross-checking
+ *             a LEM's printed Field Log ID against the index.
  */
 function buildForemanLookup(index) {
   const byName = new Map()
   const byTicket = new Map()
   if (!index?.entries) return { byName, byTicket }
+  const push = (key, entry) => {
+    if (!key) return
+    const arr = byName.get(key) || []
+    arr.push(entry)
+    byName.set(key, arr)
+  }
   for (const e of index.entries) {
     const first = (e.first_name || '').trim()
     const last = (e.last_name || '').trim()
@@ -407,71 +418,128 @@ function buildForemanLookup(index) {
         normalizeName(last),
         normalizeName(first)
       ].filter(Boolean))
-      for (const v of variants) {
-        if (!byName.has(v)) byName.set(v, e)
-      }
+      for (const v of variants) push(v, e)
     }
   }
   return { byName, byTicket }
 }
 
 /**
- * Reconcile each classified page against the index:
- *   - If page has ticket_number, validate it exists in the index. If
- *     the index has a different foreman for that ticket number, mark
- *     mismatch_with_index = true.
- *   - If page has no ticket_number but has foreman_name, look it up in
- *     the index and assign the ticket number.
- *   - If page has neither, leave it alone — it'll fall back to the
- *     existing "continuation of previous group" rule in grouping.
+ * Given a foreman_name string and the page's crew_or_activity hint,
+ * find the best matching index entry. When multiple entries share the
+ * name, score each by token overlap between the page's crew text and
+ * the index entry's role.
  *
- * Mutates classification.ticket_number / index_validated / mismatch_with_index.
+ * Returns: { entry, confidence: 'high' | 'low', ambiguous: boolean }
+ *   - confidence "high"  -> single unique match, OR multiple matches
+ *                           and one role clearly scored higher
+ *   - confidence "low"   -> multiple matches with no role winner
+ *                           (caller should set mismatch_with_index)
+ */
+function pickIndexEntry(byName, foremanName, crewOrActivity) {
+  if (!foremanName) return null
+  const normalized = normalizeName(foremanName)
+  let entries = byName.get(normalized) || []
+  if (entries.length === 0) {
+    // Fall back to fuzzy match on the surname only (handles OCR
+    // mis-spellings like missing accents, dropped final letter).
+    const tokens = normalized.split(/\s+/).filter(Boolean)
+    if (tokens.length) {
+      const last = tokens[tokens.length - 1]
+      entries = byName.get(last) || []
+    }
+  }
+  if (entries.length === 0) return null
+  if (entries.length === 1) {
+    return { entry: entries[0], confidence: 'high', ambiguous: false }
+  }
+  // Multiple — disambiguate by crew_or_activity vs role
+  const crew = (crewOrActivity || '').toLowerCase()
+  if (!crew) {
+    return { entry: entries[0], confidence: 'low', ambiguous: true }
+  }
+  let bestEntry = entries[0]
+  let bestScore = -1
+  let secondScore = -1
+  for (const cand of entries) {
+    const role = (cand.role || '').toLowerCase()
+    if (!role) continue
+    // Score: number of meaningful (>2 char) role tokens that appear in crew
+    const roleTokens = role.split(/[\s\/_-]+/).filter(t => t.length > 2)
+    let score = 0
+    for (const t of roleTokens) if (crew.includes(t)) score++
+    if (score > bestScore) {
+      secondScore = bestScore
+      bestScore = score
+      bestEntry = cand
+    } else if (score > secondScore) {
+      secondScore = score
+    }
+  }
+  // Confidence is "high" only if the winner clearly beat the runner-up.
+  const confident = bestScore > 0 && bestScore > secondScore
+  return { entry: bestEntry, confidence: confident ? 'high' : 'low', ambiguous: !confident }
+}
+
+/**
+ * Reconcile each classified page against the index. PRIMARY key is the
+ * foreman name -> index lookup; the LEM's printed Field Log ID is used
+ * as a cross-check, NOT the source of truth.
+ *
+ * For each page:
+ *   - If the page has a foreman_name, look it up in the index. Use
+ *     crew_or_activity to disambiguate when a foreman holds multiple
+ *     tickets. Assign ticket_number from the matched entry.
+ *   - If the page is a LEM and also exposes a printed Field Log ID,
+ *     cross-check it against the index assignment. Mismatch sets
+ *     mismatch_with_index = true.
+ *   - If the page has no foreman_name (continuation page), leave the
+ *     ticket_number empty — the grouping step appends the page to the
+ *     preceding group.
+ *   - Pages whose foreman_name doesn't appear in the index get
+ *     index_validated = false, no ticket_number, and will be flagged
+ *     in the review UI.
+ *
+ * Mutates the classification objects in place.
  */
 export function reconcileWithIndex(classifiedPages, index) {
   if (!index?.entries?.length) return classifiedPages
   const { byName, byTicket } = buildForemanLookup(index)
+
   for (const page of classifiedPages) {
     const c = page.classification
-    // ticket present: validate
-    if (c.ticket_number) {
-      const idxEntry = byTicket.get(String(c.ticket_number))
-      if (idxEntry) {
-        c.index_validated = true
-        // Fill missing foreman name from index
-        if (!c.foreman_name && (idxEntry.first_name || idxEntry.last_name)) {
-          c.foreman_name = [idxEntry.first_name, idxEntry.last_name].filter(Boolean).join(' ')
-        }
-        // Cross-validate foreman name when both present
-        if (c.foreman_name && (idxEntry.first_name || idxEntry.last_name)) {
-          const a = normalizeName(c.foreman_name)
-          const candidates = [
-            normalizeName(`${idxEntry.first_name} ${idxEntry.last_name}`),
-            normalizeName(`${idxEntry.last_name} ${idxEntry.first_name}`),
-            normalizeName(`${idxEntry.last_name}, ${idxEntry.first_name}`)
-          ]
-          if (!candidates.some(cand => cand && a.includes(cand.split(' ')[0]) && a.includes(cand.split(' ').pop()))) {
-            c.mismatch_with_index = true
-          }
-        }
-      } else {
-        // Ticket number not in index — could be a typo or a non-foreman
-        // page (weekly summary, missed time). Leave it; grouping will
-        // still group by ticket_number.
-        c.index_validated = false
-      }
+
+    // Continuation page (no foreman header) — defer to grouping
+    if (!c.foreman_name) continue
+
+    const picked = pickIndexEntry(byName, c.foreman_name, c.crew_or_activity)
+
+    if (!picked) {
+      c.index_validated = false
+      // Keep any printed Field Log ID the OCR pulled off a LEM as a
+      // last-resort ticket_number — better than nothing.
       continue
     }
-    // No ticket: try to derive from foreman name
-    if (c.foreman_name) {
-      const idxEntry = byName.get(normalizeName(c.foreman_name))
-      if (idxEntry?.ticket_number) {
-        c.ticket_number = idxEntry.ticket_number
-        c.ticket_number_confidence = c.ticket_number_confidence || 'high' // from index
-        c.ticket_derived_from_index = true
-        c.index_validated = true
-      }
+
+    const idxEntry = picked.entry
+    const indexTicket = idxEntry.ticket_number || null
+
+    // Cross-check the printed Field Log ID (LEMs only) against the
+    // index. If they disagree, the index wins (we trust the indexed
+    // ground-truth more than a possibly-misread LEM header).
+    if (c.field_log_id && indexTicket && c.field_log_id !== indexTicket) {
+      c.mismatch_with_index = true
+      c.lem_field_log_id_from_page = c.field_log_id
     }
+
+    c.ticket_number = indexTicket
+    c.ticket_number_confidence = picked.confidence
+    c.ticket_derived_from_index = true
+    c.index_validated = true
+    c.index_role = idxEntry.role || null
+    if (picked.ambiguous) c.index_ambiguous = true
   }
+
   return classifiedPages
 }
 
@@ -497,126 +565,81 @@ export function reconcileWithIndex(classifiedPages, index) {
  *   }
  */
 export async function classifyPage(imageBase64) {
-  const prompt = `Examine this scanned construction document page carefully.
+  // Simplified prompt: we no longer try to read handwritten ticket
+  // numbers off daily tickets. The ground truth is the page-1 index
+  // table; pages get their ticket number assigned by foreman-name
+  // lookup against that index. The only place we WILL read a ticket
+  // number off the page itself is the LEM's printed "Field Log ID"
+  // header value (also used as a cross-check against the index).
+  const prompt = `Look at this construction document page. Most pages
+will be a Somerville Aecon LEM (Labour & Equipment Manifest) or a
+Somerville Aecon Daily Ticket (foreman's daily time report).
 
-Most pages will be one of two Somerville Aecon document formats, both
-with a "SOMERVILLE AECON" logo at the top right:
+Extract ONLY the following — do NOT try to read any handwritten
+numbers. Handwritten reads are unreliable and will be ignored
+downstream.
 
-FORMAT 1 - LEM (Labour & Equipment Manifest, billing sheet)
-- Printed form with structured columns
-- Header area (right side) has these labelled fields:
-    "Field Log ID:"   -> ticket/LEM number (e.g. 18260) PRINTED
-    "Foreman:"        -> foreman name (e.g. Gerald Babchishin)
-    "Date:"           -> MM/DD/YYYY
-    "Account #:"      -> project code (e.g. CLX2200)
-    "Customer:"       -> client name
-- Body: labour table with columns Employee | Labour Type | RT Hours |
-  RT Rate | OT Hours | OT Rate | DT Hours | DT Rate | Total
-- Continuation page (page 2 of a LEM): equipment table with Equipment
-  ID, Equipment Type, Hours, Rate, Total, plus grand totals.
-- HAS rate columns and dollar amounts.
+1. foreman_name
+   - On a LEM, this is the printed value of "Foreman:" in the
+     right-side header.
+   - On a daily ticket, this is the value of "foreman:" in the
+     header (often capitalised, e.g. "GERALD BABCHISHIN").
+   - On a continuation page with no header, return null.
 
-FORMAT 2 - Daily Ticket (foreman's daily time report)
-- Says "foreman's daily time report" near the top
-- Right-side header fields:
-    "branch:"   -> project location (e.g. Foster Creek)
-    "job:"      -> job number
-    "foreman:"  -> foreman name (e.g. GERALD BABCHISHIN)
-    "crew:"     -> crew type (e.g. WELDING)
-    "date:"     -> human date (e.g. Tue, Jan 21, 2014)
-- Has a HANDWRITTEN ticket number somewhere on the page (often near
-  the top or in the margin). 4-6 digits, in pen. This is the SAME
-  number that appears as "Field Log ID" on the matching LEM.
-- Body: labour names and types with HANDWRITTEN checkmarks/hours;
-  equipment unit numbers with hours.
-- Continuation page (page 2 of a ticket): handwritten activity
-  description, signatures.
-- NO rate columns, NO dollar amounts.
+2. doc_type — pick the FIRST rule that fits:
+   - "lem"            -> has rate columns / dollar amounts ("RT Rate",
+                         "OT Rate", "Total Labour", "Field Log
+                         Total") OR is an equipment table with unit
+                         IDs and rates (LEM page 2).
+   - "daily_ticket"   -> says "foreman's daily time report" OR has
+                         crew names + hours but NO rate / dollar
+                         columns. Continuation page = handwritten
+                         activity description + signatures with no
+                         rate columns.
+   - "signature_page" -> mostly signature blocks, sign-offs; no
+                         labour/equipment hours and no rate columns.
+                         Typically the trailing page of a LEM.
+   - "missed_time"    -> labelled "Missed Time" / "Lost Time", listing
+                         crew members + missed hours.
+   - "weekly_summary" -> "Weekly Summary" or rollup of multiple days.
+   - "index_page"     -> table of foremen / supervisors with their
+                         names, roles, and assigned Field Log
+                         numbers.
+   - "unknown"        -> only if you genuinely cannot tell.
 
-STEP 1 - Determine the document type. Use the FIRST rule that fits:
-  - "index_page"     -> a table of foremen / supervisors with their
-                        names, roles, and assigned Field Log numbers.
-                        Often titled "Foreman List", "Ticket Index",
-                        or just shows columns Last/First/Role/Field Log.
-                        This page should NOT be processed as a LEM or
-                        ticket — it's the reference document.
-  - "signature_page" -> a page that is mostly signature blocks,
-                        approvals, sign-offs, with no labour or
-                        equipment hours and no rate columns. Usually
-                        appears as the trailing page of a LEM.
-  - "missed_time"    -> a page titled or labelled "Missed Time" /
-                        "Lost Time" / similar, listing crew members
-                        and missed/lost hours.
-  - "weekly_summary" -> a rollup page covering an entire week of
-                        labour or equipment totals. Often titled
-                        "Weekly Summary" or shows date ranges across
-                        multiple days.
-  - "lem"            -> rate columns / dollar amounts / "RT Rate" /
-                        "OT Rate" / "Total Labour" / "Field Log Total";
-                        OR an equipment table with unit IDs and rates
-                        (a LEM continuation page).
-  - "daily_ticket"   -> "foreman's daily time report" or handwritten
-                        hours with checkmarks but NO rate / dollar
-                        columns. Continuation page: handwritten
-                        activity description + signatures, no rate
-                        columns.
-  - "unknown"        -> only if you genuinely cannot tell.
+3. date — the human-readable date from the header, normalised to
+   YYYY-MM-DD. Return null if no date is visible.
 
-STEP 2 - Extract the header fields. Look in the HEADER AREA of the
-page (top portion, usually right-aligned).
+4. crew_or_activity — a short description of the crew or work type.
+   - On a LEM: the "Account #:" value, OR a more specific job/crew
+     description if shown (e.g. "Mainline Coating", "Tie-In
+     Coating", "WELDING").
+   - On a daily ticket: the "crew:" value.
+   - Return null if not visible.
 
-For LEMs:
-  ticket_number    = the "Field Log ID:" value (printed, e.g. 18260)
-  ticket_number_confidence = "high" (it's printed, you should be sure)
-  date             = the "Date:" value, converted to YYYY-MM-DD
-  foreman_name     = the "Foreman:" value
-  crew_or_spread   = the "Account #:" value (or any crew/spread label
-                     if more specific text exists like "WELDING CREW")
+5. field_log_id — ONLY when the page is a LEM and shows a PRINTED
+   "Field Log ID:" label in the header followed by a number. Return
+   the digits only (e.g. "18260"). Do NOT read handwritten numbers
+   from daily tickets. Return null on daily tickets, signature
+   pages, or any page without a printed Field Log ID label.
 
-For Daily Tickets:
-  ticket_number    = the HANDWRITTEN number. Search the entire page
-                     (top, margins, corners). Usually 4-6 digits in
-                     pen. Also check the "job:" field if you don't
-                     see a clearer handwritten number.
-  ticket_number_confidence:
-    "high"   = clearly readable, every digit certain
-    "medium" = partially legible, one or two digits uncertain
-    "low"    = barely readable
-    null     = no handwritten ticket number found
-  date             = the "date:" value from the header (YYYY-MM-DD)
-  foreman_name     = the "foreman:" value from the header
-  crew_or_spread   = the "crew:" value from the header
-
-For continuation pages (page 2 or later):
-  - If the header fields are repeated, extract them.
-  - If there is no header on this page, return all header fields as
-    null. The system will inherit them from the previous page.
-  - Look for "Page X of Y" text and set page_indicator.
-  - Set is_continuation = true.
-
-Distinguish HANDWRITTEN from PRINTED numbers. Pre-printed numbers
-(page numbers, form revision numbers, pre-printed serials) are NOT
-the ticket number. The handwritten ticket number is added in pen by
-the foreman or inspector and on a daily ticket it usually matches
-the "Field Log ID" on the corresponding LEM.
+6. is_continuation — true if the page has no clear header (it's
+   page 2+ of a multi-page document); false otherwise.
 
 Return ONLY this JSON. No explanation, no markdown:
 
 {
-  "doc_type": "lem" | "daily_ticket" | "signature_page" | "missed_time" | "weekly_summary" | "index_page" | "unknown",
-  "ticket_number": "18260" or null,
-  "ticket_number_confidence": "high" | "medium" | "low" | null,
-  "date": "2014-01-21" or null,
   "foreman_name": "Gerald Babchishin" or null,
-  "crew_or_spread": "WELDING" or null,
-  "page_indicator": "Page 1 of 2" or null,
-  "is_continuation": false | true,
-  "has_rates_or_costs": true | false
+  "doc_type": "lem" | "daily_ticket" | "signature_page" | "missed_time" | "weekly_summary" | "index_page" | "unknown",
+  "date": "2014-01-21" or null,
+  "crew_or_activity": "Mainline Coating" or null,
+  "field_log_id": "18260" or null,
+  "is_continuation": false
 }`
 
   const requestBody = {
     model: 'claude-sonnet-4-20250514',
-    max_tokens: 1000,
+    max_tokens: 500,
     messages: [{
       role: 'user',
       content: [
@@ -667,10 +690,10 @@ Return ONLY this JSON. No explanation, no markdown:
       }
       const parsed = JSON.parse(jsonMatch[0])
 
-      // The new prompt returns is_continuation (boolean) + page_indicator
-      // ("Page 1 of 2"). The grouping code still keys off the older
-      // page_appears_to_be string, so derive it from the boolean. We also
-      // accept the older field name if the model returns it.
+      // is_continuation -> the legacy page_appears_to_be field used by
+      // the grouping code. The simplified prompt only returns the
+      // boolean now; older saved responses might still have the
+      // string form.
       let page_appears_to_be = 'unknown'
       if (typeof parsed.is_continuation === 'boolean') {
         page_appears_to_be = parsed.is_continuation ? 'continuation' : 'first_page'
@@ -679,14 +702,36 @@ Return ONLY this JSON. No explanation, no markdown:
       }
 
       const validDocTypes = ['lem', 'daily_ticket', 'signature_page', 'missed_time', 'weekly_summary', 'index_page', 'unknown']
+      const docType = validDocTypes.includes(parsed.doc_type) ? parsed.doc_type : 'unknown'
+
+      // Ticket number sources, in priority order:
+      //   1. field_log_id from the new simplified prompt (LEMs only,
+      //      printed, reliable)
+      //   2. ticket_number from the old prompt (cleanup pre-existing
+      //      responses if any are still cached)
+      // We never read handwritten ticket numbers now — daily tickets
+      // get their ticket_number assigned by foreman-name lookup
+      // against the index in reconcileWithIndex.
+      const fieldLogId = cleanTicketNumber(parsed.field_log_id || parsed.ticket_number)
+      const ticketConfidence = fieldLogId ? 'high' : null   // printed -> high
+
+      // crew_or_activity is the new field name; fall back to the old
+      // crew_or_spread name if the model still returns it.
+      const crewText = (parsed.crew_or_activity || parsed.crew_or_spread || '').trim() || null
+
       return {
-        ticket_number: cleanTicketNumber(parsed.ticket_number),
-        ticket_number_confidence: parsed.ticket_number_confidence || null,
+        ticket_number: fieldLogId,
+        ticket_number_confidence: ticketConfidence,
+        field_log_id: fieldLogId,
         date: cleanDate(parsed.date),
         foreman_name: (parsed.foreman_name || '').trim() || null,
-        crew_or_spread: (parsed.crew_or_spread || '').trim() || null,
-        doc_type: validDocTypes.includes(parsed.doc_type) ? parsed.doc_type : 'unknown',
-        has_rates_or_costs: !!parsed.has_rates_or_costs,
+        crew_or_spread: crewText,         // legacy field name kept for grouping
+        crew_or_activity: crewText,       // new field used by index disambig
+        doc_type: docType,
+        // We no longer ask the model for has_rates_or_costs explicitly —
+        // doc_type already captures it. Derive a boolean for any code
+        // that still reads this field.
+        has_rates_or_costs: docType === 'lem',
         is_continuation: page_appears_to_be === 'continuation',
         page_indicator: (parsed.page_indicator || '').trim() || null,
         page_appears_to_be,
@@ -708,9 +753,11 @@ Return ONLY this JSON. No explanation, no markdown:
   return {
     ticket_number: null,
     ticket_number_confidence: null,
+    field_log_id: null,
     date: null,
     foreman_name: null,
     crew_or_spread: null,
+    crew_or_activity: null,
     doc_type: 'unknown',
     has_rates_or_costs: false,
     is_continuation: false,
@@ -1364,8 +1411,8 @@ export async function processPackagePages({
       classifiedPages.push({
         ...page,
         classification: {
-          ticket_number: null, ticket_number_confidence: null,
-          date: null, foreman_name: null, crew_or_spread: null,
+          ticket_number: null, ticket_number_confidence: null, field_log_id: null,
+          date: null, foreman_name: null, crew_or_spread: null, crew_or_activity: null,
           doc_type: 'unknown', has_rates_or_costs: false,
           is_continuation: false, page_indicator: null,
           page_appears_to_be: 'unknown',

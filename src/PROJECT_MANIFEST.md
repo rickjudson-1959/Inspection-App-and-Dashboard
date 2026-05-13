@@ -658,6 +658,76 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### Bulk Upload — Foreman-Name-Only Strategy, No Handwriting OCR (May 13, 2026 — second pass)
+
+Stopped trying to read handwritten ticket numbers off daily-ticket
+pages. The previous attempts burned tokens on an unreliable read; the
+new strategy treats the page 1 index as the only source of ticket
+numbers and uses the printed foreman name (reliable, appears in the
+header of both LEMs and daily tickets) as the join key.
+
+**Per-page OCR prompt (`classifyPage`) — simplified:**
+
+Drops the multi-paragraph "look anywhere on the page for a handwritten
+number" instruction set. The page now only has to return five
+fields:
+
+```json
+{
+  "foreman_name": "Gerald Babchishin" or null,
+  "doc_type": "lem" | "daily_ticket" | "signature_page" | "missed_time" | "weekly_summary" | "index_page" | "unknown",
+  "date": "2014-01-21" or null,
+  "crew_or_activity": "Mainline Coating" or null,
+  "field_log_id": "18260" or null,
+  "is_continuation": false
+}
+```
+
+The prompt explicitly says: do NOT attempt to read handwritten ticket
+numbers — they are ignored downstream. `field_log_id` is only returned
+when a LEM shows the **printed** `"Field Log ID:"` label in the header
+(always reliable because it's printed).
+
+`max_tokens` lowered from 1000 → 500 since the answer is now ~6
+short fields.
+
+**Multi-ticket-per-foreman support:**
+
+A foreman can hold more than one ticket on the same day (Kevin
+Labelle has 18272 for Tie-In Coating and 18273 for Mainline Coating
+in Rick's test data). The lookup is now keyed `name → IndexEntry[]`
+instead of `name → IndexEntry`. The disambiguation step compares the
+page's `crew_or_activity` against each candidate's `role`, scoring by
+token overlap. A clear winner gets `confidence: 'high'`; a tie or
+empty crew text falls back to the first candidate with
+`confidence: 'low'` and `index_ambiguous: true` so the admin can
+verify on the review screen.
+
+**Cross-check, not primary key:**
+
+When a LEM page exposes a printed Field Log ID AND the index lookup
+returns a different ticket number, the index wins. The page-level
+read is preserved as `lem_field_log_id_from_page` for audit and the
+group is flagged `mismatch_with_index = true` so the admin can
+review.
+
+**Files changed:**
+```
+src/utils/bulkUploadProcessor.js
+  - classifyPage prompt rewritten (no handwriting OCR)
+  - parser: ticket_number now sourced from printed field_log_id
+    only; ticket_number_confidence = 'high' when present, null
+    otherwise
+  - buildForemanLookup returns Map<name, IndexEntry[]>
+  - new pickIndexEntry helper — scores candidates by role-vs-
+    crew token overlap
+  - reconcileWithIndex rewritten — foreman_name is the primary
+    key, LEM Field Log ID is a cross-check
+src/PROJECT_MANIFEST.md  (this entry)
+```
+
+No DB schema changes. No field guide impact.
+
 ### Bulk Upload — Single Upload, Page 1 = Index (May 13, 2026)
 
 Dropped the separate index-upload step. The contractor's daily package
