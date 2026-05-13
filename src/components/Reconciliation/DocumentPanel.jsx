@@ -84,13 +84,12 @@ export default function DocumentPanel({
     a.click()
   }
 
-  // Open just THIS row's pages at print resolution. For
-  // bulk-uploaded docs the row's source_pages is a slice of a
-  // shared 130-page source PDF — we render only those specific
-  // pages in an in-app lightbox so the admin never sees the
-  // unrelated pages. For single-doc uploads (no source_pages),
-  // file_urls[0] IS the entire document for this row, so we open
-  // it in a new tab with the browser's native PDF viewer.
+  // Open in a new tab at full quality. For bulk-uploaded docs
+  // (May 2026+) each page is its own JPEG URL — open whichever
+  // page is currently shown. For legacy single-doc PDF uploads
+  // that still have source_pages metadata, open the slice in
+  // the dedicated lightbox so the admin doesn't see unrelated
+  // pages from a shared source PDF.
   const hasPageSlice = Array.isArray(document?.source_pages)
                        && document.source_pages.length > 0
                        && isPdf
@@ -184,19 +183,36 @@ export default function DocumentPanel({
       )
     }
 
+    // Pre-Apr 2026 single-doc PDF uploads (rare) still come through
+    // as a PDF file_url. Keep PdfViewer for that fallback path. The
+    // dominant case after the May 13 bulk-upload rewrite is JPEG
+    // file_urls — handled by the simple <img> block below.
     if (isPdf) {
-      // For bulk-uploaded documents, source_pages constrains the
-      // viewer to just this row's pages within the shared source
-      // PDF — otherwise both the LEM and Ticket panels would
-      // display the source PDF's page 1 (the index page) for
-      // every ticket. rotation lets the panel render landscape
-      // scans without forcing the admin to tilt their head.
       return <PdfViewer url={currentUrl} zoom={zoom} rotation={rotation} pageList={document?.source_pages || null} />
     }
 
+    // PRIMARY VIEWER: plain <img> with CSS-only zoom. An img tag
+    // has no canvas buffer, no async rasterisation, no
+    // ResizeObserver feedback loop — it either shows or doesn't,
+    // and zoom is one CSS property change. This is the fix for
+    // the "image disappears when you click +" bug class.
+    //
+    // Layout:
+    //   container — overflow: auto, scrolls horizontally + vertically
+    //   img       — width = zoom × 100% of container width
+    //               height auto-scales (preserves aspect)
+    //               rotation via transform: rotate()
     return (
-      <div style={{ textAlign: 'center' }}>
-        <ImageViewer url={currentUrl} zoom={zoom} rotation={rotation} onZoomChange={setZoom} />
+      <div style={{ width: '100%', height: '100%', overflow: 'auto', backgroundColor: '#f3f4f6' }}>
+        <img src={currentUrl} alt="Document"
+          style={{
+            display: 'block',
+            width: `${zoom * 100}%`,
+            height: 'auto',
+            maxWidth: 'none',
+            transformOrigin: rotation === 90 || rotation === 270 ? 'center center' : 'top left',
+            transform: rotation ? `rotate(${rotation}deg)` : 'none'
+          }} />
       </div>
     )
   }

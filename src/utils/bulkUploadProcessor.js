@@ -256,8 +256,16 @@ export async function saveBulkUploadGroups({
     if (p?.pageNumber != null) pageImageByNumber.set(p.pageNumber, p.imageBase64)
   }
 
-  onProgress?.('Uploading source PDF...', 0, 1)
-  const sourceUrl = await uploadSourcePdf(sourceFile, orgId, bulkUploadId)
+  // Load the source PDF once for re-rendering at high resolution.
+  // Each group's assigned pages get rasterised to JPEG and uploaded
+  // as image files — file_urls then references JPEGs, not a PDF.
+  // This eliminates pdf.js canvas rendering on the reconciliation
+  // panel side (where the "image disappears on zoom" bug lived) —
+  // the panel just shows <img> tags.
+  onProgress?.('Loading source PDF for re-rendering...', 0, 1)
+  await ensurePdfJsForProcessor()
+  const sourceArrayBuffer = await sourceFile.arrayBuffer()
+  const pdfDoc = await window.pdfjsLib.getDocument({ data: sourceArrayBuffer }).promise
 
   const inserted = { lems: new Map(), tickets: new Map() } // groupId -> row id
 
@@ -265,7 +273,6 @@ export async function saveBulkUploadGroups({
   for (let i = 0; i < total; i++) {
     const g = groups[i]
     const ticketLabel = g.ticket_number || g.id
-    onProgress?.(`Saving group ${i + 1} of ${total} — ${g.foreman_name || 'unknown'} #${ticketLabel}...`, i + 1, total)
 
     const lemAllPages = [...(g.lemPages || []), ...(g.otherPages || [])]
       .filter((v, idx, arr) => arr.indexOf(v) === idx)
@@ -273,22 +280,26 @@ export async function saveBulkUploadGroups({
     const ticketPages = (g.ticketPages || []).slice().sort((a, b) => a - b)
 
     if (lemAllPages.length > 0) {
+      onProgress?.(`Rendering ${lemAllPages.length} LEM page${lemAllPages.length === 1 ? '' : 's'} for ${g.foreman_name || 'unknown'} #${ticketLabel}…`, i + 1, total)
+      const lemUrls = await renderPagesToJpegUrls(pdfDoc, lemAllPages, { orgId, bulkUploadId, groupId: g.id, kind: 'lem' })
       const lemId = await insertGroupRow({
         orgId, uploadedBy, bulkUploadId,
         docType: 'contractor_lem',
         group: g,
         pages: lemAllPages,
-        sourceUrl
+        fileUrls: lemUrls
       })
       inserted.lems.set(g.id, { id: lemId, ticket_number: ticketNumberForRow(g), foreman: g.foreman_name })
     }
     if (ticketPages.length > 0) {
+      onProgress?.(`Rendering ${ticketPages.length} ticket page${ticketPages.length === 1 ? '' : 's'} for ${g.foreman_name || 'unknown'} #${ticketLabel}…`, i + 1, total)
+      const ticketUrls = await renderPagesToJpegUrls(pdfDoc, ticketPages, { orgId, bulkUploadId, groupId: g.id, kind: 'ticket' })
       const tktId = await insertGroupRow({
         orgId, uploadedBy, bulkUploadId,
         docType: 'contractor_ticket',
         group: g,
         pages: ticketPages,
-        sourceUrl
+        fileUrls: ticketUrls
       })
       inserted.tickets.set(g.id, { id: tktId, ticket_number: ticketNumberForRow(g), foreman: g.foreman_name })
     }
@@ -350,31 +361,66 @@ export async function saveBulkUploadGroups({
 
 // ── DB / Storage helpers ───────────────────────────────────────────────────
 
-async function uploadSourcePdf(file, orgId, bulkUploadId) {
-  const path = `${orgId}/bulk/${bulkUploadId}/source-${Date.now()}.pdf`
-  const { error } = await supabase.storage.from('reconciliation-docs')
-    .upload(path, file, { upsert: false, contentType: 'application/pdf' })
-  if (error) throw new Error(`Source upload failed: ${error.message}`)
-  const { data } = supabase.storage.from('reconciliation-docs').getPublicUrl(path)
-  if (!data?.publicUrl) throw new Error(`No public URL for ${path}`)
-  return data.publicUrl
+async function ensurePdfJsForProcessor() {
+  if (window.pdfjsLib) return
+  await new Promise((resolve, reject) => {
+    const script = document.createElement('script')
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js'
+    script.onload = resolve
+    script.onerror = () => reject(new Error('Failed to load PDF.js'))
+    document.head.appendChild(script)
+  })
+  window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js'
 }
 
-async function insertGroupRow({ orgId, uploadedBy, bulkUploadId, docType, group, pages, sourceUrl }) {
+/**
+ * Render a list of PDF pages to JPEGs at scale 3 (~216 DPI) and
+ * upload each to Storage. Returns the public URLs in the same order
+ * as pageNumbers. Scale 3 keeps file size manageable (~400-600 KB
+ * per page) while producing sharp text for the in-panel viewer.
+ */
+async function renderPagesToJpegUrls(pdfDoc, pageNumbers, ctx) {
+  const { orgId, bulkUploadId, groupId, kind } = ctx
+  const urls = []
+  for (const pageNumber of pageNumbers) {
+    const page = await pdfDoc.getPage(pageNumber)
+    const viewport = page.getViewport({ scale: 3 })
+    const canvas = document.createElement('canvas')
+    canvas.width = viewport.width
+    canvas.height = viewport.height
+    const renderCtx = canvas.getContext('2d')
+    await page.render({ canvasContext: renderCtx, viewport }).promise
+    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.88))
+    if (!blob) throw new Error(`canvas.toBlob returned null for page ${pageNumber}`)
+    const path = `${orgId}/bulk/${bulkUploadId}/${kind}/${groupId}/page-${pageNumber}.jpg`
+    const { error } = await supabase.storage.from('reconciliation-docs')
+      .upload(path, blob, { upsert: true, contentType: 'image/jpeg' })
+    if (error) throw new Error(`Page upload failed for ${path}: ${error.message}`)
+    const { data } = supabase.storage.from('reconciliation-docs').getPublicUrl(path)
+    if (!data?.publicUrl) throw new Error(`No public URL for ${path}`)
+    urls.push(data.publicUrl)
+  }
+  return urls
+}
+
+async function insertGroupRow({ orgId, uploadedBy, bulkUploadId, docType, group, pages, fileUrls }) {
   const effectiveTicket = ticketNumberForRow(group)
   const row = {
     organization_id: orgId,
     ticket_number: effectiveTicket,
     doc_type: docType,
-    file_urls: [sourceUrl],
+    // file_urls is the per-page JPEG list (one URL per page). The
+    // reconciliation panel pages through them with the existing
+    // page-navigator UI. No canvas, no pdf.js — just <img> tags.
+    file_urls: fileUrls,
     page_count: pages.length,
     status: 'ready',
     date: group.date || null,
     foreman: group.foreman_name || null,
     crew_or_spread: group.role || null,
     bulk_upload_id: bulkUploadId,
-    source_pages: pages,
-    ocr_confidence: 'high', // human-confirmed
+    source_pages: pages,         // kept for audit / re-process
+    ocr_confidence: 'high',      // human-confirmed
     uploaded_by: uploadedBy
   }
   const { data, error } = await supabase.from('reconciliation_documents')
