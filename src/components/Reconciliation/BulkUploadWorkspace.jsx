@@ -28,7 +28,6 @@ import {
 
 import ThumbnailGrid from './bulkUpload/ThumbnailGrid.jsx'
 import PageLightbox from './bulkUpload/PageLightbox.jsx'
-import IndexReview from './bulkUpload/IndexReview.jsx'
 import GroupingArea from './bulkUpload/GroupingArea.jsx'
 import QuickAssignToolbar from './bulkUpload/QuickAssignToolbar.jsx'
 import { PreConfirmationSummary, ProcessingOverlay, CompletionScreen } from './bulkUpload/ProcessingProgress.jsx'
@@ -48,7 +47,9 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
   const [indexEntries, setIndexEntries] = useState([])
   const [indexDate, setIndexDate] = useState('')
   const [indexSource, setIndexSource] = useState(null)  // 'page1' | 'separate' | null
-  const [showIndexReview, setShowIndexReview] = useState(false)
+  // Index is auto-extracted and auto-applied. There is no admin
+  // review step — the index belongs to the document, not to the
+  // sort workflow, so we don't allow editing it from the workspace.
   const [indexConfirmed, setIndexConfirmed] = useState(false)
 
   // Grouping state
@@ -174,7 +175,12 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
       setPages(rendered)
       recorder?.setPackageMeta({ pageCount: rendered.length })
 
-      // Auto-detect index on page 1 (one OCR call)
+      // Auto-detect, auto-extract, and auto-apply the index from
+      // page 1. No admin review step — the index is part of the
+      // source document, not part of the sort workflow. Page 1 is
+      // routed to Skip so it doesn't appear as ungrouped, but the
+      // foreman list it produced drives the sequential-assign
+      // toolbar and the +New-group-from-index picker.
       if (rendered.length > 0 && !indexConfirmed) {
         try {
           const idx = await classifyIndexPage(rendered[0].imageBase64)
@@ -183,14 +189,13 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
             setIndexEntries(idx.entries)
             setIndexDate(idx.date || '')
             setIndexSource('page1')
-            setShowIndexReview(true)
-            // mark page 1 as the index page in metadata so it's auto-routed
-            // to Skip on confirm
+            setIndexConfirmed(true)
             setPageMetadata(prev => {
               const next = new Map(prev)
               next.set(1, { doc_type: 'index', foreman_name: null, field_log_id: null, ocrStatus: 'done' })
               return next
             })
+            setSkipPages(prev => prev.includes(1) ? prev : [...prev, 1].sort((a, b) => a - b))
           }
         } catch (err) {
           if (err.message === 'CREDIT_BALANCE_TOO_LOW') {
@@ -235,7 +240,7 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
       setIndexEntries(merged.entries)
       setIndexDate(merged.date || '')
       setIndexSource('separate')
-      setShowIndexReview(true)
+      setIndexConfirmed(true)
     } catch (err) {
       setError(err.message || 'Index OCR failed.')
     }
@@ -294,27 +299,6 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
       setOcrProgress({ done, total: targets.length })
     }
     setOcrStatus(prev => prev === 'failed' ? 'failed' : 'done')
-  }
-
-  // ── Index review handlers ──────────────────────────────────────────────
-  const updateIndexEntry = (i, field, value) => {
-    setIndexEntries(prev => prev.map((e, idx) => idx === i ? { ...e, [field]: value } : e))
-  }
-  const deleteIndexEntry = (i) => setIndexEntries(prev => prev.filter((_, idx) => idx !== i))
-  const addIndexEntry = () => setIndexEntries(prev => [...prev, { first_name: '', last_name: '', role: '', ticket_number: '' }])
-  const confirmIndex = () => {
-    setIndexConfirmed(true)
-    setShowIndexReview(false)
-    // Auto-send page 1 to Skip if it's the index page
-    if (indexSource === 'page1' && !skipPages.includes(1) && !pageGroupMap.has(1)) {
-      setSkipPages(prev => prev.includes(1) ? prev : [...prev, 1])
-    }
-  }
-  const dismissIndex = () => {
-    setIndexConfirmed(false)
-    setIndexEntries([])
-    setShowIndexReview(false)
-    setIndexSource(null)
   }
 
   // ── Page selection ─────────────────────────────────────────────────────
@@ -599,7 +583,7 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
     setStage('idle')
     setPackageFile(null); setPages([]); setPageMetadata(new Map())
     setIndexEntries([]); setIndexDate(''); setIndexSource(null)
-    setShowIndexReview(false); setIndexConfirmed(false)
+    setIndexConfirmed(false)
     setGroups([]); setSkipPages([])
     setSelectedPageNumbers(new Set())
     setOcrStatus('idle'); setOcrProgress({ done: 0, total: 0 })
@@ -688,31 +672,26 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
           {/* SORTING — main workspace */}
           {stage === 'sorting' && (
             <>
-              {showIndexReview && (
-                <IndexReview
-                  indexEntries={indexEntries}
-                  indexDate={indexDate}
-                  onChangeDate={setIndexDate}
-                  onUpdateEntry={updateIndexEntry}
-                  onDeleteEntry={deleteIndexEntry}
-                  onAddEntry={addIndexEntry}
-                  onConfirm={confirmIndex}
-                  onDismiss={dismissIndex}
-                  source={indexSource}
-                />
-              )}
-
+              {/* Index status — read-only. The index belongs to the
+                  document, not to the sort workflow. If it's wrong,
+                  fix it at the source PDF; don't mess with the OCR
+                  output here. */}
               <div style={{ display: 'flex', gap: 10, marginBottom: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-                {!showIndexReview && indexEntries.length > 0 && (
-                  <button onClick={() => setShowIndexReview(true)}
-                    style={{ padding: '5px 10px', backgroundColor: 'white', color: '#5b21b6', border: '1px solid #c4b5fd', borderRadius: 4, cursor: 'pointer', fontSize: 12 }}>
-                    📋 Edit index ({indexEntries.length} foremen)
-                  </button>
-                )}
-                {indexEntries.length === 0 && (
+                {indexEntries.length > 0 ? (
+                  <div style={{
+                    padding: '5px 10px', backgroundColor: '#faf5ff',
+                    border: '1px solid #c4b5fd', borderRadius: 4,
+                    fontSize: 12, color: '#5b21b6'
+                  }}>
+                    📋 Index loaded — <strong>{indexEntries.length}</strong> foremen
+                    {indexDate && <span style={{ color: '#7c3aed' }}> · {indexDate}</span>}
+                    {indexSource === 'page1' && <span style={{ color: '#7c3aed' }}> · from page 1</span>}
+                    {indexSource === 'separate' && <span style={{ color: '#7c3aed' }}> · uploaded separately</span>}
+                  </div>
+                ) : (
                   <button onClick={() => indexFileInputRef.current?.click()}
                     style={{ padding: '5px 10px', backgroundColor: '#7c3aed', color: 'white', border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12 }}>
-                    📋 Upload Index Page (separate file)
+                    📋 No index detected — upload as separate file
                   </button>
                 )}
                 <input ref={indexFileInputRef} type="file" accept=".pdf" style={{ display: 'none' }}
