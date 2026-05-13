@@ -126,6 +126,19 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
     })
   }, [groups, skipPages, indexEntries, indexConfirmed, packageFile, stage, pages.length])
 
+  // Safety net: if undo (or any other action) deletes the group we're
+  // sequentially editing, reset the state machine so the toolbar
+  // doesn't end up pointing at a ghost. MUST stay above the `if
+  // (!open) return null` below — React Rules of Hooks. Setters below
+  // are referenced by id; they're declared above so this effect can
+  // call them.
+  useEffect(() => {
+    if (seqWorkingGroupId && !groups.some(g => g.id === seqWorkingGroupId)) {
+      setSeqWorkingGroupId(null)
+      setSeqStep('lem')
+    }
+  }, [groups, seqWorkingGroupId])
+
   if (!open) return null
 
   const isBlocking = stage === 'splitting' || stage === 'saving'
@@ -540,15 +553,6 @@ export default function BulkUploadWorkspace({ open, onClose, onComplete }) {
     scrollToNextUngrouped(justAssignedPages)
   }
 
-  // Safety net: if undo (or any other action) deletes the group we're
-  // sequentially editing, reset the state machine so the toolbar
-  // doesn't end up pointing at a ghost.
-  useEffect(() => {
-    if (seqWorkingGroupId && !groups.some(g => g.id === seqWorkingGroupId)) {
-      setSeqWorkingGroupId(null)
-      setSeqStep('lem')
-    }
-  }, [groups, seqWorkingGroupId])
   const bulkClassify = (docType) => {
     pushHistory()
     setPageMetadata(prev => {
