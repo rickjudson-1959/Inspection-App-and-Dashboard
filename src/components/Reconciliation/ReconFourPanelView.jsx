@@ -11,7 +11,8 @@ import DocumentPanel from './DocumentPanel.jsx'
  * Fetches from THREE sources:
  *   1. reconciliation_documents — uploaded contractor LEM + contractor ticket
  *   2. daily_reports — inspector report data (activity_blocks with labour/equipment)
- *   3. work-photos bucket — inspector's ticket photo (URL from report data)
+ *   3. ticket-photos bucket — inspector's ticket photo (URL resolved from the
+ *      filename stored on the matched activity_block's ticketPhotos field)
  *
  * Panels:
  *   P1: Contractor LEM (uploaded)
