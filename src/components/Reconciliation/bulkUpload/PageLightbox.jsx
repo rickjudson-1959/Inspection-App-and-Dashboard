@@ -36,10 +36,10 @@ export default function PageLightbox({ page, sourceFile, onClose }) {
         if (cancelled) return
         const pdfPage = await pdf.getPage(page.pageNumber)
         if (cancelled) return
-        // 3× base scale with a HiDPI bump (capped at 2). Same logic
-        // as the reconciliation PdfViewer so behaviour matches.
+        // 4× base scale with a HiDPI bump (capped at 2) — print-resolution,
+        // matched to OriginalPagesLightbox so all human-facing lightboxes are equal.
         const pixelRatio = Math.min(window.devicePixelRatio || 1, 2)
-        const scale = 3 * pixelRatio
+        const scale = 4 * pixelRatio
         const viewport = pdfPage.getViewport({ scale })
         const canvas = document.createElement('canvas')
         canvas.width = viewport.width
