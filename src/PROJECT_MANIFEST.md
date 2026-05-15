@@ -658,6 +658,119 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### Bulk-Upload Recovery — Ticket-Number Inheritance + Equipment Cap (May 16, 2026 — afternoon)
+
+Follow-ups to the morning's storage-only recovery on bulk
+`0cf99a72-...` (Jan 21 2014 Aecon CLX2 package):
+
+**1. Ticket-number inheritance.** The first recovery pass generated
+INDEPENDENT ticket_numbers for each group's LEM and daily-ticket
+storage subdirs: the LEM was OCR'd and got the real Field Log ID
+("18292"), but the daily-ticket pages don't print the Field Log ID
+in a format Vision could read, so they fell to the `AUTO-…-g-XXX`
+fallback. Result: every foreman's package was split across two
+ticket_numbers in the reconciliation list — Brett Whitworth's LEM
+under "18292", his daily ticket under "AUTO-0cf99a72-g-05a650c3".
+
+`scripts/recover-bulk-upload.cjs` now processes LEM groups first,
+stores their `(groupId → ticketNumber)` mapping, and propagates
+the LEM's ticket_number + foreman + date into the corresponding
+ticket group (matched by the same storage `g-XXXX` group_id). No
+ticket-side OCR needed — single OCR pass per group instead of two.
+Final state: 33 of 34 groups paired (LEM + ticket under one
+ticket_number); 1 LEM-only (Field Log ID unreadable even at scale
+4 — admin renames manually).
+
+**2. Equipment cap of 30 per LEM.** Ticket 18277 came back with
+115 equipment entries — Vision aggregating + duplicating units
+across the LEM's 4 pages. No real daily LEM has 30+ pieces of
+equipment, so both `bulkUploadProcessor.runLemExtractionForGroup`
+and the recovery script now slice `equipment_entries` to 30 and
+add a "Manual review required: OCR returned N entries (cap is 30)"
+line to `discrepancy_note`. The cost is recomputed from the
+truncated list so saved totals match what's persisted.
+
+Backfilled the three over-cap Jan 21 rows in place via REST PATCH:
+18277 (115 → 30, $7,140), 18286 (66 → 30, $9,660), 18275 (38 → 30,
+$25,250). Future bulk uploads get the cap applied at write time.
+
+**3. Step-5 skip optimization.** `contractor_lems` rows that
+already have a non-empty `labour_entries` array are skipped on
+re-run so a script re-invocation only OCRs the unprocessed groups
+— ~30s saved per already-extracted ticket.
+
+**Files changed:**
+```
+scripts/recover-bulk-upload.cjs
+  - classifyAndInsert(kind, groupId, inherited)
+  - LEM-first loop populates lemGroupMeta
+  - ticket loop uses lemGroupMeta.get(groupId) for inheritance
+  - skip step 5 when contractor_lems.labour_entries already
+    populated for that field_log_id
+  - MAX_EQUIPMENT_PER_LEM = 30 cap + discrepancy_note
+src/utils/bulkUploadProcessor.js
+  - same MAX_EQUIPMENT_PER_LEM = 30 cap in runLemExtractionForGroup
+  - discrepancy_note now combines hallucination + equipment-overflow
+    when both fire
+```
+
+### Bulk-Upload Silent-Failure Diagnostics + Storage-Only Recovery (May 16, 2026)
+
+**Jan 21 incident.** Rick ran a 34-group bulk upload of the
+2014-01-21 Aecon CLX2 LEM package. All 34 LEM JPEG groups, 33 ticket
+JPEG groups, and the source PDF made it into the
+`reconciliation-docs` bucket. The `bulk_uploads` row got created.
+But every `reconciliation_documents` insert silently failed — zero
+rows landed, and the UI just showed 33 "Partial / LEM ✗ TK ✗"
+packages with no error indicator.
+
+**Two fixes shipped:**
+
+1. **`saveBulkUploadGroups` per-group try/catch.** The loop body was
+   throwing on the first failing insert, propagating through the
+   caller, and getting swallowed somewhere in the UI. The new shape
+   collects per-group errors in an array, logs each loudly with
+   `console.error` + `err.stack`, and lets subsequent groups
+   continue so a single bad row doesn't strand the entire bulk.
+   The accumulated `insertErrors` are surfaced at the end of the
+   pass with the `bulkUploadId` so the admin can hand it to the
+   recovery script.
+
+2. **`scripts/recover-bulk-upload.cjs` — recover from storage alone.**
+   When the storage JPEGs + source PDF are intact but
+   `reconciliation_documents` rows are missing, re-running the
+   bulk upload from the workspace requires the user to manually
+   re-tag every page (their localStorage state is gone). The new
+   script instead:
+
+     - Lists the bulk's storage subdirs to enumerate the
+       group_id → pages mapping that lived in localStorage.
+     - For each group, renders the first page from the LOCAL
+       source PDF at scale 4 + 270° rotation and OCRs it for
+       the printed Field Log ID and foreman.
+     - Inserts a `reconciliation_documents` row pointing at the
+       EXISTING storage URLs — no re-upload of JPEGs, no
+       re-rasterization of pages.
+     - For LEM groups, runs the full labour + equipment OCR with
+       `personnel_roster` + `equipment_fleet` cross-check (same
+       safeguards as the bulk processor) and writes to
+       `contractor_lems`.
+     - Wires `document_matches` between LEM and ticket rows of
+       the same foreman + date.
+
+   Idempotent: if rows already exist for a group (matched by the
+   group_id substring in `file_urls`), the script skips OCR and
+   re-uses the existing row's id + ticket_number for the LEM
+   extraction step. Safe to re-run after partial failures or
+   accidental row deletes.
+
+   CLI: `node scripts/recover-bulk-upload.cjs [BULK_ID] [LOCAL_PDF]`
+
+**Root-cause analysis of the original silent failure** is still
+open — the per-group try/catch will make the next occurrence loud
+enough to diagnose. Suspected mechanism is browser-session-related
+(stale auth, RLS denial, or a UI hook swallowing the error).
+
 ### LEM OCR Scale 4 + Upright Rotation + Source-PDF Preservation (May 15, 2026 — night)
 
 The earlier "the LEM is too poor quality to OCR, flag for manual entry"

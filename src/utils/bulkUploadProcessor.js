@@ -300,6 +300,16 @@ export async function saveBulkUploadGroups({
 
   const inserted = { lems: new Map(), tickets: new Map() } // groupId -> row id
 
+  // Per-group failures are captured here so a single bad insert
+  // doesn't abort the entire bulk and silently leave the storage in
+  // a half-saved state. Each error is logged loudly AND surfaced in
+  // the returned result so the caller can show the admin what went
+  // wrong. This is the diagnostic the Jan 21 silent failure was
+  // missing — that run uploaded all 34 LEM + 33 ticket JPEG groups
+  // to storage but no reconciliation_documents rows landed and
+  // there was no error to look at.
+  const insertErrors = []
+
   const total = groups.length
   for (let i = 0; i < total; i++) {
     const g = groups[i]
@@ -310,32 +320,41 @@ export async function saveBulkUploadGroups({
       .sort((a, b) => a - b)
     const ticketPages = (g.ticketPages || []).slice().sort((a, b) => a - b)
 
-    if (lemAllPages.length > 0) {
-      onProgress?.(`Uploading ${lemAllPages.length} LEM page${lemAllPages.length === 1 ? '' : 's'} for ${g.foreman_name || 'unknown'} #${ticketLabel}…`, i + 1, total)
-      const lemUrls = await uploadPagesAsJpegs(lemAllPages, pageImageByNumber, { orgId, bulkUploadId, groupId: g.id, kind: 'lem' })
-      const lemId = await insertGroupRow({
-        orgId, uploadedBy, bulkUploadId,
-        docType: 'contractor_lem',
-        group: g,
-        pages: lemAllPages,
-        fileUrls: lemUrls,
-        sourcePdfUrl
-      })
-      inserted.lems.set(g.id, { id: lemId, ticket_number: ticketNumberForRow(g), foreman: g.foreman_name })
+    try {
+      if (lemAllPages.length > 0) {
+        onProgress?.(`Uploading ${lemAllPages.length} LEM page${lemAllPages.length === 1 ? '' : 's'} for ${g.foreman_name || 'unknown'} #${ticketLabel}…`, i + 1, total)
+        const lemUrls = await uploadPagesAsJpegs(lemAllPages, pageImageByNumber, { orgId, bulkUploadId, groupId: g.id, kind: 'lem' })
+        const lemId = await insertGroupRow({
+          orgId, uploadedBy, bulkUploadId,
+          docType: 'contractor_lem',
+          group: g,
+          pages: lemAllPages,
+          fileUrls: lemUrls,
+          sourcePdfUrl
+        })
+        inserted.lems.set(g.id, { id: lemId, ticket_number: ticketNumberForRow(g), foreman: g.foreman_name })
+      }
+      if (ticketPages.length > 0) {
+        onProgress?.(`Uploading ${ticketPages.length} ticket page${ticketPages.length === 1 ? '' : 's'} for ${g.foreman_name || 'unknown'} #${ticketLabel}…`, i + 1, total)
+        const ticketUrls = await uploadPagesAsJpegs(ticketPages, pageImageByNumber, { orgId, bulkUploadId, groupId: g.id, kind: 'ticket' })
+        const tktId = await insertGroupRow({
+          orgId, uploadedBy, bulkUploadId,
+          docType: 'contractor_ticket',
+          group: g,
+          pages: ticketPages,
+          fileUrls: ticketUrls,
+          sourcePdfUrl
+        })
+        inserted.tickets.set(g.id, { id: tktId, ticket_number: ticketNumberForRow(g), foreman: g.foreman_name })
+      }
+    } catch (err) {
+      console.error(`[bulkUpload] group ${i + 1}/${total} (#${ticketLabel}, ${g.foreman_name || 'unknown'}) FAILED:`, err.message, err.stack)
+      insertErrors.push({ groupIndex: i + 1, ticketLabel, foreman: g.foreman_name || null, error: err.message })
     }
-    if (ticketPages.length > 0) {
-      onProgress?.(`Uploading ${ticketPages.length} ticket page${ticketPages.length === 1 ? '' : 's'} for ${g.foreman_name || 'unknown'} #${ticketLabel}…`, i + 1, total)
-      const ticketUrls = await uploadPagesAsJpegs(ticketPages, pageImageByNumber, { orgId, bulkUploadId, groupId: g.id, kind: 'ticket' })
-      const tktId = await insertGroupRow({
-        orgId, uploadedBy, bulkUploadId,
-        docType: 'contractor_ticket',
-        group: g,
-        pages: ticketPages,
-        fileUrls: ticketUrls,
-        sourcePdfUrl
-      })
-      inserted.tickets.set(g.id, { id: tktId, ticket_number: ticketNumberForRow(g), foreman: g.foreman_name })
-    }
+  }
+
+  if (insertErrors.length > 0) {
+    console.warn(`[bulkUpload] ${insertErrors.length} of ${total} group(s) failed to insert. Storage uploads for the failing groups may already have completed — these rows can be recovered later via scripts/recover-bulk-upload.cjs using the bulkUploadId ${bulkUploadId}.`)
   }
 
   // LEM extraction on every LEM group — populates contractor_lems.
@@ -640,6 +659,24 @@ async function runLemExtractionForGroup({ row, group, orgId, pageImageByNumber, 
     }
   }
 
+  // Equipment cap. Ticket 18277 came back from Vision with 115
+  // equipment entries on May 16 2026 — aggregated / duplicated
+  // across multiple LEM pages. No real daily LEM has 30+ pieces
+  // of equipment, so truncate to MAX_EQUIPMENT_PER_LEM and surface
+  // the row for manual review via discrepancy_note.
+  const MAX_EQUIPMENT_PER_LEM = 30
+  let equipmentTruncated = 0
+  if (allEquipment.length > MAX_EQUIPMENT_PER_LEM) {
+    equipmentTruncated = allEquipment.length - MAX_EQUIPMENT_PER_LEM
+    console.warn(`[bulkUpload] #${row.ticket_number}: equipment OCR returned ${allEquipment.length} entries; capping at ${MAX_EQUIPMENT_PER_LEM}`)
+    allEquipment.length = MAX_EQUIPMENT_PER_LEM
+    totalEquipCost = allEquipment.reduce((s, e) => s + (e.total || 0), 0)
+  }
+  // Same cap on suspicious — never let a row balloon past the cap.
+  if (allEquipment.length + allSuspiciousEquipment.length > MAX_EQUIPMENT_PER_LEM) {
+    allSuspiciousEquipment.length = Math.max(0, MAX_EQUIPMENT_PER_LEM - allEquipment.length)
+  }
+
   // Manual-entry flag: if 50%+ of the names Vision returned failed
   // the roster cross-check, the page is too garbled to trust ANY of
   // the entries — surname-only collisions on a 1000+ roster are easy.
@@ -705,9 +742,16 @@ async function runLemExtractionForGroup({ row, group, orgId, pageImageByNumber, 
     equipment_entries: equipmentWithSuspicious,
     total_labour_cost: tooManyHallucinations ? 0 : totalLabourCost,
     total_equipment_cost: tooManyHallucinations ? 0 : totalEquipCost,
-    discrepancy_note: tooManyHallucinations
-      ? `Manual entry required: ${allSuspicious.length} of ${totalReturned} name(s) returned by OCR failed personnel_roster cross-check (${Math.round(suspiciousRatio * 100)}% suspicious). The few coincidental matches were discarded too — at this signal level they're likely just common surnames colliding. Suspicious: ${allSuspicious.slice(0, 8).map(s => s.employee_name || s.name).join(', ')}${allSuspicious.length > 8 ? '…' : ''}`
-      : null
+    discrepancy_note: (() => {
+      const parts = []
+      if (tooManyHallucinations) {
+        parts.push(`Manual entry required: ${allSuspicious.length} of ${totalReturned} name(s) returned by OCR failed personnel_roster cross-check (${Math.round(suspiciousRatio * 100)}% suspicious). The few coincidental matches were discarded too — at this signal level they're likely just common surnames colliding. Suspicious: ${allSuspicious.slice(0, 8).map(s => s.employee_name || s.name).join(', ')}${allSuspicious.length > 8 ? '…' : ''}`)
+      }
+      if (equipmentTruncated > 0) {
+        parts.push(`Manual review required: OCR returned ${MAX_EQUIPMENT_PER_LEM + equipmentTruncated} equipment entries (cap is ${MAX_EQUIPMENT_PER_LEM}); ${equipmentTruncated} truncated. Verify against the LEM PDF.`)
+      }
+      return parts.length > 0 ? parts.join(' ') : null
+    })()
   }
   const { data: existing } = await supabase.from('contractor_lems')
     .select('id').eq('organization_id', orgId).eq('field_log_id', row.ticket_number).limit(1)
