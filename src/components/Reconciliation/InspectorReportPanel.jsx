@@ -90,6 +90,70 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   function isLabourUnresolved(e)    { return !!e.needs_master_resolution && !e.master_personnel_id }
   function isEquipmentUnresolved(e) { return !!e.needs_master_resolution && !e.master_equipment_id }
 
+  // --- Variance resolution (admin marks an LEM-vs-report variance as
+  // explained/accepted). The resolution lives on the entry itself so
+  // the variance map naturally suppresses the red border on re-render
+  // and a green "✓ Resolved" row replaces the warning. The audit
+  // entries flow through onBlockChange the same way every other
+  // cell edit does (ReconFourPanelView writes them to
+  // report_audit_log).
+  async function resolveVariance(section, rowIdx) {
+    if (!onBlockChange) return
+    const entries = section === 'labour' ? labourEntries : equipmentEntries
+    const entry = entries[rowIdx]
+    if (!entry) return
+    const label = section === 'labour'
+      ? (entry.employeeName || entry.employee_name || entry.name || `row ${rowIdx + 1}`)
+      : (entry.unitNumber || entry.unit_number || entry.equipment_id || entry.type || `row ${rowIdx + 1}`)
+    const note = window.prompt(
+      `Resolve variance for ${label}\n\nEnter a note explaining the resolution (e.g. "Foreman gets day rate regardless of hours"). Leave blank to cancel.`,
+      ''
+    )
+    if (note === null) return
+    const trimmed = note.trim()
+    if (!trimmed) return
+    const { data: { user } = {} } = await supabase.auth.getUser()
+    const resolvedBy = user?.email || user?.id || 'admin'
+    const resolvedAt = new Date().toISOString()
+    const next = [...entries]
+    next[rowIdx] = {
+      ...next[rowIdx],
+      variance_resolved: true,
+      variance_resolution_note: trimmed,
+      variance_resolved_by: resolvedBy,
+      variance_resolved_at: resolvedAt
+    }
+    const updatedBlock = section === 'labour'
+      ? { ...block, labourEntries: next }
+      : { ...block, equipmentEntries: next }
+    const auditEntries = [{
+      field: `${section}[${rowIdx}].variance_resolved`,
+      oldValue: entry.variance_resolved ? 'true' : 'false',
+      newValue: `true — ${trimmed} (by ${resolvedBy})`
+    }]
+    onBlockChange(updatedBlock, auditEntries)
+  }
+
+  async function unresolveVariance(section, rowIdx) {
+    if (!onBlockChange) return
+    const entries = section === 'labour' ? labourEntries : equipmentEntries
+    const entry = entries[rowIdx]
+    if (!entry || !entry.variance_resolved) return
+    if (!window.confirm('Re-open this variance? The previous resolution note will be cleared.')) return
+    const next = [...entries]
+    const { variance_resolved, variance_resolution_note, variance_resolved_by, variance_resolved_at, ...rest } = next[rowIdx]
+    next[rowIdx] = rest
+    const updatedBlock = section === 'labour'
+      ? { ...block, labourEntries: next }
+      : { ...block, equipmentEntries: next }
+    const auditEntries = [{
+      field: `${section}[${rowIdx}].variance_resolved`,
+      oldValue: `true — ${variance_resolution_note || ''} (by ${variance_resolved_by || ''})`,
+      newValue: 'false (re-opened)'
+    }]
+    onBlockChange(updatedBlock, auditEntries)
+  }
+
   function findLabourRate(classification) {
     if (!classification) return null
     const cl = norm(classification)
@@ -1230,10 +1294,13 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 const isUnmatched = isLabourUnresolved(e)
                 const isFlagged = e.flagged_for_review
                 const variance = labourVarianceMap[i]
-                const isRedVariance = variance?.isRed && !isUnmatched && !isFlagged
+                const isVarianceResolved = !!e.variance_resolved
+                const isRedVariance = variance?.isRed && !isUnmatched && !isFlagged && !isVarianceResolved
+                const wasResolved = variance?.isRed && isVarianceResolved && !isUnmatched && !isFlagged
                 const rowBorder = isFlagged ? { borderLeft: '4px solid #7c3aed' }
                   : isUnmatched ? { borderLeft: '4px solid #eab308' }
                   : isRedVariance ? { borderLeft: '4px solid #ef4444', backgroundColor: '#fef2f2' }
+                  : wasResolved ? { borderLeft: '4px solid #10b981' }
                   : {}
                 return (
                   <React.Fragment key={i}>
@@ -1296,7 +1363,30 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                     {isRedVariance && varianceReasonText(variance) && (
                       <tr>
                         <td colSpan={onBlockChange ? 11 : 10} style={{ padding: '2px 6px', fontSize: 11, color: '#b91c1c', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
-                          {varianceReasonText(variance)}
+                          <span>{varianceReasonText(variance)}</span>
+                          {onBlockChange && (
+                            <button
+                              onClick={() => resolveVariance('labour', i)}
+                              style={{ marginLeft: 8, padding: '1px 6px', fontSize: 10, fontWeight: 600, border: '1px solid #b91c1c', background: 'white', color: '#b91c1c', borderRadius: 3, cursor: 'pointer' }}
+                              title="Mark this variance as resolved with a note"
+                            >Resolve</button>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    {wasResolved && (
+                      <tr>
+                        <td colSpan={onBlockChange ? 11 : 10} style={{ padding: '2px 6px', fontSize: 11, color: '#047857', backgroundColor: '#ecfdf5', borderBottom: '1px solid #a7f3d0' }}>
+                          &#10003; Resolved by {e.variance_resolved_by || 'admin'}
+                          {e.variance_resolved_at && ` on ${new Date(e.variance_resolved_at).toLocaleString()}`}
+                          : {e.variance_resolution_note}
+                          {onBlockChange && (
+                            <button
+                              onClick={() => unresolveVariance('labour', i)}
+                              style={{ marginLeft: 8, padding: '1px 6px', fontSize: 10, fontWeight: 600, border: '1px solid #047857', background: 'white', color: '#047857', borderRadius: 3, cursor: 'pointer' }}
+                              title="Re-open this variance (clears resolution)"
+                            >Re-open</button>
+                          )}
                         </td>
                       </tr>
                     )}
@@ -1365,10 +1455,13 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 const isUnmatched = isEquipmentUnresolved(e)
                 const isFlagged = e.flagged_for_review
                 const variance = equipmentVarianceMap[i]
-                const isRedVariance = variance?.isRed && !isUnmatched && !isFlagged
+                const isVarianceResolved = !!e.variance_resolved
+                const isRedVariance = variance?.isRed && !isUnmatched && !isFlagged && !isVarianceResolved
+                const wasResolved = variance?.isRed && isVarianceResolved && !isUnmatched && !isFlagged
                 const rowBorder = isFlagged ? { borderLeft: '4px solid #7c3aed' }
                   : isUnmatched ? { borderLeft: '4px solid #eab308' }
                   : isRedVariance ? { borderLeft: '4px solid #ef4444', backgroundColor: '#fef2f2' }
+                  : wasResolved ? { borderLeft: '4px solid #10b981' }
                   : {}
                 return (
                   <React.Fragment key={i}>
@@ -1418,7 +1511,30 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                     {isRedVariance && varianceReasonText(variance) && (
                       <tr>
                         <td colSpan={onBlockChange ? 6 : 5} style={{ padding: '2px 6px', fontSize: 11, color: '#b91c1c', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
-                          {varianceReasonText(variance)}
+                          <span>{varianceReasonText(variance)}</span>
+                          {onBlockChange && (
+                            <button
+                              onClick={() => resolveVariance('equipment', i)}
+                              style={{ marginLeft: 8, padding: '1px 6px', fontSize: 10, fontWeight: 600, border: '1px solid #b91c1c', background: 'white', color: '#b91c1c', borderRadius: 3, cursor: 'pointer' }}
+                              title="Mark this variance as resolved with a note"
+                            >Resolve</button>
+                          )}
+                        </td>
+                      </tr>
+                    )}
+                    {wasResolved && (
+                      <tr>
+                        <td colSpan={onBlockChange ? 6 : 5} style={{ padding: '2px 6px', fontSize: 11, color: '#047857', backgroundColor: '#ecfdf5', borderBottom: '1px solid #a7f3d0' }}>
+                          &#10003; Resolved by {e.variance_resolved_by || 'admin'}
+                          {e.variance_resolved_at && ` on ${new Date(e.variance_resolved_at).toLocaleString()}`}
+                          : {e.variance_resolution_note}
+                          {onBlockChange && (
+                            <button
+                              onClick={() => unresolveVariance('equipment', i)}
+                              style={{ marginLeft: 8, padding: '1px 6px', fontSize: 10, fontWeight: 600, border: '1px solid #047857', background: 'white', color: '#047857', borderRadius: 3, cursor: 'pointer' }}
+                              title="Re-open this variance (clears resolution)"
+                            >Re-open</button>
+                          )}
                         </td>
                       </tr>
                     )}
