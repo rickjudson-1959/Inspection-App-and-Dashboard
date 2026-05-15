@@ -310,8 +310,33 @@ async function main() {
   const totalReturned = allLabour.length + allSuspicious.length
   const suspiciousRatio = totalReturned > 0 ? allSuspicious.length / totalReturned : 0
   const tooManyHallucinations = totalReturned > 0 && suspiciousRatio >= 0.5
+
+  // Suspicious entries get persisted inline alongside the kept ones
+  // with `_suspicious: true` so the inspector panel can surface them
+  // as "Likely OCR misread: 'Brad Kerlau'" hints when a real worker
+  // appears missing from the LEM. They are NOT included in cost
+  // totals or in the variance comparison's "real LEM rows" set.
+  const labourWithSuspicious = tooManyHallucinations ? [] : [
+    ...allLabour,
+    ...allSuspicious.map(s => ({
+      name: s.employee_name || s.name || '',
+      type: s.classification || '',
+      employee_id: s.employee_id || '',
+      rt_hours: s.rt_hours || 0,
+      ot_hours: s.ot_hours || 0,
+      dt_hours: s.dt_hours || 0,
+      rt_rate: s.rt_rate || 0,
+      ot_rate: s.ot_rate || 0,
+      dt_rate: s.dt_rate || 0,
+      sub: s.subsistence || 0,
+      total: s.line_total || 0,
+      _suspicious: true,
+      _suspicious_reason: s._reason || 'no roster match'
+    }))
+  ]
+
   const update = {
-    labour_entries: tooManyHallucinations ? [] : allLabour,
+    labour_entries: labourWithSuspicious,
     equipment_entries: tooManyHallucinations ? [] : allEquipment,
     total_labour_cost: tooManyHallucinations ? 0 : totalLabourCost,
     total_equipment_cost: tooManyHallucinations ? 0 : totalEquipCost,

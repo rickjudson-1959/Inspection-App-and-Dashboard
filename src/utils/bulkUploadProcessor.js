@@ -624,12 +624,36 @@ async function runLemExtractionForGroup({ row, group, orgId, pageImageByNumber, 
     return false
   }
 
+  // Suspicious entries get persisted inline with `_suspicious: true`
+  // so the inspector report panel can surface "Likely OCR misread:
+  // 'Brad Kerlau'" hints when a real worker appears missing from the
+  // LEM. They are NOT included in cost totals and they are filtered
+  // out by InspectorReportPanel.labourVarianceMap before matching
+  // real LEM rows.
+  const labourWithSuspicious = tooManyHallucinations ? [] : [
+    ...allLabour,
+    ...allSuspicious.map(s => ({
+      name: s.employee_name || s.name || '',
+      type: s.classification || '',
+      employee_id: '',
+      rt_hours: s.rt_hours || 0,
+      ot_hours: s.ot_hours || 0,
+      dt_hours: 0,
+      rt_rate: s.rt_rate || 0,
+      ot_rate: s.ot_rate || 0,
+      dt_rate: 0,
+      sub: 0,
+      total: s.line_total || 0,
+      _suspicious: true,
+      _suspicious_reason: 'name not in personnel_roster'
+    }))
+  ]
   const lemRow = {
     organization_id: orgId,
     field_log_id: row.ticket_number,
     foreman: group.foreman_name || null,
     date: group.date || new Date().toISOString().split('T')[0],
-    labour_entries: tooManyHallucinations ? [] : allLabour,
+    labour_entries: labourWithSuspicious,
     equipment_entries: tooManyHallucinations ? [] : allEquipment,
     total_labour_cost: tooManyHallucinations ? 0 : totalLabourCost,
     total_equipment_cost: tooManyHallucinations ? 0 : totalEquipCost,

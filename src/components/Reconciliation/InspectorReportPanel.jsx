@@ -277,7 +277,16 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   // Generate inline reason text for red variance rows
   function varianceReasonText(v) {
     if (!v || !v.isRed) return null
-    if (v.category === 'missing_on_lem') return '\u26A0 Not on LEM'
+    if (v.category === 'missing_on_lem') {
+      // When the OCR cross-check on the LEM dropped a name as
+      // suspicious AND the dropped name shares a first name with this
+      // inspector entry, it's almost always an OCR misread of the
+      // same person. Surface that instead of the generic "Not on LEM".
+      if (v.suspiciousOcrName) {
+        return `\u26A0 Likely OCR misread on LEM: "${v.suspiciousOcrName}"`
+      }
+      return '\u26A0 Not on LEM'
+    }
     if (v.category === 'ghost_on_lem') return '\u26A0 On LEM, not on report'
     const lemRT = v.lemSplit?.rt_hours || 0, lemOT = v.lemSplit?.ot_hours || 0, lemDT = v.lemSplit?.dt_hours || 0
     const iRT = v.inspectorSplit?.rt_hours || 0, iOT = v.inspectorSplit?.ot_hours || 0, iDT = v.inspectorSplit?.dt_hours || 0
@@ -292,7 +301,15 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const labourVarianceMap = useMemo(() => {
     if (!lemData) return {}
 
-    const lemLabour = lemData.labour_entries || []
+    const allLemLabour = lemData.labour_entries || []
+    // Suspicious entries are OCR'd names that failed the roster
+    // cross-check at re-extract time. They're persisted alongside
+    // real entries with _suspicious: true so the variance check can
+    // surface "likely OCR misread" hints, but they're NEVER matched
+    // as a real LEM row.
+    const lemLabour = allLemLabour.filter(l => !l._suspicious)
+    const lemSuspicious = allLemLabour.filter(l => l._suspicious)
+    const firstToken = (s) => (s || '').toLowerCase().trim().split(/\s+/)[0] || ''
     const map = {}
 
     for (let i = 0; i < labourEntries.length; i++) {
@@ -321,7 +338,22 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
       const inspTotal = inspSplit.rt_hours + inspSplit.ot_hours + inspSplit.dt_hours
 
       if (!lemMatch) {
-        map[i] = { category: 'missing_on_lem', isRed: true, lemSplit: null, inspectorSplit: inspSplit }
+        // No real-LEM match. Before declaring "Not on LEM", check
+        // whether the LEM has a suspicious (OCR-dropped) entry that
+        // shares this inspector entry's first name — same Brad,
+        // same Wayne, etc. Almost always means OCR misread the same
+        // person and the inspector panel should hint at it.
+        const inspFirst = firstToken(inspName)
+        const susp = inspFirst
+          ? lemSuspicious.find(l => firstToken(l.employee_name || l.name || '') === inspFirst)
+          : null
+        map[i] = {
+          category: 'missing_on_lem',
+          isRed: true,
+          lemSplit: null,
+          inspectorSplit: inspSplit,
+          suspiciousOcrName: susp ? (susp.employee_name || susp.name || '') : null
+        }
         continue
       }
 
@@ -359,7 +391,11 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   // Ghost rows — on LEM but not on inspector report
   const ghostLabourRows = useMemo(() => {
     if (!lemData) return []
-    const lemLabour = lemData.labour_entries || []
+    // Exclude OCR-suspicious entries — those aren't true "ghost rows
+    // on the LEM", they're OCR misreads of names that very likely
+    // ARE on the inspector report (and surfaced via the
+    // suspiciousOcrName hint in labourVarianceMap).
+    const lemLabour = (lemData.labour_entries || []).filter(l => !l._suspicious)
     const inspNames = new Set(labourEntries.map(e =>
       normV(e.employeeName || e.employee_name || e.name || '')
     ).filter(Boolean))
