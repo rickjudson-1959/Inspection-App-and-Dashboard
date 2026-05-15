@@ -12,63 +12,41 @@
 -- page count per bulk_upload_id. reconciliation_documents.source_pdf_url
 -- denormalises the URL onto each row so the re-OCR path doesn't need a
 -- join.
+--
+-- RLS pattern matches the rest of the project (document_matches, etc.):
+-- the `is_super_admin()` + `user_organization_ids()` helpers defined in
+-- 20260131_05_add_rls_policies.sql. `user_organization_ids()` reads
+-- from the `memberships` table; do not invent an `organization_members`
+-- table — it doesn't exist in this schema.
 
-create table if not exists public.bulk_uploads (
-  id                  uuid primary key default gen_random_uuid(),
-  bulk_upload_id      uuid unique not null,
-  organization_id     uuid not null references public.organizations(id) on delete cascade,
-  project_id          uuid references public.projects(id) on delete set null,
-  source_pdf_url      text not null,
-  source_pdf_filename text,
-  page_count          integer,
-  uploaded_by         uuid references auth.users(id),
-  created_at          timestamptz not null default now()
+CREATE TABLE IF NOT EXISTS bulk_uploads (
+  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  bulk_upload_id      UUID UNIQUE NOT NULL,
+  organization_id     UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+  project_id          UUID REFERENCES projects(id) ON DELETE SET NULL,
+  source_pdf_url      TEXT NOT NULL,
+  source_pdf_filename TEXT,
+  page_count          INTEGER,
+  uploaded_by         UUID REFERENCES auth.users(id),
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
-create index if not exists idx_bulk_uploads_org      on public.bulk_uploads (organization_id);
-create index if not exists idx_bulk_uploads_project  on public.bulk_uploads (project_id);
+CREATE INDEX IF NOT EXISTS idx_bulk_uploads_org      ON bulk_uploads (organization_id);
+CREATE INDEX IF NOT EXISTS idx_bulk_uploads_project  ON bulk_uploads (project_id);
 
-alter table public.bulk_uploads enable row level security;
+ALTER TABLE bulk_uploads ENABLE ROW LEVEL SECURITY;
 
-drop policy if exists bulk_uploads_select on public.bulk_uploads;
-create policy bulk_uploads_select on public.bulk_uploads
-  for select using (
-    organization_id in (
-      select om.organization_id from public.organization_members om
-      where om.user_id = auth.uid()
-    )
-  );
-
-drop policy if exists bulk_uploads_insert on public.bulk_uploads;
-create policy bulk_uploads_insert on public.bulk_uploads
-  for insert with check (
-    organization_id in (
-      select om.organization_id from public.organization_members om
-      where om.user_id = auth.uid()
-    )
-  );
-
-drop policy if exists bulk_uploads_update on public.bulk_uploads;
-create policy bulk_uploads_update on public.bulk_uploads
-  for update using (
-    organization_id in (
-      select om.organization_id from public.organization_members om
-      where om.user_id = auth.uid()
-    )
-  );
-
-drop policy if exists bulk_uploads_delete on public.bulk_uploads;
-create policy bulk_uploads_delete on public.bulk_uploads
-  for delete using (
-    organization_id in (
-      select om.organization_id from public.organization_members om
-      where om.user_id = auth.uid()
-    )
-  );
+DROP POLICY IF EXISTS "Tenant isolation for bulk_uploads" ON bulk_uploads;
+CREATE POLICY "Tenant isolation for bulk_uploads"
+ON bulk_uploads FOR ALL
+USING (
+  is_super_admin() OR
+  organization_id IN (SELECT user_organization_ids())
+);
 
 -- Denormalised source-PDF URL on every per-page row so re-OCR doesn't
--- need a join. Already present in the codebase as a nullable string;
--- existing rows from before this migration stay null and surface via
--- the "needs source PDF re-upload" path in the re-OCR flow.
-alter table public.reconciliation_documents
-  add column if not exists source_pdf_url text;
+-- need a join. Nullable: rows uploaded before this migration stay null
+-- and surface via the "needs source PDF re-upload" path in the re-OCR
+-- flow.
+ALTER TABLE reconciliation_documents
+  ADD COLUMN IF NOT EXISTS source_pdf_url TEXT;
