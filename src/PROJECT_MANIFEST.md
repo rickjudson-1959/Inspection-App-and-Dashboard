@@ -658,6 +658,46 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### Reconciliation Panel — Per-Image Rotation + Open-Button Fix (May 15, 2026 — afternoon)
+
+Two follow-ups to the rotation work:
+
+**1. Multi-page LEM / Ticket panels rendered as a horizontal ribbon.**
+The previous wrapper-level `transform: rotate(270deg)` rotated the
+entire flex column. For a single-page row that was harmless. For a
+two-page row (e.g. ticket #18292 — 2 LEM pages + 2 ticket pages), the
+column got rotated as a unit and the pages laid out left-to-right
+instead of stacking, and the rotated visual was wider than the
+half-grid panel so the sides were clipped.
+
+Fix: a new `RotatableImage` component renders each page in its own
+aspect-ratio'd wrapper, with the `<img>` absolutely positioned and
+rotated around its centre. The wrapper takes the rotated aspect
+ratio (`natural.h / natural.w` for 90° / 270°), so each rotated
+page fills the panel width exactly and pages stack top-to-bottom
+in the outer flex column regardless of rotation. The wrapper still
+owns CSS `scale(zoom)` so the zoom controls behave the same.
+
+**2. `↗ Open` button did nothing on bulk-uploaded image rows.**
+`window.open('', '_blank', 'noopener,noreferrer')` returns `null`
+when `noopener` is set (per the WHATWG spec), so the `if (w)
+{ w.document.write(html) }` branch silently no-op'd. Replaced with
+a `Blob` URL: build the stacked-pages HTML, wrap it as a
+`text/html` Blob, `URL.createObjectURL` + `window.open` — preserves
+the `noopener` guarantee without needing a writable handle. URL is
+revoked 60 s later to free the reference.
+
+**Files changed:**
+```
+src/components/Reconciliation/DocumentPanel.jsx
+  - new <RotatableImage> subcomponent (per-image rotation)
+  - render block uses <RotatableImage> instead of rotating the wrapper
+  - handleOpenOriginal image-stack path: Blob URL instead of
+    document.write into a noopener-null window
+```
+
+No DB / no migration.
+
 ### Reconciliation Panel — LEM + Ticket Rotation Direction Fix (May 15, 2026)
 
 After `2acc902` (May 13) replaced the canvas-based `PdfViewer` with a

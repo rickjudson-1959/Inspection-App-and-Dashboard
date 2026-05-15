@@ -101,12 +101,17 @@ export default function DocumentPanel({
     } else {
       // Image-based row: open every page in a new blank tab as a
       // simple html stack. The native image viewer doesn't handle
-      // multi-image grouping itself.
-      const html = `<!doctype html><html><head><title>${(title || 'Document').replace(/</g, '&lt;')}</title>
+      // multi-image grouping itself. Use a Blob URL — window.open
+      // with 'noopener' returns null, so the old document.write()
+      // path silently no-op'd; serving the HTML via Blob keeps the
+      // noopener guarantee without needing a writable handle.
+      const safeTitle = (title || 'Document').replace(/</g, '&lt;')
+      const html = `<!doctype html><html><head><title>${safeTitle}</title>
         <style>body{margin:0;background:#222;text-align:center}img{display:block;margin:0 auto 12px;max-width:100%}</style></head>
         <body>${fileUrls.map((u, i) => `<img src="${u}" alt="Page ${i + 1}" />`).join('')}</body></html>`
-      const w = window.open('', '_blank', 'noopener,noreferrer')
-      if (w) { w.document.write(html); w.document.close() }
+      const blobUrl = URL.createObjectURL(new Blob([html], { type: 'text/html' }))
+      window.open(blobUrl, '_blank', 'noopener,noreferrer')
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 60000)
     }
   }
 
@@ -233,34 +238,30 @@ export default function DocumentPanel({
 
     // Image stack — one <img> per file_url. No PdfViewer.
     //
-    // transformOrigin is conditional on rotation:
-    //   • No rotation → 'top left' so zoom expands toward the
-    //     bottom-right and the scrollbar behaves intuitively.
-    //   • Rotated → 'center center' (matches the iframe path above)
-    //     so the rotated content stays within the viewport instead
-    //     of swinging off into negative coordinates. Top-left origin
-    //     + rotate(90deg) on a width:100% wrapper paints every pixel
-    //     into x<0, which is why LEM + Ticket panels (defaultRotation
-    //     =90) rendered as visually empty after pdf.js was removed in
-    //     2acc902.
+    // Rotation is applied PER IMAGE, not to the wrapper. The earlier
+    // "rotate the whole flex-column" approach worked for single-page
+    // docs but turned every multi-page row into a horizontal ribbon
+    // (pages laid out left-to-right after the column got rotated 90°).
+    // Each page now lives in its own wrapper whose aspect-ratio
+    // matches the rotated visual, so:
+    //   • Pages stay stacked top-to-bottom regardless of rotation.
+    //   • Each rotated page fills the panel width exactly — no
+    //     clipping on the sides, no horizontal scrollbar.
+    //   • The outer wrapper still owns zoom (CSS scale) and the
+    //     panel's vertical scrollbar.
     return (
       <div style={{ width: '100%', height: '100%', overflow: 'auto', backgroundColor: '#f3f4f6' }}>
         <div style={{
           width: '100%',
-          transform: `scale(${zoom})${safeRotation ? ` rotate(${safeRotation}deg)` : ''}`,
-          transformOrigin: safeRotation ? 'center center' : 'top left',
+          transform: `scale(${zoom})`,
+          transformOrigin: 'top left',
           display: 'flex',
           flexDirection: 'column',
           gap: 8,
           padding: 4
         }}>
           {fileUrls.map((u, i) => (
-            <img key={i} src={u} alt={`Page ${i + 1}`}
-              style={{
-                width: '100%',
-                height: 'auto',
-                display: 'block'
-              }} />
+            <RotatableImage key={i} src={u} rotation={safeRotation} alt={`Page ${i + 1}`} />
           ))}
         </div>
       </div>
@@ -357,6 +358,75 @@ export default function DocumentPanel({
           onClose={() => setOriginalLightboxOpen(false)}
         />
       )}
+    </div>
+  )
+}
+
+/**
+ * RotatableImage — a single <img> rendered inside an aspect-ratio'd
+ * wrapper so its rotated visual fills the wrapper exactly.
+ *
+ * The wrapper's aspect-ratio is set from the image's natural dims
+ * (captured on first load). For 90° / 270° rotation the ratio is
+ * inverted, which gives us a landscape-shaped wrapper holding a
+ * landscape-rotated visual — pages stack top-to-bottom in their
+ * parent flex column instead of being squeezed sideways.
+ *
+ * The image itself is absolutely positioned and translated to the
+ * wrapper's centre, then rotated. Its pre-rotation CSS box is
+ * width:(natural.w/natural.h × 100%) × height:(natural.h/natural.w
+ * × 100%) of the wrapper, which is the swap that makes the rotated
+ * visual coincide with the wrapper's edges.
+ */
+function RotatableImage({ src, rotation, alt }) {
+  const [natural, setNatural] = useState(null)
+  const isOrthogonal = rotation === 90 || rotation === 270
+
+  const wrapperAspect = natural
+    ? (isOrthogonal ? `${natural.h} / ${natural.w}` : `${natural.w} / ${natural.h}`)
+    : undefined
+
+  const imgStyle = !natural
+    ? {
+        display: 'block',
+        width: '100%',
+        height: 'auto',
+        visibility: 'hidden'
+      }
+    : isOrthogonal
+    ? {
+        position: 'absolute',
+        top: '50%',
+        left: '50%',
+        width: `${(natural.w / natural.h) * 100}%`,
+        height: `${(natural.h / natural.w) * 100}%`,
+        transform: `translate(-50%, -50%) rotate(${rotation}deg)`,
+        transformOrigin: 'center'
+      }
+    : {
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        objectFit: 'contain',
+        transform: rotation === 180 ? 'rotate(180deg)' : 'none',
+        transformOrigin: 'center'
+      }
+
+  return (
+    <div style={{
+      width: '100%',
+      aspectRatio: wrapperAspect,
+      position: 'relative',
+      overflow: 'hidden',
+      backgroundColor: '#e5e7eb'
+    }}>
+      <img
+        src={src}
+        alt={alt}
+        onLoad={(e) => setNatural({ w: e.target.naturalWidth, h: e.target.naturalHeight })}
+        style={imgStyle}
+      />
     </div>
   )
 }
