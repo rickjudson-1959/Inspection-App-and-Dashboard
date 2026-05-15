@@ -45,6 +45,32 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
     if (ticketNumber && organizationId) loadAllData()
   }, [ticketNumber, organizationId])
 
+  // Diagnostic logging — fires once when loadAllData() settles, so it
+  // doesn't spam the console on every re-render the way the prior
+  // inline-in-body version did (705435b ripped that out for noise).
+  // Tied to [loading, ticketNumber]: one log per ticket load.
+  useEffect(() => {
+    if (loading) return
+    const lemDoc = uploadedDocs.find(d => d.doc_type === 'contractor_lem') || null
+    const ticketDoc = uploadedDocs.find(d => d.doc_type === 'contractor_ticket') || null
+    console.log(
+      `[ReconView] ticket=${ticketNumber} uploadedDocs=${uploadedDocs.length} ` +
+      `panels.lem=${!!lemDoc} panels.ticket=${!!ticketDoc} ` +
+      `lemData=${!!lemData} matchedBlock=${!!matchedBlock} photoUrls=${ticketPhotoUrls.length}`
+    )
+    if (uploadedDocs.length > 0) {
+      console.log('[ReconView] uploadedDocs:', uploadedDocs.map(d => ({
+        doc_type: d.doc_type,
+        file_urls_len: (d.file_urls || []).length,
+        id: d.id,
+        organization_id: d.organization_id
+      })))
+    } else {
+      console.log('[ReconView] uploadedDocs is empty — no reconciliation_documents rows matched ticket+org')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, ticketNumber])
+
   async function loadAllData() {
     setLoading(true)
 
