@@ -1078,16 +1078,21 @@ export async function extractLEMFromUrl(docUrl) {
  * @param {string[]} [opts.rosterNames] — canonical employee names from
  *   personnel_roster for the active org. When supplied, every name
  *   the model returns is cross-checked against this list. Names that
- *   don't match (exact normalised, or fuzzy on last-name) are routed
- *   to `suspicious_labour` and excluded from `labour`. Defends against
- *   Vision hallucinating plausible-sounding names from low-resolution
- *   scans — see the May 15 2026 contractor_lems baseball-player
- *   incident on ticket 18292.
- * @returns {Promise<{labour, equipment, totals, raw_text, suspicious_labour, error?}>}
+ *   don't match (exact normalised, or fuzzy on last-name, or fuzzy
+ *   ED-1 token-set) are routed to `suspicious_labour` and excluded
+ *   from `labour`. Defends against Vision hallucinating plausible-
+ *   sounding names from low-resolution scans.
+ * @param {string[]} [opts.fleetUnits] — canonical equipment unit
+ *   numbers from equipment_fleet for the active org. Cross-check is
+ *   strictly exact (uppercased, alphanumeric-only) because unit
+ *   numbers like PF61 vs PF62 are different vehicles — fuzzy would
+ *   be dangerous. Misses go to `suspicious_equipment`.
+ * @returns {Promise<{labour, equipment, totals, raw_text, suspicious_labour, suspicious_equipment, error?}>}
  */
 export async function extractLEMLineItemsFromBase64(imgBase64, opts = {}) {
   const rosterNames = Array.isArray(opts.rosterNames) ? opts.rosterNames : null
-  if (!ANTHROPIC_API_KEY) return { labour: [], equipment: [], totals: {}, raw_text: '', suspicious_labour: [] }
+  const fleetUnits = Array.isArray(opts.fleetUnits) ? opts.fleetUnits : null
+  if (!ANTHROPIC_API_KEY) return { labour: [], equipment: [], totals: {}, raw_text: '', suspicious_labour: [], suspicious_equipment: [] }
 
   const prompt = `You are extracting billing data from a contractor's Labour & Equipment Manifest (LEM) page used in pipeline construction.
 
@@ -1187,20 +1192,50 @@ Rules:
         console.warn(`[LEM OCR] roster cross-check excluded ${suspicious.length} of ${labourAll.length} names as suspicious (no roster match):`,
           suspicious.map(s => s.name).slice(0, 10))
       }
+      const equipmentAll = parsed.equipment || []
+      const equipSplit = fleetUnits
+        ? splitEquipmentByFleet(equipmentAll, fleetUnits)
+        : { matched: equipmentAll, suspicious: [] }
+      if (fleetUnits && equipSplit.suspicious.length > 0) {
+        console.warn(`[LEM OCR] fleet cross-check excluded ${equipSplit.suspicious.length} of ${equipmentAll.length} equipment unit(s) (no fleet match):`,
+          equipSplit.suspicious.map(s => s.unit_number || s.equipment_type).slice(0, 10))
+      }
       return {
         labour: matched,
-        equipment: parsed.equipment || [],
+        equipment: equipSplit.matched,
         totals: parsed.totals || {},
         raw_text: text,
-        suspicious_labour: suspicious
+        suspicious_labour: suspicious,
+        suspicious_equipment: equipSplit.suspicious
       }
     } catch (err) {
       console.error(`[LEM OCR] Attempt ${attempt + 1} failed:`, err)
-      if (attempt === MAX_RETRIES - 1) return { labour: [], equipment: [], totals: {}, raw_text: '', suspicious_labour: [], error: err.message || 'Extraction failed' }
+      if (attempt === MAX_RETRIES - 1) return { labour: [], equipment: [], totals: {}, raw_text: '', suspicious_labour: [], suspicious_equipment: [], error: err.message || 'Extraction failed' }
       await sleep(2000)
     }
   }
-  return { labour: [], equipment: [], totals: {}, raw_text: '', suspicious_labour: [], error: 'Max retries exceeded' }
+  return { labour: [], equipment: [], totals: {}, raw_text: '', suspicious_labour: [], suspicious_equipment: [], error: 'Max retries exceeded' }
+}
+
+// Cross-check OCR'd equipment unit numbers against equipment_fleet.
+// Strict exact match (uppercased, alphanumeric-only) — fuzzy would be
+// dangerous because PF61 vs PF62 are different vehicles. If a unit
+// number is empty (some LEM rows only have a type + hours), keep the
+// row anyway — we have no way to validate it but it's not necessarily
+// a hallucination. Only flag a row as suspicious when it HAS a unit
+// number that doesn't match the fleet.
+function splitEquipmentByFleet(equipment, fleetUnits) {
+  const normUnit = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const fleet = new Set(fleetUnits.map(normUnit).filter(Boolean))
+  const matched = []
+  const suspicious = []
+  for (const e of equipment) {
+    const unit = normUnit(e?.unit_number || '')
+    if (!unit) { matched.push(e); continue }
+    if (fleet.has(unit)) { matched.push(e); continue }
+    suspicious.push({ ...e, _suspicious_reason: 'unit not in equipment_fleet' })
+  }
+  return { matched, suspicious }
 }
 
 // Cross-check OCR'd labour names against the project's

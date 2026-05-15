@@ -219,7 +219,7 @@ async function main() {
     process.exit(1)
   }
 
-  console.log('[3/6] Loading personnel_roster (paginated)…')
+  console.log('[3/6] Loading personnel_roster + equipment_fleet (paginated)…')
   const rosterNames = []
   for (let from = 0; ; from += 1000) {
     const batch = await rest(`/rest/v1/personnel_roster?organization_id=eq.${ORG}&select=employee_name&order=employee_name&offset=${from}&limit=1000`)
@@ -232,7 +232,18 @@ async function main() {
   const rosterFull = new Set(rosterNames.map(normName).filter(Boolean))
   const rosterLast = new Set(rosterNames.map(lastToken).filter(n => n.length >= 3))
   const rosterTokenSets = rosterNames.map(tokenize).filter(arr => arr.length > 0)
-  console.log(`       ✓ ${rosterNames.length} roster names\n`)
+  const fleetUnits = []
+  for (let from = 0; ; from += 1000) {
+    const batch = await rest(`/rest/v1/equipment_fleet?organization_id=eq.${ORG}&select=unit_number&order=unit_number&offset=${from}&limit=1000`)
+    for (const r of (batch || [])) {
+      const u = (r.unit_number || '').trim()
+      if (u) fleetUnits.push(u)
+    }
+    if (!batch || batch.length < 1000) break
+  }
+  const normUnit = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+  const fleetSet = new Set(fleetUnits.map(normUnit).filter(Boolean))
+  console.log(`       ✓ ${rosterNames.length} roster names, ${fleetUnits.length} fleet units\n`)
 
   console.log(`[4/6] Rendering pages at scale 4 (${RENDER_DPI} dpi) + rotating ${ROTATE_DEG}° for upright OCR input…`)
   const upright = {}
@@ -243,10 +254,11 @@ async function main() {
   }
   console.log()
 
-  console.log('[5/6] OCR + roster cross-check…')
+  console.log('[5/6] OCR + roster + fleet cross-check…')
   const allLabour = []
   const allEquipment = []
   const allSuspicious = []
+  const allSuspiciousEquipment = []
   let totalLabourCost = 0
   let totalEquipCost = 0
 
@@ -293,6 +305,13 @@ async function main() {
       totalLabourCost += l.line_total || 0
     }
     for (const e of (parsed.equipment || [])) {
+      const u = normUnit(e.unit_number || '')
+      // No unit → keep (we can't validate). Unit present but not in
+      // fleet → suspicious (mirrors lemParser splitEquipmentByFleet).
+      if (u && !fleetSet.has(u)) {
+        allSuspiciousEquipment.push(e)
+        continue
+      }
       allEquipment.push({
         type: e.equipment_type || '',
         equipment_id: e.unit_number || '',
@@ -335,9 +354,23 @@ async function main() {
     }))
   ]
 
+  // Same inline-suspicious treatment for equipment.
+  const equipmentWithSuspicious = tooManyHallucinations ? [] : [
+    ...allEquipment,
+    ...allSuspiciousEquipment.map(s => ({
+      type: s.equipment_type || '',
+      equipment_id: s.unit_number || '',
+      hours: s.hours || 0,
+      rate: s.rate || 0,
+      total: s.line_total || 0,
+      _suspicious: true,
+      _suspicious_reason: 'unit not in equipment_fleet'
+    }))
+  ]
+
   const update = {
     labour_entries: labourWithSuspicious,
-    equipment_entries: tooManyHallucinations ? [] : allEquipment,
+    equipment_entries: equipmentWithSuspicious,
     total_labour_cost: tooManyHallucinations ? 0 : totalLabourCost,
     total_equipment_cost: tooManyHallucinations ? 0 : totalEquipCost,
     discrepancy_note: tooManyHallucinations
@@ -351,11 +384,12 @@ async function main() {
   })
 
   console.log('\n=== summary ===')
-  console.log(`labour kept   : ${allLabour.length}`)
-  console.log(`suspicious    : ${allSuspicious.length}`)
-  console.log(`equipment kept: ${allEquipment.length}`)
-  console.log(`labour cost   : $${totalLabourCost.toFixed(2)}`)
-  console.log(`equip cost    : $${totalEquipCost.toFixed(2)}`)
+  console.log(`labour kept            : ${allLabour.length}`)
+  console.log(`labour suspicious      : ${allSuspicious.length}`)
+  console.log(`equipment kept         : ${allEquipment.length}`)
+  console.log(`equipment suspicious   : ${allSuspiciousEquipment.length}`)
+  console.log(`labour cost            : $${totalLabourCost.toFixed(2)}`)
+  console.log(`equip cost             : $${totalEquipCost.toFixed(2)}`)
   console.log(tooManyHallucinations ? '\n⚠ flagged for MANUAL ENTRY' : '\n✓ clean labour saved')
 }
 

@@ -377,6 +377,35 @@ export async function saveBulkUploadGroups({
     console.warn('[bulkUpload] could not load personnel_roster — proceeding without roster cross-check:', err.message)
   }
 
+  // Same treatment for equipment_fleet — paginated, fed to the OCR
+  // step as `fleetUnits` for strict unit-number cross-check. The
+  // OCR helper splits returned equipment into matched vs suspicious
+  // exactly the way it does for labour, then we persist suspicious
+  // inline alongside matched with _suspicious: true so the inspector
+  // panel can surface "Likely OCR misread on LEM: 'PF63'" when a
+  // real fleet unit looks absent.
+  let fleetUnits = []
+  try {
+    const PAGE = 1000
+    for (let from = 0; ; from += PAGE) {
+      const { data: batch, error } = await supabase
+        .from('equipment_fleet')
+        .select('unit_number')
+        .eq('organization_id', orgId)
+        .order('unit_number')
+        .range(from, from + PAGE - 1)
+      if (error) throw error
+      for (const r of (batch || [])) {
+        const u = (r.unit_number || '').trim()
+        if (u) fleetUnits.push(u)
+      }
+      if (!batch || batch.length < PAGE) break
+    }
+    onProgress?.(`Loaded ${fleetUnits.length} fleet units for OCR cross-check`, 0, 1)
+  } catch (err) {
+    console.warn('[bulkUpload] could not load equipment_fleet — proceeding without fleet cross-check:', err.message)
+  }
+
   let lemExtractedCount = 0
   const lemEntries = [...inserted.lems.entries()]
   // Open the source PDF once and reuse for high-res page renders.
@@ -390,7 +419,7 @@ export async function saveBulkUploadGroups({
     onProgress?.(`Extracting LEM data ${i + 1} of ${lemEntries.length} (30-60s each)...`, i + 1, lemEntries.length)
     try {
       const ok = await runLemExtractionForGroup({
-        row, group, orgId, pageImageByNumber, pdfDoc, rosterNames
+        row, group, orgId, pageImageByNumber, pdfDoc, rosterNames, fleetUnits
       })
       if (ok) lemExtractedCount++
     } catch (err) {
@@ -535,7 +564,7 @@ function buildMatchKey(g) {
  *
  * Returns true if anything was written to contractor_lems.
  */
-async function runLemExtractionForGroup({ row, group, orgId, pageImageByNumber, pdfDoc, rosterNames }) {
+async function runLemExtractionForGroup({ row, group, orgId, pageImageByNumber, pdfDoc, rosterNames, fleetUnits }) {
   const lemPages = [...(group.lemPages || []), ...(group.otherPages || [])]
     .filter((v, idx, arr) => arr.indexOf(v) === idx)
     .sort((a, b) => a - b)
@@ -544,6 +573,7 @@ async function runLemExtractionForGroup({ row, group, orgId, pageImageByNumber, 
   const allLabour = []
   const allEquipment = []
   const allSuspicious = []
+  const allSuspiciousEquipment = []
   let totalLabourCost = 0
   let totalEquipCost = 0
   let totalLabourHours = 0
@@ -569,13 +599,16 @@ async function runLemExtractionForGroup({ row, group, orgId, pageImageByNumber, 
     }
     let pageResult
     try {
-      pageResult = await extractLEMLineItemsFromBase64(b64, { rosterNames })
+      pageResult = await extractLEMLineItemsFromBase64(b64, { rosterNames, fleetUnits })
     } catch (err) {
       console.warn(`[bulkUpload] LEM OCR failed on page ${pageNumber}:`, err.message)
       continue
     }
     if (Array.isArray(pageResult?.suspicious_labour) && pageResult.suspicious_labour.length > 0) {
       allSuspicious.push(...pageResult.suspicious_labour)
+    }
+    if (Array.isArray(pageResult?.suspicious_equipment) && pageResult.suspicious_equipment.length > 0) {
+      allSuspiciousEquipment.push(...pageResult.suspicious_equipment)
     }
     for (const l of (pageResult?.labour || [])) {
       allLabour.push({
@@ -648,13 +681,28 @@ async function runLemExtractionForGroup({ row, group, orgId, pageImageByNumber, 
       _suspicious_reason: 'name not in personnel_roster'
     }))
   ]
+  // Same _suspicious-inline treatment for equipment so the panel can
+  // hint at OCR misreads of fleet unit numbers the way it does for
+  // names. Excluded from totals; rendered separately in the panel.
+  const equipmentWithSuspicious = tooManyHallucinations ? [] : [
+    ...allEquipment,
+    ...allSuspiciousEquipment.map(s => ({
+      type: s.equipment_type || '',
+      equipment_id: s.unit_number || '',
+      hours: s.hours || 0,
+      rate: s.rate || 0,
+      total: s.line_total || 0,
+      _suspicious: true,
+      _suspicious_reason: 'unit not in equipment_fleet'
+    }))
+  ]
   const lemRow = {
     organization_id: orgId,
     field_log_id: row.ticket_number,
     foreman: group.foreman_name || null,
     date: group.date || new Date().toISOString().split('T')[0],
     labour_entries: labourWithSuspicious,
-    equipment_entries: tooManyHallucinations ? [] : allEquipment,
+    equipment_entries: equipmentWithSuspicious,
     total_labour_cost: tooManyHallucinations ? 0 : totalLabourCost,
     total_equipment_cost: tooManyHallucinations ? 0 : totalEquipCost,
     discrepancy_note: tooManyHallucinations

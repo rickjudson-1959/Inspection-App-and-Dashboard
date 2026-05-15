@@ -388,6 +388,81 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     return map
   }, [labourEntries, lemData])
 
+  // --- Per-row equipment variance: inspector vs LEM ---
+  //
+  // Mirrors labourVarianceMap. Match key is unit_number (uppercase,
+  // alphanumeric-only) because that's the unique identifier on
+  // contractor LEMs; equipment_type alone is too ambiguous (multiple
+  // pickups, multiple trailers, etc.). When unit_number is empty,
+  // we can't reliably match, so we skip variance for that row.
+  // The _suspicious-fallback hint scans OCR-suspicious entries for
+  // the same unit_number — the OCR misread cases that get caught
+  // are things like 'PFG1' instead of 'PF61'.
+  const equipmentVarianceMap = useMemo(() => {
+    if (!lemData) return {}
+
+    const normUnit = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+    const allLemEquip = lemData.equipment_entries || []
+    const lemEquip = allLemEquip.filter(e => !e._suspicious)
+    const lemSuspiciousEquip = allLemEquip.filter(e => e._suspicious)
+    const map = {}
+
+    for (let i = 0; i < equipmentEntries.length; i++) {
+      const entry = equipmentEntries[i]
+      const inspUnit = normUnit(entry.unitNumber || entry.unit_number || entry.equipment_id || '')
+      if (!inspUnit) continue
+
+      const lemMatch = lemEquip.find(l => normUnit(l.unit_number || l.equipment_id || '') === inspUnit)
+      const inspHours = parseFloat(entry.hours || 0)
+
+      if (!lemMatch) {
+        // Mirror the labour-side suspicious fallback: look for an
+        // OCR-dropped LEM equipment row that shares this unit's
+        // first character/digit-block or has a small edit distance
+        // — if so, surface it as "Likely OCR misread on LEM: 'X'".
+        // For unit numbers, "shares first 2 chars" is a useful
+        // signal without being permissive.
+        const inspPrefix = inspUnit.slice(0, 2)
+        const susp = inspPrefix
+          ? lemSuspiciousEquip.find(l => normUnit(l.unit_number || l.equipment_id || '').slice(0, 2) === inspPrefix)
+          : null
+        map[i] = {
+          category: 'missing_on_lem',
+          isRed: true,
+          lemSplit: null,
+          inspectorSplit: { hours: inspHours },
+          suspiciousOcrName: susp ? (susp.unit_number || susp.equipment_id || '') : null
+        }
+        continue
+      }
+
+      const lemHours = parseFloat(lemMatch.hours || 0)
+      const category = Math.abs(lemHours - inspHours) > 0.01 ? 'hours_mismatch' : 'reconciled'
+      map[i] = {
+        category,
+        isRed: category !== 'reconciled',
+        lemSplit: { hours: lemHours },
+        inspectorSplit: { hours: inspHours }
+      }
+    }
+    return map
+  }, [equipmentEntries, lemData])
+
+  // Ghost equipment rows — on LEM but not on inspector report.
+  // Mirrors ghostLabourRows. Suspicious entries excluded.
+  const ghostEquipmentRows = useMemo(() => {
+    if (!lemData) return []
+    const normUnit = (s) => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '')
+    const lemEquip = (lemData.equipment_entries || []).filter(e => !e._suspicious)
+    const inspUnits = new Set(equipmentEntries.map(e =>
+      normUnit(e.unitNumber || e.unit_number || e.equipment_id || '')
+    ).filter(Boolean))
+    return lemEquip.filter(l => {
+      const u = normUnit(l.unit_number || l.equipment_id || '')
+      return u && !inspUnits.has(u)
+    })
+  }, [lemData, equipmentEntries])
+
   // Ghost rows — on LEM but not on inspector report
   const ghostLabourRows = useMemo(() => {
     if (!lemData) return []
@@ -1289,7 +1364,12 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                 const dupeWarning = getEquipmentDuplicateWarning(e, i)
                 const isUnmatched = isEquipmentUnresolved(e)
                 const isFlagged = e.flagged_for_review
-                const rowBorder = isFlagged ? { borderLeft: '4px solid #7c3aed' } : isUnmatched ? { borderLeft: '4px solid #eab308' } : {}
+                const variance = equipmentVarianceMap[i]
+                const isRedVariance = variance?.isRed && !isUnmatched && !isFlagged
+                const rowBorder = isFlagged ? { borderLeft: '4px solid #7c3aed' }
+                  : isUnmatched ? { borderLeft: '4px solid #eab308' }
+                  : isRedVariance ? { borderLeft: '4px solid #ef4444', backgroundColor: '#fef2f2' }
+                  : {}
                 return (
                   <React.Fragment key={i}>
                     <tr
@@ -1332,6 +1412,13 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                       <tr>
                         <td colSpan={onBlockChange ? 6 : 5} style={{ padding: '2px 6px', fontSize: 11, color: '#dc2626', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
                           &#9888; {dupeWarning}
+                        </td>
+                      </tr>
+                    )}
+                    {isRedVariance && varianceReasonText(variance) && (
+                      <tr>
+                        <td colSpan={onBlockChange ? 6 : 5} style={{ padding: '2px 6px', fontSize: 11, color: '#b91c1c', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
+                          {varianceReasonText(variance)}
                         </td>
                       </tr>
                     )}
