@@ -338,6 +338,31 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     return (s || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)\s*$/, '')
   }
 
+  // Rate-type detection for variance comparison.
+  //
+  // Day-rate workers (foremen, salaried positions) bill a flat daily
+  // amount on top of OT/DT hours. A 1-hour vs 14-hour RT mismatch is
+  // NOT a real variance for them — both bill the same day rate.
+  // What matters: presence (did they work at all) and OT/DT split.
+  //
+  // For equipment, Pipe-Up's billing convention is daily-rate-only
+  // (per Rick, 2026-05-15) — the "10 hours" on the inspector report
+  // is a nominal "the unit was used today" marker. So any equipment
+  // with a non-hourly rate (or with no rate found) is treated as
+  // daily for variance purposes: presence is the variance signal,
+  // hour counts are not.
+  function isLabourDayRate(entry) {
+    const rate = findLabourRate(entry?.classification)
+    if (!rate) return false
+    const rt = rate.rate_type || (parseFloat(rate.rate_st || 0) >= 100 ? 'weekly' : 'hourly')
+    return rt === 'weekly' || rt === 'daily'
+  }
+  function isEquipmentDayRate(entry) {
+    const rate = findEquipmentRate(entry?.type || entry?.equipment_type)
+    if (!rate) return true
+    return (rate.rate_type || 'daily') !== 'hourly'
+  }
+
   // Generate inline reason text for red variance rows
   function varianceReasonText(v) {
     if (!v || !v.isRed) return null
@@ -428,16 +453,32 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
       }
       const lemTotal = lemSplit.rt_hours + lemSplit.ot_hours + lemSplit.dt_hours
 
-      // Compare inspector vs LEM
+      // Compare inspector vs LEM. Day-rate workers (Foreman, salary)
+      // get a flat day rate regardless of RT count, so a 1-hr vs
+      // 14-hr RT diff isn't a real billing variance for them — both
+      // bill the same day rate. Only flag if:
+      //   • presence differs (one side has 0 RT and other has positive),
+      //   • OR OT/DT hours differ (those bill hourly on top of the day rate)
       let category = 'reconciled'
-      if (Math.abs(lemTotal - inspTotal) > 0.01) {
-        category = 'hours_mismatch'
-      } else if (
-        Math.abs(lemSplit.rt_hours - inspSplit.rt_hours) > 0.01 ||
-        Math.abs(lemSplit.ot_hours - inspSplit.ot_hours) > 0.01 ||
-        Math.abs(lemSplit.dt_hours - inspSplit.dt_hours) > 0.01
-      ) {
-        category = 'split_mismatch'
+      const otDiff = Math.abs(lemSplit.ot_hours - inspSplit.ot_hours) > 0.01
+      const dtDiff = Math.abs(lemSplit.dt_hours - inspSplit.dt_hours) > 0.01
+      if (isLabourDayRate(entry)) {
+        const inspRtPresent = inspSplit.rt_hours > 0
+        const lemRtPresent = lemSplit.rt_hours > 0
+        if (inspRtPresent !== lemRtPresent) {
+          category = 'hours_mismatch'
+        } else if (otDiff || dtDiff) {
+          category = 'split_mismatch'
+        }
+      } else {
+        if (Math.abs(lemTotal - inspTotal) > 0.01) {
+          category = 'hours_mismatch'
+        } else if (
+          Math.abs(lemSplit.rt_hours - inspSplit.rt_hours) > 0.01 ||
+          otDiff || dtDiff
+        ) {
+          category = 'split_mismatch'
+        }
       }
 
       map[i] = {
@@ -450,7 +491,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     }
 
     return map
-  }, [labourEntries, lemData])
+  }, [labourEntries, lemData, labourRates, aliases])
 
   // --- Per-row equipment variance: inspector vs LEM ---
   //
@@ -501,7 +542,19 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
       }
 
       const lemHours = parseFloat(lemMatch.hours || 0)
-      const category = Math.abs(lemHours - inspHours) > 0.01 ? 'hours_mismatch' : 'reconciled'
+      // Day-rate equipment bills a flat amount per day regardless of
+      // hour count — the 10/12/14 hours that appear on inspector
+      // reports are nominal "the unit was used today" markers. The
+      // only billing-relevant variance is presence: did the unit run
+      // on the LEM AND the inspector report, or only one of them?
+      let category = 'reconciled'
+      if (isEquipmentDayRate(entry)) {
+        const inspHasHours = inspHours > 0
+        const lemHasHours = lemHours > 0
+        if (inspHasHours !== lemHasHours) category = 'hours_mismatch'
+      } else {
+        if (Math.abs(lemHours - inspHours) > 0.01) category = 'hours_mismatch'
+      }
       map[i] = {
         category,
         isRed: category !== 'reconciled',
@@ -510,7 +563,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
       }
     }
     return map
-  }, [equipmentEntries, lemData])
+  }, [equipmentEntries, lemData, equipmentRates, aliases])
 
   // Ghost equipment rows — on LEM but not on inspector report.
   // Mirrors ghostLabourRows. Suspicious entries excluded.
