@@ -658,6 +658,50 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### Inspector Report Panel — Cost Suppressed by Stale needs_master_resolution (May 15, 2026 — late afternoon)
+
+The cost column was showing $0 for every labour / equipment entry on
+ticket 18292 even when a clear master record existed for the person.
+Example: "Ali ARR" is present on the LEM PDF, in the inspector report
+(`block.labourEntries`), and in `personnel_roster` — but the panel
+calculated his cost as $0.
+
+**Root cause:** `needs_master_resolution` is set at entry-creation
+time in `InspectorReport.jsx` as `!masterPersonnelId` (line 2641) and
+`!masterEquipmentId` (line 2870). When the manpower / equipment-fleet
+CSV is uploaded later, the bulk-resolve paths backfill the
+`master_personnel_id` / `master_equipment_id` on existing entries but
+don't clear the flag. The cost-calc in `InspectorReportPanel.jsx`
+then short-circuits to $0 because it only checks the (now stale) flag.
+
+All 25 labour entries on ticket 18292 had `master_personnel_id`
+populated AND `needs_master_resolution: true` — the flag was created
+when the entries were first entered and never cleared.
+
+**Fix:** Treat the presence of the master_id as the source of truth.
+Two small helpers (`isLabourUnresolved`, `isEquipmentUnresolved`) gate
+on `needs_master_resolution && !master_*_id` so a stale `true` is
+ignored when the entry has actually been resolved. The six call sites
+(labour cost, equipment cost, unresolved count × 2, isUnmatched row
+styling × 2) all flow through the helpers now, keeping the cost view
+and the yellow-border "unmatched" visual cue consistent.
+
+A DB backfill (set `needs_master_resolution = false` wherever
+`master_personnel_id` is populated) would canonicalise the data and
+also clean up `MasterGaps.jsx` views — not done in this commit; can
+follow as a one-shot UPDATE if Rick wants the flag corrected at rest.
+
+**Files changed:**
+```
+src/components/Reconciliation/InspectorReportPanel.jsx
+  - isLabourUnresolved / isEquipmentUnresolved helpers
+  - labourCosts / equipmentCosts gated through the helpers
+  - unresolvedLabour / unresolvedEquip counts gated through the helpers
+  - isUnmatched (labour rows + equipment rows) gated through the helpers
+```
+
+No DB / no migration.
+
 ### Reconciliation Panel — Per-Image Rotation + Open-Button Fix (May 15, 2026 — afternoon)
 
 Two follow-ups to the rotation work:

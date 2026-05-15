@@ -79,6 +79,17 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   // Extract meaningful tokens (words and numbers) for fuzzy matching
   function tokens(s) { return norm(s).replace(/[^a-z0-9]/g, ' ').split(/\s+/).filter(Boolean) }
 
+  // `needs_master_resolution` is set at entry-creation time as
+  // !masterPersonnelId / !masterEquipmentId. When the manpower or
+  // equipment-fleet CSV is uploaded later, those bulk paths backfill
+  // master_personnel_id / master_equipment_id but don't always clear
+  // the flag — leaving rows that have a master_id AND the stale flag.
+  // The presence of the master_id is the source of truth: if it's
+  // populated, the entry is resolved and should compute a cost,
+  // regardless of what the flag says.
+  function isLabourUnresolved(e)    { return !!e.needs_master_resolution && !e.master_personnel_id }
+  function isEquipmentUnresolved(e) { return !!e.needs_master_resolution && !e.master_equipment_id }
+
   function findLabourRate(classification) {
     if (!classification) return null
     const cl = norm(classification)
@@ -239,11 +250,11 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
 
   // --- Totals (unmatched rows contribute $0) ---
   const labourCosts = labourEntries.map(e => {
-    if (e.needs_master_resolution) return { rtRate: null, otRate: null, dtRate: null, rateType: null, subs: 0, cost: 0 }
+    if (isLabourUnresolved(e)) return { rtRate: null, otRate: null, dtRate: null, rateType: null, subs: 0, cost: 0 }
     return calcLabourCost(e)
   })
   const equipmentCosts = equipmentEntries.map(e => {
-    if (e.needs_master_resolution) return { rate: null, cost: 0 }
+    if (isEquipmentUnresolved(e)) return { rate: null, cost: 0 }
     return calcEquipmentCost(e)
   })
   const labourTotal = labourCosts.reduce((s, c) => s + c.cost, 0)
@@ -251,8 +262,8 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const grandTotal = labourTotal + equipmentTotal
 
   // --- Master resolution counts ---
-  const unresolvedLabour = labourEntries.filter(e => e.needs_master_resolution && !e.flagged_for_review).length
-  const unresolvedEquip = equipmentEntries.filter(e => e.needs_master_resolution && !e.flagged_for_review).length
+  const unresolvedLabour = labourEntries.filter(e => isLabourUnresolved(e) && !e.flagged_for_review).length
+  const unresolvedEquip = equipmentEntries.filter(e => isEquipmentUnresolved(e) && !e.flagged_for_review).length
   const flaggedLabour = labourEntries.filter(e => e.flagged_for_review).length
   const flaggedEquip = equipmentEntries.filter(e => e.flagged_for_review).length
   const totalFlagged = flaggedLabour + flaggedEquip
@@ -1105,7 +1116,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
               {labourEntries.map((e, i) => {
                 const lc = labourCosts[i]
                 const dupeWarning = getLabourDuplicateWarning(e, i)
-                const isUnmatched = e.needs_master_resolution
+                const isUnmatched = isLabourUnresolved(e)
                 const isFlagged = e.flagged_for_review
                 const variance = labourVarianceMap[i]
                 const isRedVariance = variance?.isRed && !isUnmatched && !isFlagged
@@ -1240,7 +1251,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
               {equipmentEntries.map((e, i) => {
                 const { rate, cost } = equipmentCosts[i]
                 const dupeWarning = getEquipmentDuplicateWarning(e, i)
-                const isUnmatched = e.needs_master_resolution
+                const isUnmatched = isEquipmentUnresolved(e)
                 const isFlagged = e.flagged_for_review
                 const rowBorder = isFlagged ? { borderLeft: '4px solid #7c3aed' } : isUnmatched ? { borderLeft: '4px solid #eab308' } : {}
                 return (
