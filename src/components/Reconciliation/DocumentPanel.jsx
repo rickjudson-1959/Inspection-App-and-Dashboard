@@ -232,12 +232,23 @@ export default function DocumentPanel({
     }
 
     // Image stack — one <img> per file_url. No PdfViewer.
+    //
+    // transformOrigin is conditional on rotation:
+    //   • No rotation → 'top left' so zoom expands toward the
+    //     bottom-right and the scrollbar behaves intuitively.
+    //   • Rotated → 'center center' (matches the iframe path above)
+    //     so the rotated content stays within the viewport instead
+    //     of swinging off into negative coordinates. Top-left origin
+    //     + rotate(90deg) on a width:100% wrapper paints every pixel
+    //     into x<0, which is why LEM + Ticket panels (defaultRotation
+    //     =90) rendered as visually empty after pdf.js was removed in
+    //     2acc902.
     return (
       <div style={{ width: '100%', height: '100%', overflow: 'auto', backgroundColor: '#f3f4f6' }}>
         <div style={{
           width: '100%',
           transform: `scale(${zoom})${safeRotation ? ` rotate(${safeRotation}deg)` : ''}`,
-          transformOrigin: 'top left',
+          transformOrigin: safeRotation ? 'center center' : 'top left',
           display: 'flex',
           flexDirection: 'column',
           gap: 8,
