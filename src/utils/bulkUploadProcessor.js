@@ -262,6 +262,41 @@ export async function saveBulkUploadGroups({
   // <img> tags. No re-rendering at save time either: the workspace
   // already has the page images, we just convert base64 -> Blob and
   // upload.
+  //
+  // SOURCE-PDF PRESERVATION (added May 15 2026 after the 18292
+  // hallucination incident). The original package PDF is uploaded
+  // once to reconciliation-docs and a bulk_uploads row records the
+  // URL alongside the bulkUploadId. Two reasons:
+  //   • Re-OCR at any time without asking the user to re-upload
+  //     the source (essential when raising OCR scale or fixing a
+  //     model regression on already-uploaded LEMs).
+  //   • Audit / dispute trail — the source is the ground truth and
+  //     should not be ephemeral.
+  let sourcePdfUrl = null
+  try {
+    onProgress?.(`Uploading source PDF for audit / re-OCR…`, 0, 1)
+    const sourceFilename = (sourceFile.name || 'source.pdf').replace(/[^A-Za-z0-9._-]/g, '_').slice(0, 120)
+    const sourcePath = `${orgId}/bulk/${bulkUploadId}/source/${sourceFilename}`
+    const { error: upErr } = await supabase.storage.from('reconciliation-docs')
+      .upload(sourcePath, sourceFile, { upsert: true, contentType: 'application/pdf' })
+    if (upErr) throw new Error(upErr.message)
+    const { data: pub } = supabase.storage.from('reconciliation-docs').getPublicUrl(sourcePath)
+    sourcePdfUrl = pub?.publicUrl || null
+    if (sourcePdfUrl) {
+      const { error: insErr } = await supabase.from('bulk_uploads').insert({
+        bulk_upload_id: bulkUploadId,
+        organization_id: orgId,
+        project_id: projectId,
+        source_pdf_url: sourcePdfUrl,
+        source_pdf_filename: sourceFile.name || null,
+        page_count: allPages.length || null,
+        uploaded_by: uploadedBy
+      })
+      if (insErr) console.warn('[bulkUpload] bulk_uploads insert error (continuing):', insErr.message)
+    }
+  } catch (err) {
+    console.warn('[bulkUpload] source PDF preservation failed — proceeding without it:', err.message)
+  }
 
   const inserted = { lems: new Map(), tickets: new Map() } // groupId -> row id
 
@@ -283,7 +318,8 @@ export async function saveBulkUploadGroups({
         docType: 'contractor_lem',
         group: g,
         pages: lemAllPages,
-        fileUrls: lemUrls
+        fileUrls: lemUrls,
+        sourcePdfUrl
       })
       inserted.lems.set(g.id, { id: lemId, ticket_number: ticketNumberForRow(g), foreman: g.foreman_name })
     }
@@ -295,7 +331,8 @@ export async function saveBulkUploadGroups({
         docType: 'contractor_ticket',
         group: g,
         pages: ticketPages,
-        fileUrls: ticketUrls
+        fileUrls: ticketUrls,
+        sourcePdfUrl
       })
       inserted.tickets.set(g.id, { id: tktId, ticket_number: ticketNumberForRow(g), foreman: g.foreman_name })
     }
@@ -440,7 +477,7 @@ async function uploadPagesAsJpegs(pageNumbers, pageImageByNumber, ctx) {
   return urls
 }
 
-async function insertGroupRow({ orgId, uploadedBy, bulkUploadId, docType, group, pages, fileUrls }) {
+async function insertGroupRow({ orgId, uploadedBy, bulkUploadId, docType, group, pages, fileUrls, sourcePdfUrl }) {
   const effectiveTicket = ticketNumberForRow(group)
   const row = {
     organization_id: orgId,
@@ -456,8 +493,9 @@ async function insertGroupRow({ orgId, uploadedBy, bulkUploadId, docType, group,
     foreman: group.foreman_name || null,
     crew_or_spread: group.role || null,
     bulk_upload_id: bulkUploadId,
-    source_pages: pages,         // kept for audit / re-process
-    ocr_confidence: 'high',      // human-confirmed
+    source_pages: pages,             // kept for audit / re-process
+    source_pdf_url: sourcePdfUrl || null,  // ditto — re-OCR without re-upload
+    ocr_confidence: 'high',          // human-confirmed
     uploaded_by: uploadedBy
   }
   const { data, error } = await supabase.from('reconciliation_documents')
@@ -512,12 +550,16 @@ async function runLemExtractionForGroup({ row, group, orgId, pageImageByNumber, 
   let totalEquipHours = 0
 
   for (const pageNumber of lemPages) {
-    // Prefer the high-res re-render for OCR. Fall back to the
-    // workspace's cached scale-2.0 base64 if the source-PDF render
-    // failed for any reason.
+    // Prefer the high-res, pre-rotated re-render for OCR. Workspace
+    // cache is rendered at scale 1.5–2.0 in portrait orientation
+    // (landscape-stored-as-portrait Aecon scans). Vision needs
+    // upright pixels and lots of them — scale 4 + rotation 270
+    // matches what a human sees opening the source PDF in any
+    // viewer. Falls back to the cached base64 if PDF.js can't
+    // reload the source.
     let b64 = null
     if (pdfDoc) {
-      try { b64 = await renderPdfPageBase64(pdfDoc, pageNumber, 3.0, 0.92) }
+      try { b64 = await renderPdfPageBase64(pdfDoc, pageNumber, 4.0, 0.92, 270) }
       catch (err) { console.warn(`[bulkUpload] high-res render failed for page ${pageNumber} — falling back to cache:`, err.message) }
     }
     if (!b64) b64 = pageImageByNumber?.get(pageNumber)

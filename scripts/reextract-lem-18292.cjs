@@ -1,37 +1,35 @@
 #!/usr/bin/env node
 /**
- * One-shot re-extract for ticket 18292.
+ * One-shot re-extract for ticket 18292 — corrected pipeline.
  *
- * The original bulk-upload OCR produced obvious hallucinations on
- * this LEM (Kris Bryant, Addison Russell, Wilson Contreras, etc. —
- * Chicago Cubs roster, not actual workers). This script:
+ * Earlier attempts using the storage-cached scale-1.5/2.0 JPEGs
+ * returned hallucinations because the rasterizations were too
+ * low-resolution for the dense table text (~825-1100 px wide).
+ * Rick verified the source PDF is perfectly readable; this script
+ * uses the local source + scale 4 (≈288 DPI, 2464 × 3160 px per
+ * letter page) + a 270° rotation so Vision sees the table upright.
  *
- *   1. NULLs contractor_lems.labour_entries + equipment_entries for
- *      ticket 18292 (per Rick's explicit instruction).
- *   2. Pulls the per-page JPEGs from reconciliation_documents
- *      (file_urls). Note: the source PDF wasn't preserved, so the
- *      "scale 3+ re-render" safeguard from lemParser.js can only
- *      apply to FUTURE bulk uploads. This one-shot re-extract has
- *      to use the stored scale-2.0 JPEGs.
- *   3. Loads personnel_roster names for the org.
- *   4. Calls Claude Vision with the same LEM prompt the bulk
- *      processor uses, then runs the roster cross-check from
- *      lemParser.js inline (case-insensitive full match + fuzzy
- *      last-name match — same logic).
- *   5. Suspicious names (no roster match) are EXCLUDED. If after
- *      filtering the labour list is empty AND the model returned
- *      suspicious names, the contractor_lems row is updated with
- *      discrepancy_note flagging "Manual entry required" — that
- *      surfaces in billing review instead of producing silent $0
- *      totals.
+ * Pipeline:
+ *   1. NULL contractor_lems.labour_entries + equipment_entries.
+ *   2. Look up reconciliation_documents.source_pages to know which
+ *      PDF pages belong to this LEM (pages 117 + 118 for 18292).
+ *   3. Render each page from the local source PDF with pdftoppm at
+ *      -r 288, then sips -r 270 to upright the landscape scans.
+ *   4. Load personnel_roster (paginated past the 1000-row cap).
+ *   5. Send each upright JPEG to Claude Vision with the LEM prompt.
+ *   6. Roster cross-check: exact normalised name or fuzzy last-name
+ *      match. Misses go to suspicious_labour and are excluded.
+ *   7. Same ≥50%-suspicious threshold as the bulk processor: if
+ *      that many failed, discard everything and flag for manual
+ *      entry. Otherwise save the clean entries.
  *
  * Run:   node scripts/reextract-lem-18292.cjs
- * Reads: SUPABASE_SERVICE_ROLE_KEY, VITE_SUPABASE_URL, VITE_ANTHROPIC_API_KEY
- *        from .env.local
  */
 
 const fs = require('fs')
 const path = require('path')
+const os = require('os')
+const { execFileSync } = require('child_process')
 
 const envText = fs.readFileSync(path.join(__dirname, '..', '.env.local'), 'utf8')
 const SRK = envText.match(/^SUPABASE_SERVICE_ROLE_KEY="(.+)"$/m)[1]
@@ -40,6 +38,9 @@ const ANTHROPIC_KEY = envText.match(/^VITE_ANTHROPIC_API_KEY="(.+)"$/m)[1]
 
 const TICKET = '18292'
 const ORG = '00000000-0000-0000-0000-000000000001'
+const SOURCE_PDF = path.join(__dirname, '..', "LEM's", '2014-01-21 Tickets & LEM\'s', 'CLX2-FC Jan 21.pdf')
+const RENDER_DPI = 288    // ≈ pdf.js scale 4
+const ROTATE_DEG = 270    // landscape-stored-as-portrait → upright
 
 const LEM_PROMPT = `You are extracting billing data from a contractor's Labour & Equipment Manifest (LEM) page used in pipeline construction.
 
@@ -48,12 +49,16 @@ Extract ALL line items from this LEM page. Return ONLY valid JSON (no markdown, 
 {
   "labour": [
     {
+      "employee_id": "ID number from the Employee ID column if shown, else empty string",
       "employee_name": "full name",
       "classification": "job title/classification exactly as printed",
       "rt_hours": number or 0,
       "ot_hours": number or 0,
+      "dt_hours": number or 0,
       "rt_rate": number or 0,
       "ot_rate": number or 0,
+      "dt_rate": number or 0,
+      "subsistence": number or 0,
       "line_total": number or 0,
       "count": 1
     }
@@ -79,19 +84,50 @@ Extract ALL line items from this LEM page. Return ONLY valid JSON (no markdown, 
 
 Rules:
 - Extract every person and piece of equipment listed, even if hours are 0
-- RT = regular time (first 8 hours), OT = overtime (beyond 8)
-- If only total hours are shown (no RT/OT split): put all in rt_hours
-- Rates: extract the hourly rate if visible, otherwise 0
-- line_total: the dollar amount for that line if shown, otherwise 0
-- Keep classification names EXACTLY as printed
-- If the page has subtotals or grand totals, capture them in the totals object
-- If you genuinely cannot read a name with confidence, return it as "ILLEGIBLE" rather than guessing — do NOT invent names`
+- RT = regular time (first 8 hours), OT = overtime, DT = double-time
+- Read names EXACTLY as printed — do NOT invent or substitute names
+- If you cannot read a name with confidence, return "ILLEGIBLE" for that row rather than guessing
+- Keep classification names EXACTLY as printed`
 
-// Normalisation matches lemParser.js splitLabourByRoster.
-function normName(s) { return (s || '').toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim() }
-function lastToken(s) {
-  const t = normName(s).split(' ').filter(Boolean)
-  return t.length ? t[t.length - 1] : ''
+function normName(s) { return (s || '').toLowerCase().replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim() }
+function tokenize(s) { return normName(s).split(' ').filter(t => t.length >= 3) }
+function lastToken(s) { const t = normName(s).split(' ').filter(Boolean); return t.length ? t[t.length - 1] : '' }
+
+// Levenshtein edit distance — mirrors src/utils/lemParser.js.
+function editDistance(a, b) {
+  if (a === b) return 0
+  if (!a.length) return b.length
+  if (!b.length) return a.length
+  const prev = new Uint16Array(b.length + 1)
+  for (let j = 0; j <= b.length; j++) prev[j] = j
+  for (let i = 1; i <= a.length; i++) {
+    let prevDiag = prev[0]
+    prev[0] = i
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j]
+      prev[j] = a.charCodeAt(i - 1) === b.charCodeAt(j - 1)
+        ? prevDiag
+        : Math.min(prev[j - 1], prev[j], prevDiag) + 1
+      prevDiag = tmp
+    }
+  }
+  return prev[b.length]
+}
+
+// Every OCR token (length ≥ 3) must have an ED≤1 match in the same
+// roster row's token set. Direction-agnostic — recovers word-order
+// swaps ("AAR Ali" ↔ "Ali ARR") and single-char misreads
+// ("Aradi" → "Abadi").
+function fuzzyTokenSetMatch(ocrTokens, rosterTokens) {
+  for (const ot of ocrTokens) {
+    let found = false
+    for (const rt of rosterTokens) {
+      if (Math.abs(rt.length - ot.length) > 1) continue
+      if (editDistance(ot, rt) <= 1) { found = true; break }
+    }
+    if (!found) return false
+  }
+  return true
 }
 
 async function rest(pathSeg, init = {}) {
@@ -111,11 +147,23 @@ async function rest(pathSeg, init = {}) {
   return res.status === 204 ? null : res.json()
 }
 
-async function downloadAsBase64(url) {
-  const res = await fetch(url)
-  if (!res.ok) throw new Error(`Download ${url} → ${res.status}`)
-  const buf = Buffer.from(await res.arrayBuffer())
-  return buf.toString('base64')
+function renderPageScale4Upright(pdfPath, pageNumber) {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'reextract-'))
+  const prefix = path.join(tmpDir, 'p')
+  execFileSync('pdftoppm', [
+    '-f', String(pageNumber), '-l', String(pageNumber),
+    '-jpeg', '-jpegopt', 'quality=92',
+    '-r', String(RENDER_DPI),
+    pdfPath, prefix
+  ], { stdio: ['ignore', 'ignore', 'inherit'] })
+  // pdftoppm zero-pads page number when total pages need it.
+  const padded = pageNumber.toString().padStart(3, '0')
+  const candidates = [`${prefix}-${padded}.jpg`, `${prefix}-${pageNumber}.jpg`]
+  const raw = candidates.find(p => fs.existsSync(p))
+  if (!raw) throw new Error(`pdftoppm output not found for page ${pageNumber}: tried ${candidates}`)
+  const upright = path.join(tmpDir, `p-${pageNumber}-upright.jpg`)
+  execFileSync('sips', ['-r', String(ROTATE_DEG), raw, '--out', upright], { stdio: ['ignore', 'ignore', 'inherit'] })
+  return upright
 }
 
 async function ocrPage(b64) {
@@ -138,10 +186,7 @@ async function ocrPage(b64) {
       }]
     })
   })
-  if (!res.ok) {
-    const body = await res.text().catch(() => '')
-    throw new Error(`Anthropic API ${res.status}: ${body.slice(0, 300)}`)
-  }
+  if (!res.ok) throw new Error(`Anthropic API ${res.status}: ${(await res.text().catch(() => '')).slice(0, 300)}`)
   const data = await res.json()
   const text = data.content?.[0]?.text || ''
   const m = text.match(/\{[\s\S]*\}/)
@@ -150,87 +195,99 @@ async function ocrPage(b64) {
 }
 
 async function main() {
-  console.log('=== ticket 18292 LEM re-extract ===\n')
+  console.log('=== ticket 18292 LEM re-extract (scale 4, upright) ===\n')
 
-  // Step 1: NULL the bad data
-  console.log('[1/5] Nulling contractor_lems.labour_entries + equipment_entries for ticket 18292…')
+  console.log('[1/6] Nulling contractor_lems for ticket 18292…')
   await rest(`/rest/v1/contractor_lems?field_log_id=eq.${TICKET}&organization_id=eq.${ORG}`, {
     method: 'PATCH',
     headers: { Prefer: 'return=minimal' },
-    body: JSON.stringify({
-      labour_entries: null,
-      equipment_entries: null,
-      total_labour_cost: 0,
-      total_equipment_cost: 0
-    })
+    body: JSON.stringify({ labour_entries: null, equipment_entries: null, total_labour_cost: 0, total_equipment_cost: 0, discrepancy_note: null })
   })
   console.log('       ✓ data cleared\n')
 
-  // Step 2: Pull the LEM JPEGs
-  console.log('[2/5] Fetching reconciliation_documents row…')
-  const docs = await rest(`/rest/v1/reconciliation_documents?ticket_number=eq.${TICKET}&doc_type=eq.contractor_lem&select=id,file_urls,source_pages&order=created_at.desc&limit=1`)
-  if (!docs.length || !docs[0].file_urls?.length) {
-    console.error('       ✗ no LEM reconciliation_documents row with file_urls')
+  console.log('[2/6] Looking up source_pages from reconciliation_documents…')
+  const docs = await rest(`/rest/v1/reconciliation_documents?ticket_number=eq.${TICKET}&doc_type=eq.contractor_lem&select=source_pages&order=created_at.desc&limit=1`)
+  if (!docs.length || !docs[0].source_pages?.length) {
+    console.error('       ✗ no LEM reconciliation_documents row with source_pages')
     process.exit(1)
   }
-  const fileUrls = docs[0].file_urls
-  console.log(`       ✓ ${fileUrls.length} LEM page JPEG(s) (scale-2.0 — source PDF not preserved)\n`)
+  const sourcePages = docs[0].source_pages
+  console.log(`       ✓ pages ${sourcePages.join(', ')} in ${path.basename(SOURCE_PDF)}\n`)
 
-  // Step 3: Load roster names for cross-check (paginated — PostgREST
-  // default cap is 1000, our org has 1224 rows).
-  console.log('[3/5] Loading personnel_roster…')
+  if (!fs.existsSync(SOURCE_PDF)) {
+    console.error(`       ✗ source PDF missing: ${SOURCE_PDF}`)
+    process.exit(1)
+  }
+
+  console.log('[3/6] Loading personnel_roster (paginated)…')
   const rosterNames = []
-  const PAGE = 1000
-  for (let from = 0; ; from += PAGE) {
-    const batch = await rest(`/rest/v1/personnel_roster?organization_id=eq.${ORG}&select=employee_name&order=employee_name&offset=${from}&limit=${PAGE}`)
+  for (let from = 0; ; from += 1000) {
+    const batch = await rest(`/rest/v1/personnel_roster?organization_id=eq.${ORG}&select=employee_name&order=employee_name&offset=${from}&limit=1000`)
     for (const r of (batch || [])) {
       const n = (r.employee_name || '').trim()
       if (n) rosterNames.push(n)
     }
-    if (!batch || batch.length < PAGE) break
+    if (!batch || batch.length < 1000) break
   }
   const rosterFull = new Set(rosterNames.map(normName).filter(Boolean))
   const rosterLast = new Set(rosterNames.map(lastToken).filter(n => n.length >= 3))
-  console.log(`       ✓ ${rosterNames.length} roster names loaded\n`)
+  const rosterTokenSets = rosterNames.map(tokenize).filter(arr => arr.length > 0)
+  console.log(`       ✓ ${rosterNames.length} roster names\n`)
 
-  // Step 4: OCR each page, cross-check against roster
-  console.log(`[4/5] OCR + roster cross-check on ${fileUrls.length} page(s)…`)
+  console.log(`[4/6] Rendering pages at scale 4 (${RENDER_DPI} dpi) + rotating ${ROTATE_DEG}° for upright OCR input…`)
+  const upright = {}
+  for (const pn of sourcePages) {
+    upright[pn] = renderPageScale4Upright(SOURCE_PDF, pn)
+    const sz = fs.statSync(upright[pn]).size
+    console.log(`       page ${pn}: ${upright[pn]} (${(sz / 1024).toFixed(0)} KB)`)
+  }
+  console.log()
+
+  console.log('[5/6] OCR + roster cross-check…')
   const allLabour = []
   const allEquipment = []
   const allSuspicious = []
   let totalLabourCost = 0
   let totalEquipCost = 0
 
-  for (let i = 0; i < fileUrls.length; i++) {
-    const url = fileUrls[i]
-    console.log(`       page ${i + 1}/${fileUrls.length}: ${url.split('/').slice(-2).join('/')}`)
-    const b64 = await downloadAsBase64(url)
+  for (const pn of sourcePages) {
+    const b64 = fs.readFileSync(upright[pn]).toString('base64')
     const parsed = await ocrPage(b64)
     const labour = parsed.labour || []
     const matched = []
     const suspicious = []
     for (const entry of labour) {
       const name = entry?.employee_name || entry?.name || ''
-      if (!name) { matched.push(entry); continue }
+      if (!name || /^illegible$/i.test(name.trim())) { suspicious.push({ ...entry, _reason: 'illegible' }); continue }
       const n = normName(name)
       if (rosterFull.has(n)) { matched.push(entry); continue }
       const last = lastToken(name)
       if (last && rosterLast.has(last)) { matched.push(entry); continue }
-      suspicious.push(entry)
+      const ocrTokens = tokenize(name)
+      if (ocrTokens.length > 0 && rosterTokenSets.some(rt => fuzzyTokenSetMatch(ocrTokens, rt))) {
+        matched.push(entry); continue
+      }
+      suspicious.push({ ...entry, _reason: 'no roster match' })
     }
-    console.log(`         → ${labour.length} returned, ${matched.length} kept, ${suspicious.length} suspicious`)
+    console.log(`       page ${pn}: ${labour.length} returned, ${matched.length} kept, ${suspicious.length} suspicious`)
+    if (matched.length) {
+      console.log(`              keep: ${matched.map(m => m.employee_name).slice(0, 12).join(', ')}${matched.length > 12 ? '…' : ''}`)
+    }
+    if (suspicious.length) {
+      console.log(`              drop: ${suspicious.map(s => s.employee_name || s.name || '?').slice(0, 8).join(', ')}${suspicious.length > 8 ? '…' : ''}`)
+    }
     for (const l of matched) {
       allLabour.push({
         name: l.employee_name || '',
         type: l.classification || '',
-        employee_id: '',
+        employee_id: l.employee_id || '',
         rt_hours: l.rt_hours || 0,
         ot_hours: l.ot_hours || 0,
-        dt_hours: 0,
+        dt_hours: l.dt_hours || 0,
         rt_rate: l.rt_rate || 0,
         ot_rate: l.ot_rate || 0,
-        dt_rate: 0,
-        sub: 0,
+        dt_rate: l.dt_rate || 0,
+        sub: l.subsistence || 0,
         total: l.line_total || 0
       })
       totalLabourCost += l.line_total || 0
@@ -249,13 +306,7 @@ async function main() {
   }
   console.log()
 
-  // Step 5: Save or flag
-  //
-  // Threshold: if 50%+ of returned names fail roster cross-check the
-  // page is too garbled to trust ANY of the matches — surname-only
-  // collisions on a 1224-name roster are easy. Discard everything
-  // (including the coincidental "matches") and flag for manual entry.
-  console.log('[5/5] Saving result…')
+  console.log('[6/6] Saving…')
   const totalReturned = allLabour.length + allSuspicious.length
   const suspiciousRatio = totalReturned > 0 ? allSuspicious.length / totalReturned : 0
   const tooManyHallucinations = totalReturned > 0 && suspiciousRatio >= 0.5
@@ -265,7 +316,7 @@ async function main() {
     total_labour_cost: tooManyHallucinations ? 0 : totalLabourCost,
     total_equipment_cost: tooManyHallucinations ? 0 : totalEquipCost,
     discrepancy_note: tooManyHallucinations
-      ? `Manual entry required: ${allSuspicious.length} of ${totalReturned} name(s) returned by OCR failed personnel_roster cross-check (${Math.round(suspiciousRatio * 100)}% suspicious). The few coincidental matches were discarded too — at this signal level they're likely just common surnames colliding. Suspicious: ${allSuspicious.slice(0, 8).map(s => s.employee_name || s.name).join(', ')}${allSuspicious.length > 8 ? '…' : ''}`
+      ? `Manual entry required: ${allSuspicious.length} of ${totalReturned} OCR'd names failed roster cross-check (${Math.round(suspiciousRatio * 100)}%).`
       : null
   }
   await rest(`/rest/v1/contractor_lems?field_log_id=eq.${TICKET}&organization_id=eq.${ORG}`, {
@@ -275,25 +326,12 @@ async function main() {
   })
 
   console.log('\n=== summary ===')
-  console.log(`labour kept       : ${allLabour.length}`)
-  console.log(`labour suspicious : ${allSuspicious.length}`)
-  console.log(`equipment kept    : ${allEquipment.length}`)
-  console.log(`labour cost       : $${totalLabourCost.toFixed(2)}`)
-  console.log(`equip cost        : $${totalEquipCost.toFixed(2)}`)
-  if (tooManyHallucinations) {
-    console.log(`\n⚠ Flagged for MANUAL ENTRY — the LEM is too poor quality to OCR.`)
-    console.log(`  ${Math.round(suspiciousRatio * 100)}% of returned names failed roster cross-check.`)
-    console.log(`  discrepancy_note set on contractor_lems for ticket ${TICKET}.`)
-  } else if (allLabour.length > 0) {
-    console.log(`\n✓ Clean labour entries saved.`)
-  }
-  if (allSuspicious.length > 0) {
-    console.log(`\nFirst few suspicious names (excluded):`)
-    for (const s of allSuspicious.slice(0, 10)) {
-      const nm = (s.employee_name || s.name || '?').padEnd(30)
-      console.log(`  ${nm}  ${s.classification || ''}`)
-    }
-  }
+  console.log(`labour kept   : ${allLabour.length}`)
+  console.log(`suspicious    : ${allSuspicious.length}`)
+  console.log(`equipment kept: ${allEquipment.length}`)
+  console.log(`labour cost   : $${totalLabourCost.toFixed(2)}`)
+  console.log(`equip cost    : $${totalEquipCost.toFixed(2)}`)
+  console.log(tooManyHallucinations ? '\n⚠ flagged for MANUAL ENTRY' : '\n✓ clean labour saved')
 }
 
 main().catch(err => { console.error(err); process.exit(1) })

@@ -658,6 +658,91 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### LEM OCR Scale 4 + Upright Rotation + Source-PDF Preservation (May 15, 2026 — night)
+
+The earlier "the LEM is too poor quality to OCR, flag for manual entry"
+conclusion was wrong. Rick verified the source PDF is perfectly
+readable. The actual failure was rasterization quality:
+
+- Bulk-upload OCR was running on the scale-1.5/2.0 cached JPEGs
+  (~825–1100 px wide per page) and the workspace's portrait
+  rendering of landscape-stored-as-portrait Aecon scans (sideways
+  text). Vision was hallucinating against rotated 6-pt table text.
+- Rendering page 117 of `CLX2-FC Jan 21.pdf` at `pdftoppm -r 288`
+  (≈ pdf.js scale 4 = 2464×3160 px) plus `sips -r 270` for upright
+  orientation produced a crystal-clear OCR input — every name and
+  number readable.
+
+**Fix:** Three changes wired through the bulk-upload flow:
+
+1. **Render scale bumped to 4.0** for OCR specifically (workspace +
+   storage cache stay at 1.5/2.0 — no UI / storage regression).
+   `renderPdfPageBase64` now defaults to scale 4 with optional
+   rotation parameter, and `renderPageToImage` accepts rotation
+   passed through to pdf.js's `getViewport({ scale, rotation })`
+   so the canvas comes out pre-rotated with correctly swapped
+   dimensions (no CSS transform hacks).
+2. **Upright rotation (270°)** applied at OCR render time by
+   `bulkUploadProcessor.runLemExtractionForGroup` — matches the
+   four-panel viewer's `defaultRotation=270` for these scans.
+   Vision now sees upright text.
+3. **Fuzzy ED-1 token-set match** as a third tier in the roster
+   cross-check (after exact full-name and exact last-token). Each
+   OCR token must have an edit-distance-1 match in the same
+   roster row. Recovers two failure modes: word-order swaps
+   ("AAR Ali" ↔ "Ali ARR") and single-character misreads
+   ("Aradi" → "Abadi", "Cheek" → "Check"). Severe misreads
+   ("Restau" → "Kerlau", "Shirt" → "Peach") stay suspicious —
+   that's correct, they really are wrong.
+
+**Re-extracted ticket 18292** with the corrected pipeline:
+21 of 25 labour entries cleanly recovered, $17,849.81 labour cost,
+13 equipment entries, $5,557.01 equipment cost, discrepancy_note
+cleared. The 4 still-suspicious are genuine severe OCR misreads —
+Rick can enter those by hand.
+
+**Source-PDF preservation — new `bulk_uploads` table.**
+The original package PDF was previously passed to
+`saveBulkUploadGroups` in memory and dropped on the floor. That
+made re-OCR impossible without asking the user to re-upload.
+Migration `20260515_bulk_uploads.sql` adds:
+
+- `public.bulk_uploads` — `bulk_upload_id`, `organization_id`,
+  `project_id`, `source_pdf_url`, `source_pdf_filename`,
+  `page_count`, `uploaded_by`, `created_at`. RLS scoped to
+  organization membership.
+- `reconciliation_documents.source_pdf_url` — denormalised onto
+  every per-page row so re-OCR doesn't need a join.
+
+`saveBulkUploadGroups` now uploads the source PDF to
+`reconciliation-docs/{orgId}/bulk/{bulkUploadId}/source/{filename}`
+and inserts the `bulk_uploads` row before processing groups. Each
+`reconciliation_documents` row carries the source URL. The
+existing try/catch around the bulk_uploads insert keeps the flow
+working before the migration is applied — the column is nullable.
+
+**Files changed:**
+```
+src/utils/lemParser.js
+  - renderPageToImage(page, scale, jpegQuality, rotation)
+  - renderPdfPageBase64 default scale: 3.0 → 4.0; +rotation param
+  - splitLabourByRoster: third-tier fuzzy ED-1 token-set match
+  - +editDistance(a, b), +fuzzyTokenSetMatch(ocrTokens, rosterTokens)
+src/utils/bulkUploadProcessor.js
+  - OCR re-render at scale 4.0, rotation 270°
+  - Source PDF upload + bulk_uploads row insert
+  - reconciliation_documents.source_pdf_url denormalisation
+supabase/migrations/20260515_bulk_uploads.sql (new — paste into SQL editor)
+scripts/reextract-lem-18292.cjs
+  - renders from local PDF at scale 4 + 270° rotation
+  - fuzzy ED-1 token-set matching mirrored from lemParser.js
+```
+
+`20260515_bulk_uploads.sql` must be applied in the Supabase SQL
+Editor before new bulk uploads will persist the source PDF — the
+insert is wrapped in a try/catch so it silently no-ops if the
+table is missing.
+
 ### LEM OCR Hardening — Roster Cross-Check + Manual-Entry Flag (May 15, 2026 — evening)
 
 Two issues addressed in a single pass:

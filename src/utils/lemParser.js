@@ -89,18 +89,24 @@ export async function loadPdfDocument(file) {
 }
 
 // Render a single page of an already-loaded pdf.js doc at a custom
-// scale. 3.0 is the OCR-grade default — workspace renders at 1.5/2.0
-// for display + storage, but the OCR pass deserves more pixels.
-export async function renderPdfPageBase64(pdfDoc, pageNumber, scale = 3.0, jpegQuality = 0.92) {
+// scale and rotation. Scale 4.0 is the OCR-grade default — produces
+// ~2200-2500 px wide for a letter page, matching what a human sees
+// when opening the PDF in a desktop viewer. Workspace cache still
+// renders at 1.5/2.0 for display + storage; the OCR pass deserves
+// more pixels because Vision has to read 6-pt table text. Rotation
+// is in degrees (0/90/180/270) and applied at viewport-time via
+// pdf.js, so the canvas comes out pre-rotated with correctly
+// swapped dimensions (no CSS-transform gymnastics).
+export async function renderPdfPageBase64(pdfDoc, pageNumber, scale = 4.0, jpegQuality = 0.92, rotation = 0) {
   if (!pdfDoc) throw new Error('renderPdfPageBase64: pdfDoc required')
   const page = await pdfDoc.getPage(pageNumber)
-  return renderPageToImage(page, scale, jpegQuality)
+  return renderPageToImage(page, scale, jpegQuality, rotation)
 }
 
 // ── Page rendering ──────────────────────────────────────────────────────────
 
-async function renderPageToImage(page, scale, jpegQuality) {
-  const viewport = page.getViewport({ scale })
+async function renderPageToImage(page, scale, jpegQuality, rotation = 0) {
+  const viewport = page.getViewport({ scale, rotation: rotation || 0 })
   const canvas = document.createElement('canvas')
   canvas.width = viewport.width
   canvas.height = viewport.height
@@ -1198,21 +1204,29 @@ Rules:
 }
 
 // Cross-check OCR'd labour names against the project's
-// personnel_roster. Two passes: (1) exact normalised full-name
-// match, (2) fuzzy last-name match for OCR'd typos. Names that fail
-// both passes are flagged as suspicious and excluded from the saved
-// labour list. The set of accepted names is intentionally permissive
-// — false positives in `suspicious` are worse than false negatives
-// (real workers showing up as suspicious is worse than letting one
-// hallucinated name through).
+// personnel_roster. Three passes, ordered cheapest-first:
+//   1. Exact normalised full-name match.
+//   2. Exact last-name match (catches "John Smith Jr." vs "John Smith").
+//   3. Fuzzy token-set match: every token in the OCR'd name (length
+//      ≥ 3) must have a roster token within Levenshtein-1, on the
+//      same roster row. This catches:
+//        • single-char OCR misreads ("Aradi" → "Abadi")
+//        • token-order swaps ("Ali ARR" ↔ "AAR Ali")
+//      without admitting hallucinations (those need many edits or
+//      have no roster row at all).
+// Names that fail all three passes are routed to suspicious and
+// excluded from the saved labour list.
 function splitLabourByRoster(labour, rosterNames) {
-  const normName = (s) => (s || '').toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim()
+  const normName = (s) => (s || '').toLowerCase().replace(/[^a-z\s]/g, ' ').replace(/\s+/g, ' ').trim()
+  const tokenize = (s) => normName(s).split(' ').filter(t => t.length >= 3)
   const lastToken = (s) => {
     const t = normName(s).split(' ').filter(Boolean)
     return t.length ? t[t.length - 1] : ''
   }
   const rosterFull = new Set(rosterNames.map(normName).filter(Boolean))
   const rosterLast = new Set(rosterNames.map(lastToken).filter(n => n.length >= 3))
+  const rosterTokenSets = rosterNames.map(n => tokenize(n)).filter(arr => arr.length > 0)
+
   const matched = []
   const suspicious = []
   for (const entry of labour) {
@@ -1222,9 +1236,48 @@ function splitLabourByRoster(labour, rosterNames) {
     if (rosterFull.has(n)) { matched.push(entry); continue }
     const last = lastToken(name)
     if (last && rosterLast.has(last)) { matched.push(entry); continue }
+    const ocrTokens = tokenize(name)
+    if (ocrTokens.length > 0 && rosterTokenSets.some(rt => fuzzyTokenSetMatch(ocrTokens, rt))) {
+      matched.push(entry); continue
+    }
     suspicious.push({ ...entry, _suspicious_reason: 'name not in personnel_roster' })
   }
   return { matched, suspicious }
+}
+
+// Every OCR token must find a roster token within Levenshtein-1 in
+// the same roster entry. Direction-agnostic, so word-order swaps
+// match. Length pre-filter avoids most edit-distance computations.
+function fuzzyTokenSetMatch(ocrTokens, rosterTokens) {
+  for (const ot of ocrTokens) {
+    let found = false
+    for (const rt of rosterTokens) {
+      if (Math.abs(rt.length - ot.length) > 1) continue
+      if (editDistance(ot, rt) <= 1) { found = true; break }
+    }
+    if (!found) return false
+  }
+  return true
+}
+
+function editDistance(a, b) {
+  if (a === b) return 0
+  if (!a.length) return b.length
+  if (!b.length) return a.length
+  const prev = new Uint16Array(b.length + 1)
+  for (let j = 0; j <= b.length; j++) prev[j] = j
+  for (let i = 1; i <= a.length; i++) {
+    let prevDiag = prev[0]
+    prev[0] = i
+    for (let j = 1; j <= b.length; j++) {
+      const tmp = prev[j]
+      prev[j] = a.charCodeAt(i - 1) === b.charCodeAt(j - 1)
+        ? prevDiag
+        : Math.min(prev[j - 1], prev[j], prevDiag) + 1
+      prevDiag = tmp
+    }
+  }
+  return prev[b.length]
 }
 
 /**
