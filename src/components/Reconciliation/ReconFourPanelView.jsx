@@ -319,7 +319,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
           emptyMessage="No LEM uploaded for this ticket"
           onUpload={() => handleUpload('contractor_lem')}
           color="#d97706"
-          defaultRotation={90}
+          defaultRotation={270}
         />
 
         {/* Panel 2: Inspector Report (formatted data view — NOT uploaded) */}
@@ -388,7 +388,7 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
           emptyMessage="No daily ticket uploaded for this ticket"
           onUpload={() => handleUpload('contractor_ticket')}
           color="#dc2626"
-          defaultRotation={90}
+          defaultRotation={270}
         />
 
         {/* Panel 4: Inspector Ticket Photo (auto-linked from report — NOT uploaded) */}

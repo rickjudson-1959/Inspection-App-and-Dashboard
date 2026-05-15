@@ -658,6 +658,36 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### Reconciliation Panel — LEM + Ticket Rotation Direction Fix (May 15, 2026)
+
+After `2acc902` (May 13) replaced the canvas-based `PdfViewer` with a
+plain `<img>` stack, the LEM and Contractor Daily Ticket panels rendered
+visually empty because the wrapper's `transformOrigin: 'top left'` +
+`rotate(90deg)` painted every pixel into x<0 (the natural CSS box stays
+at origin, so `overflow: auto` couldn't recover any of it). PR #5 fixed
+that by switching the wrapper's `transformOrigin` to `'center center'`
+when rotated — matching the iframe path's existing behaviour.
+
+With the content finally visible, a second issue surfaced: both panels
+came up **upside down**. The `defaultRotation={90}` chosen in `dd76f4a`
+(May 13) made sense when rotation flowed through pdf.js's
+`getViewport({ rotation })`, but in the CSS-only path the same 90°
+clockwise rotation puts the Aecon landscape scans bottom-up. Flipping
+both panels to `defaultRotation={270}` (i.e. 90° counter-clockwise)
+yields the correct upright landscape orientation.
+
+**Files changed:**
+```
+src/components/Reconciliation/ReconFourPanelView.jsx
+  - Contractor LEM panel: defaultRotation={90} → {270}
+  - Contractor Daily Ticket panel: defaultRotation={90} → {270}
+src/components/Reconciliation/DocumentPanel.jsx          (PR #5)
+  - transformOrigin: safeRotation ? 'center center' : 'top left'
+```
+
+No DB / no migration. Admin can still cycle through 0 / 90 / 180 / 270
+via the ↻ button if a particular scan was stored differently.
+
 ### Reconciliation Panel — Fit-to-Container PDF Rendering (May 13, 2026 — sixth pass)
 
 The 4-panel reconciliation view's PDF panel (Contractor LEM,
