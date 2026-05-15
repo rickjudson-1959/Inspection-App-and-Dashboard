@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react'
+import React, { useState, useMemo, useRef } from 'react'
 import OriginalPagesLightbox from './OriginalPagesLightbox'
 import InspectorReportPanel from './InspectorReportPanel'
 
@@ -59,6 +59,41 @@ export default function DocumentPanel({
   const [rotation, setRotation] = useState(defaultRotation)
   const [originalLightboxOpen, setOriginalLightboxOpen] = useState(false)
   const [expanded, setExpanded] = useState(false)
+
+  // Pan state for click-and-drag panning when zoomed in.
+  // The scrollContainerRef points at the overflow:auto wrapper of
+  // the image stack; we mutate its scrollLeft/scrollTop directly
+  // during a drag rather than re-rendering on every mousemove.
+  // isPanning drives the cursor swap (grab → grabbing); the ref
+  // holds the actual drag bookkeeping so we don't pay a re-render
+  // per pointer move.
+  const scrollContainerRef = useRef(null)
+  const panStateRef = useRef(null)
+  const [isPanning, setIsPanning] = useState(false)
+
+  function handlePanStart(e) {
+    if (zoom <= 1 || !scrollContainerRef.current) return
+    panStateRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      startScrollLeft: scrollContainerRef.current.scrollLeft,
+      startScrollTop: scrollContainerRef.current.scrollTop
+    }
+    setIsPanning(true)
+    e.preventDefault()
+  }
+  function handlePanMove(e) {
+    const s = panStateRef.current
+    if (!s || !scrollContainerRef.current) return
+    scrollContainerRef.current.scrollLeft = s.startScrollLeft - (e.clientX - s.startX)
+    scrollContainerRef.current.scrollTop = s.startScrollTop - (e.clientY - s.startY)
+  }
+  function handlePanEnd() {
+    if (panStateRef.current) {
+      panStateRef.current = null
+      setIsPanning(false)
+    }
+  }
 
   const fileUrls = useMemo(() => (document?.file_urls || []).filter(Boolean), [document])
   const totalPages = fileUrls.length
@@ -239,22 +274,37 @@ export default function DocumentPanel({
     // Image stack — one <img> per file_url. No PdfViewer.
     //
     // Rotation is applied PER IMAGE, not to the wrapper. The earlier
-    // "rotate the whole flex-column" approach worked for single-page
-    // docs but turned every multi-page row into a horizontal ribbon
-    // (pages laid out left-to-right after the column got rotated 90°).
-    // Each page now lives in its own wrapper whose aspect-ratio
-    // matches the rotated visual, so:
-    //   • Pages stay stacked top-to-bottom regardless of rotation.
-    //   • Each rotated page fills the panel width exactly — no
-    //     clipping on the sides, no horizontal scrollbar.
-    //   • The outer wrapper still owns zoom (CSS scale) and the
-    //     panel's vertical scrollbar.
+    // "rotate the whole flex-column" approach turned every multi-page
+    // row into a horizontal ribbon. Each page now lives in its own
+    // aspect-ratio'd wrapper so pages stack top-to-bottom regardless
+    // of rotation and fill the panel width exactly.
+    //
+    // ZOOM uses width, not transform: scale(). transform-scale only
+    // changes paint, not layout, so the outer overflow:auto can't
+    // produce scrollbars — there was no way to see the overflowing
+    // pixels. Sizing the inner wrapper with `width: ${100*zoom}%`
+    // makes the layout box grow with zoom, scrollbars appear, and
+    // the click-and-drag pan handlers below let the user navigate
+    // the zoomed image without fighting the scrollbar.
+    const isZoomed = zoom > 1
     return (
-      <div style={{ width: '100%', height: '100%', overflow: 'auto', backgroundColor: '#f3f4f6' }}>
-        <div style={{
+      <div
+        ref={scrollContainerRef}
+        onMouseDown={handlePanStart}
+        onMouseMove={handlePanMove}
+        onMouseUp={handlePanEnd}
+        onMouseLeave={handlePanEnd}
+        style={{
           width: '100%',
-          transform: `scale(${zoom})`,
-          transformOrigin: 'top left',
+          height: '100%',
+          overflow: 'auto',
+          backgroundColor: '#f3f4f6',
+          cursor: isZoomed ? (isPanning ? 'grabbing' : 'grab') : 'default',
+          userSelect: isZoomed ? 'none' : 'auto'
+        }}
+      >
+        <div style={{
+          width: `${100 * zoom}%`,
           display: 'flex',
           flexDirection: 'column',
           gap: 8,
