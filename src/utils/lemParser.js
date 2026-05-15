@@ -78,6 +78,25 @@ export async function pdfToImages(file, maxPages = 500, onProgress) {
   return images
 }
 
+// Open a PDF file once, return the pdf.js doc so the caller can
+// render selected pages at custom scales (used by the bulk-upload
+// LEM extraction path to feed Vision a high-res render that's
+// independent of the workspace's display-scale cache).
+export async function loadPdfDocument(file) {
+  await ensurePdfJs()
+  const arrayBuffer = await file.arrayBuffer()
+  return window.pdfjsLib.getDocument({ data: arrayBuffer }).promise
+}
+
+// Render a single page of an already-loaded pdf.js doc at a custom
+// scale. 3.0 is the OCR-grade default — workspace renders at 1.5/2.0
+// for display + storage, but the OCR pass deserves more pixels.
+export async function renderPdfPageBase64(pdfDoc, pageNumber, scale = 3.0, jpegQuality = 0.92) {
+  if (!pdfDoc) throw new Error('renderPdfPageBase64: pdfDoc required')
+  const page = await pdfDoc.getPage(pageNumber)
+  return renderPageToImage(page, scale, jpegQuality)
+}
+
 // ── Page rendering ──────────────────────────────────────────────────────────
 
 async function renderPageToImage(page, scale, jpegQuality) {
@@ -1045,8 +1064,24 @@ export async function extractLEMFromUrl(docUrl) {
 /**
  * Extract billing data from a base64-encoded page image.
  */
-export async function extractLEMLineItemsFromBase64(imgBase64) {
-  if (!ANTHROPIC_API_KEY) return { labour: [], equipment: [], totals: {}, raw_text: '' }
+/**
+ * OCR a LEM page from a base64 JPEG.
+ *
+ * @param {string} imgBase64
+ * @param {object} [opts]
+ * @param {string[]} [opts.rosterNames] — canonical employee names from
+ *   personnel_roster for the active org. When supplied, every name
+ *   the model returns is cross-checked against this list. Names that
+ *   don't match (exact normalised, or fuzzy on last-name) are routed
+ *   to `suspicious_labour` and excluded from `labour`. Defends against
+ *   Vision hallucinating plausible-sounding names from low-resolution
+ *   scans — see the May 15 2026 contractor_lems baseball-player
+ *   incident on ticket 18292.
+ * @returns {Promise<{labour, equipment, totals, raw_text, suspicious_labour, error?}>}
+ */
+export async function extractLEMLineItemsFromBase64(imgBase64, opts = {}) {
+  const rosterNames = Array.isArray(opts.rosterNames) ? opts.rosterNames : null
+  if (!ANTHROPIC_API_KEY) return { labour: [], equipment: [], totals: {}, raw_text: '', suspicious_labour: [] }
 
   const prompt = `You are extracting billing data from a contractor's Labour & Equipment Manifest (LEM) page used in pipeline construction.
 
@@ -1138,19 +1173,58 @@ Rules:
       if (!jsonMatch) return { labour: [], equipment: [], totals: {}, raw_text: text, error: 'No JSON in API response' }
 
       const parsed = JSON.parse(jsonMatch[0])
+      const labourAll = normalizeOcrLabour(parsed.labour || [])
+      const { matched, suspicious } = rosterNames
+        ? splitLabourByRoster(labourAll, rosterNames)
+        : { matched: labourAll, suspicious: [] }
+      if (rosterNames && suspicious.length > 0) {
+        console.warn(`[LEM OCR] roster cross-check excluded ${suspicious.length} of ${labourAll.length} names as suspicious (no roster match):`,
+          suspicious.map(s => s.name).slice(0, 10))
+      }
       return {
-        labour: normalizeOcrLabour(parsed.labour || []),
+        labour: matched,
         equipment: parsed.equipment || [],
         totals: parsed.totals || {},
-        raw_text: text
+        raw_text: text,
+        suspicious_labour: suspicious
       }
     } catch (err) {
       console.error(`[LEM OCR] Attempt ${attempt + 1} failed:`, err)
-      if (attempt === MAX_RETRIES - 1) return { labour: [], equipment: [], totals: {}, raw_text: '', error: err.message || 'Extraction failed' }
+      if (attempt === MAX_RETRIES - 1) return { labour: [], equipment: [], totals: {}, raw_text: '', suspicious_labour: [], error: err.message || 'Extraction failed' }
       await sleep(2000)
     }
   }
-  return { labour: [], equipment: [], totals: {}, raw_text: '', error: 'Max retries exceeded' }
+  return { labour: [], equipment: [], totals: {}, raw_text: '', suspicious_labour: [], error: 'Max retries exceeded' }
+}
+
+// Cross-check OCR'd labour names against the project's
+// personnel_roster. Two passes: (1) exact normalised full-name
+// match, (2) fuzzy last-name match for OCR'd typos. Names that fail
+// both passes are flagged as suspicious and excluded from the saved
+// labour list. The set of accepted names is intentionally permissive
+// — false positives in `suspicious` are worse than false negatives
+// (real workers showing up as suspicious is worse than letting one
+// hallucinated name through).
+function splitLabourByRoster(labour, rosterNames) {
+  const normName = (s) => (s || '').toLowerCase().replace(/[^a-z\s]/g, '').replace(/\s+/g, ' ').trim()
+  const lastToken = (s) => {
+    const t = normName(s).split(' ').filter(Boolean)
+    return t.length ? t[t.length - 1] : ''
+  }
+  const rosterFull = new Set(rosterNames.map(normName).filter(Boolean))
+  const rosterLast = new Set(rosterNames.map(lastToken).filter(n => n.length >= 3))
+  const matched = []
+  const suspicious = []
+  for (const entry of labour) {
+    const name = entry?.employee_name || entry?.name || ''
+    if (!name) { matched.push(entry); continue }
+    const n = normName(name)
+    if (rosterFull.has(n)) { matched.push(entry); continue }
+    const last = lastToken(name)
+    if (last && rosterLast.has(last)) { matched.push(entry); continue }
+    suspicious.push({ ...entry, _suspicious_reason: 'name not in personnel_roster' })
+  }
+  return { matched, suspicious }
 }
 
 /**

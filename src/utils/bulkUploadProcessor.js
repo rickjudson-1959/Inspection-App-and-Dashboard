@@ -27,7 +27,7 @@
  */
 
 import { supabase } from '../supabase.js'
-import { pdfToImages, extractLEMFromUrl, extractLEMLineItemsFromBase64 } from './lemParser.js'
+import { pdfToImages, extractLEMFromUrl, extractLEMLineItemsFromBase64, loadPdfDocument, renderPdfPageBase64 } from './lemParser.js'
 
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || ''
 const MAX_OCR_RETRIES = 3
@@ -302,18 +302,58 @@ export async function saveBulkUploadGroups({
   }
 
   // LEM extraction on every LEM group — populates contractor_lems.
-  // The OCR runs DIRECTLY on the in-memory page images for this
-  // group only (NOT the whole source PDF) so the extracted billing
-  // data is scoped to this foreman's LEM pages.
+  //
+  // Two safeguards (added May 15 2026 after the ticket 18292
+  // hallucinated-baseball-player incident):
+  //   1. RE-RENDER LEM pages from the source PDF at scale 3.0 just
+  //      for OCR. The workspace's cached base64 was rendered at scale
+  //      1.5–2.0 for display + storage, which Vision was clearly
+  //      hallucinating against. Workspace + storage stay at their
+  //      current scale; the high-res render is OCR-only.
+  //   2. ROSTER CROSS-CHECK — load personnel_roster names once for
+  //      the org and pass them to extractLEMLineItemsFromBase64.
+  //      Names returned by Vision that don't match the roster
+  //      (exact or fuzzy last-name) get routed to suspicious_labour
+  //      and excluded from the saved data.
+  // PostgREST caps a single response at 1000 rows; for larger orgs we
+  // need to paginate. Loading the whole roster up-front and keeping
+  // it in memory is fine — even a 10k-name org is ~200 KB of strings.
+  let rosterNames = []
+  try {
+    const PAGE = 1000
+    for (let from = 0; ; from += PAGE) {
+      const { data: batch, error } = await supabase
+        .from('personnel_roster')
+        .select('employee_name')
+        .eq('organization_id', orgId)
+        .order('employee_name')
+        .range(from, from + PAGE - 1)
+      if (error) throw error
+      for (const r of (batch || [])) {
+        const n = (r.employee_name || '').trim()
+        if (n) rosterNames.push(n)
+      }
+      if (!batch || batch.length < PAGE) break
+    }
+    onProgress?.(`Loaded ${rosterNames.length} roster names for OCR cross-check`, 0, 1)
+  } catch (err) {
+    console.warn('[bulkUpload] could not load personnel_roster — proceeding without roster cross-check:', err.message)
+  }
+
   let lemExtractedCount = 0
   const lemEntries = [...inserted.lems.entries()]
+  // Open the source PDF once and reuse for high-res page renders.
+  let pdfDoc = null
+  try { pdfDoc = await loadPdfDocument(sourceFile) }
+  catch (err) { console.warn('[bulkUpload] high-res PDF load failed; falling back to cached base64 for OCR:', err.message) }
+
   for (let i = 0; i < lemEntries.length; i++) {
     const [groupId, row] = lemEntries[i]
     const group = groups.find(g => g.id === groupId)
     onProgress?.(`Extracting LEM data ${i + 1} of ${lemEntries.length} (30-60s each)...`, i + 1, lemEntries.length)
     try {
       const ok = await runLemExtractionForGroup({
-        row, group, orgId, pageImageByNumber
+        row, group, orgId, pageImageByNumber, pdfDoc, rosterNames
       })
       if (ok) lemExtractedCount++
     } catch (err) {
@@ -457,7 +497,7 @@ function buildMatchKey(g) {
  *
  * Returns true if anything was written to contractor_lems.
  */
-async function runLemExtractionForGroup({ row, group, orgId, pageImageByNumber }) {
+async function runLemExtractionForGroup({ row, group, orgId, pageImageByNumber, pdfDoc, rosterNames }) {
   const lemPages = [...(group.lemPages || []), ...(group.otherPages || [])]
     .filter((v, idx, arr) => arr.indexOf(v) === idx)
     .sort((a, b) => a - b)
@@ -465,23 +505,35 @@ async function runLemExtractionForGroup({ row, group, orgId, pageImageByNumber }
 
   const allLabour = []
   const allEquipment = []
+  const allSuspicious = []
   let totalLabourCost = 0
   let totalEquipCost = 0
   let totalLabourHours = 0
   let totalEquipHours = 0
 
   for (const pageNumber of lemPages) {
-    const b64 = pageImageByNumber?.get(pageNumber)
+    // Prefer the high-res re-render for OCR. Fall back to the
+    // workspace's cached scale-2.0 base64 if the source-PDF render
+    // failed for any reason.
+    let b64 = null
+    if (pdfDoc) {
+      try { b64 = await renderPdfPageBase64(pdfDoc, pageNumber, 3.0, 0.92) }
+      catch (err) { console.warn(`[bulkUpload] high-res render failed for page ${pageNumber} — falling back to cache:`, err.message) }
+    }
+    if (!b64) b64 = pageImageByNumber?.get(pageNumber)
     if (!b64) {
       console.warn(`[bulkUpload] no rendered image for page ${pageNumber} (group ${group.id})`)
       continue
     }
     let pageResult
     try {
-      pageResult = await extractLEMLineItemsFromBase64(b64)
+      pageResult = await extractLEMLineItemsFromBase64(b64, { rosterNames })
     } catch (err) {
       console.warn(`[bulkUpload] LEM OCR failed on page ${pageNumber}:`, err.message)
       continue
+    }
+    if (Array.isArray(pageResult?.suspicious_labour) && pageResult.suspicious_labour.length > 0) {
+      allSuspicious.push(...pageResult.suspicious_labour)
     }
     for (const l of (pageResult?.labour || [])) {
       allLabour.push({
@@ -513,7 +565,19 @@ async function runLemExtractionForGroup({ row, group, orgId, pageImageByNumber }
     }
   }
 
-  if (allLabour.length === 0 && allEquipment.length === 0) {
+  // Manual-entry flag: if 50%+ of the names Vision returned failed
+  // the roster cross-check, the page is too garbled to trust ANY of
+  // the entries — surname-only collisions on a 1000+ roster are easy.
+  // Discard everything (including the coincidental matches) and flag
+  // for manual entry so MasterGaps / billing review surfaces the
+  // problem instead of silently producing $0 (or worse, fake) totals.
+  const totalReturned = allLabour.length + allSuspicious.length
+  const suspiciousRatio = totalReturned > 0 ? allSuspicious.length / totalReturned : 0
+  const tooManyHallucinations = rosterNames?.length > 0 && totalReturned > 0 && suspiciousRatio >= 0.5
+  if (tooManyHallucinations) {
+    console.warn(`[bulkUpload] #${row.ticket_number}: ${allSuspicious.length} of ${totalReturned} OCR'd names failed roster cross-check (${Math.round(suspiciousRatio * 100)}%) — flagging for manual entry`)
+  }
+  if (allLabour.length === 0 && allEquipment.length === 0 && !tooManyHallucinations) {
     console.warn(`[bulkUpload] group ${group.id} (#${row.ticket_number}) produced no LEM rows from ${lemPages.length} page(s)`)
     return false
   }
@@ -523,10 +587,13 @@ async function runLemExtractionForGroup({ row, group, orgId, pageImageByNumber }
     field_log_id: row.ticket_number,
     foreman: group.foreman_name || null,
     date: group.date || new Date().toISOString().split('T')[0],
-    labour_entries: allLabour,
-    equipment_entries: allEquipment,
-    total_labour_cost: totalLabourCost,
-    total_equipment_cost: totalEquipCost
+    labour_entries: tooManyHallucinations ? [] : allLabour,
+    equipment_entries: tooManyHallucinations ? [] : allEquipment,
+    total_labour_cost: tooManyHallucinations ? 0 : totalLabourCost,
+    total_equipment_cost: tooManyHallucinations ? 0 : totalEquipCost,
+    discrepancy_note: tooManyHallucinations
+      ? `Manual entry required: ${allSuspicious.length} of ${totalReturned} name(s) returned by OCR failed personnel_roster cross-check (${Math.round(suspiciousRatio * 100)}% suspicious). The few coincidental matches were discarded too — at this signal level they're likely just common surnames colliding. Suspicious: ${allSuspicious.slice(0, 8).map(s => s.employee_name || s.name).join(', ')}${allSuspicious.length > 8 ? '…' : ''}`
+      : null
   }
   const { data: existing } = await supabase.from('contractor_lems')
     .select('id').eq('organization_id', orgId).eq('field_log_id', row.ticket_number).limit(1)

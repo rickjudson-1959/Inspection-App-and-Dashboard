@@ -658,6 +658,74 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### LEM OCR Hardening — Roster Cross-Check + Manual-Entry Flag (May 15, 2026 — evening)
+
+Two issues addressed in a single pass:
+
+**1. Stale `needs_master_resolution` flags — DB backfill.**
+After the read-side fix in 6124a8b (see below), the actual data still
+carried `needs_master_resolution: true` on 289 labour rows and 34
+equipment rows where `master_personnel_id` / `master_equipment_id`
+was populated. The flag was set at entry-creation time as
+`!masterPersonnelId` and the manpower CSV backfill never cleared it.
+A one-shot Node script (`scripts/backfill-needs-master-resolution.cjs`)
+walks every `daily_reports.activity_blocks` row and clears the flag
+wherever a master_id is set. Touched 45 of 57 reports; the
+canonicalised data now lines up with the read-side gate.
+
+**2. Hallucinated names in `contractor_lems` — roster cross-check.**
+Ticket 18292's LEM was full of Chicago Cubs players (Kris Bryant,
+Addison Russell, Wilson Contreras…) — Vision was hallucinating
+plausible-sounding names from a low-quality scan. Two safeguards
+added end-to-end:
+
+- **Higher-resolution render for OCR.** `bulkUploadProcessor.js`
+  now loads the source PDF once via the new `loadPdfDocument` +
+  `renderPdfPageBase64` helpers in `lemParser.js` and re-renders
+  every LEM page at scale 3.0 for Vision input. Workspace +
+  storage stay at the scale-1.5/2.0 cache (no UI / storage
+  regression); only OCR sees the high-res render. Falls back to
+  the cached base64 if PDF.js can't reload.
+- **Personnel-roster cross-check.** `extractLEMLineItemsFromBase64`
+  takes an optional `rosterNames` array. Every name the model
+  returns is normalised and matched against the roster (exact +
+  fuzzy last-name). Misses go into a new `suspicious_labour`
+  field and are excluded from the saved labour entries.
+  `bulkUploadProcessor.js` paginates the roster fetch (PostgREST
+  caps at 1000; our test org has 1224 rows).
+- **Manual-entry threshold.** If ≥50% of names Vision returns
+  fail the roster cross-check, the contractor_lems row is saved
+  with `labour_entries = []`, `equipment_entries = []`, and
+  `discrepancy_note` set. The few coincidental "matches" get
+  discarded too — at that signal level they're just common-surname
+  collisions on a 1000+ roster. Surfaces the bad scan in billing
+  review instead of silently producing $0 or fake totals.
+
+Ticket 18292 was re-extracted via `scripts/reextract-lem-18292.cjs`
+(uses the stored scale-2.0 JPEGs because the source PDF wasn't
+preserved). 31 names returned, 26 suspicious, 84% — flagged for
+manual entry. The "scale 3+ re-render" safeguard applies to FUTURE
+bulk uploads only; the one-shot fix had to use what was on disk.
+
+**Files changed:**
+```
+src/utils/lemParser.js
+  - loadPdfDocument(file)
+  - renderPdfPageBase64(doc, pageNumber, scale=3.0)
+  - extractLEMLineItemsFromBase64(b64, { rosterNames })
+    + returns matched + suspicious_labour
+  - splitLabourByRoster() — exact + fuzzy last-name match
+src/utils/bulkUploadProcessor.js
+  - paginated personnel_roster load (1000-row PostgREST cap)
+  - runLemExtractionForGroup re-renders LEM pages at scale 3.0
+  - threshold: discard everything + flag when ≥50% suspicious
+scripts/backfill-needs-master-resolution.cjs (new)
+scripts/reextract-lem-18292.cjs (new)
+```
+
+No schema migration. `contractor_lems.discrepancy_note` is an
+existing column, repurposed for the manual-entry flag.
+
 ### Inspector Report Panel — Cost Suppressed by Stale needs_master_resolution (May 15, 2026 — late afternoon)
 
 The cost column was showing $0 for every labour / equipment entry on
