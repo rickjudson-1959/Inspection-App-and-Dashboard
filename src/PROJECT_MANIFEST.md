@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - May 13, 2026
+## Project Manifest - May 16, 2026
 
 ---
 
@@ -657,6 +657,139 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–May 2026)
+
+### Inspector Report Panel Overrides + Variance UX + Offline Reachability + Roster-Constrained OCR (May 16, 2026 — evening)
+
+Long session covering five themes — all merged to `main` and live on
+Vercel.
+
+**1. InspectorReportPanel admin overrides actually take effect.**
+`calcLabourCost` and `calcEquipmentCost` previously *stored* override
+values via the `PencilIcon` → `AdminOverridePopover` flow but never
+read them back when computing cost. Both calculators now check for an
+`<field>_override` metadata blob on the entry; when present, the
+overridden value at `entry[field]` is used. `cost_override` short-
+circuits the per-rate sum (it's a final-cost override). Equipment
+calc preserves the legacy "0 hours = not billed" rule unless an
+override is present.
+
+PencilIcons added to all the cells that were previously read-only
+display:
+- labour: `rtRate` (label adapts: "Daily Rate" for day-rate
+  workers, "RT Rate" otherwise), `otRate`, `dtRate`
+- equipment: `rate`, `cost` (equipment was previously asymmetric —
+  no pencils at all; labour had two)
+
+**2. Variance resolution flow rebuilt.**
+- `resolveVariance` is now one-click — the `window.prompt` for a
+  resolution note is gone. The audit entry still records `by` and
+  `at`; the note defaults to empty.
+- Red banner gets a filled-red "Resolve" button (was outlined).
+- Green banner replaces the "Re-open" outline button with a
+  disabled filled-green "Resolved ✓" indicator so the row reads
+  as actioned at a glance. The unresolve hook moved onto the
+  banner text — clicking "Resolved by …" re-opens.
+- Small ✏️ next to the banner text opens an inline text input
+  for `variance_resolution_note`. Saves through `onBlockChange`
+  with an audit entry. Lets admins add the explanation
+  *after* resolving (the prompt path is gone).
+- Trailing `": "` on the resolved-row banner is now suppressed
+  when the note is empty.
+
+**3. LEM-vs-inspector name matching.**
+`labourVarianceMap` (line ~390 of `InspectorReportPanel.jsx`) gained
+a reversed-token match pass between the exact-match and Levenshtein-
+fuzzy passes. Splits on `[,\s]+`, reverses the tokens, compares
+either direction — handles "Smith, John" ↔ "John Smith" without
+needing a fuzzy hit. Levenshtein threshold also dropped 0.8 → 0.72
+to catch more near-misses.
+
+**4. Cross-report duplicate detection.**
+`ReconFourPanelView` now builds `crossReportLabour` and
+`crossReportEquipment` from all same-date reports excluding the
+current report's own ID, each entry carrying `{ inspector, date }`.
+Plumbed through `DocumentPanel` to `InspectorReportPanel`.
+`getLabourDuplicateWarning` and `getEquipmentDuplicateWarning` get
+a new check alongside the existing same-ticket and cross-ticket-
+same-day checks: when a name (labour) or unit_number (equipment)
+appears on another inspector's report for the same date, the
+duplicate banner gains `Also reported by <inspector> on <date>`.
+Joins through the same `' | '` pipeline as the existing checks.
+
+**5. LEM OCR — roster-constrained personnel names.**
+`extractLEMLineItemsFromBase64` (in `src/utils/lemParser.js`)
+already accepted `opts.rosterNames` but only used it for a JS
+post-check (`splitLabourByRoster`). The roster is now also injected
+into the Vision prompt with an explicit rule: only return
+`employee_name` values that match a roster entry; return `null` if
+no confident match; do not guess or infer names. JSON schema hint
+adjusted to reflect "exact name from the roster, or null if no
+match". JS post-check stays as defense-in-depth.
+
+Only the `bulkUploadProcessor` path supplies a roster, so that's
+the only call site affected. The legacy `extractLEMLineItems`
+(image-URL extractor) is not currently called from production — a
+JSDoc note flags it as such and warns that reactivation requires
+adding roster injection first.
+
+**6. Offline detection — fetch-based reachability + adaptive
+polling.** `useOnlineStatus` in `src/offline/hooks.js` no longer
+trusts `navigator.onLine` alone (it returns `true` on captive-portal
+Wi-Fi and flaky cell). Every time `navigator.onLine` is `true`,
+the hook does a HEAD to `${VITE_SUPABASE_URL}/rest/v1/` with a 5s
+AbortController timeout; any HTTP response (200/401/404) counts as
+reachable, only a network error or timeout sets `isOnline` to
+false. The 2s `setInterval` is replaced with a recursive
+`setTimeout` driven by a `confirmedOnlineRef`: 10s when reachability
+is confirmed, 2s when offline or unconfirmed (cheap re-checks vs
+snappy recovery polling). The `'offline'` event force-cancels the
+pending tick and reschedules at 2s immediately so we don't wait
+up to 10s for the next poll. An `inFlightRef` prevents stacked
+probes if a tick takes longer than the next scheduled delay.
+
+**7. UI polish.** `ReconciliationList` (the "Reconciliation
+Packages" page) gained a `← Back to Admin` link in the upper-left,
+matching the existing pattern in
+`InspectorInvoicingDashboard.jsx:235`. Convention saved to memory:
+every top-level page should have a back button in the upper-left.
+
+**Files changed:**
+```
+src/components/Reconciliation/InspectorReportPanel.jsx
+  - calcLabourCost / calcEquipmentCost honor *_override
+  - PencilIcons on rtRate/otRate/dtRate/(eq) rate/(eq) cost
+  - resolveVariance: prompt removed, 1-click, empty note
+  - Red Resolve button: filled red; green Resolved ✓ disabled
+  - Inline variance_resolution_note edit on green banner
+  - labourVarianceMap: reversed-token pass, 0.72 threshold
+  - getLabourDuplicateWarning / getEquipmentDuplicateWarning:
+    cross-report check appended via join(' | ')
+  - props: crossReportLabour, crossReportEquipment
+
+src/components/Reconciliation/ReconFourPanelView.jsx
+  - Builds crossReportLabour / crossReportEquipment from same-date
+    reports excluding the current report's id
+
+src/components/Reconciliation/DocumentPanel.jsx
+  - Forwards new cross-report props through to InspectorReportPanel
+
+src/components/Reconciliation/ReconciliationList.jsx
+  - "← Back to Admin" button upper-left, routes to /admin
+
+src/utils/lemParser.js
+  - extractLEMLineItemsFromBase64: roster + null-on-no-match rule
+    injected into the Vision prompt when rosterNames supplied
+  - extractLEMLineItems: JSDoc flags as not-in-production +
+    "needs roster injection before reactivation" note
+
+src/offline/hooks.js
+  - confirmReachable(): HEAD probe + 5s AbortController timeout
+  - useOnlineStatus: recursive setTimeout w/ confirmedOnlineRef,
+    adaptive 10s/2s cadence, force-reschedule on 'offline'
+```
+
+No migrations. No field-guide impact — admin-side reconciliation
+panel changes only; inspector-side report shape unchanged.
 
 ### Bulk-Upload Recovery — Ticket-Number Inheritance + Equipment Cap (May 16, 2026 — afternoon)
 
