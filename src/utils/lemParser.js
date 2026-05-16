@@ -1094,6 +1094,18 @@ export async function extractLEMLineItemsFromBase64(imgBase64, opts = {}) {
   const fleetUnits = Array.isArray(opts.fleetUnits) ? opts.fleetUnits : null
   if (!ANTHROPIC_API_KEY) return { labour: [], equipment: [], totals: {}, raw_text: '', suspicious_labour: [], suspicious_equipment: [] }
 
+  const hasRoster = Array.isArray(rosterNames) && rosterNames.length > 0
+  const employeeNameField = hasRoster
+    ? `"employee_name": "exact name from the roster below, or null if no confident match"`
+    : `"employee_name": "full name"`
+  const rosterBlock = hasRoster
+    ? `
+- For employee_name: ONLY return a value if you can match the printed name to a name in the personnel roster below. Use the roster's exact spelling. If you cannot confidently match the printed name to a roster entry, return null for employee_name. Do not guess, infer, or invent names — null is the correct answer when you are unsure.
+
+Personnel roster (valid names, use these exact spellings):
+${rosterNames.map(n => `- ${n}`).join('\n')}`
+    : ''
+
   const prompt = `You are extracting billing data from a contractor's Labour & Equipment Manifest (LEM) page used in pipeline construction.
 
 Extract ALL line items from this LEM page. Return ONLY valid JSON (no markdown, no code fences):
@@ -1101,7 +1113,7 @@ Extract ALL line items from this LEM page. Return ONLY valid JSON (no markdown, 
 {
   "labour": [
     {
-      "employee_name": "full name",
+      ${employeeNameField},
       "classification": "job title/classification exactly as printed",
       "rt_hours": number or 0,
       "ot_hours": number or 0,
@@ -1138,7 +1150,7 @@ Rules:
 - line_total: the dollar amount for that line if shown, otherwise 0
 - Keep classification names EXACTLY as printed
 - If the page has subtotals or grand totals, capture them in the totals object
-- If this page appears to be a continuation (equipment section of a multi-page LEM), still extract all items`
+- If this page appears to be a continuation (equipment section of a multi-page LEM), still extract all items${rosterBlock}`
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
