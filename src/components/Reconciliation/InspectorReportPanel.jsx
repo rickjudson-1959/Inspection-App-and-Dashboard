@@ -102,16 +102,6 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     const entries = section === 'labour' ? labourEntries : equipmentEntries
     const entry = entries[rowIdx]
     if (!entry) return
-    const label = section === 'labour'
-      ? (entry.employeeName || entry.employee_name || entry.name || `row ${rowIdx + 1}`)
-      : (entry.unitNumber || entry.unit_number || entry.equipment_id || entry.type || `row ${rowIdx + 1}`)
-    const note = window.prompt(
-      `Resolve variance for ${label}\n\nEnter a note explaining the resolution (e.g. "Foreman gets day rate regardless of hours"). Leave blank to cancel.`,
-      ''
-    )
-    if (note === null) return
-    const trimmed = note.trim()
-    if (!trimmed) return
     const { data: { user } = {} } = await supabase.auth.getUser()
     const resolvedBy = user?.email || user?.id || 'admin'
     const resolvedAt = new Date().toISOString()
@@ -119,7 +109,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     next[rowIdx] = {
       ...next[rowIdx],
       variance_resolved: true,
-      variance_resolution_note: trimmed,
+      variance_resolution_note: '',
       variance_resolved_by: resolvedBy,
       variance_resolved_at: resolvedAt
     }
@@ -129,7 +119,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     const auditEntries = [{
       field: `${section}[${rowIdx}].variance_resolved`,
       oldValue: entry.variance_resolved ? 'true' : 'false',
-      newValue: `true — ${trimmed} (by ${resolvedBy})`
+      newValue: `true (by ${resolvedBy})`
     }]
     onBlockChange(updatedBlock, auditEntries)
   }
@@ -406,8 +396,22 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
       const inspName = normV(entry.employeeName || entry.employee_name || entry.name || '')
       if (!inspName) continue
 
-      // Find matching LEM row by normalized name, then fuzzy fallback
+      // Find matching LEM row by normalized name, then reversed-token
+      // order, then fuzzy fallback.
       let lemMatch = lemLabour.find(l => normV(l.employee_name || l.name || '') === inspName)
+
+      // Reversed-token match: handles "Smith, John" on one side and
+      // "John Smith" on the other. Splits on comma/whitespace, reverses
+      // the tokens, then compares against the other side's normalized form.
+      if (!lemMatch) {
+        const reverseTokens = (s) => (s || '').split(/[,\s]+/).filter(Boolean).reverse().join(' ')
+        const reversedInsp = reverseTokens(inspName)
+        lemMatch = lemLabour.find(l => {
+          const lemName = normV(l.employee_name || l.name || '')
+          if (!lemName) return false
+          return lemName === reversedInsp || reverseTokens(lemName) === inspName
+        })
+      }
 
       if (!lemMatch) {
         lemMatch = lemLabour.find(l => {
@@ -415,7 +419,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
           if (!lemName) return false
           const maxLen = Math.max(lemName.length, inspName.length)
           if (maxLen === 0) return false
-          return (1 - levenshtein(lemName, inspName) / maxLen) >= 0.8
+          return (1 - levenshtein(lemName, inspName) / maxLen) >= 0.72
         })
       }
 
@@ -1432,7 +1436,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                         <td colSpan={onBlockChange ? 11 : 10} style={{ padding: '2px 6px', fontSize: 11, color: '#047857', backgroundColor: '#ecfdf5', borderBottom: '1px solid #a7f3d0' }}>
                           &#10003; Resolved by {e.variance_resolved_by || 'admin'}
                           {e.variance_resolved_at && ` on ${new Date(e.variance_resolved_at).toLocaleString()}`}
-                          : {e.variance_resolution_note}
+                          {e.variance_resolution_note ? `: ${e.variance_resolution_note}` : ''}
                           {onBlockChange && (
                             <button
                               onClick={() => unresolveVariance('labour', i)}
@@ -1580,7 +1584,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                         <td colSpan={onBlockChange ? 6 : 5} style={{ padding: '2px 6px', fontSize: 11, color: '#047857', backgroundColor: '#ecfdf5', borderBottom: '1px solid #a7f3d0' }}>
                           &#10003; Resolved by {e.variance_resolved_by || 'admin'}
                           {e.variance_resolved_at && ` on ${new Date(e.variance_resolved_at).toLocaleString()}`}
-                          : {e.variance_resolution_note}
+                          {e.variance_resolution_note ? `: ${e.variance_resolution_note}` : ''}
                           {onBlockChange && (
                             <button
                               onClick={() => unresolveVariance('equipment', i)}
