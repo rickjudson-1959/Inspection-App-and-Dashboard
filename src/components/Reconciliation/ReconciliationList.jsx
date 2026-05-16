@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { supabase } from '../../supabase'
 import { useOrgQuery } from '../../utils/queryHelpers.js'
+import { useOrgPath } from '../../contexts/OrgContext.jsx'
 import ReconciliationUpload from './ReconciliationUpload.jsx'
 import BulkUploadWorkspace from './BulkUploadWorkspace.jsx'
 
@@ -17,6 +19,8 @@ const BRAND = {
 
 export default function ReconciliationList({ onSelectTicket, onNavigateToUpload }) {
   const { organizationId, isReady, addOrgFilter } = useOrgQuery()
+  const navigate = useNavigate()
+  const { orgPath } = useOrgPath()
 
   const [packages, setPackages] = useState([])
   const [loading, setLoading] = useState(true)
@@ -302,6 +306,14 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
 
   return (
     <div style={styles.container}>
+      {/* Back button — upper-left, consistent across pages */}
+      <button
+        onClick={() => navigate(orgPath('/admin'))}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '14px', color: '#6b7280', padding: 0, marginBottom: '8px' }}
+      >
+        ← Back to Admin
+      </button>
+
       {/* Header */}
       <div style={styles.header}>
         <h2 style={styles.title}>Reconciliation Packages</h2>
