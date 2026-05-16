@@ -42,6 +42,8 @@ export default function DocumentPanel({
   onBlockChange,
   onAliasCreated,
   sameDayEntries,
+  crossReportLabour,
+  crossReportEquipment,
   employeeRoster,
   equipmentRoster,
   lemData,
@@ -202,6 +204,8 @@ export default function DocumentPanel({
           onBlockChange={onBlockChange}
           onAliasCreated={onAliasCreated}
           sameDayEntries={sameDayEntries || { labour: [], equipment: [] }}
+          crossReportLabour={crossReportLabour || []}
+          crossReportEquipment={crossReportEquipment || []}
           employeeRoster={employeeRoster || []}
           equipmentRoster={equipmentRoster || []}
           lemData={lemData || null}

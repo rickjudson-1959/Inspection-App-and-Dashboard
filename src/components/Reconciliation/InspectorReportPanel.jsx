@@ -6,7 +6,7 @@ import ResolveRowModal from './ResolveRowModal.jsx'
 import AdminOverridePopover from './AdminOverridePopover.jsx'
 import { levenshtein } from '../../utils/nameMatchingUtils.js'
 
-export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated, sameDayEntries = { labour: [], equipment: [] }, employeeRoster = [], equipmentRoster = [], lemData = null, reportDate = null, hasLemPdf = false, lemPdfUrls = [], onLemExtracted }) {
+export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated, sameDayEntries = { labour: [], equipment: [] }, crossReportLabour = [], crossReportEquipment = [], employeeRoster = [], equipmentRoster = [], lemData = null, reportDate = null, hasLemPdf = false, lemPdfUrls = [], onLemExtracted }) {
   const [editingCell, setEditingCell] = useState(null) // { section, rowIdx, field }
   const [editValue, setEditValue] = useState('')
   const [dropdownFilter, setDropdownFilter] = useState('')
@@ -270,6 +270,15 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
       }
     }
 
+    // Cross-report same day — same name on a different inspector's
+    // report for the same date.
+    for (const other of crossReportLabour) {
+      if (other.name === name) {
+        warnings.push(`Also reported by ${other.inspector} on ${other.date}`)
+        break
+      }
+    }
+
     return warnings.length > 0 ? warnings.join(' | ') : null
   }
 
@@ -294,6 +303,17 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
       for (const other of sameDayEntries.equipment) {
         if (other.unit && other.unit === unit) {
           warnings.push(`Also on ticket #${other.ticket}`)
+          break
+        }
+      }
+    }
+
+    // Cross-report same day — same unit number on a different
+    // inspector's report for the same date.
+    if (unit) {
+      for (const other of crossReportEquipment) {
+        if (other.unit && other.unit === unit) {
+          warnings.push(`Also reported by ${other.inspector} on ${other.date}`)
           break
         }
       }

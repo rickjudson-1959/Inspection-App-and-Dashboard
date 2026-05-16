@@ -39,6 +39,8 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
   const [aliases, setAliases] = useState([])
   // showVariance toggle removed in 4.4.5 — panel always shows when lemData exists
   const [sameDayEntries, setSameDayEntries] = useState({ labour: [], equipment: [] })
+  const [crossReportLabour, setCrossReportLabour] = useState([])
+  const [crossReportEquipment, setCrossReportEquipment] = useState([])
   const [employeeRoster, setEmployeeRoster] = useState([])
   const [equipmentRoster, setEquipmentRoster] = useState([])
 
@@ -147,6 +149,34 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
       }
     }
     setSameDayEntries(newSameDayEntries)
+
+    // --- Build cross-report entries (same date, different report) ---
+    // Used by InspectorReportPanel to surface "Also reported by X on Y"
+    // when the same name / unit appears in another inspector's report
+    // for the same date. The org scoping is already enforced by the
+    // reports query above, so this is implicitly same-project.
+    const newCrossReportLabour = []
+    const newCrossReportEquipment = []
+    if (foundReport && reports) {
+      const reportDate = foundReport.date
+      for (const report of reports) {
+        if (report.id === foundReport.id) continue
+        if (report.date !== reportDate) continue
+        const inspector = report.inspector_name || 'unknown'
+        for (const b of (report.activity_blocks || [])) {
+          for (const l of (b.labourEntries || [])) {
+            const name = (l.employeeName || l.employee_name || l.name || '').toLowerCase().trim()
+            if (name) newCrossReportLabour.push({ name, inspector, date: report.date })
+          }
+          for (const e of (b.equipmentEntries || [])) {
+            const unit = (e.unitNumber || e.unit_number || '').toLowerCase().trim()
+            if (unit) newCrossReportEquipment.push({ unit, inspector, date: report.date })
+          }
+        }
+      }
+    }
+    setCrossReportLabour(newCrossReportLabour)
+    setCrossReportEquipment(newCrossReportEquipment)
 
     // --- Build employee roster from uploaded CSV + daily reports ---
     const rosterMap = {}
@@ -335,6 +365,8 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
           aliases={aliases}
           organizationId={organizationId}
           sameDayEntries={sameDayEntries}
+          crossReportLabour={crossReportLabour}
+          crossReportEquipment={crossReportEquipment}
           employeeRoster={employeeRoster}
           equipmentRoster={equipmentRoster}
           lemData={lemData}
