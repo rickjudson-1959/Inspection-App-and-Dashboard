@@ -1424,8 +1424,8 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                           {onBlockChange && (
                             <button
                               onClick={() => resolveVariance('labour', i)}
-                              style={{ marginLeft: 8, padding: '1px 6px', fontSize: 10, fontWeight: 600, border: '1px solid #b91c1c', background: 'white', color: '#b91c1c', borderRadius: 3, cursor: 'pointer' }}
-                              title="Mark this variance as resolved with a note"
+                              style={{ marginLeft: 8, padding: '2px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #b91c1c', background: '#b91c1c', color: 'white', borderRadius: 3, cursor: 'pointer' }}
+                              title="Mark this variance as resolved"
                             >Resolve</button>
                           )}
                         </td>
@@ -1434,16 +1434,20 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                     {wasResolved && (
                       <tr>
                         <td colSpan={onBlockChange ? 11 : 10} style={{ padding: '2px 6px', fontSize: 11, color: '#047857', backgroundColor: '#ecfdf5', borderBottom: '1px solid #a7f3d0' }}>
-                          &#10003; Resolved by {e.variance_resolved_by || 'admin'}
-                          {e.variance_resolved_at && ` on ${new Date(e.variance_resolved_at).toLocaleString()}`}
-                          {e.variance_resolution_note ? `: ${e.variance_resolution_note}` : ''}
-                          {onBlockChange && (
-                            <button
-                              onClick={() => unresolveVariance('labour', i)}
-                              style={{ marginLeft: 8, padding: '1px 6px', fontSize: 10, fontWeight: 600, border: '1px solid #047857', background: 'white', color: '#047857', borderRadius: 3, cursor: 'pointer' }}
-                              title="Re-open this variance (clears resolution)"
-                            >Re-open</button>
-                          )}
+                          <span
+                            onClick={onBlockChange ? () => unresolveVariance('labour', i) : undefined}
+                            style={{ cursor: onBlockChange ? 'pointer' : 'default' }}
+                            title={onBlockChange ? 'Click to re-open this variance' : undefined}
+                          >
+                            &#10003; Resolved by {e.variance_resolved_by || 'admin'}
+                            {e.variance_resolved_at && ` on ${new Date(e.variance_resolved_at).toLocaleString()}`}
+                            {e.variance_resolution_note ? `: ${e.variance_resolution_note}` : ''}
+                          </span>
+                          <button
+                            disabled
+                            style={{ marginLeft: 8, padding: '2px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #047857', background: '#047857', color: 'white', borderRadius: 3, cursor: 'not-allowed' }}
+                            title="This variance has been resolved"
+                          >Resolved &#10003;</button>
                         </td>
                       </tr>
                     )}
@@ -1572,8 +1576,8 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                           {onBlockChange && (
                             <button
                               onClick={() => resolveVariance('equipment', i)}
-                              style={{ marginLeft: 8, padding: '1px 6px', fontSize: 10, fontWeight: 600, border: '1px solid #b91c1c', background: 'white', color: '#b91c1c', borderRadius: 3, cursor: 'pointer' }}
-                              title="Mark this variance as resolved with a note"
+                              style={{ marginLeft: 8, padding: '2px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #b91c1c', background: '#b91c1c', color: 'white', borderRadius: 3, cursor: 'pointer' }}
+                              title="Mark this variance as resolved"
                             >Resolve</button>
                           )}
                         </td>
@@ -1582,16 +1586,20 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                     {wasResolved && (
                       <tr>
                         <td colSpan={onBlockChange ? 6 : 5} style={{ padding: '2px 6px', fontSize: 11, color: '#047857', backgroundColor: '#ecfdf5', borderBottom: '1px solid #a7f3d0' }}>
-                          &#10003; Resolved by {e.variance_resolved_by || 'admin'}
-                          {e.variance_resolved_at && ` on ${new Date(e.variance_resolved_at).toLocaleString()}`}
-                          {e.variance_resolution_note ? `: ${e.variance_resolution_note}` : ''}
-                          {onBlockChange && (
-                            <button
-                              onClick={() => unresolveVariance('equipment', i)}
-                              style={{ marginLeft: 8, padding: '1px 6px', fontSize: 10, fontWeight: 600, border: '1px solid #047857', background: 'white', color: '#047857', borderRadius: 3, cursor: 'pointer' }}
-                              title="Re-open this variance (clears resolution)"
-                            >Re-open</button>
-                          )}
+                          <span
+                            onClick={onBlockChange ? () => unresolveVariance('equipment', i) : undefined}
+                            style={{ cursor: onBlockChange ? 'pointer' : 'default' }}
+                            title={onBlockChange ? 'Click to re-open this variance' : undefined}
+                          >
+                            &#10003; Resolved by {e.variance_resolved_by || 'admin'}
+                            {e.variance_resolved_at && ` on ${new Date(e.variance_resolved_at).toLocaleString()}`}
+                            {e.variance_resolution_note ? `: ${e.variance_resolution_note}` : ''}
+                          </span>
+                          <button
+                            disabled
+                            style={{ marginLeft: 8, padding: '2px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #047857', background: '#047857', color: 'white', borderRadius: 3, cursor: 'not-allowed' }}
+                            title="This variance has been resolved"
+                          >Resolved &#10003;</button>
                         </td>
                       </tr>
                     )}
