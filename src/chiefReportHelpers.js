@@ -6,6 +6,48 @@ import { supabase } from './supabase'
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
 // =============================================
+// FIELD-NAME HELPERS
+// =============================================
+//
+// The InspectorReport form is the source of truth for activity_blocks
+// schema. It writes:
+//   - metersToday / metersPrevious / metersToDate (American spelling,
+//     stored as strings)
+//   - startKP / endKP as chainage notation ('13+900' = 13km+900m)
+//   - activityType in camelCase
+//
+// These helpers normalize those representations for aggregation.
+
+/**
+ * Parse chainage notation to a numeric metres value.
+ *   '13+900'  →  13900
+ *   '13'      →  13     (assumed already metres)
+ *   13900     →  13900  (numeric pass-through)
+ *   '' / null →  null
+ */
+export function parseChainageKP(str) {
+  if (str === null || str === undefined) return null
+  const s = String(str).trim()
+  if (s === '') return null
+  if (s.includes('+')) {
+    const [km, m] = s.split('+')
+    return (parseFloat(km) || 0) * 1000 + (parseFloat(m) || 0)
+  }
+  const n = parseFloat(s)
+  return isNaN(n) ? null : n
+}
+
+/**
+ * Read today's metres from an activity_block, preferring the
+ * canonical American spelling (`metersToday`) the form writes, with
+ * a fallback to the Canadian spelling (`metresToday`) in case any
+ * legacy data exists. Returns 0 if neither is present/numeric.
+ */
+export function parseBlockMetres(block) {
+  return parseFloat(block?.metersToday) || parseFloat(block?.metresToday) || 0
+}
+
+// =============================================
 // PROJECT BASELINE & PROGRESS FUNCTIONS
 // =============================================
 
@@ -52,10 +94,12 @@ export async function fetchProjectBaselines(organizationId = null) {
       const bucket = aggregated[key]
       bucket.planned_metres += parseFloat(item.planned_metres) || 0
       bucket.budgeted_total += parseFloat(item.budgeted_total) || 0
-      const fk = parseFloat(item.from_kp)
-      const tk = parseFloat(item.to_kp)
-      if (!isNaN(fk) && (bucket.from_kp === null || fk < bucket.from_kp)) bucket.from_kp = fk
-      if (!isNaN(tk) && (bucket.to_kp === null || tk > bucket.to_kp)) bucket.to_kp = tk
+      // from_kp / to_kp may be stored as chainage strings ('13+900')
+      // or as plain numeric metres. parseChainageKP handles both.
+      const fk = parseChainageKP(item.from_kp)
+      const tk = parseChainageKP(item.to_kp)
+      if (fk !== null && (bucket.from_kp === null || fk < bucket.from_kp)) bucket.from_kp = fk
+      if (tk !== null && (bucket.to_kp === null || tk > bucket.to_kp)) bucket.to_kp = tk
     })
 
     return Object.values(aggregated)
@@ -87,15 +131,16 @@ export async function calculateCumulativeProgress(upToDate, organizationId = nul
 
     if (error) throw error
 
-    // Aggregate metres by activity type
+    // Aggregate metres by activity type. Form writes `metersToday`
+    // (American), not `metres` — see parseBlockMetres.
     const progressByActivity = {}
-    
+
     ;(reports || []).forEach(report => {
       const blocks = report.activity_blocks || []
       blocks.forEach(block => {
         const actType = block.activityType || 'Unknown'
-        const metres = parseFloat(block.metres) || 0
-        
+        const metres = parseBlockMetres(block)
+
         if (!progressByActivity[actType]) {
           progressByActivity[actType] = {
             activity_type: actType,
@@ -135,34 +180,45 @@ export async function calculateDailyProgress(reportDate, organizationId = null) 
 
     if (error) throw error
 
-    // Aggregate by activity type and spread for the day
+    // Aggregate by activity type and spread for the day. Form writes
+    // `metersToday` and chainage strings (`13+900`) for KPs; comparing
+    // those strings lexicographically breaks at km boundaries
+    // ('9+999' > '10+000' is false but '9+999' < '10+000' is also
+    // false), so we compare in parsed metres.
     const dailyProgress = {}
-    
+
     ;(reports || []).forEach(report => {
       const spread = report.spread || 'Unknown'
       const blocks = report.activity_blocks || []
-      
+
       blocks.forEach(block => {
         const actType = block.activityType || 'Unknown'
-        const metres = parseFloat(block.metres) || 0
+        const metres = parseBlockMetres(block)
         const key = `${actType}|${spread}`
-        
+        const startMetres = parseChainageKP(block.startKP)
+        const endMetres = parseChainageKP(block.endKP)
+
         if (!dailyProgress[key]) {
           dailyProgress[key] = {
             activity_type: actType,
             spread: spread,
             daily_actual_lm: 0,
-            start_kp: block.startKP,
-            end_kp: block.endKP
+            start_kp: block.startKP,        // raw chainage string preserved for display
+            end_kp: block.endKP,
+            start_kp_metres: startMetres,   // numeric for downstream math
+            end_kp_metres: endMetres,
           }
         }
         dailyProgress[key].daily_actual_lm += metres
-        
-        // Track KP range
-        if (block.startKP && (!dailyProgress[key].start_kp || block.startKP < dailyProgress[key].start_kp)) {
+
+        // Track KP range using parsed metres; keep the raw chainage
+        // string that corresponds to the new extreme.
+        if (startMetres !== null && (dailyProgress[key].start_kp_metres === null || startMetres < dailyProgress[key].start_kp_metres)) {
+          dailyProgress[key].start_kp_metres = startMetres
           dailyProgress[key].start_kp = block.startKP
         }
-        if (block.endKP && (!dailyProgress[key].end_kp || block.endKP > dailyProgress[key].end_kp)) {
+        if (endMetres !== null && (dailyProgress[key].end_kp_metres === null || endMetres > dailyProgress[key].end_kp_metres)) {
+          dailyProgress[key].end_kp_metres = endMetres
           dailyProgress[key].end_kp = block.endKP
         }
       })
@@ -201,13 +257,13 @@ export async function calculateMTDProgress(year, month, organizationId = null) {
     if (error) throw error
 
     const mtdByActivity = {}
-    
+
     ;(reports || []).forEach(report => {
       const blocks = report.activity_blocks || []
       blocks.forEach(block => {
         const actType = block.activityType || 'Unknown'
-        const metres = parseFloat(block.metres) || 0
-        
+        const metres = parseBlockMetres(block)
+
         if (!mtdByActivity[actType]) {
           mtdByActivity[actType] = { activity_type: actType, mtd_metres: 0 }
         }
@@ -309,11 +365,14 @@ export function detectKPOverlaps(progressData) {
       for (let j = i + 1; j < gangs.length; j++) {
         const a = gangs[i]
         const b = gangs[j]
-        const aFrom = parseFloat(a.from_kp)
-        const aTo = parseFloat(a.to_kp)
-        const bFrom = parseFloat(b.from_kp)
-        const bTo = parseFloat(b.to_kp)
-        if (isNaN(aFrom) || isNaN(aTo) || isNaN(bFrom) || isNaN(bTo)) continue
+        // fetchProjectBaselines already normalizes from_kp/to_kp to
+        // numeric metres via parseChainageKP, but apply it again
+        // defensively in case a caller passes raw chainage strings.
+        const aFrom = parseChainageKP(a.from_kp)
+        const aTo = parseChainageKP(a.to_kp)
+        const bFrom = parseChainageKP(b.from_kp)
+        const bTo = parseChainageKP(b.to_kp)
+        if (aFrom === null || aTo === null || bFrom === null || bTo === null) continue
         const overlap_start = Math.max(aFrom, bFrom)
         const overlap_end = Math.min(aTo, bTo)
         if (overlap_start < overlap_end) {
