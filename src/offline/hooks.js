@@ -1,33 +1,77 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { getPendingReports, getPendingReportCount } from './db'
+
+const REACHABILITY_TIMEOUT_MS = 5000
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL
+
+// Probe Supabase to confirm actual network reachability. navigator.onLine
+// returns true on captive-portal Wi-Fi and flaky cell connections — a
+// HEAD round-trip is the only way to know the backend is actually
+// reachable. Any HTTP response (200/401/404) proves we hit the server;
+// only a network error or timeout means we're truly offline.
+async function confirmReachable() {
+  if (!SUPABASE_URL) return true
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REACHABILITY_TIMEOUT_MS)
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/`, {
+      method: 'HEAD',
+      mode: 'cors',
+      cache: 'no-store',
+      signal: controller.signal,
+    })
+    return true
+  } catch {
+    return false
+  } finally {
+    clearTimeout(timer)
+  }
+}
 
 // Hook to track online/offline status
 export function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const inFlightRef = useRef(false)
 
   useEffect(() => {
-    // Function to check and update online status
-    function checkOnlineStatus() {
-      const currentStatus = navigator.onLine
-      setIsOnline(prevStatus => prevStatus !== currentStatus ? currentStatus : prevStatus)
+    let cancelled = false
+
+    async function checkOnlineStatus() {
+      if (cancelled) return
+      // Browser says offline → trust it, no fetch.
+      if (!navigator.onLine) {
+        setIsOnline(prev => prev !== false ? false : prev)
+        return
+      }
+      // Browser says online → confirm with a HEAD before flipping to true.
+      // Skip if a probe is already in flight (avoid stacking on the 2s tick).
+      if (inFlightRef.current) return
+      inFlightRef.current = true
+      try {
+        const reachable = await confirmReachable()
+        if (cancelled) return
+        setIsOnline(prev => prev !== reachable ? reachable : prev)
+      } finally {
+        inFlightRef.current = false
+      }
     }
 
     function handleOnline() {
-      setIsOnline(true)
+      // 'online' event: confirm via fetch before flipping to true.
+      checkOnlineStatus()
     }
 
     function handleOffline() {
+      // 'offline' event: immediate, no fetch.
       setIsOnline(false)
     }
 
-    // Also check on visibility change (tab focus)
     function handleVisibilityChange() {
       if (document.visibilityState === 'visible') {
         checkOnlineStatus()
       }
     }
 
-    // Also check on window focus
     function handleFocus() {
       checkOnlineStatus()
     }
@@ -44,6 +88,7 @@ export function useOnlineStatus() {
     checkOnlineStatus()
 
     return () => {
+      cancelled = true
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
