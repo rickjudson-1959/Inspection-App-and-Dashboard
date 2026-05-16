@@ -84,10 +84,17 @@ export function useOnlineStatus() {
 
     function handleOffline() {
       // 'offline' event: immediate, no fetch. Drop the confirmed flag
-      // so the next scheduled tick (after this one) runs at the fast
-      // 2s cadence.
+      // so subsequent ticks run at the fast 2s cadence.
       confirmedOnlineRef.current = false
       setIsOnline(false)
+      // If a probe is mid-flight, tick() will reschedule itself when
+      // the probe completes (and it'll pick the 2s delay since the
+      // ref is now false). Otherwise, cancel the pending tick and
+      // restart at 2s right now — don't wait up to 10s for the next
+      // scheduled poll.
+      if (inFlightRef.current) return
+      if (timeoutId) clearTimeout(timeoutId)
+      timeoutId = setTimeout(tick, POLL_INTERVAL_OFFLINE_MS)
     }
 
     function handleVisibilityChange() {
