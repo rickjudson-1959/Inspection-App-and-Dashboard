@@ -28,32 +28,53 @@ async function confirmReachable() {
   }
 }
 
+const POLL_INTERVAL_ONLINE_MS = 10000
+const POLL_INTERVAL_OFFLINE_MS = 2000
+
 // Hook to track online/offline status
 export function useOnlineStatus() {
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const inFlightRef = useRef(false)
+  // Tracks the most recently confirmed reachability. The recursive
+  // setTimeout reads this to pick its next delay — 10s when confirmed
+  // online (cheap re-checks), 2s when offline or unconfirmed (snappy
+  // recovery polling).
+  const confirmedOnlineRef = useRef(navigator.onLine)
 
   useEffect(() => {
     let cancelled = false
+    let timeoutId = null
 
     async function checkOnlineStatus() {
       if (cancelled) return
       // Browser says offline → trust it, no fetch.
       if (!navigator.onLine) {
+        confirmedOnlineRef.current = false
         setIsOnline(prev => prev !== false ? false : prev)
         return
       }
       // Browser says online → confirm with a HEAD before flipping to true.
-      // Skip if a probe is already in flight (avoid stacking on the 2s tick).
+      // Skip if a probe is already in flight (avoid stacking on the tick).
       if (inFlightRef.current) return
       inFlightRef.current = true
       try {
         const reachable = await confirmReachable()
         if (cancelled) return
+        confirmedOnlineRef.current = reachable
         setIsOnline(prev => prev !== reachable ? reachable : prev)
       } finally {
         inFlightRef.current = false
       }
+    }
+
+    // Recursive scheduler: each tick checks reachability, then schedules
+    // the next tick at a delay based on the just-confirmed state.
+    async function tick() {
+      if (cancelled) return
+      await checkOnlineStatus()
+      if (cancelled) return
+      const delay = confirmedOnlineRef.current ? POLL_INTERVAL_ONLINE_MS : POLL_INTERVAL_OFFLINE_MS
+      timeoutId = setTimeout(tick, delay)
     }
 
     function handleOnline() {
@@ -62,7 +83,10 @@ export function useOnlineStatus() {
     }
 
     function handleOffline() {
-      // 'offline' event: immediate, no fetch.
+      // 'offline' event: immediate, no fetch. Drop the confirmed flag
+      // so the next scheduled tick (after this one) runs at the fast
+      // 2s cadence.
+      confirmedOnlineRef.current = false
       setIsOnline(false)
     }
 
@@ -81,19 +105,16 @@ export function useOnlineStatus() {
     document.addEventListener('visibilitychange', handleVisibilityChange)
     window.addEventListener('focus', handleFocus)
 
-    // Periodic check every 2 seconds as fallback
-    const interval = setInterval(checkOnlineStatus, 2000)
-
-    // Initial check
-    checkOnlineStatus()
+    // Initial check + start the recursive polling loop
+    tick()
 
     return () => {
       cancelled = true
+      if (timeoutId) clearTimeout(timeoutId)
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
       document.removeEventListener('visibilitychange', handleVisibilityChange)
       window.removeEventListener('focus', handleFocus)
-      clearInterval(interval)
     }
   }, [])
 
