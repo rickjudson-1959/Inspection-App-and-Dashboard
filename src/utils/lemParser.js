@@ -1329,6 +1329,17 @@ function editDistance(a, b) {
 
 /**
  * Legacy function — extracts from an image URL (not PDF).
+ *
+ * NOT CURRENTLY CALLED FROM PRODUCTION. The active LEM OCR path is
+ * `extractLEMLineItemsFromBase64`, invoked from
+ * `src/utils/bulkUploadProcessor.js` with `{ rosterNames, fleetUnits }`.
+ *
+ * If this function is ever reactivated, add roster injection to its
+ * prompt before use — match the pattern in
+ * `extractLEMLineItemsFromBase64` (employeeNameField + rosterBlock,
+ * conditional on a non-empty rosterNames opt). Without that, the
+ * model can hallucinate plausible-sounding personnel names from
+ * low-resolution scans.
  */
 export async function extractLEMLineItems(imageUrl) {
   if (!ANTHROPIC_API_KEY) {
