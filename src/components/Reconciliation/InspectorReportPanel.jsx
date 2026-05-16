@@ -34,6 +34,10 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const [dragState, setDragState] = useState({ section: null, fromIdx: null, overIdx: null })
   const [overridePopover, setOverridePopover] = useState(null) // { section, rowIdx, field, fieldLabel, currentValue, inputType, anchorRect }
   const [lemExtracting, setLemExtracting] = useState(false)
+  // Inline edit state for variance_resolution_note on the green
+  // banner. Only one note edit at a time.
+  const [editingNote, setEditingNote] = useState(null) // { section, rowIdx } | null
+  const [noteEditValue, setNoteEditValue] = useState('')
   const isAdminRole = ['admin', 'super_admin'].includes(currentUserRole)
 
   // Focus input and calculate dropdown position when editing starts
@@ -144,6 +148,30 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     onBlockChange(updatedBlock, auditEntries)
   }
 
+  // Edit variance_resolution_note in place on the green banner.
+  // Called from the inline input's blur / Enter handler.
+  async function saveVarianceNote(section, rowIdx, newNote) {
+    if (!onBlockChange) { setEditingNote(null); return }
+    const entries = section === 'labour' ? labourEntries : equipmentEntries
+    const entry = entries[rowIdx]
+    if (!entry || !entry.variance_resolved) { setEditingNote(null); return }
+    const trimmed = (newNote || '').trim()
+    const oldNote = entry.variance_resolution_note || ''
+    if (trimmed === oldNote) { setEditingNote(null); return }
+    const next = [...entries]
+    next[rowIdx] = { ...next[rowIdx], variance_resolution_note: trimmed }
+    const updatedBlock = section === 'labour'
+      ? { ...block, labourEntries: next }
+      : { ...block, equipmentEntries: next }
+    const auditEntries = [{
+      field: `${section}[${rowIdx}].variance_resolution_note`,
+      oldValue: oldNote,
+      newValue: trimmed,
+    }]
+    onBlockChange(updatedBlock, auditEntries)
+    setEditingNote(null)
+  }
+
   function findLabourRate(classification) {
     if (!classification) return null
     const cl = norm(classification)
@@ -214,39 +242,66 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     const rosterEntry = entry.master_personnel_id
       ? employeeRoster.find(r => r.masterId === entry.master_personnel_id)
       : null
-    const subs = rosterEntry?.rateSubsOverride != null
+    const baseSubs = rosterEntry?.rateSubsOverride != null
       ? parseFloat(rosterEntry.rateSubsOverride)
       : parseFloat(rate.rate_subs || 0)
+    // Per-row admin overrides (rtRate/otRate/dtRate/subs/cost) live on
+    // the entry alongside an `<field>_override` metadata blob. The
+    // blob's presence is what flags an override as active; the value
+    // itself is stored on entry[field]. cost_override is a final-cost
+    // override and supersedes the per-rate calculation.
+    const subs = entry.subs_override ? parseFloat(entry.subs || 0) : baseSubs
 
     if (rateType === 'weekly') {
       // rate_st is the daily rate for salaried/indirect workers — use as-is
-      const dailyRate = parseFloat(rate.rate_st || 0)
-      const otRate = parseFloat(rate.rate_ot || 0)
-      const dtRate = parseFloat(rate.rate_dt || 0)
-      const cost = dailyRate + (otHrs * otRate) + (dtHrs * dtRate) + subs
-      return { rtRate: dailyRate, otRate, dtRate, rateType: 'daily', subs, cost }
+      const baseRt = parseFloat(rate.rate_st || 0)
+      const baseOt = parseFloat(rate.rate_ot || 0)
+      const baseDt = parseFloat(rate.rate_dt || 0)
+      const rtRate = entry.rtRate_override ? parseFloat(entry.rtRate || 0) : baseRt
+      const otRate = entry.otRate_override ? parseFloat(entry.otRate || 0) : baseOt
+      const dtRate = entry.dtRate_override ? parseFloat(entry.dtRate || 0) : baseDt
+      let cost = rtRate + (otHrs * otRate) + (dtHrs * dtRate) + subs
+      if (entry.cost_override) cost = parseFloat(entry.cost || 0)
+      return { rtRate, otRate, dtRate, rateType: 'daily', subs, cost }
     } else {
-      const stRate = parseFloat(rate.rate_st || 0)
-      const otRate = parseFloat(rate.rate_ot || stRate * 1.5)
-      const dtRate = parseFloat(rate.rate_dt || stRate * 2)
-      const cost = (rtHrs * stRate) + (otHrs * otRate) + (dtHrs * dtRate) + subs
-      return { rtRate: stRate, otRate, dtRate, rateType: 'hourly', subs, cost }
+      const baseRt = parseFloat(rate.rate_st || 0)
+      const baseOt = parseFloat(rate.rate_ot || baseRt * 1.5)
+      const baseDt = parseFloat(rate.rate_dt || baseRt * 2)
+      const rtRate = entry.rtRate_override ? parseFloat(entry.rtRate || 0) : baseRt
+      const otRate = entry.otRate_override ? parseFloat(entry.otRate || 0) : baseOt
+      const dtRate = entry.dtRate_override ? parseFloat(entry.dtRate || 0) : baseDt
+      let cost = (rtHrs * rtRate) + (otHrs * otRate) + (dtHrs * dtRate) + subs
+      if (entry.cost_override) cost = parseFloat(entry.cost || 0)
+      return { rtRate, otRate, dtRate, rateType: 'hourly', subs, cost }
     }
   }
 
   function calcEquipmentCost(entry) {
     const hours = parseFloat(entry.hours || 0)
-    if (hours <= 0) return { rate: null, cost: 0 }
-    const rate = findEquipmentRate(entry.type || entry.equipment_type)
-    if (!rate) return { rate: null, cost: 0 }
-    const rateType = rate.rate_type || 'daily'
-    if (rateType === 'hourly') {
-      const hourlyRate = parseFloat(rate.rate_hourly || 0)
-      return { rate: hourlyRate, rateType: 'hourly', cost: hourlyRate * hours }
+    const hasOverride = !!entry.rate_override || !!entry.cost_override
+    // Preserve legacy behavior: 0 hours with no override → not billed.
+    if (hours <= 0 && !hasOverride) return { rate: null, cost: 0 }
+
+    const rateData = findEquipmentRate(entry.type || entry.equipment_type)
+    const rateType = rateData?.rate_type || 'daily'
+    let baseRate = null
+    if (rateData) {
+      baseRate = rateType === 'hourly'
+        ? parseFloat(rateData.rate_hourly || 0)
+        : parseFloat(rateData.rate_daily || rateData.rate_hourly || 0)
     }
-    // Daily all-in rate — cost = daily rate per day
-    const dailyRate = parseFloat(rate.rate_daily || rate.rate_hourly || 0)
-    return { rate: dailyRate, rateType: 'daily', cost: dailyRate }
+    const rate = entry.rate_override ? parseFloat(entry.rate || 0) : baseRate
+
+    // No rate card match and no cost override → can't compute.
+    if (rate == null && !entry.cost_override) return { rate: null, cost: 0 }
+
+    let cost = 0
+    if (rate != null) {
+      cost = rateType === 'hourly' ? rate * hours : (hours > 0 ? rate : 0)
+    }
+    if (entry.cost_override) cost = parseFloat(entry.cost || 0)
+
+    return { rate, rateType, cost }
   }
 
   // --- Duplicate detection ---
@@ -1412,14 +1467,17 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                       {renderCell('labour', i, 'rt', String(e.rt || e.hours || 0), { ...cellStyle, textAlign: 'right' })}
                       <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: lc.rtRate != null ? '#166534' : '#9ca3af' }}>
                         {lc.rtRate != null ? `${fmt(lc.rtRate)}${lc.rateType === 'weekly' ? '/day' : ''}` : '—'}
+                        <PencilIcon section="labour" rowIdx={i} field="rtRate" fieldLabel={lc.rateType === 'daily' ? 'Daily Rate' : 'RT Rate'} currentValue={lc.rtRate || 0} inputType="number" />
                       </td>
                       {renderCell('labour', i, 'ot', String(e.ot || 0), { ...cellStyle, textAlign: 'right' })}
                       <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: lc.otRate ? '#166534' : '#9ca3af' }}>
                         {lc.otRate ? fmt(lc.otRate) : '—'}
+                        <PencilIcon section="labour" rowIdx={i} field="otRate" fieldLabel="OT Rate" currentValue={lc.otRate || 0} inputType="number" />
                       </td>
                       {renderCell('labour', i, 'dt', String(e.dt || 0), { ...cellStyle, textAlign: 'right' })}
                       <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: lc.dtRate ? '#166534' : '#9ca3af' }}>
                         {lc.dtRate ? fmt(lc.dtRate) : '—'}
+                        <PencilIcon section="labour" rowIdx={i} field="dtRate" fieldLabel="DT Rate" currentValue={lc.dtRate || 0} inputType="number" />
                       </td>
                       <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: '#166534' }}>
                         {lc.subs ? fmt(lc.subs) : '—'}
@@ -1451,26 +1509,50 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                         </td>
                       </tr>
                     )}
-                    {wasResolved && (
-                      <tr>
-                        <td colSpan={onBlockChange ? 11 : 10} style={{ padding: '2px 6px', fontSize: 11, color: '#047857', backgroundColor: '#ecfdf5', borderBottom: '1px solid #a7f3d0' }}>
-                          <span
-                            onClick={onBlockChange ? () => unresolveVariance('labour', i) : undefined}
-                            style={{ cursor: onBlockChange ? 'pointer' : 'default' }}
-                            title={onBlockChange ? 'Click to re-open this variance' : undefined}
-                          >
-                            &#10003; Resolved by {e.variance_resolved_by || 'admin'}
-                            {e.variance_resolved_at && ` on ${new Date(e.variance_resolved_at).toLocaleString()}`}
-                            {e.variance_resolution_note ? `: ${e.variance_resolution_note}` : ''}
-                          </span>
-                          <button
-                            disabled
-                            style={{ marginLeft: 8, padding: '2px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #047857', background: '#047857', color: 'white', borderRadius: 3, cursor: 'not-allowed' }}
-                            title="This variance has been resolved"
-                          >Resolved &#10003;</button>
-                        </td>
-                      </tr>
-                    )}
+                    {wasResolved && (() => {
+                      const isEditingThisNote = editingNote?.section === 'labour' && editingNote?.rowIdx === i
+                      return (
+                        <tr>
+                          <td colSpan={onBlockChange ? 11 : 10} style={{ padding: '2px 6px', fontSize: 11, color: '#047857', backgroundColor: '#ecfdf5', borderBottom: '1px solid #a7f3d0' }}>
+                            <span
+                              onClick={onBlockChange && !isEditingThisNote ? () => unresolveVariance('labour', i) : undefined}
+                              style={{ cursor: onBlockChange && !isEditingThisNote ? 'pointer' : 'default' }}
+                              title={onBlockChange && !isEditingThisNote ? 'Click to re-open this variance' : undefined}
+                            >
+                              &#10003; Resolved by {e.variance_resolved_by || 'admin'}
+                              {e.variance_resolved_at && ` on ${new Date(e.variance_resolved_at).toLocaleString()}`}
+                              {!isEditingThisNote && e.variance_resolution_note ? `: ${e.variance_resolution_note}` : ''}
+                            </span>
+                            {isEditingThisNote ? (
+                              <input
+                                autoFocus
+                                type="text"
+                                value={noteEditValue}
+                                onChange={ev => setNoteEditValue(ev.target.value)}
+                                onBlur={() => saveVarianceNote('labour', i, noteEditValue)}
+                                onKeyDown={ev => {
+                                  if (ev.key === 'Enter') { ev.preventDefault(); saveVarianceNote('labour', i, noteEditValue) }
+                                  if (ev.key === 'Escape') setEditingNote(null)
+                                }}
+                                placeholder="Add a resolution note…"
+                                style={{ marginLeft: 6, padding: '1px 6px', fontSize: 11, border: '1px solid #047857', borderRadius: 3, minWidth: 180 }}
+                              />
+                            ) : onBlockChange && (
+                              <span
+                                onClick={ev => { ev.stopPropagation(); setEditingNote({ section: 'labour', rowIdx: i }); setNoteEditValue(e.variance_resolution_note || '') }}
+                                style={{ marginLeft: 6, cursor: 'pointer', fontSize: 11, color: '#047857' }}
+                                title="Edit resolution note"
+                              >&#9998;</span>
+                            )}
+                            <button
+                              disabled
+                              style={{ marginLeft: 8, padding: '2px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #047857', background: '#047857', color: 'white', borderRadius: 3, cursor: 'not-allowed' }}
+                              title="This variance has been resolved"
+                            >Resolved &#10003;</button>
+                          </td>
+                        </tr>
+                      )
+                    })()}
                   </React.Fragment>
                 )
               })}
@@ -1577,9 +1659,11 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                       {renderCell('equipment', i, 'hours', String(e.hours || 0), { ...cellStyle, textAlign: 'right' })}
                       <td style={{ ...cellStyle, textAlign: 'right', fontSize: 11, color: rate != null ? '#166534' : '#9ca3af', fontStyle: rate != null ? 'normal' : 'italic' }}>
                         {rate != null ? `${fmt(rate)}/day` : isUnmatched ? '$0.00' : 'No rate found'}
+                        <PencilIcon section="equipment" rowIdx={i} field="rate" fieldLabel="Rate" currentValue={rate || 0} inputType="number" />
                       </td>
                       <td style={{ ...cellStyle, textAlign: 'right', fontWeight: '600', color: rate != null ? '#166534' : '#9ca3af' }}>
                         {fmt(cost)}
+                        <PencilIcon section="equipment" rowIdx={i} field="cost" fieldLabel="Cost" currentValue={cost || 0} inputType="number" />
                       </td>
                     </tr>
                     {dupeWarning && (
@@ -1603,26 +1687,50 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                         </td>
                       </tr>
                     )}
-                    {wasResolved && (
-                      <tr>
-                        <td colSpan={onBlockChange ? 6 : 5} style={{ padding: '2px 6px', fontSize: 11, color: '#047857', backgroundColor: '#ecfdf5', borderBottom: '1px solid #a7f3d0' }}>
-                          <span
-                            onClick={onBlockChange ? () => unresolveVariance('equipment', i) : undefined}
-                            style={{ cursor: onBlockChange ? 'pointer' : 'default' }}
-                            title={onBlockChange ? 'Click to re-open this variance' : undefined}
-                          >
-                            &#10003; Resolved by {e.variance_resolved_by || 'admin'}
-                            {e.variance_resolved_at && ` on ${new Date(e.variance_resolved_at).toLocaleString()}`}
-                            {e.variance_resolution_note ? `: ${e.variance_resolution_note}` : ''}
-                          </span>
-                          <button
-                            disabled
-                            style={{ marginLeft: 8, padding: '2px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #047857', background: '#047857', color: 'white', borderRadius: 3, cursor: 'not-allowed' }}
-                            title="This variance has been resolved"
-                          >Resolved &#10003;</button>
-                        </td>
-                      </tr>
-                    )}
+                    {wasResolved && (() => {
+                      const isEditingThisNote = editingNote?.section === 'equipment' && editingNote?.rowIdx === i
+                      return (
+                        <tr>
+                          <td colSpan={onBlockChange ? 6 : 5} style={{ padding: '2px 6px', fontSize: 11, color: '#047857', backgroundColor: '#ecfdf5', borderBottom: '1px solid #a7f3d0' }}>
+                            <span
+                              onClick={onBlockChange && !isEditingThisNote ? () => unresolveVariance('equipment', i) : undefined}
+                              style={{ cursor: onBlockChange && !isEditingThisNote ? 'pointer' : 'default' }}
+                              title={onBlockChange && !isEditingThisNote ? 'Click to re-open this variance' : undefined}
+                            >
+                              &#10003; Resolved by {e.variance_resolved_by || 'admin'}
+                              {e.variance_resolved_at && ` on ${new Date(e.variance_resolved_at).toLocaleString()}`}
+                              {!isEditingThisNote && e.variance_resolution_note ? `: ${e.variance_resolution_note}` : ''}
+                            </span>
+                            {isEditingThisNote ? (
+                              <input
+                                autoFocus
+                                type="text"
+                                value={noteEditValue}
+                                onChange={ev => setNoteEditValue(ev.target.value)}
+                                onBlur={() => saveVarianceNote('equipment', i, noteEditValue)}
+                                onKeyDown={ev => {
+                                  if (ev.key === 'Enter') { ev.preventDefault(); saveVarianceNote('equipment', i, noteEditValue) }
+                                  if (ev.key === 'Escape') setEditingNote(null)
+                                }}
+                                placeholder="Add a resolution note…"
+                                style={{ marginLeft: 6, padding: '1px 6px', fontSize: 11, border: '1px solid #047857', borderRadius: 3, minWidth: 180 }}
+                              />
+                            ) : onBlockChange && (
+                              <span
+                                onClick={ev => { ev.stopPropagation(); setEditingNote({ section: 'equipment', rowIdx: i }); setNoteEditValue(e.variance_resolution_note || '') }}
+                                style={{ marginLeft: 6, cursor: 'pointer', fontSize: 11, color: '#047857' }}
+                                title="Edit resolution note"
+                              >&#9998;</span>
+                            )}
+                            <button
+                              disabled
+                              style={{ marginLeft: 8, padding: '2px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #047857', background: '#047857', color: 'white', borderRadius: 3, cursor: 'not-allowed' }}
+                              title="This variance has been resolved"
+                            >Resolved &#10003;</button>
+                          </td>
+                        </tr>
+                      )
+                    })()}
                   </React.Fragment>
                 )
               })}
