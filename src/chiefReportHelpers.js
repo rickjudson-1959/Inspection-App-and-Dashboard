@@ -28,23 +28,36 @@ export async function fetchProjectBaselines(organizationId = null) {
     const { data, error } = await query
 
     if (error) throw error
-    
-    // Aggregate by activity type (sum multiple segments)
+
+    // Aggregate by (activity_type, gang_label) so each gang within a
+    // phase gets its own row. Multiple baseline segments for the same
+    // gang sum their metres / budget, and their KP ranges union to
+    // (min from_kp, max to_kp).
     const aggregated = {}
     ;(data || []).forEach(item => {
       const actType = item.activity_type
-      if (!aggregated[actType]) {
-        aggregated[actType] = {
+      const gangLabel = item.gang_label || null
+      const key = `${actType}|${gangLabel || ''}`
+      if (!aggregated[key]) {
+        aggregated[key] = {
           activity_type: actType,
+          gang_label: gangLabel,
+          from_kp: null,
+          to_kp: null,
           planned_metres: 0,
           budgeted_total: 0,
           planned_daily_rate: item.planned_daily_rate || 0
         }
       }
-      aggregated[actType].planned_metres += parseFloat(item.planned_metres) || 0
-      aggregated[actType].budgeted_total += parseFloat(item.budgeted_total) || 0
+      const bucket = aggregated[key]
+      bucket.planned_metres += parseFloat(item.planned_metres) || 0
+      bucket.budgeted_total += parseFloat(item.budgeted_total) || 0
+      const fk = parseFloat(item.from_kp)
+      const tk = parseFloat(item.to_kp)
+      if (!isNaN(fk) && (bucket.from_kp === null || fk < bucket.from_kp)) bucket.from_kp = fk
+      if (!isNaN(tk) && (bucket.to_kp === null || tk > bucket.to_kp)) bucket.to_kp = tk
     })
-    
+
     return Object.values(aggregated)
   } catch (err) {
     console.error('Error fetching project baselines:', err)
@@ -226,27 +239,34 @@ export async function buildProgressData(reportDate, organizationId = null) {
     )
   ])
 
-  // Merge all data
-  const activities = [
-    'Clearing', 'Grading', 'Stringing', 'Bending',
-    'Welding - Mainline', 'Welding - Tie-in', 'Coating', 'Tie-in Coating',
-    'Lowering-In', 'Backfill', 'Tie-in Backfill', 'Cleanup', 'HDD', 'Hydrotest',
-    'Pipe Yard', 'Other'
-  ]
-
-  const progressData = activities.map(activity => {
-    const baseline = baselines.find(b => b.activity_type === activity) || {}
+  // Iterate baselines (now one row per gang within each phase) so
+  // each gang shows up in the output with its own activity_type,
+  // gang_label, from_kp, to_kp.
+  //
+  // Note: cumulative / daily / MTD are still aggregated at the
+  // activity_type level — so every gang within a phase shares those
+  // totals. percent_complete is computed against this gang's planned
+  // metres, which means when a phase has multiple gangs, each gang's
+  // percent will reflect the phase total against its own slice (can
+  // exceed 100% per gang once the phase is well underway). Refining
+  // to per-gang cumulative requires filtering inspector blocks by KP
+  // range against each gang's from_kp/to_kp at aggregation time.
+  const progressData = baselines.map(baseline => {
+    const activity = baseline.activity_type
     const cumulativeData = cumulative.find(c => c.activity_type === activity) || {}
     const dailyData = daily.filter(d => d.activity_type === activity)
     const mtdData = mtd.find(m => m.activity_type === activity) || {}
-    
+
     const planned = parseFloat(baseline.planned_metres) || 0
     const completed = parseFloat(cumulativeData.completed_to_date) || 0
     const todayActual = dailyData.reduce((sum, d) => sum + (d.daily_actual_lm || 0), 0)
     const monthToDate = parseFloat(mtdData.mtd_metres) || 0
-    
+
     return {
       activity_type: activity,
+      gang_label: baseline.gang_label,
+      from_kp: baseline.from_kp,
+      to_kp: baseline.to_kp,
       total_planned: planned,
       completed_to_date: completed,
       remaining: planned - completed,
@@ -259,6 +279,56 @@ export async function buildProgressData(reportDate, organizationId = null) {
   })
 
   return progressData
+}
+
+/**
+ * Detect KP-range overlaps between gangs operating within the same
+ * activity_type. Pairwise comparison of every gang in a phase.
+ *
+ * Overlap rule: MAX(fromA, fromB) < MIN(toA, toB) — strict less-than,
+ * so two ranges touching at an endpoint (0–5 and 5–10) do NOT overlap.
+ *
+ * Rows with a non-numeric from_kp or to_kp are skipped (can't be
+ * compared).
+ *
+ * @param {Array} progressData - Output of buildProgressData (per-gang
+ *   rows with activity_type, gang_label, from_kp, to_kp).
+ * @returns {Array<{activity_type, gang_a, gang_b, overlap_start, overlap_end}>}
+ */
+export function detectKPOverlaps(progressData) {
+  const byActivity = {}
+  for (const item of (progressData || [])) {
+    const actType = item.activity_type
+    if (!byActivity[actType]) byActivity[actType] = []
+    byActivity[actType].push(item)
+  }
+
+  const overlaps = []
+  for (const [activity_type, gangs] of Object.entries(byActivity)) {
+    for (let i = 0; i < gangs.length; i++) {
+      for (let j = i + 1; j < gangs.length; j++) {
+        const a = gangs[i]
+        const b = gangs[j]
+        const aFrom = parseFloat(a.from_kp)
+        const aTo = parseFloat(a.to_kp)
+        const bFrom = parseFloat(b.from_kp)
+        const bTo = parseFloat(b.to_kp)
+        if (isNaN(aFrom) || isNaN(aTo) || isNaN(bFrom) || isNaN(bTo)) continue
+        const overlap_start = Math.max(aFrom, bFrom)
+        const overlap_end = Math.min(aTo, bTo)
+        if (overlap_start < overlap_end) {
+          overlaps.push({
+            activity_type,
+            gang_a: a.gang_label,
+            gang_b: b.gang_label,
+            overlap_start,
+            overlap_end,
+          })
+        }
+      }
+    }
+  }
+  return overlaps
 }
 
 // =============================================
