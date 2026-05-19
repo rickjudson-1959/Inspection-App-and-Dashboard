@@ -396,7 +396,10 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
                       report_date: inspectorReport.date,
                       changed_by_name: 'Cost Control',
                       changed_by_role: 'admin',
-                      change_type: 'reconciliation_edit',
+                      // Honor entry.change_type when the child set one
+                      // (e.g. 'manual_match_confirm' from confirmMatch).
+                      // Fall back to the generic reconciliation_edit tag.
+                      change_type: entry.change_type || 'reconciliation_edit',
                       section: 'Inspector Report Panel',
                       field_name: entry.field,
                       old_value: String(entry.oldValue),
