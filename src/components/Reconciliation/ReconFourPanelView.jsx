@@ -164,13 +164,26 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
         if (report.date !== reportDate) continue
         const inspector = report.inspector_name || 'unknown'
         for (const b of (report.activity_blocks || [])) {
+          const ticket_number = b.ticketNumber ? String(b.ticketNumber).trim() : null
+          // Pre-resolve the ticket photo URL so the panel can show a
+          // popup without needing supabase access. ticketPhotos[] is
+          // the modern array shape; legacy reports stored a single
+          // ticketPhoto string. Already-http URLs (e.g. from older
+          // direct-uploads) pass through unchanged.
+          const photoFile = (b.ticketPhotos?.[0]) || b.ticketPhoto || null
+          let ticket_photo_url = null
+          if (photoFile) {
+            ticket_photo_url = typeof photoFile === 'string' && photoFile.startsWith('http')
+              ? photoFile
+              : supabase.storage.from('ticket-photos').getPublicUrl(photoFile)?.data?.publicUrl || null
+          }
           for (const l of (b.labourEntries || [])) {
             const name = (l.employeeName || l.employee_name || l.name || '').toLowerCase().trim()
-            if (name) newCrossReportLabour.push({ name, inspector, date: report.date })
+            if (name) newCrossReportLabour.push({ name, inspector, date: report.date, ticket_number, ticket_photo_url })
           }
           for (const e of (b.equipmentEntries || [])) {
             const unit = (e.unitNumber || e.unit_number || '').toLowerCase().trim()
-            if (unit) newCrossReportEquipment.push({ unit, inspector, date: report.date })
+            if (unit) newCrossReportEquipment.push({ unit, inspector, date: report.date, ticket_number, ticket_photo_url })
           }
         }
       }

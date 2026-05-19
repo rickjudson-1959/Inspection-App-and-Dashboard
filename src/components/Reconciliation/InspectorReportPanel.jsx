@@ -38,6 +38,9 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   // banner. Only one note edit at a time.
   const [editingNote, setEditingNote] = useState(null) // { section, rowIdx } | null
   const [noteEditValue, setNoteEditValue] = useState('')
+  // Photo modal — opened from the cross-report duplicate warning when
+  // the admin clicks the other ticket's number to see its photo.
+  const [photoModal, setPhotoModal] = useState(null) // { url, title } | null
   const isAdminRole = ['admin', 'super_admin'].includes(currentUserRole)
 
   // Focus input and calculate dropdown position when editing starts
@@ -340,10 +343,15 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   }
 
   // --- Duplicate detection ---
+  // Returns null OR { text, crossReportMatch } where crossReportMatch
+  // is the matched cross-report entry (carries ticket_number +
+  // ticket_photo_url) so the render can attach a clickable
+  // "View ticket photo" affordance.
   function getLabourDuplicateWarning(entry, rowIdx) {
     const name = (entry.employeeName || entry.employee_name || entry.name || '').toLowerCase().trim()
     if (!name) return null
     const warnings = []
+    let crossReportMatch = null
 
     // Same ticket: check if this name appears elsewhere in this ticket's entries
     labourEntries.forEach((other, otherIdx) => {
@@ -365,11 +373,13 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     for (const other of crossReportLabour) {
       if (other.name === name) {
         warnings.push(`Also reported by ${other.inspector} on ${other.date}`)
+        crossReportMatch = other
         break
       }
     }
 
-    return warnings.length > 0 ? warnings.join(' | ') : null
+    if (warnings.length === 0) return null
+    return { text: warnings.join(' | '), crossReportMatch }
   }
 
   function getEquipmentDuplicateWarning(entry, rowIdx) {
@@ -400,16 +410,19 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
 
     // Cross-report same day — same unit number on a different
     // inspector's report for the same date.
+    let crossReportMatch = null
     if (unit) {
       for (const other of crossReportEquipment) {
         if (other.unit && other.unit === unit) {
           warnings.push(`Also reported by ${other.inspector} on ${other.date}`)
+          crossReportMatch = other
           break
         }
       }
     }
 
-    return warnings.length > 0 ? warnings.join(' | ') : null
+    if (warnings.length === 0) return null
+    return { text: warnings.join(' | '), crossReportMatch }
   }
 
   // --- Totals (unmatched rows contribute $0) ---
@@ -1523,10 +1536,29 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                         <PencilIcon section="labour" rowIdx={i} field="cost" fieldLabel="Cost" currentValue={lc.cost || 0} inputType="number" />
                       </td>
                     </tr>
-                    {dupeWarning && (
+                    {dupeWarning?.text && (
                       <tr>
                         <td colSpan={onBlockChange ? 11 : 10} style={{ padding: '2px 6px', fontSize: 11, color: '#dc2626', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
-                          &#9888; {dupeWarning}
+                          &#9888; {dupeWarning.text}
+                          {dupeWarning.crossReportMatch?.ticket_number && dupeWarning.crossReportMatch?.ticket_photo_url && (
+                            <button
+                              onClick={() => setPhotoModal({
+                                url: dupeWarning.crossReportMatch.ticket_photo_url,
+                                title: `Ticket #${dupeWarning.crossReportMatch.ticket_number} — ${dupeWarning.crossReportMatch.inspector}`,
+                              })}
+                              style={{
+                                marginLeft: 8, padding: '1px 8px', fontSize: 11, fontWeight: 600,
+                                border: '1px solid #dc2626', background: 'white', color: '#dc2626',
+                                borderRadius: 3, cursor: 'pointer',
+                              }}
+                              title="View the other ticket's photo"
+                            >📷 #{dupeWarning.crossReportMatch.ticket_number}</button>
+                          )}
+                          {dupeWarning.crossReportMatch?.ticket_number && !dupeWarning.crossReportMatch?.ticket_photo_url && (
+                            <span style={{ marginLeft: 8, fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
+                              · ticket #{dupeWarning.crossReportMatch.ticket_number} (no photo on file)
+                            </span>
+                          )}
                         </td>
                       </tr>
                     )}
@@ -1708,10 +1740,29 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                         <PencilIcon section="equipment" rowIdx={i} field="cost" fieldLabel="Cost" currentValue={cost || 0} inputType="number" />
                       </td>
                     </tr>
-                    {dupeWarning && (
+                    {dupeWarning?.text && (
                       <tr>
                         <td colSpan={onBlockChange ? 6 : 5} style={{ padding: '2px 6px', fontSize: 11, color: '#dc2626', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
-                          &#9888; {dupeWarning}
+                          &#9888; {dupeWarning.text}
+                          {dupeWarning.crossReportMatch?.ticket_number && dupeWarning.crossReportMatch?.ticket_photo_url && (
+                            <button
+                              onClick={() => setPhotoModal({
+                                url: dupeWarning.crossReportMatch.ticket_photo_url,
+                                title: `Ticket #${dupeWarning.crossReportMatch.ticket_number} — ${dupeWarning.crossReportMatch.inspector}`,
+                              })}
+                              style={{
+                                marginLeft: 8, padding: '1px 8px', fontSize: 11, fontWeight: 600,
+                                border: '1px solid #dc2626', background: 'white', color: '#dc2626',
+                                borderRadius: 3, cursor: 'pointer',
+                              }}
+                              title="View the other ticket's photo"
+                            >📷 #{dupeWarning.crossReportMatch.ticket_number}</button>
+                          )}
+                          {dupeWarning.crossReportMatch?.ticket_number && !dupeWarning.crossReportMatch?.ticket_photo_url && (
+                            <span style={{ marginLeft: 8, fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
+                              · ticket #{dupeWarning.crossReportMatch.ticket_number} (no photo on file)
+                            </span>
+                          )}
                         </td>
                       </tr>
                     )}
@@ -1985,6 +2036,55 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
           boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
         }}>
           {toast}
+        </div>
+      )}
+
+      {/* Ticket-photo modal — opened from the cross-report duplicate
+          warning. Click anywhere outside the image (the black backdrop)
+          or the X to close. */}
+      {photoModal && (
+        <div
+          onClick={() => setPhotoModal(null)}
+          style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 20000,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 20,
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              backgroundColor: 'white', borderRadius: 8,
+              maxWidth: '95vw', maxHeight: '95vh',
+              display: 'flex', flexDirection: 'column',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+            }}
+          >
+            <div style={{
+              padding: '10px 14px', borderBottom: '1px solid #e5e7eb',
+              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+              gap: 16,
+            }}>
+              <span style={{ fontSize: 14, fontWeight: 600, color: '#1e3a5f' }}>{photoModal.title}</span>
+              <button
+                onClick={() => setPhotoModal(null)}
+                style={{ border: 'none', background: 'none', fontSize: 20, cursor: 'pointer', color: '#6b7280', padding: '0 4px' }}
+                title="Close"
+              >&times;</button>
+            </div>
+            <div style={{ padding: 12, overflow: 'auto', display: 'flex', justifyContent: 'center' }}>
+              {photoModal.url ? (
+                <img
+                  src={photoModal.url}
+                  alt={photoModal.title}
+                  style={{ maxWidth: '100%', maxHeight: 'calc(95vh - 80px)', objectFit: 'contain' }}
+                />
+              ) : (
+                <div style={{ padding: 40, color: '#6b7280', fontStyle: 'italic' }}>No photo URL available</div>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
