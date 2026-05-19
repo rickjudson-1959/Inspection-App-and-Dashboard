@@ -174,11 +174,9 @@ function ChiefDashboard() {
   // REVIEW TAB FUNCTIONS (original - preserved)
   // =============================================
   async function fetchAllData() {
-    console.time('[chief] fetchAllData')
     setLoading(true)
     await Promise.all([fetchPendingReports(), fetchApprovedReports(), fetchRejectedReports(), fetchStats()])
     setLoading(false)
-    console.timeEnd('[chief] fetchAllData')
   }
 
   // Batched ticket fetch: one query for N report_ids instead of N
