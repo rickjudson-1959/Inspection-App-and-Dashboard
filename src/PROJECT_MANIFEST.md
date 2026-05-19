@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - May 19, 2026 (rev 4)
+## Project Manifest - May 19, 2026 (rev 5)
 
 ---
 
@@ -657,6 +657,57 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–May 2026)
+
+### Acknowledge-Duplicate Flow for Legitimate Cross-Ticket Entries (May 19, 2026 — late night follow-up)
+
+After the cross-report photo modal landed (`126fe36`), real example
+came up: ticket 18363 was created specifically to capture hours
+missed on ticket 18280. Same worker is legitimately on both — the
+cross-report dup warning is firing on a true positive, but in a
+business-sense, not an OCR-error sense. Confirm Match was the wrong
+tool (its semantics imply "OCR missed this on the LEM"). Acknowledge
+Duplicate captures the event with a required written reason.
+
+`8b19475` — new `acknowledgeCrossReport(section, rowIdx, note)` in
+`InspectorReportPanel.jsx`. Stamps the entry with
+`cross_report_acknowledged`, `cross_report_acknowledgment_note`,
+`cross_report_acknowledged_by`, `cross_report_acknowledged_at`.
+Audit row carries `change_type='cross_report_acknowledge'` —
+flows through to `report_audit_log` via the entry.change_type
+plumbing from `65c93e4`. Unlike Confirm Match, this one rejects an
+empty reason with an alert; the note is the whole point.
+
+UI:
+- New `Acknowledge Duplicate` button (amber/brown outline) next to
+  the existing `📷 #<ticket>` photo button in the red dup banner.
+  Renders only when a cross-report match is present.
+- Click → inline text input replaces the button. Enter saves, Esc
+  cancels. Empty submit rejected.
+- Once acknowledged, the red banner suppresses the cross-report
+  text + photo button (other dup warnings — same-ticket, same-day
+  cross-ticket — stay visible). If cross-report was the only flag,
+  the red banner disappears entirely.
+- New yellow banner row appears whenever
+  `entry.cross_report_acknowledged === true`, reading
+  `ⓘ Cross-ticket entry acknowledged: <note> — by <user> on <date>`.
+- Symmetric between labour and equipment rows.
+
+No DB schema change — fields land on the activity_block entry JSON
+alongside `variance_resolved` / `variance_resolution_note` (same
+shape, different concern). Audit-log-side: `report_audit_log` rows
+with `change_type='cross_report_acknowledge'` give Corry a clean
+filter for billing sign-off later — "show me every cross-ticket
+hour-makeup we've already accounted for."
+
+**Files changed:**
+```
+src/components/Reconciliation/InspectorReportPanel.jsx
+  - acknowledgeCrossReport handler (required-note flow)
+  - getLabourDuplicateWarning / getEquipmentDuplicateWarning:
+    suppress cross-report text when entry.cross_report_acknowledged
+  - red banner: Acknowledge Duplicate button + inline input UX
+  - new yellow banner row driven by entry.cross_report_acknowledged
+```
 
 ### Mark-as-Reconciled Workflow + Package-Status View Fix + Cross-Report Photo Modal (May 19, 2026 — late night)
 
