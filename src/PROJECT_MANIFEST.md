@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - May 19, 2026 (rev 8)
+## Project Manifest - May 19, 2026 (rev 9)
 
 ---
 
@@ -657,6 +657,60 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–May 2026)
+
+### WELDS/REPAIRS-in-equipmentEntries — Cleanup + Save-Time Guard (May 19, 2026 — overnight)
+
+Ticket 18290 was rendering two "blank-looking" rows in the equipment
+section. Diagnostic showed they weren't blank — they were inspector
+workaround entries with `type="WELDS"` (hours=40) and `type="REPAIRS"`
+(hours=0), no `unitNumber`. Inspector had been bypassing the welding
+section's `block.weldData.weldsToday` field and shoving the count
+into the equipment table.
+
+Scope check: a full-DB sweep found only those two rows on a single
+block. Not a save-flow bug, not a render bug — isolated user
+workaround.
+
+`d977c50` ships both halves of Option 3:
+
+**1. Surgical cleanup script** —
+`scripts/cleanup-weld-rows-in-equipment.cjs`
+- Sweeps every `equipmentEntries` row matching
+  `/^(WELDS?|REPAIRS?)$/i` test on `type` AND empty `unitNumber`.
+- Removes them from the array and migrates the sum of removed-WELDS
+  `hours` into `block.weldData.weldsToday`. Keeps the larger of
+  (existing, migrated) so it never clobbers prior real data.
+- REPAIRS hours not migrated — the proper home is the structured
+  `block.weldData.repairs[]` array, not a count. Logged when
+  encountered.
+- Defaults to DRY RUN; `--apply` commits. Idempotent
+  (re-run = 0 to fix).
+- Production run results:
+  - 1 block touched (report_id 2087, ticket 18290)
+  - 1 WELDS row removed (40 hrs)
+  - 1 REPAIRS row removed (0 hrs, nothing to migrate)
+  - `block.weldData.weldsToday` flipped `0 → 40`
+  - `equipmentEntries` down from 10 to 8 legitimate rows
+  - 0 failures
+- Verified post-apply: panel reads fresh JSONB on each open, so
+  no app deploy needed for the visible fix.
+
+**2. Save-time guard** — `src/InspectorReport.jsx` `saveReport()`
+- Before the existing chainage-overlap confirm, scans every
+  activity_block's `equipmentEntries` for the same pattern.
+- Soft `confirm()` dialog (not a hard reject — there may be a legit
+  edge case): lists each offending row's activity / KP / ticket /
+  type / hours. OK proceeds with save; Cancel aborts so the
+  inspector can move the row to the welding section.
+- Lives as soon as Vercel redeploys.
+
+**Files changed:**
+```
+scripts/cleanup-weld-rows-in-equipment.cjs   (new, 1 block cleaned)
+src/InspectorReport.jsx                      (save-time guard added)
+```
+
+No schema change. No render change — the symptom was purely data.
 
 ### Bulk Equipment Master Resolution — Backfill (May 19, 2026 — overnight)
 
