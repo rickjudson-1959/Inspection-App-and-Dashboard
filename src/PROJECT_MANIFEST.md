@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - May 19, 2026 (rev 9)
+## Project Manifest - May 19, 2026 (rev 10)
 
 ---
 
@@ -657,6 +657,86 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–May 2026)
+
+### Name-Match normV — Strip `. , ; :` + Unified Across Duplicate Detection (May 19, 2026 — overnight)
+
+`181c51a` fixes the punctuation case the reversed-token pass missed
+and unifies the normalization standard between LEM-variance matching
+and cross-report duplicate detection.
+
+**Problem.** Ticket 18290 had `"Sharpe. Bryan"` on the inspector
+report and `"Bryan Sharpe"` on the LEM — same person, reversed word
+order plus a period. The reversed-token pass shipped earlier today
+(`be74309`) handled the word swap but `normV` preserved the period,
+so `reverseTokens("sharpe. bryan").split(/[,\s]+/)` produced
+`["sharpe.", "bryan"]` and rejoined as `"bryan sharpe."` — off by
+one character from the LEM's `"bryan sharpe"`. Levenshtein fallback
+at 0.72 also missed (full word swap scores ~0.23).
+
+**Fix.** `normV` now collapses `. , ; :` to a single space BEFORE
+the existing whitespace-collapse. Hyphens and apostrophes are
+deliberately preserved — `O'Brien` and `Smith-Jones` are real names,
+not artifacts. Also moved `normV` from inside the component to
+module scope so the same function is shared by every consumer in
+the file going forward.
+
+```js
+function normV(s) {
+  return (s || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[.,;:]+/g, ' ')         // ← new
+    .replace(/\s+/g, ' ')
+    .replace(/\s*\([^)]*\)\s*$/, '')
+    .trim()
+}
+```
+
+**Second fix — unify cross-report dup detection with LEM matching.**
+`getLabourDuplicateWarning` previously used `(name || '').toLowerCase().trim()`
+for every comparison while the LEM variance map used `normV`. That
+meant cross-report and same-ticket dup detection had looser
+normalization than LEM matching — same shape bug would have hit them
+too. All three checks (self/same-ticket, cross-ticket-same-day,
+cross-report-same-day) now route through `normV`. `sameDayEntries` /
+`crossReportLabour` are still built upstream in `ReconFourPanelView`
+with just lowercase+trim, but `normV` is idempotent on
+already-normalized strings, so re-applying it at comparison time
+catches the punctuation cases without requiring an upstream change.
+
+**Trace re-run for ticket 18290 after the fix:**
+
+| step | value |
+|---|---|
+| `inspName = normV("Sharpe. Bryan")` | `"sharpe bryan"` |
+| `lemName = normV("Bryan Sharpe")` | `"bryan sharpe"` |
+| `reverseTokens(inspName)` | `"bryan sharpe"` |
+| `lemName === reversedInsp` | **true** ✓ |
+
+Match fires; variance row stops misclassifying as `missing_on_lem`
+and the Confirm Match button stops needing to be a manual override
+for what is in fact the same person.
+
+**Out-of-scope follow-ups** (not done, flagged for awareness):
+- Cross-report equipment matching uses `unit` via just lowercase+trim;
+  unit numbers don't usually carry the same punctuation problems, so
+  left alone. If unit numbers like `SA4-002` ever appear with a comma
+  or period typo, mirror this fix to a `normUnit` extraction.
+- `getLabourDuplicateWarning`'s upstream data builders in
+  `ReconFourPanelView.jsx` (lines ~127–166) still produce only
+  `lowercase+trim` names. Re-normalizing at comparison time covers
+  this, but if a future caller iterates `crossReportLabour` directly
+  expecting fully-normalized strings, they'll need to apply `normV`
+  themselves.
+
+**Files changed:**
+```
+src/components/Reconciliation/InspectorReportPanel.jsx
+  - normV moved to module scope, strips . , ; : in addition to
+    existing whitespace + trailing-paren handling
+  - getLabourDuplicateWarning uses normV for every comparison
+    (entry self-name, sameDayEntries.labour, crossReportLabour)
+```
 
 ### WELDS/REPAIRS-in-equipmentEntries — Cleanup + Save-Time Guard (May 19, 2026 — overnight)
 
