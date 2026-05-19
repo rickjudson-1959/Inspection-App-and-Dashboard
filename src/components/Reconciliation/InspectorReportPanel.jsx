@@ -128,6 +128,41 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     onBlockChange(updatedBlock, auditEntries)
   }
 
+  // One-click confirmation that a row IS on the LEM even though the
+  // OCR cross-check flagged it as missing_on_lem. Stamps the standard
+  // resolution fields plus a fixed note. Audit entry carries
+  // change_type: 'manual_match_confirm' so this path is
+  // distinguishable from a generic resolveVariance in audit logs.
+  async function confirmMatch(section, rowIdx) {
+    if (!onBlockChange) return
+    const entries = section === 'labour' ? labourEntries : equipmentEntries
+    const entry = entries[rowIdx]
+    if (!entry) return
+    const { data: { user } = {} } = await supabase.auth.getUser()
+    const resolvedBy = user?.email || user?.id || 'admin'
+    const resolvedAt = new Date().toISOString()
+    const next = [...entries]
+    next[rowIdx] = {
+      ...next[rowIdx],
+      variance_resolved: true,
+      variance_resolution_note: 'Manually confirmed as match',
+      variance_resolved_by: resolvedBy,
+      variance_resolved_at: resolvedAt,
+    }
+    const updatedBlock = section === 'labour'
+      ? { ...block, labourEntries: next }
+      : { ...block, equipmentEntries: next }
+    const auditEntries = [{
+      field: `${section}[${rowIdx}].variance_resolved`,
+      oldValue: entry.variance_resolved ? 'true' : 'false',
+      newValue: `true — Manually confirmed as match (by ${resolvedBy})`,
+      by: resolvedBy,
+      at: resolvedAt,
+      change_type: 'manual_match_confirm',
+    }]
+    onBlockChange(updatedBlock, auditEntries)
+  }
+
   async function unresolveVariance(section, rowIdx) {
     if (!onBlockChange) return
     const entries = section === 'labour' ? labourEntries : equipmentEntries
@@ -1499,6 +1534,13 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                       <tr>
                         <td colSpan={onBlockChange ? 11 : 10} style={{ padding: '2px 6px', fontSize: 11, color: '#b91c1c', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
                           <span>{varianceReasonText(variance)}</span>
+                          {onBlockChange && variance?.category === 'missing_on_lem' && (
+                            <button
+                              onClick={() => confirmMatch('labour', i)}
+                              style={{ marginLeft: 8, padding: '2px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #b91c1c', background: '#b91c1c', color: 'white', borderRadius: 3, cursor: 'pointer' }}
+                              title="Mark as a match — the person IS on the LEM, OCR missed them"
+                            >Confirm Match</button>
+                          )}
                           {onBlockChange && (
                             <button
                               onClick={() => resolveVariance('labour', i)}
@@ -1677,6 +1719,13 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                       <tr>
                         <td colSpan={onBlockChange ? 6 : 5} style={{ padding: '2px 6px', fontSize: 11, color: '#b91c1c', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
                           <span>{varianceReasonText(variance)}</span>
+                          {onBlockChange && variance?.category === 'missing_on_lem' && (
+                            <button
+                              onClick={() => confirmMatch('equipment', i)}
+                              style={{ marginLeft: 8, padding: '2px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #b91c1c', background: '#b91c1c', color: 'white', borderRadius: 3, cursor: 'pointer' }}
+                              title="Mark as a match — the unit IS on the LEM, OCR missed it"
+                            >Confirm Match</button>
+                          )}
                           {onBlockChange && (
                             <button
                               onClick={() => resolveVariance('equipment', i)}
