@@ -552,15 +552,21 @@ export function aggregatePersonnel(reports) {
     const activities = report.activity_blocks || []
     
     activities.forEach(activity => {
-      const labour = activity.labour || []
-      
+      // Form writes labourEntries (not labour). Was producing zero
+      // counts and zero exposure-hours across the dashboard.
+      const labour = activity.labourEntries || []
+
       labour.forEach(worker => {
         const count = parseInt(worker.count) || 1
         const classification = worker.classification || 'Other'
         const contractor = activity.contractor || 'Unknown'
-        
-        // Total exposure (hours worked)
-        const hours = (parseFloat(worker.rt) || 0) + (parseFloat(worker.ot) || 0)
+
+        // Total exposure (hours worked) — sum RT + OT + DT + JH.
+        const hours =
+          (parseFloat(worker.rt) || 0) +
+          (parseFloat(worker.ot) || 0) +
+          (parseFloat(worker.dt) || 0) +
+          (parseFloat(worker.jh) || 0)
         personnel.total_site_exposure += hours * count
         
         // By classification
