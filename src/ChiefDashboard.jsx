@@ -174,9 +174,24 @@ function ChiefDashboard() {
   // REVIEW TAB FUNCTIONS (original - preserved)
   // =============================================
   async function fetchAllData() {
+    console.time('[chief] fetchAllData')
     setLoading(true)
     await Promise.all([fetchPendingReports(), fetchApprovedReports(), fetchRejectedReports(), fetchStats()])
     setLoading(false)
+    console.timeEnd('[chief] fetchAllData')
+  }
+
+  // Batched ticket fetch: one query for N report_ids instead of N
+  // sequential .single() calls inside a for-loop. Returns a Map keyed
+  // by id so callers can preserve the original status-row ordering
+  // when merging.
+  async function fetchTicketsByIds(ids) {
+    if (!ids || ids.length === 0) return new Map()
+    const { data, error } = await supabase.from('daily_reports').select('*').in('id', ids)
+    if (error) { console.error('fetchTicketsByIds error:', error); return new Map() }
+    const map = new Map()
+    for (const t of (data || [])) map.set(t.id, t)
+    return map
   }
 
   async function fetchPendingReports() {
@@ -184,10 +199,11 @@ function ChiefDashboard() {
       let query = supabase.from('report_status').select('*').eq('status', 'submitted').order('submitted_at', { ascending: true })
       query = addOrgFilter(query)
       const { data: statusData } = await query
+      const ids = (statusData || []).map(s => s.report_id).filter(Boolean)
+      const ticketMap = await fetchTicketsByIds(ids)
       const reportsWithData = []
       for (const status of (statusData || [])) {
-        let ticketQuery = supabase.from('daily_reports').select('*').eq('id', status.report_id).single()
-        const { data: ticket } = await ticketQuery
+        const ticket = ticketMap.get(status.report_id)
         // Exclude welding reports - those go to Welding Chief
         if (ticket && !hasWeldingActivities(ticket)) {
           reportsWithData.push({ ...status, ticket })
@@ -202,9 +218,11 @@ function ChiefDashboard() {
       let query = supabase.from('report_status').select('*').eq('status', 'approved').order('reviewed_at', { ascending: false }).limit(20)
       query = addOrgFilter(query)
       const { data: statusData } = await query
+      const ids = (statusData || []).map(s => s.report_id).filter(Boolean)
+      const ticketMap = await fetchTicketsByIds(ids)
       const reportsWithData = []
       for (const status of (statusData || [])) {
-        const { data: ticket } = await supabase.from('daily_reports').select('*').eq('id', status.report_id).single()
+        const ticket = ticketMap.get(status.report_id)
         // Exclude welding reports - those go to Welding Chief
         if (ticket && !hasWeldingActivities(ticket)) {
           reportsWithData.push({ ...status, ticket })
@@ -220,9 +238,11 @@ function ChiefDashboard() {
       let query = supabase.from('report_status').select('*').eq('status', 'revision_requested').order('reviewed_at', { ascending: false })
       query = addOrgFilter(query)
       const { data: statusData } = await query
+      const ids = (statusData || []).map(s => s.report_id).filter(Boolean)
+      const ticketMap = await fetchTicketsByIds(ids)
       const reportsWithData = []
       for (const status of (statusData || [])) {
-        const { data: ticket } = await supabase.from('daily_reports').select('*').eq('id', status.report_id).single()
+        const ticket = ticketMap.get(status.report_id)
         // Exclude welding reports - those go to Welding Chief
         if (ticket && !hasWeldingActivities(ticket)) {
           reportsWithData.push({ ...status, ticket })
