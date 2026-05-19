@@ -658,6 +658,117 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 
 ## 6. RECENT UPDATES (January–May 2026)
 
+### Chief Helpers — Zero-Fix Cascade (May 19, 2026 — late session)
+
+After the morning's `block.metres` → `parseBlockMetres` fix in
+`calculateCumulativeProgress` etc., the Chief Dashboard's **Section
+Progress**, **Overall Progress**, **Welding Progress**, and
+**Personnel/Manpower** cards were still showing zeros. Each one
+turned out to be the same kind of bug — code reading a field name
+that doesn't exist on the form's actual `activity_blocks` shape.
+Fixed in a series of small commits as each card was diagnosed.
+
+**1. Section / Overall Progress (`ea4a183`).**
+`aggregateProgressBySection` and `aggregateOverallProgress` were both
+still reading `parseFloat(activity.metres) || 0`. Switched to
+`parseBlockMetres(activity)` (matches the form's `metersToday`).
+Confirmed `aggregatePhotos` doesn't read metres anywhere — no change
+needed there.
+
+**2. AI narrative builder (`e9fd62c`).**
+The narrative template at `chiefReportHelpers.js:1040` interpolated
+`${a.metres || 0} metres`, always rendering `0 metres` in the prose
+the model saw. Switched to `${parseBlockMetres(a)} metres`.
+
+**3. aggregateWeldingProgress — metres (`41c08bf`).**
+Two sites were reading `parseFloat(block.metresToday)` (British
+spelling). Form writes `metersToday`. Without the fix, both the
+Mainline and Tie-in branches fell through to the
+`weldCount * 12.2` fallback even when inspectors entered real
+metres. Switched both to `parseBlockMetres(block)`.
+
+**4. aggregatePersonnel — labourEntries + hours sum (`4624b36`).**
+Two bugs in the same function caught via
+`scripts/inspect-report.cjs` against report 2058:
+- `activity.labour` doesn't exist; the form writes
+  `activity.labourEntries`. The function never saw any workers —
+  every count, classification bucket, contractor breakdown, and
+  `total_site_exposure` total was silently zero or empty.
+- The hours sum was `rt + ot` only. Inspector reports also record
+  `dt` (double-time) and `jh` (jump hours); the sum is now
+  `rt + ot + dt + jh`.
+
+**5. aggregateWeldingProgress — tie-in shape (`2a76457`, `23b73f1`).**
+A new diagnostic script, `scripts/inspect-weld-fields.cjs`, dumped
+the live `weldData` / `counterboreData` shape on reports 2088
+(Mainline) and 2058 (Tie-in):
+
+- Mainline lives in `block.weldData` with `weldsToday`,
+  `weldsPrevious`, `totalWelds`, `weldEntries`, `repairs` — field
+  name `weldData.weldsToday` matches what the code reads. (Test
+  row 2088 has `weldsToday=0` because the inspector didn't fill
+  it in — real data, not a code bug.)
+- Tie-in lives in `block.counterboreData.welds` (an array of
+  weld objects). `weldData` is `null` for tie-ins. The previous
+  code was reading `counterboreData.transitions` and
+  `counterboreData.weldNumber` at the top level — neither exists
+  there; `transitions` and `weldNumber` are nested inside each
+  `welds[i]`. Result: tie-in weld count and repair count were
+  always 0.
+
+Switched to **Option A** semantics: each entry in
+`counterboreData.welds` is one weld.
+- `tieInWeldCount = (counterboreData.welds || []).length`
+- `tieInRepairs = welds.filter(w => w.repairRequired === 'Yes' ||
+  w.repairRequired === true).length`
+
+**Diagnostics committed (`07ef55d` and `2a76457`).**
+- `scripts/inspect-report.cjs` — `node scripts/inspect-report.cjs
+  <id>` dumps a daily_reports row's activity_blocks JSON plus the
+  first block's top-level keys. (Was untracked since 127013b
+  despite that commit's message claiming it was a companion;
+  retroactively landed.)
+- `scripts/inspect-weld-fields.cjs` — `node
+  scripts/inspect-weld-fields.cjs [id ...]` dumps weld-flavoured
+  blocks' `weldData`, `counterboreData`, top-level weld-related
+  keys, and any direct block-level weld-count candidates.
+  Defaults to ids 2088 + 2058.
+
+Both use the service-role key inlined (same pattern as
+`recover-bulk-upload.cjs` and other scripts in `scripts/`). Read-only
+queries, safe to re-run.
+
+**Common theme.** `InspectorReport.jsx` is the schema source of truth;
+the chief aggregators were written against an older / imagined
+schema. Each of these bugs was silent — code returned 0 or empty
+instead of crashing — which is why the dashboard rendered without
+errors but populated nothing. Future debugging of "this number is
+zero" in the Chief Dashboard should start with one of the inspect
+scripts against a known-good report.
+
+**Files changed in this batch:**
+```
+src/chiefReportHelpers.js
+  - aggregateProgressBySection / aggregateOverallProgress:
+    parseFloat(activity.metres) → parseBlockMetres(activity)
+  - aggregatePhotos: verified no change needed
+  - generateKeyFocusNarrative template: a.metres → parseBlockMetres(a)
+  - aggregateWeldingProgress mainline + tie-in metres:
+    parseFloat(block.metresToday) → parseBlockMetres(block)
+  - aggregateWeldingProgress tie-in count:
+    counterboreData.transitions / .weldNumber  →  counterboreData.welds.length
+  - aggregateWeldingProgress tie-in repair count:
+    counterboreData.repairRequired (top-level)  →  per-weld filter
+  - aggregatePersonnel:
+    activity.labour → activity.labourEntries
+    hours sum: rt + ot  →  rt + ot + dt + jh
+
+scripts/inspect-report.cjs           (retroactively committed)
+scripts/inspect-weld-fields.cjs      (new)
+```
+
+No migrations. No field-guide impact.
+
 ### Chief Helpers — Per-Gang Baselines + KP Overlaps + Field-Name Bugfix (May 19, 2026)
 
 Two commits to `src/chiefReportHelpers.js` cleaning up baseline shape
