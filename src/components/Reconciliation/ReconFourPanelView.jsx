@@ -311,6 +311,58 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
   // Count how many panels are populated
   const panelCount = [panels.lem, panels.ticket, photoPanel, reportPanel].filter(Boolean).length
 
+  // Package-level reconciled state — true when every contractor doc
+  // for this ticket has reconciled=true. Zero-docs → not reconciled
+  // (nothing to reconcile yet).
+  const allDocsReconciled = uploadedDocs.length > 0 && uploadedDocs.every(d => d.reconciled)
+  const reconciledMeta = uploadedDocs.find(d => d.reconciled)
+  const [markingReconciled, setMarkingReconciled] = useState(false)
+
+  async function markAsReconciled() {
+    if (markingReconciled) return
+    if (uploadedDocs.length === 0) {
+      alert('No contractor docs uploaded for this ticket — nothing to reconcile yet.')
+      return
+    }
+    setMarkingReconciled(true)
+    try {
+      const { data: { user } = {} } = await supabase.auth.getUser()
+      const reconciledBy = user?.email || user?.id || 'admin'
+      const reconciledAt = new Date().toISOString()
+
+      // Update every reconciliation_documents row for this ticket so
+      // the package toggles as a whole. Org-scoped to be safe.
+      let updateQ = supabase.from('reconciliation_documents')
+        .update({ reconciled: true, reconciled_at: reconciledAt, reconciled_by: reconciledBy })
+        .eq('ticket_number', ticketNumber)
+      if (organizationId) updateQ = updateQ.eq('organization_id', organizationId)
+      const { error: updErr } = await updateQ
+      if (updErr) { console.error('Mark reconciled failed:', updErr); alert('Failed to mark reconciled: ' + updErr.message); return }
+
+      // Audit log — only write when we have an inspector report id
+      // to associate the event with.
+      if (inspectorReport?.id) {
+        await supabase.from('report_audit_log').insert({
+          report_id: inspectorReport.id,
+          report_date: inspectorReport.date,
+          changed_by_name: 'Cost Control',
+          changed_by_role: 'admin',
+          change_type: 'mark_reconciled',
+          section: 'Reconciliation Panel',
+          field_name: `ticket:${ticketNumber}.reconciled`,
+          old_value: 'false',
+          new_value: `true (by ${reconciledBy} at ${reconciledAt})`,
+          organization_id: organizationId,
+        })
+      }
+
+      // Reload so the badge flips and reconciledMeta carries the new row.
+      await loadAllData()
+    } finally {
+      setMarkingReconciled(false)
+    }
+  }
+
   if (loading) {
     return <div style={{ padding: 40, textAlign: 'center', color: '#6b7280' }}>Loading documents for ticket #{ticketNumber}...</div>
   }
@@ -333,9 +385,49 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
             {meta.date && <span style={{ marginLeft: '12px', fontSize: '14px', color: '#6b7280' }}>{meta.date}</span>}
           </div>
         </div>
-        <span style={{ fontSize: '12px', color: '#9ca3af' }}>
-          {panelCount} of 4 panels populated
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {allDocsReconciled ? (
+            <span
+              title={reconciledMeta?.reconciled_at
+                ? `Reconciled by ${reconciledMeta.reconciled_by || 'admin'} on ${new Date(reconciledMeta.reconciled_at).toLocaleString()}`
+                : 'Reconciled'}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 6,
+                padding: '6px 12px', borderRadius: 4,
+                backgroundColor: '#047857', color: 'white',
+                fontSize: 13, fontWeight: 600, cursor: 'default',
+              }}
+            >
+              &#10003; Reconciled
+              {reconciledMeta?.reconciled_by && (
+                <span style={{ fontSize: 11, fontWeight: 400, opacity: 0.9 }}>
+                  · {reconciledMeta.reconciled_by}
+                  {reconciledMeta.reconciled_at && ` · ${new Date(reconciledMeta.reconciled_at).toLocaleDateString()}`}
+                </span>
+              )}
+            </span>
+          ) : (
+            <button
+              onClick={markAsReconciled}
+              disabled={markingReconciled || uploadedDocs.length === 0}
+              title={uploadedDocs.length === 0
+                ? 'Upload at least one contractor doc (LEM or daily ticket) before marking reconciled'
+                : 'Mark this reconciliation package as complete'}
+              style={{
+                padding: '6px 12px', borderRadius: 4,
+                backgroundColor: uploadedDocs.length === 0 ? '#9ca3af' : '#059669',
+                color: 'white', border: 'none',
+                cursor: (markingReconciled || uploadedDocs.length === 0) ? 'not-allowed' : 'pointer',
+                fontSize: 13, fontWeight: 600,
+              }}
+            >
+              {markingReconciled ? 'Marking…' : 'Mark as Reconciled'}
+            </button>
+          )}
+          <span style={{ fontSize: '12px', color: '#9ca3af' }}>
+            {panelCount} of 4 panels populated
+          </span>
+        </div>
       </div>
 
       {/* 4-panel grid */}

@@ -31,6 +31,8 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
   const [dateFilter, setDateFilter] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [foremanFilter, setForemanFilter] = useState('')
+  // 'all' | 'unreconciled' | 'reconciled' — Corry's primary view is unreconciled
+  const [reconciledFilter, setReconciledFilter] = useState('all')
 
   useEffect(() => {
     if (isReady()) {
@@ -57,6 +59,31 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
         .order('date', { ascending: false })
       rq = addOrgFilter(rq, true)
       const { data: reports } = await rq
+
+      // 2b. Reconciled state per ticket — aggregated from
+      // reconciliation_documents. Package is reconciled when every
+      // doc row for that ticket has reconciled=true.
+      let rdq = supabase.from('reconciliation_documents')
+        .select('ticket_number, reconciled, reconciled_at, reconciled_by')
+      rdq = addOrgFilter(rdq, true)
+      const { data: rdRows } = await rdq
+      const reconciledMap = {}
+      const rdsByTicket = {}
+      for (const r of (rdRows || [])) {
+        const tn = r.ticket_number
+        if (!tn) continue
+        if (!rdsByTicket[tn]) rdsByTicket[tn] = []
+        rdsByTicket[tn].push(r)
+      }
+      for (const [tn, rows] of Object.entries(rdsByTicket)) {
+        const reconciled = rows.length > 0 && rows.every(r => r.reconciled)
+        const latest = rows.filter(r => r.reconciled_at).sort((a, b) => String(b.reconciled_at).localeCompare(String(a.reconciled_at)))[0]
+        reconciledMap[tn] = {
+          reconciled,
+          reconciled_at: latest?.reconciled_at || null,
+          reconciled_by: latest?.reconciled_by || null,
+        }
+      }
 
       // Build a map: ticket_number → { hasReport, hasPhoto, date, foreman }
       const inspectorMap = {}
@@ -89,6 +116,7 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
       const merged = [...allTicketNumbers].map(tn => {
         const uploaded = uploadedPackages.find(p => p.ticket_number === tn) || {}
         const inspector = inspectorMap[tn] || {}
+        const recState = reconciledMap[tn] || { reconciled: false, reconciled_at: null, reconciled_by: null }
         return {
           ticket_number: tn,
           report_id: inspector.report_id || null,
@@ -98,7 +126,10 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
           has_ticket: uploaded.has_ticket || 0,
           has_photo: inspector.hasPhoto ? 1 : 0,
           has_report: inspector.hasReport ? 1 : 0,
-          inspector: inspector.inspector || null
+          inspector: inspector.inspector || null,
+          reconciled: recState.reconciled,
+          reconciled_at: recState.reconciled_at,
+          reconciled_by: recState.reconciled_by,
         }
       })
 
@@ -128,6 +159,10 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
     // Status filter
     if (statusFilter === 'complete' && !isComplete(pkg)) return false
     if (statusFilter === 'partial' && isComplete(pkg)) return false
+
+    // Reconciled filter
+    if (reconciledFilter === 'reconciled' && !pkg.reconciled) return false
+    if (reconciledFilter === 'unreconciled' && pkg.reconciled) return false
 
     // Date filter
     if (dateFilter && pkg.date && !pkg.date.includes(dateFilter)) return false
@@ -400,6 +435,30 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
             placeholder="Filter by foreman"
           />
         </div>
+
+        <div>
+          <div style={styles.label}>Reconciled</div>
+          <div style={styles.filterGroup}>
+            <button
+              style={styles.filterBtn(reconciledFilter === 'all')}
+              onClick={() => setReconciledFilter('all')}
+            >
+              All
+            </button>
+            <button
+              style={styles.filterBtn(reconciledFilter === 'unreconciled')}
+              onClick={() => setReconciledFilter('unreconciled')}
+            >
+              Unreconciled
+            </button>
+            <button
+              style={styles.filterBtn(reconciledFilter === 'reconciled')}
+              onClick={() => setReconciledFilter('reconciled')}
+            >
+              Reconciled
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Table */}
@@ -408,7 +467,7 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
       ) : filteredPackages.length === 0 ? (
         <div style={styles.emptyState}>
           No reconciliation packages found.
-          {(dateFilter || statusFilter !== 'all' || foremanFilter) && ' Try adjusting your filters.'}
+          {(dateFilter || statusFilter !== 'all' || foremanFilter || reconciledFilter !== 'all') && ' Try adjusting your filters.'}
         </div>
       ) : (
         <>
@@ -419,11 +478,13 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
                 <th style={styles.th}>Ticket #</th>
                 <th style={styles.th}>Date</th>
                 <th style={styles.th}>Foreman</th>
+                <th style={styles.th}>Inspector</th>
                 <th style={styles.thCenter}>LEM</th>
                 <th style={styles.thCenter}>TK</th>
                 <th style={styles.thCenter}>PH</th>
                 <th style={styles.thCenter}>RPT</th>
                 <th style={styles.thCenter}>Status</th>
+                <th style={styles.thCenter}>Reconciled</th>
               </tr>
             </thead>
             <tbody>
@@ -454,6 +515,9 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
                     <td style={styles.td}>
                       {pkg.foreman || '\u2014'}
                     </td>
+                    <td style={styles.td}>
+                      {pkg.inspector || '\u2014'}
+                    </td>
                     <td style={styles.tdCenter}>
                       {pkg.has_lem > 0
                         ? <span style={styles.checkGreen}>&#10003;</span>
@@ -479,6 +543,21 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
                         ? <span style={styles.badgeComplete}>Complete</span>
                         : <span style={styles.badgePartial}>Partial</span>}
                     </td>
+                    <td style={styles.tdCenter}>
+                      {pkg.reconciled ? (
+                        <span
+                          title={pkg.reconciled_at
+                            ? `Reconciled by ${pkg.reconciled_by || 'admin'} on ${new Date(pkg.reconciled_at).toLocaleString()}`
+                            : 'Reconciled'}
+                          style={{ ...styles.checkGreen, fontSize: '16px' }}
+                        >&#10003;</span>
+                      ) : (
+                        <span
+                          title="Not yet marked as reconciled"
+                          style={{ display: 'inline-block', width: 10, height: 10, borderRadius: '50%', backgroundColor: '#dc3545' }}
+                        />
+                      )}
+                    </td>
                   </tr>
                 )
               })}
@@ -490,6 +569,8 @@ export default function ReconciliationList({ onSelectTicket, onNavigateToUpload 
             <span><strong>{filteredPackages.length}</strong> packages</span>
             <span style={{ color: BRAND.green }}><strong>{completeCount}</strong> complete</span>
             <span style={{ color: '#856404' }}><strong>{partialCount}</strong> partial</span>
+            <span style={{ color: BRAND.green }}><strong>{filteredPackages.filter(p => p.reconciled).length}</strong> reconciled</span>
+            <span style={{ color: '#dc3545' }}><strong>{filteredPackages.filter(p => !p.reconciled).length}</strong> unreconciled</span>
           </div>
         </>
       )}
