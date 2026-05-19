@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - May 19, 2026 (rev 7)
+## Project Manifest - May 19, 2026 (rev 8)
 
 ---
 
@@ -657,6 +657,65 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–May 2026)
+
+### Bulk Equipment Master Resolution — Backfill (May 19, 2026 — overnight)
+
+Corry hit a related-but-different issue on ticket 18263: 14 equipment
+rows on the inspector report, but 12 of them rendered as blank rows
+with "— Pick from master —" placeholders. Diagnostic showed the
+data was complete (full `type` + `unitNumber` + `hours` on every row),
+just unlinked — `needs_master_resolution=true` and `master_equipment_id=null`
+because the original resolver matched on equipment_type text and the
+inspector's freeform string format didn't match equipment_fleet's
+canonical form (e.g. "Backhoe Cat 345 (Or Equivalent)" vs "Backhoe -
+Cat 345 (or Equivalent)").
+
+Unit numbers are unambiguous, so the fix was a bulk script keyed on
+unit_number instead of type text.
+
+**Script** (`398e17e`): `scripts/resolve-equipment-master-ids.cjs`
+- Sweeps every `daily_reports.activity_blocks[*].equipmentEntries`
+  flagged `needs_master_resolution=true`.
+- Normalizes both sides — `UPPERCASE`, alphanumeric-only — and looks
+  the row up in `equipment_fleet` via an org-scoped Map.
+- Match → stamp `master_equipment_id` + flip flag to false. No match
+  → leave alone, log.
+- Skips entries with `flagged_for_review=true` (admin review marker)
+  and stale-flag entries that already carry a `master_equipment_id`
+  despite the flag — explicit protections against stomping prior
+  decisions.
+- Defaults to DRY RUN; `--apply` commits via JSONB updates on
+  `daily_reports`. Idempotent (re-run = 0 to resolve).
+
+**Production run results:**
+- Loaded: 2063 equipment_fleet rows, 57 daily_reports
+- Resolved: **201 entries** across **25 reports**
+- Still unresolved after the sweep: **82** entries — unit numbers
+  that have no matching `equipment_fleet` row (sub-units like
+  `OR1106a`/`OR1106b`, short forms like `266T`/`44T`, typo-shaped
+  values like `OR1453DD`). Most have `type: 'Unknown'`, suggesting
+  upstream data-entry gaps rather than fleet roster gaps.
+- 0 failures, 0 protective skips triggered.
+- Idempotency confirmed via post-apply dry-run: 0 to resolve, same
+  82 stragglers.
+
+Ticket 18263 specifically: the 12 "blank-looking" rows are now linked
+to their `equipment_fleet` IDs and the panel renders their type +
+rate + cost properly on next page load. No app code change required
+(the panel reads fresh from `daily_reports.activity_blocks` each open).
+
+**Diagnostic also committed** (`574b17c`): `scripts/inspect-ticket-equipment.cjs`
+— dumps the equipment field on both sides of a given ticket for
+future "this equipment isn't showing up" diagnoses.
+
+**Why this happened:** the original entry path normalizes the
+inspector's typed type string against `equipment_fleet.equipment_type`,
+which is fragile to capitalization and punctuation differences. The
+bulk resolver bypasses that by matching on `unit_number` (a fleet ID,
+not free text). Long-term, the inspector-app autocomplete should
+write `master_equipment_id` at entry time, so this backfill is a
+one-shot for historical data, not a recurring task. (If new
+unresolved entries accumulate, just re-run the script.)
 
 ### Admin Ticket-Number Correction — Implementation (May 19, 2026 — late night)
 
