@@ -41,6 +41,10 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   // Photo modal — opened from the cross-report duplicate warning when
   // the admin clicks the other ticket's number to see its photo.
   const [photoModal, setPhotoModal] = useState(null) // { url, title } | null
+  // Inline acknowledgment input for cross-report duplicates. Only one
+  // row at a time.
+  const [ackingCrossReport, setAckingCrossReport] = useState(null) // { section, rowIdx } | null
+  const [ackNoteValue, setAckNoteValue] = useState('')
   const isAdminRole = ['admin', 'super_admin'].includes(currentUserRole)
 
   // Focus input and calculate dropdown position when editing starts
@@ -184,6 +188,50 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
       newValue: 'false (re-opened)'
     }]
     onBlockChange(updatedBlock, auditEntries)
+  }
+
+  // Acknowledge a cross-report duplicate as a legitimate business
+  // event (e.g. a follow-up ticket created to capture hours missed on
+  // an earlier one). Unlike confirmMatch this REQUIRES a written
+  // reason — the note documents WHY both entries exist. Stamps
+  // cross_report_acknowledged + ack note/by/at on the entry and
+  // writes an audit row with change_type='cross_report_acknowledge'
+  // so the path is grep-able in report_audit_log.
+  async function acknowledgeCrossReport(section, rowIdx, note) {
+    if (!onBlockChange) { setAckingCrossReport(null); return }
+    const trimmed = (note || '').trim()
+    if (!trimmed) {
+      alert('Please enter a reason before confirming the acknowledgment.')
+      return
+    }
+    const entries = section === 'labour' ? labourEntries : equipmentEntries
+    const entry = entries[rowIdx]
+    if (!entry) { setAckingCrossReport(null); return }
+    const { data: { user } = {} } = await supabase.auth.getUser()
+    const ackBy = user?.email || user?.id || 'admin'
+    const ackAt = new Date().toISOString()
+    const next = [...entries]
+    next[rowIdx] = {
+      ...next[rowIdx],
+      cross_report_acknowledged: true,
+      cross_report_acknowledgment_note: trimmed,
+      cross_report_acknowledged_by: ackBy,
+      cross_report_acknowledged_at: ackAt,
+    }
+    const updatedBlock = section === 'labour'
+      ? { ...block, labourEntries: next }
+      : { ...block, equipmentEntries: next }
+    const auditEntries = [{
+      field: `${section}[${rowIdx}].cross_report_acknowledged`,
+      oldValue: 'false',
+      newValue: `true — ${trimmed} (by ${ackBy})`,
+      by: ackBy,
+      at: ackAt,
+      change_type: 'cross_report_acknowledge',
+    }]
+    onBlockChange(updatedBlock, auditEntries)
+    setAckingCrossReport(null)
+    setAckNoteValue('')
   }
 
   // Edit variance_resolution_note in place on the green banner.
@@ -369,11 +417,16 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     }
 
     // Cross-report same day — same name on a different inspector's
-    // report for the same date.
+    // report for the same date. When the admin has acknowledged this
+    // as a legitimate cross-ticket entry (cross_report_acknowledged),
+    // suppress the red text + photo button — the yellow ack banner
+    // takes over downstream.
     for (const other of crossReportLabour) {
       if (other.name === name) {
-        warnings.push(`Also reported by ${other.inspector} on ${other.date}`)
-        crossReportMatch = other
+        if (!entry.cross_report_acknowledged) {
+          warnings.push(`Also reported by ${other.inspector} on ${other.date}`)
+          crossReportMatch = other
+        }
         break
       }
     }
@@ -409,13 +462,16 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     }
 
     // Cross-report same day — same unit number on a different
-    // inspector's report for the same date.
+    // inspector's report for the same date. Suppressed when the
+    // entry has been acknowledged (yellow banner takes over).
     let crossReportMatch = null
     if (unit) {
       for (const other of crossReportEquipment) {
         if (other.unit && other.unit === unit) {
-          warnings.push(`Also reported by ${other.inspector} on ${other.date}`)
-          crossReportMatch = other
+          if (!entry.cross_report_acknowledged) {
+            warnings.push(`Also reported by ${other.inspector} on ${other.date}`)
+            crossReportMatch = other
+          }
           break
         }
       }
@@ -1536,29 +1592,73 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                         <PencilIcon section="labour" rowIdx={i} field="cost" fieldLabel="Cost" currentValue={lc.cost || 0} inputType="number" />
                       </td>
                     </tr>
-                    {dupeWarning?.text && (
+                    {dupeWarning?.text && (() => {
+                      const isAckingThisRow = ackingCrossReport?.section === 'labour' && ackingCrossReport?.rowIdx === i
+                      return (
+                        <tr>
+                          <td colSpan={onBlockChange ? 11 : 10} style={{ padding: '2px 6px', fontSize: 11, color: '#dc2626', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
+                            &#9888; {dupeWarning.text}
+                            {dupeWarning.crossReportMatch?.ticket_number && dupeWarning.crossReportMatch?.ticket_photo_url && (
+                              <button
+                                onClick={() => setPhotoModal({
+                                  url: dupeWarning.crossReportMatch.ticket_photo_url,
+                                  title: `Ticket #${dupeWarning.crossReportMatch.ticket_number} — ${dupeWarning.crossReportMatch.inspector}`,
+                                })}
+                                style={{
+                                  marginLeft: 8, padding: '1px 8px', fontSize: 11, fontWeight: 600,
+                                  border: '1px solid #dc2626', background: 'white', color: '#dc2626',
+                                  borderRadius: 3, cursor: 'pointer',
+                                }}
+                                title="View the other ticket's photo"
+                              >📷 #{dupeWarning.crossReportMatch.ticket_number}</button>
+                            )}
+                            {dupeWarning.crossReportMatch?.ticket_number && !dupeWarning.crossReportMatch?.ticket_photo_url && (
+                              <span style={{ marginLeft: 8, fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
+                                · ticket #{dupeWarning.crossReportMatch.ticket_number} (no photo on file)
+                              </span>
+                            )}
+                            {dupeWarning.crossReportMatch && onBlockChange && (
+                              isAckingThisRow ? (
+                                <>
+                                  <input
+                                    autoFocus
+                                    type="text"
+                                    value={ackNoteValue}
+                                    onChange={ev => setAckNoteValue(ev.target.value)}
+                                    onKeyDown={ev => {
+                                      if (ev.key === 'Enter') { ev.preventDefault(); acknowledgeCrossReport('labour', i, ackNoteValue) }
+                                      if (ev.key === 'Escape') { setAckingCrossReport(null); setAckNoteValue('') }
+                                    }}
+                                    placeholder="Reason — e.g. Missed hours from #18280"
+                                    style={{ marginLeft: 8, padding: '2px 8px', fontSize: 11, border: '1px solid #b45309', borderRadius: 3, minWidth: 240 }}
+                                  />
+                                  <button onClick={() => acknowledgeCrossReport('labour', i, ackNoteValue)}
+                                    style={{ marginLeft: 4, padding: '2px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #b45309', background: '#b45309', color: 'white', borderRadius: 3, cursor: 'pointer' }}>
+                                    Save
+                                  </button>
+                                  <button onClick={() => { setAckingCrossReport(null); setAckNoteValue('') }}
+                                    style={{ marginLeft: 4, padding: '2px 8px', fontSize: 11, border: '1px solid #6b7280', background: 'white', color: '#6b7280', borderRadius: 3, cursor: 'pointer' }}>
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => { setAckingCrossReport({ section: 'labour', rowIdx: i }); setAckNoteValue('') }}
+                                  style={{ marginLeft: 8, padding: '1px 8px', fontSize: 11, fontWeight: 600, border: '1px solid #b45309', background: 'white', color: '#b45309', borderRadius: 3, cursor: 'pointer' }}
+                                  title="This cross-ticket entry is legitimate (e.g. a follow-up ticket for missed hours)"
+                                >Acknowledge Duplicate</button>
+                              )
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })()}
+                    {e.cross_report_acknowledged && (
                       <tr>
-                        <td colSpan={onBlockChange ? 11 : 10} style={{ padding: '2px 6px', fontSize: 11, color: '#dc2626', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
-                          &#9888; {dupeWarning.text}
-                          {dupeWarning.crossReportMatch?.ticket_number && dupeWarning.crossReportMatch?.ticket_photo_url && (
-                            <button
-                              onClick={() => setPhotoModal({
-                                url: dupeWarning.crossReportMatch.ticket_photo_url,
-                                title: `Ticket #${dupeWarning.crossReportMatch.ticket_number} — ${dupeWarning.crossReportMatch.inspector}`,
-                              })}
-                              style={{
-                                marginLeft: 8, padding: '1px 8px', fontSize: 11, fontWeight: 600,
-                                border: '1px solid #dc2626', background: 'white', color: '#dc2626',
-                                borderRadius: 3, cursor: 'pointer',
-                              }}
-                              title="View the other ticket's photo"
-                            >📷 #{dupeWarning.crossReportMatch.ticket_number}</button>
-                          )}
-                          {dupeWarning.crossReportMatch?.ticket_number && !dupeWarning.crossReportMatch?.ticket_photo_url && (
-                            <span style={{ marginLeft: 8, fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
-                              · ticket #{dupeWarning.crossReportMatch.ticket_number} (no photo on file)
-                            </span>
-                          )}
+                        <td colSpan={onBlockChange ? 11 : 10} style={{ padding: '2px 6px', fontSize: 11, color: '#92400e', backgroundColor: '#fef3c7', borderBottom: '1px solid #fde68a' }}>
+                          &#9432; Cross-ticket entry acknowledged: {e.cross_report_acknowledgment_note}
+                          {e.cross_report_acknowledged_by && ` — by ${e.cross_report_acknowledged_by}`}
+                          {e.cross_report_acknowledged_at && ` on ${new Date(e.cross_report_acknowledged_at).toLocaleDateString()}`}
                         </td>
                       </tr>
                     )}
@@ -1740,29 +1840,73 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
                         <PencilIcon section="equipment" rowIdx={i} field="cost" fieldLabel="Cost" currentValue={cost || 0} inputType="number" />
                       </td>
                     </tr>
-                    {dupeWarning?.text && (
+                    {dupeWarning?.text && (() => {
+                      const isAckingThisRow = ackingCrossReport?.section === 'equipment' && ackingCrossReport?.rowIdx === i
+                      return (
+                        <tr>
+                          <td colSpan={onBlockChange ? 6 : 5} style={{ padding: '2px 6px', fontSize: 11, color: '#dc2626', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
+                            &#9888; {dupeWarning.text}
+                            {dupeWarning.crossReportMatch?.ticket_number && dupeWarning.crossReportMatch?.ticket_photo_url && (
+                              <button
+                                onClick={() => setPhotoModal({
+                                  url: dupeWarning.crossReportMatch.ticket_photo_url,
+                                  title: `Ticket #${dupeWarning.crossReportMatch.ticket_number} — ${dupeWarning.crossReportMatch.inspector}`,
+                                })}
+                                style={{
+                                  marginLeft: 8, padding: '1px 8px', fontSize: 11, fontWeight: 600,
+                                  border: '1px solid #dc2626', background: 'white', color: '#dc2626',
+                                  borderRadius: 3, cursor: 'pointer',
+                                }}
+                                title="View the other ticket's photo"
+                              >📷 #{dupeWarning.crossReportMatch.ticket_number}</button>
+                            )}
+                            {dupeWarning.crossReportMatch?.ticket_number && !dupeWarning.crossReportMatch?.ticket_photo_url && (
+                              <span style={{ marginLeft: 8, fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
+                                · ticket #{dupeWarning.crossReportMatch.ticket_number} (no photo on file)
+                              </span>
+                            )}
+                            {dupeWarning.crossReportMatch && onBlockChange && (
+                              isAckingThisRow ? (
+                                <>
+                                  <input
+                                    autoFocus
+                                    type="text"
+                                    value={ackNoteValue}
+                                    onChange={ev => setAckNoteValue(ev.target.value)}
+                                    onKeyDown={ev => {
+                                      if (ev.key === 'Enter') { ev.preventDefault(); acknowledgeCrossReport('equipment', i, ackNoteValue) }
+                                      if (ev.key === 'Escape') { setAckingCrossReport(null); setAckNoteValue('') }
+                                    }}
+                                    placeholder="Reason — e.g. Missed hours from #18280"
+                                    style={{ marginLeft: 8, padding: '2px 8px', fontSize: 11, border: '1px solid #b45309', borderRadius: 3, minWidth: 240 }}
+                                  />
+                                  <button onClick={() => acknowledgeCrossReport('equipment', i, ackNoteValue)}
+                                    style={{ marginLeft: 4, padding: '2px 10px', fontSize: 11, fontWeight: 600, border: '1px solid #b45309', background: '#b45309', color: 'white', borderRadius: 3, cursor: 'pointer' }}>
+                                    Save
+                                  </button>
+                                  <button onClick={() => { setAckingCrossReport(null); setAckNoteValue('') }}
+                                    style={{ marginLeft: 4, padding: '2px 8px', fontSize: 11, border: '1px solid #6b7280', background: 'white', color: '#6b7280', borderRadius: 3, cursor: 'pointer' }}>
+                                    Cancel
+                                  </button>
+                                </>
+                              ) : (
+                                <button
+                                  onClick={() => { setAckingCrossReport({ section: 'equipment', rowIdx: i }); setAckNoteValue('') }}
+                                  style={{ marginLeft: 8, padding: '1px 8px', fontSize: 11, fontWeight: 600, border: '1px solid #b45309', background: 'white', color: '#b45309', borderRadius: 3, cursor: 'pointer' }}
+                                  title="This cross-ticket entry is legitimate (e.g. a follow-up ticket for missed hours)"
+                                >Acknowledge Duplicate</button>
+                              )
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })()}
+                    {e.cross_report_acknowledged && (
                       <tr>
-                        <td colSpan={onBlockChange ? 6 : 5} style={{ padding: '2px 6px', fontSize: 11, color: '#dc2626', backgroundColor: '#fef2f2', borderBottom: '1px solid #fecaca' }}>
-                          &#9888; {dupeWarning.text}
-                          {dupeWarning.crossReportMatch?.ticket_number && dupeWarning.crossReportMatch?.ticket_photo_url && (
-                            <button
-                              onClick={() => setPhotoModal({
-                                url: dupeWarning.crossReportMatch.ticket_photo_url,
-                                title: `Ticket #${dupeWarning.crossReportMatch.ticket_number} — ${dupeWarning.crossReportMatch.inspector}`,
-                              })}
-                              style={{
-                                marginLeft: 8, padding: '1px 8px', fontSize: 11, fontWeight: 600,
-                                border: '1px solid #dc2626', background: 'white', color: '#dc2626',
-                                borderRadius: 3, cursor: 'pointer',
-                              }}
-                              title="View the other ticket's photo"
-                            >📷 #{dupeWarning.crossReportMatch.ticket_number}</button>
-                          )}
-                          {dupeWarning.crossReportMatch?.ticket_number && !dupeWarning.crossReportMatch?.ticket_photo_url && (
-                            <span style={{ marginLeft: 8, fontSize: 11, color: '#9ca3af', fontStyle: 'italic' }}>
-                              · ticket #{dupeWarning.crossReportMatch.ticket_number} (no photo on file)
-                            </span>
-                          )}
+                        <td colSpan={onBlockChange ? 6 : 5} style={{ padding: '2px 6px', fontSize: 11, color: '#92400e', backgroundColor: '#fef3c7', borderBottom: '1px solid #fde68a' }}>
+                          &#9432; Cross-ticket entry acknowledged: {e.cross_report_acknowledgment_note}
+                          {e.cross_report_acknowledged_by && ` — by ${e.cross_report_acknowledged_by}`}
+                          {e.cross_report_acknowledged_at && ` on ${new Date(e.cross_report_acknowledged_at).toLocaleDateString()}`}
                         </td>
                       </tr>
                     )}
