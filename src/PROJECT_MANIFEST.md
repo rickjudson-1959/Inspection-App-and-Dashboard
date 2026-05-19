@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - May 19, 2026 (rev 3)
+## Project Manifest - May 19, 2026 (rev 4)
 
 ---
 
@@ -657,6 +657,144 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–May 2026)
+
+### Mark-as-Reconciled Workflow + Package-Status View Fix + Cross-Report Photo Modal (May 19, 2026 — late night)
+
+Three independent reconciliation changes shipped after the perf and
+manual-match work.
+
+**1. Mark-as-Reconciled workflow (`4c787f3`, `2e971a0`).** Added a
+package-level "reconciled" state so Corry can mark a 4-panel package
+as done and filter the list to see what's left.
+
+Schema: added three columns to `reconciliation_documents` —
+`reconciled BOOLEAN NOT NULL DEFAULT false`, `reconciled_at
+TIMESTAMPTZ`, `reconciled_by TEXT` (stores user email, not UUID — see
+follow-up note below). Migration ran in production via the Supabase
+SQL Editor; also added the index
+`(organization_id, reconciled)` for the list-side filter.
+
+`ReconFourPanelView` got a one-click `Mark as Reconciled` button in
+the header. Click updates every `reconciliation_documents` row for
+the ticket (so package toggles as a whole), writes a
+`change_type='mark_reconciled'` audit row, and flips the button to a
+static green badge showing who marked it and when. No flag-state
+precondition — per request, Corry wants the click available even
+when variance issues remain.
+
+Followed up with an `↶ Undo` button next to the green badge
+(`2e971a0`). Confirm dialog, then flips reconciled back to false and
+nulls the audit columns, with `change_type='unmark_reconciled'`
+carrying the prior by/at in `old_value`.
+
+`ReconciliationList` (the package list at `/reconciliation`):
+- New "Inspector" column from `daily_reports.inspector_name`.
+- New "Reconciled" column: green check or red dot. Tooltip on the
+  check shows who marked it and when.
+- New "Reconciled" filter row with `All` / `Unreconciled` /
+  `Reconciled` matching the existing Status filter UX.
+- Summary row gained `<n> reconciled` and `<n> unreconciled` counts.
+
+Schema discrepancy worth knowing: the new request spec said
+`reconciled_by uuid`, but the deployed column is `TEXT` (storing
+`auth.users.email`). If the audit log needs to join on
+`auth.users.id` later, plan a `ALTER COLUMN … TYPE uuid USING …`
+with a backfill — but the current model works because the audit
+log displays the email directly.
+
+**2. Package-status view fix — foreman case splitting (`ef99670` +
+manual SQL).** Ticket 18288 (Kerry Untinen, 2014-01-21) was showing
+TK missing on the package list despite both contractor docs being
+present in `reconciliation_documents`. Root cause: the
+`recon_package_status` view was grouping by `(organization_id,
+ticket_number, foreman)`, and the LEM row had foreman
+`'Kerry Untinen'` while the ticket row had `'KERRY UNTINEN'`
+(same name, different casing). View returned two rows; JS merge
+used `.find()` first-match and dropped the second half of the
+package.
+
+Diagnostic committed at `scripts/inspect-ticket-18288.cjs` — dumps
+every trace of a ticket across `reconciliation_documents`,
+`contractor_lems`, `daily_reports.activity_blocks`, and the view
+itself. Pattern is reusable for any future "this column shows
+missing but data exists" diagnosis.
+
+Fix shipped as a manual `DROP VIEW IF EXISTS` + `CREATE VIEW` via
+the Supabase SQL Editor (not as a tracked migration — the view
+itself was never tracked in `supabase/migrations/`). New grouping
+is `(organization_id, ticket_number)` only. Foreman now picked
+per-ticket via `array_agg(foreman ORDER BY (foreman <> UPPER(foreman))
+DESC, foreman ASC) FILTER (WHERE foreman <> '')`, which sorts title
+case ahead of ALL CAPS so the cleaner spelling wins. `package_status`
+preserved as the original three-way: complete (all 4 distinct
+doc_types present) / partial / empty. `WHERE status <> 'error'`
+filter restored. Column `uploaded_at` (not `created_at`) used for
+`first_upload` / `last_upload`.
+
+Verified post-deploy: ticket 18288 now returns exactly one row with
+`has_lem=1, has_ticket=1, foreman='Kerry Untinen'`. Sanity check
+`SELECT ticket_number, COUNT(*) FROM recon_package_status GROUP BY
+ticket_number HAVING COUNT(*) > 1` returned 0 rows — no other
+tickets had the foreman-case split.
+
+**3. Cross-report duplicate warning gets clickable ticket # +
+photo modal (`126fe36`).** The cross-report duplicate banner from
+earlier today (commit `2bc1cfa`) now identifies the other ticket
+and lets the admin pop its photo open without leaving the panel.
+
+`ReconFourPanelView` extends each `crossReportLabour` /
+`crossReportEquipment` entry with `ticket_number` and
+`ticket_photo_url`. URLs are pre-resolved at load time via
+`supabase.storage.from('ticket-photos').getPublicUrl(filename)`,
+reading the filename from `activity_block.ticketPhotos[0]` or the
+legacy single `ticketPhoto`. Photos do NOT live in
+`reconciliation_documents` — the `inspector_photo` doc_type is
+effectively empty; `activity_blocks` is the source of truth, mirroring
+how Panel 3 of the four-panel view loads photos.
+
+`InspectorReportPanel`'s `getLabourDuplicateWarning` /
+`getEquipmentDuplicateWarning` return shape changed from
+`string | null` to `{ text, crossReportMatch } | null`. The banner
+render now shows `⚠ <existing text> · 📷 #18290` (clickable button
+when a photo is on file) or `⚠ <existing text> · ticket #18290 (no
+photo on file)` (italic hint when the inspector didn't attach one).
+Button click opens a new `<PhotoModal>` rendered at the end of the
+component — fixed-position black backdrop, click-outside-to-close,
+X button, image at max 95vw/95vh contained. Same envelope as
+`ResolveRowModal`.
+
+**Files changed in this batch:**
+```
+src/components/Reconciliation/ReconFourPanelView.jsx
+  - Mark as Reconciled + Undo buttons in header
+  - markAsReconciled / unmarkReconciled handlers
+  - crossReport* now carries ticket_number + ticket_photo_url
+src/components/Reconciliation/InspectorReportPanel.jsx
+  - dup-warning return shape: string → { text, crossReportMatch }
+  - 📷 #<ticket> clickable button on cross-report match
+  - new <PhotoModal> at component tail
+src/components/Reconciliation/ReconciliationList.jsx
+  - Inspector + Reconciled columns
+  - Reconciled filter (All / Unreconciled / Reconciled)
+  - reconciled / reconciled_at / reconciled_by aggregation per ticket
+scripts/inspect-ticket-18288.cjs   (new diagnostic, ASC tickets case)
+```
+
+**Companion SQL (already run in production):**
+```sql
+-- Block 1: reconciled columns
+ALTER TABLE reconciliation_documents
+  ADD COLUMN IF NOT EXISTS reconciled BOOLEAN NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS reconciled_at TIMESTAMPTZ,
+  ADD COLUMN IF NOT EXISTS reconciled_by TEXT;
+CREATE INDEX IF NOT EXISTS idx_reconciliation_documents_reconciled
+  ON reconciliation_documents(organization_id, reconciled);
+
+-- Block 2: recon_package_status view rebuild — see full body in
+-- the May 19 evening session transcript / 4c787f3 follow-up.
+```
+
+No field-guide impact — admin-side reconciliation flow only.
 
 ### Chief Dashboard Perf + Reconciliation Manual-Match Override (May 19, 2026 — evening)
 
