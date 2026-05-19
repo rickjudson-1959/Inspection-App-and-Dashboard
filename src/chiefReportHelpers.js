@@ -1037,7 +1037,7 @@ export async function generateKeyFocusNarrative(reports, aggregatedData) {
   const reportSummaries = reports.map(report => {
     const activities = report.activity_blocks || []
     const activitySummary = activities.map(a => {
-      return `- ${a.activityType}: ${a.contractor || 'N/A'} worked from KP ${a.startKP || 'N/A'} to KP ${a.endKP || 'N/A'}, ${a.metres || 0} metres. ${a.qualityChecks?.comments || ''}`
+      return `- ${a.activityType}: ${a.contractor || 'N/A'} worked from KP ${a.startKP || 'N/A'} to KP ${a.endKP || 'N/A'}, ${parseBlockMetres(a)} metres. ${a.qualityChecks?.comments || ''}`
     }).join('\n')
     
     return `
