@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - May 19, 2026 (rev 6)
+## Project Manifest - May 19, 2026 (rev 7)
 
 ---
 
@@ -657,6 +657,60 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–May 2026)
+
+### Admin Ticket-Number Correction — Implementation (May 19, 2026 — late night)
+
+`099593e` — followed the discovery entry below. Pencil icon next to
+the ticket # in `ReconFourPanelView.jsx` header, visible to
+admin/super_admin only (gated on `useAuth().userProfile.role`,
+new import added since the panel didn't previously use auth). Click
+opens an inline yellow-bordered edit panel under the header with
+two fields: new ticket # (pre-filled) and a required reason. Save /
+Cancel. Enter on the reason field saves; Esc cancels.
+
+**Write sequence** (atomic-best-effort — sequential awaits, no pg
+transaction; client SDK can't open one):
+
+1. `reconciliation_documents.ticket_number` UPDATE scoped by
+   `(organization_id, ticket_number = <old>, date = <date>)`.
+2. `contractor_lems.field_log_id` UPDATE — same scoping, different
+   column name.
+3. `document_matches.match_key` UPDATE — `(organization_id,
+   match_method = 'ticket_number', match_key = <old>)`. Non-fatal
+   on failure (no-op when auto-match was never recorded).
+4. `report_audit_log` INSERT with
+   `change_type = 'ticket_number_correction'`,
+   `change_reason = <typed reason>`, `field_name = 'ticket_number'`,
+   `old_value` / `new_value`.
+
+After success, `navigate(orgPath('/reconciliation/<new>'))` so the
+panel remounts on the corrected key and `loadAllData()` runs fresh.
+Each UPDATE is idempotent if retried (subsequent runs match 0 rows
+under the old number), so partial-failure recovery is "click Save
+again."
+
+**Out-of-scope confirmations** (matching the discovery plan):
+- `contractor_tickets` skipped — zero `src/` references, verified
+  by grep.
+- `extracted_ticket_number` on reconciliation_documents untouched
+  — raw OCR audit trail.
+- `activity_blocks[i].ticketNumber` (inspector side) untouched —
+  the inspector's typed value is the target we're correcting
+  toward, not the source of the error.
+
+**Atomicity follow-up** (not built): the four writes could be
+folded into a `correct_ticket_number(...)` Postgres RPC for true
+atomicity. Worthwhile if mid-sequence failures become an actual
+operational problem; today the retry-safe property is good enough.
+
+**Files changed:**
+```
+src/components/Reconciliation/ReconFourPanelView.jsx
+  - useAuth import + isAdmin gating
+  - editingTicket / ticketEditValue / ticketReasonValue state
+  - saveTicketNumberCorrection (3-table UPDATE + audit + navigate)
+  - pencil icon in header; inline edit panel below header
+```
 
 ### Discovery — Admin Ticket-Number Correction Path (May 19, 2026 — late night, discovery only)
 
