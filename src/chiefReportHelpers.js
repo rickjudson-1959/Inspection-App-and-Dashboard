@@ -612,7 +612,7 @@ export function aggregateProgressBySection(reports) {
       const activityType = activity.activityType || 'Unknown'
       const startKP = activity.startKP || ''
       const endKP = activity.endKP || ''
-      const metres = parseFloat(activity.metres) || 0
+      const metres = parseBlockMetres(activity)
       
       // Determine if Civil or Mechanical
       const isMechanical = ['Welding', 'Stringing', 'Bending', 'Lowering-In', 'Coating', 'Tie-In'].some(
@@ -840,7 +840,7 @@ export function aggregateOverallProgress(reports, projectTotals = {}) {
     
     activities.forEach(activity => {
       const activityType = activity.activityType || ''
-      const metres = parseFloat(activity.metres) || 0
+      const metres = parseBlockMetres(activity)
       const hectares = parseFloat(activity.hectares) || parseFloat(activity.area) || 0
       const count = parseInt(activity.count) || 0
 
