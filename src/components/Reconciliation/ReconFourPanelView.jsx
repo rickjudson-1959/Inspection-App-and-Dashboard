@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { supabase } from '../../supabase'
 import { useOrgQuery } from '../../utils/queryHelpers.js'
 import { useOrgPath } from '../../contexts/OrgContext.jsx'
+import { useAuth } from '../../AuthContext.jsx'
 import DocumentPanel from './DocumentPanel.jsx'
 
 /**
@@ -25,6 +26,8 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
   const navigate = useNavigate()
   const { orgPath } = useOrgPath()
   const { organizationId, addOrgFilter } = useOrgQuery()
+  const { userProfile } = useAuth()
+  const isAdmin = ['admin', 'super_admin'].includes(userProfile?.role || '')
   const ticketNumber = ticketProp || params.ticketNumber
 
   const [uploadedDocs, setUploadedDocs] = useState([])
@@ -331,6 +334,89 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
   const reconciledMeta = uploadedDocs.find(d => d.reconciled)
   const [markingReconciled, setMarkingReconciled] = useState(false)
 
+  // Ticket-number correction (admin-only OCR-misread fix)
+  const [editingTicket, setEditingTicket] = useState(false)
+  const [ticketEditValue, setTicketEditValue] = useState('')
+  const [ticketReasonValue, setTicketReasonValue] = useState('')
+  const [savingTicket, setSavingTicket] = useState(false)
+
+  async function saveTicketNumberCorrection() {
+    if (savingTicket) return
+    const newTicket = (ticketEditValue || '').trim()
+    const reason = (ticketReasonValue || '').trim()
+    if (!newTicket) { alert('New ticket number is required.'); return }
+    if (newTicket === String(ticketNumber).trim()) { alert('New ticket number is the same as the old one.'); return }
+    if (!reason) { alert('Please enter a reason for the correction.'); return }
+
+    setSavingTicket(true)
+    try {
+      const { data: { user } = {} } = await supabase.auth.getUser()
+      const actor = user?.email || user?.id || 'admin'
+      const at = new Date().toISOString()
+      const date = meta.date || inspectorReport?.date || null
+
+      // 1. reconciliation_documents — every doc row for this package.
+      // Scoped by (org, ticket_number, date) so a same-numbered ticket
+      // from a different day can't be hit by accident.
+      let rdQ = supabase.from('reconciliation_documents')
+        .update({ ticket_number: newTicket })
+        .eq('ticket_number', ticketNumber)
+      if (organizationId) rdQ = rdQ.eq('organization_id', organizationId)
+      if (date) rdQ = rdQ.eq('date', date)
+      const { error: rdErr, count: rdCount } = await rdQ.select('id', { count: 'exact' })
+      if (rdErr) { console.error('reconciliation_documents update failed:', rdErr); alert('Update failed (reconciliation_documents): ' + rdErr.message); return }
+
+      // 2. contractor_lems — keyed by field_log_id, not ticket_number.
+      let clQ = supabase.from('contractor_lems')
+        .update({ field_log_id: newTicket })
+        .eq('field_log_id', ticketNumber)
+      if (organizationId) clQ = clQ.eq('organization_id', organizationId)
+      if (date) clQ = clQ.eq('date', date)
+      const { error: clErr, count: clCount } = await clQ.select('id', { count: 'exact' })
+      if (clErr) { console.error('contractor_lems update failed:', clErr); alert('Partial save — contractor_lems failed: ' + clErr.message); return }
+
+      // 3. document_matches — only when an auto-match was recorded for
+      // this ticket. No date filter; match_method='ticket_number'
+      // identifies the right rows.
+      let dmQ = supabase.from('document_matches')
+        .update({ match_key: newTicket })
+        .eq('match_method', 'ticket_number')
+        .eq('match_key', ticketNumber)
+      if (organizationId) dmQ = dmQ.eq('organization_id', organizationId)
+      const { error: dmErr, count: dmCount } = await dmQ.select('id', { count: 'exact' })
+      if (dmErr) { console.error('document_matches update failed:', dmErr); /* not fatal */ }
+
+      // 4. Audit row — tied to the inspector report when one exists.
+      if (inspectorReport?.id) {
+        const { error: auErr } = await supabase.from('report_audit_log').insert({
+          report_id: inspectorReport.id,
+          report_date: inspectorReport.date,
+          changed_by_name: 'Cost Control',
+          changed_by_role: 'admin',
+          change_type: 'ticket_number_correction',
+          change_reason: reason,
+          section: 'Reconciliation Panel',
+          field_name: 'ticket_number',
+          old_value: String(ticketNumber),
+          new_value: newTicket,
+          organization_id: organizationId,
+        })
+        if (auErr) console.warn('Audit insert failed (non-fatal):', auErr)
+      }
+
+      console.log(`[ticket correction] ${ticketNumber} → ${newTicket} by ${actor} @ ${at} | rd=${rdCount} cl=${clCount} dm=${dmCount}`)
+
+      // 5. Navigate to the new URL — the panel route is keyed by
+      // ticket number so a refresh on the old path would show empty.
+      setEditingTicket(false)
+      setTicketEditValue('')
+      setTicketReasonValue('')
+      navigate(orgPath(`/reconciliation/${encodeURIComponent(newTicket)}`))
+    } finally {
+      setSavingTicket(false)
+    }
+  }
+
   async function markAsReconciled() {
     if (markingReconciled) return
     if (uploadedDocs.length === 0) {
@@ -437,6 +523,13 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
           </button>
           <div>
             <span style={{ fontSize: '18px', fontWeight: '700', color: '#1e3a5f' }}>Ticket #{ticketNumber}</span>
+            {isAdmin && !editingTicket && (
+              <button
+                onClick={() => { setEditingTicket(true); setTicketEditValue(String(ticketNumber)); setTicketReasonValue('') }}
+                title="Correct an OCR-misread ticket number (admin only)"
+                style={{ marginLeft: 6, padding: '2px 6px', fontSize: 12, color: '#6b7280', background: 'transparent', border: '1px solid transparent', borderRadius: 3, cursor: 'pointer' }}
+              >&#9998;</button>
+            )}
             {inspectorReport?.id && <span style={{ marginLeft: '10px', fontSize: '12px', color: '#9ca3af', fontFamily: 'monospace' }}>Report #{inspectorReport.id}</span>}
             {meta.foreman && <span style={{ marginLeft: '12px', fontSize: '14px', color: '#6b7280' }}>{meta.foreman}</span>}
             {meta.date && <span style={{ marginLeft: '12px', fontSize: '14px', color: '#6b7280' }}>{meta.date}</span>}
@@ -502,6 +595,73 @@ export default function ReconFourPanelView({ ticketNumber: ticketProp }) {
           </span>
         </div>
       </div>
+
+      {/* Ticket-number correction (admin) — inline form, only shows
+          when the pencil has been clicked. Updates reconciliation_documents
+          + contractor_lems + document_matches in sequence, writes an
+          audit row, then navigates to the new ticket URL so the panel
+          reloads against the corrected key. */}
+      {editingTicket && (
+        <div style={{
+          padding: '12px 14px', backgroundColor: '#fffbeb',
+          border: '1px solid #fde68a', borderRadius: 6,
+          display: 'flex', flexDirection: 'column', gap: 8,
+        }}>
+          <div style={{ fontSize: 13, fontWeight: 600, color: '#92400e' }}>
+            Correct ticket number — OCR misread fix
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ fontSize: 12, color: '#374151', minWidth: 90 }}>New ticket #:</label>
+            <input
+              autoFocus
+              type="text"
+              value={ticketEditValue}
+              onChange={ev => setTicketEditValue(ev.target.value)}
+              placeholder="e.g. 18295"
+              disabled={savingTicket}
+              style={{ padding: '6px 10px', fontSize: 13, border: '1px solid #d1d5db', borderRadius: 4, minWidth: 140 }}
+            />
+            <span style={{ fontSize: 11, color: '#6b7280' }}>(was: <strong>{ticketNumber}</strong>)</span>
+          </div>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+            <label style={{ fontSize: 12, color: '#374151', minWidth: 90 }}>Reason:</label>
+            <input
+              type="text"
+              value={ticketReasonValue}
+              onChange={ev => setTicketReasonValue(ev.target.value)}
+              onKeyDown={ev => {
+                if (ev.key === 'Enter') { ev.preventDefault(); saveTicketNumberCorrection() }
+                if (ev.key === 'Escape') { setEditingTicket(false); setTicketEditValue(''); setTicketReasonValue('') }
+              }}
+              placeholder="e.g. OCR misread — original document shows 18295"
+              disabled={savingTicket}
+              style={{ padding: '6px 10px', fontSize: 13, border: '1px solid #d1d5db', borderRadius: 4, flex: 1, minWidth: 320 }}
+            />
+            <button
+              onClick={saveTicketNumberCorrection}
+              disabled={savingTicket}
+              style={{
+                padding: '6px 14px', backgroundColor: savingTicket ? '#9ca3af' : '#b45309', color: 'white',
+                border: 'none', borderRadius: 4, cursor: savingTicket ? 'not-allowed' : 'pointer',
+                fontSize: 13, fontWeight: 600,
+              }}
+            >{savingTicket ? 'Saving…' : 'Save'}</button>
+            <button
+              onClick={() => { setEditingTicket(false); setTicketEditValue(''); setTicketReasonValue('') }}
+              disabled={savingTicket}
+              style={{
+                padding: '6px 12px', backgroundColor: 'white', color: '#6b7280',
+                border: '1px solid #6b7280', borderRadius: 4, cursor: savingTicket ? 'not-allowed' : 'pointer',
+                fontSize: 13,
+              }}
+            >Cancel</button>
+          </div>
+          <div style={{ fontSize: 11, color: '#6b7280' }}>
+            Will update reconciliation_documents, contractor_lems, and document_matches.
+            An audit row is written to report_audit_log with the reason above.
+          </div>
+        </div>
+      )}
 
       {/* 4-panel grid */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
