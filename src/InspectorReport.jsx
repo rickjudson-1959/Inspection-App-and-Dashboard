@@ -3077,6 +3077,39 @@ CRITICAL - Individual Entries Required:
       if (!proceed) return
     }
 
+    // Weld-in-equipment warning — soft block. Catches the workaround
+    // where an inspector types "WELDS" or "REPAIRS" into an equipment
+    // row instead of using the welding section. Not a hard reject —
+    // there may be a legit edge case — but prompts so the inspector
+    // can confirm intent or fix it.
+    const weldContaminatedRows = []
+    for (const block of activityBlocks) {
+      for (const entry of (block.equipmentEntries || [])) {
+        const t = String(entry.type || '').trim()
+        const u = String(entry.unitNumber || entry.unit_number || '').trim()
+        if (!u && /^(WELDS?|REPAIRS?)$/i.test(t)) {
+          weldContaminatedRows.push({
+            activity: block.activityType || '(no activity)',
+            kp: `${block.startKP || '?'}–${block.endKP || '?'}`,
+            ticket: block.ticketNumber || '—',
+            type: entry.type,
+            hours: entry.hours,
+          })
+        }
+      }
+    }
+    if (weldContaminatedRows.length > 0) {
+      const lines = weldContaminatedRows.map(r =>
+        `  • ${r.activity} (KP ${r.kp}, ticket ${r.ticket}): "${r.type}" with ${r.hours} hours`
+      ).join('\n')
+      const proceed = confirm(
+        `This row${weldContaminatedRows.length > 1 ? 's' : ''} look${weldContaminatedRows.length > 1 ? '' : 's'} like weld data ('WELDS' / 'REPAIRS') in the equipment section. Did you mean to enter ${weldContaminatedRows.length > 1 ? 'them' : 'it'} in the welding section instead?\n\n` +
+        lines +
+        `\n\nClick OK to proceed anyway, or Cancel to fix it.`
+      )
+      if (!proceed) return
+    }
+
     setSaving(true)
 
     try {
