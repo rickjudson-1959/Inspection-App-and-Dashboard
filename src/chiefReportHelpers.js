@@ -131,18 +131,6 @@ export async function calculateCumulativeProgress(upToDate, organizationId = nul
 
     if (error) throw error
 
-    // --- TEMPORARY DEBUG LOGGING (calculateCumulativeProgress) ---
-    console.log('[calculateCumulativeProgress] reports.length:', (reports || []).length)
-    if (reports && reports.length > 0) {
-      const first = reports[0]
-      const firstBlocks = first.activity_blocks || []
-      console.log('[calculateCumulativeProgress] first report date:', first.date, 'activity_blocks.length:', firstBlocks.length)
-      if (firstBlocks.length > 0) {
-        console.log('[calculateCumulativeProgress] parseBlockMetres(first block):', parseBlockMetres(firstBlocks[0]))
-      }
-    }
-    // --- END TEMPORARY DEBUG LOGGING ---
-
     // Aggregate metres by activity type. Form writes `metersToday`
     // (American), not `metres` — see parseBlockMetres.
     const progressByActivity = {}
