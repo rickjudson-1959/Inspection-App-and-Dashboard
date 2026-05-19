@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - May 19, 2026 (rev 5)
+## Project Manifest - May 19, 2026 (rev 6)
 
 ---
 
@@ -657,6 +657,64 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–May 2026)
+
+### Discovery — Admin Ticket-Number Correction Path (May 19, 2026 — late night, discovery only)
+
+Pre-implementation discovery for an admin "OCR misread → correct
+ticket number" flow on the reconciliation panel. **No code changes
+yet**; new diagnostic committed (`0512b79`) and findings recorded
+so the eventual write path touches the right tables only.
+
+New script: `scripts/inspect-ticket-storage.cjs` — probes every
+candidate table×column for ticket-number-like storage with rowcount
+and sample-match. Run anytime to re-validate against the live
+schema.
+
+**Tables that store a ticket number (live findings):**
+
+| Table | Column | Rows | Action on correction |
+|---|---|---|---|
+| `reconciliation_documents` | `ticket_number` | 123 | UPDATE |
+| `reconciliation_documents` | `extracted_ticket_number` | (same table) | LEAVE — raw OCR audit value |
+| `contractor_lems` | `field_log_id` | 35 | UPDATE |
+| `document_matches` | `match_key` (where `match_method='ticket_number'`) | 33 | UPDATE |
+| `lem_line_items` | `ticket_number` | 0 | SKIP — empty table |
+| `reconciliation_line_items` | `ticket_number` | 0 | SKIP — empty table |
+| `contractor_tickets` | `ticket_number` | (no `src/` references) | SKIP — orphaned |
+| `daily_reports.activity_blocks[i].ticketNumber` | JSON | n/a | LEAVE — inspector's typed value is the target |
+
+**Tables explicitly missing in this env** (probed for completeness):
+`contractor_lem_uploads`, `lem_reconciliation_pairs`.
+
+**Pre-implementation gating questions** (open):
+1. Confirm `contractor_tickets` is dead — no other system writes
+   it. If unsure, skipping is the safe default.
+2. Does `report_audit_log` have a `change_reason` column? If yes,
+   use it; otherwise fold the admin's reason into `new_value` as
+   `"<new> — <reason>"`.
+
+**Planned write path on each correction (not yet implemented):**
+- `reconciliation_documents`: bulk UPDATE matching
+  `(organization_id, ticket_number = <old>, date = <date>)` →
+  `ticket_number = <new>`. `extracted_ticket_number` untouched.
+- `contractor_lems`: UPDATE matching
+  `(organization_id, field_log_id = <old>, date = <date>)` →
+  `field_log_id = <new>`.
+- `document_matches`: UPDATE matching
+  `(organization_id, match_method = 'ticket_number', match_key = <old>)` →
+  `match_key = <new>` (no-op when no auto-match exists).
+- `report_audit_log`: insert with `change_type =
+  'ticket_number_correction'`, `field_name = 'ticket_number'`,
+  `old_value`, `new_value`, and the typed reason (column TBD).
+
+**UI plan (not yet built):**
+- Pencil icon next to ticket # in `ReconFourPanelView.jsx` header,
+  gated to admin/super_admin via `useAuth().userProfile.role`.
+  ReconFourPanelView doesn't currently import `useAuth` — adding
+  that import is part of the implementation step.
+- Inline edit field with Save/Cancel and a required reason textbox.
+- On Save: the 3-table UPDATE + audit insert + `loadAllData()` to
+  refresh the panel.
 
 ### Acknowledge-Duplicate Flow for Legitimate Cross-Ticket Entries (May 19, 2026 — late night follow-up)
 
