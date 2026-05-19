@@ -22,6 +22,8 @@ export default function ResolveRowModal({
   const [view, setView] = useState('candidates') // 'candidates' | 'add_new' | 'flag'
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  // Free-text filter over the candidate list. Empty = show everything.
+  const [search, setSearch] = useState('')
 
   // Add-new form state
   const [newName, setNewName] = useState(sourceValue)
@@ -44,51 +46,70 @@ export default function ResolveRowModal({
       setNewClassification('')
       setClassFilter('')
       setFlagReason('')
+      setSearch('')
       loadCandidates()
     }
   }, [open, sourceValue])
 
+  // Sources are equipment_fleet / personnel_roster — same tables the
+  // inline unit/employee cell dropdowns read from in
+  // ReconFourPanelView. master_equipment / master_personnel are no
+  // longer queried here; the field still gets written to
+  // entry.master_*_id but the value is now fleet/roster.id, which is
+  // already the convention the inline picker uses
+  // (InspectorReportPanel.jsx:1082, 1120).
   async function loadCandidates() {
     setLoading(true)
     try {
-      const table = isLabour ? 'master_personnel' : 'master_equipment'
-      const nameField = isLabour ? 'name' : 'unit_number'
+      const table = isLabour ? 'personnel_roster' : 'equipment_fleet'
+      const nameField = isLabour ? 'employee_name' : 'unit_number'
+      const classField = isLabour ? 'classification' : 'equipment_type'
 
-      // Load all active master entries for this project (paginated)
+      // Load org-scoped roster (paginated). No score gate, no slice
+      // cap — every entry is a candidate; the search input at the
+      // top of the modal lets the user filter as they type.
       let allEntries = []
       let offset = 0
       while (true) {
-        const { data } = await supabase.from(table)
-          .select('id, ' + nameField + ', classification')
-          .eq('project_id', projectId)
-          .eq('active', true)
-          .range(offset, offset + 999)
+        let q = supabase.from(table).select(`id, ${nameField}, ${classField}`)
+        if (organizationId) q = q.eq('organization_id', organizationId)
+        q = q.range(offset, offset + 999)
+        const { data } = await q
         allEntries.push(...(data || []))
         if (!data || data.length < 1000) break
         offset += 1000
       }
 
-      // Score each against sourceValue
+      // Score each against sourceValue purely for display ordering.
       const scored = allEntries.map(entry => {
         const masterValue = entry[nameField] || ''
+        const classification = entry[classField] || ''
         const score = isLabour
           ? scoreNameMatch(sourceValue, masterValue)
           : scoreUnitMatch(sourceValue, masterValue)
-        return { ...entry, masterValue, score }
+        return { id: entry.id, masterValue, classification, score }
       })
 
-      // Filter ≥0.4 and take top 5
-      const top5 = scored
-        .filter(s => s.score >= 0.4)
-        .sort((a, b) => b.score - a.score)
-        .slice(0, 5)
-
-      setCandidates(top5)
+      // No threshold filter — show everything, sorted by score so
+      // the likely match floats to the top. Search input narrows.
+      scored.sort((a, b) => b.score - a.score)
+      setCandidates(scored)
     } catch (err) {
       console.error('Failed to load candidates:', err)
     }
     setLoading(false)
   }
+
+  // String-includes filter against name + classification. Empty
+  // search → return all candidates (already score-sorted).
+  const filteredCandidates = useMemo(() => {
+    const q = (search || '').trim().toLowerCase()
+    if (!q) return candidates
+    return candidates.filter(c =>
+      (c.masterValue || '').toLowerCase().includes(q) ||
+      (c.classification || '').toLowerCase().includes(q)
+    )
+  }, [candidates, search])
 
   // --- Scoring functions ---
 
@@ -216,35 +237,38 @@ export default function ResolveRowModal({
     setSaving(true)
     setError('')
     try {
-      const table = isLabour ? 'master_personnel' : 'master_equipment'
-      const nameField = isLabour ? 'name' : 'unit_number'
-      const rateField = isLabour ? 'labour_rate_id' : 'equipment_rate_id'
+      // Writes land in the same table the picker reads from so a
+      // newly-added record shows up on next open. Schemas confirmed
+      // from src/utils/bulkUploadProcessor.js (org-scoped, no
+      // project_id / no active flag on these tables).
+      const table = isLabour ? 'personnel_roster' : 'equipment_fleet'
+      const nameField = isLabour ? 'employee_name' : 'unit_number'
+      const classField = isLabour ? 'classification' : 'equipment_type'
       const rates = isLabour ? labourRates : equipmentRates
       const classKey = isLabour ? 'classification' : (rates[0]?.equipment_type ? 'equipment_type' : 'type')
 
-      // Find matching rate
+      // Validate the typed classification against the rate card so
+      // we don't add a record whose classification doesn't bill.
       const matchedRate = rates.find(r => (r[classKey] || '').toLowerCase().trim() === newClassification.toLowerCase().trim())
       if (!matchedRate) { setError('Classification does not match any rate card entry'); setSaving(false); return }
 
-      // Check duplicate
-      const { data: existing } = await supabase.from(table).select('id, ' + nameField).eq('project_id', projectId).ilike(nameField, newName.trim()).limit(1)
+      // Check duplicate in the same table — org-scoped lookup.
+      let dupQ = supabase.from(table).select(`id, ${nameField}`).ilike(nameField, newName.trim()).limit(1)
+      if (organizationId) dupQ = dupQ.eq('organization_id', organizationId)
+      const { data: existing } = await dupQ
       if (existing && existing.length > 0) {
-        setError(`"${existing[0][nameField]}" already exists in master — pick from the candidates instead.`)
+        setError(`"${existing[0][nameField]}" already exists — pick from the candidates instead.`)
         setSaving(false)
         return
       }
 
-      const { data: { user } } = await supabase.auth.getUser()
-
-      // Insert into master
+      // Insert. equipment_fleet / personnel_roster don't carry
+      // project_id, active, rate FK, or created_by — just the
+      // identifier + classification + org.
       const insertData = {
         organization_id: organizationId,
-        project_id: projectId,
         [nameField]: newName.trim(),
-        classification: newClassification,
-        [rateField]: matchedRate.id,
-        active: true,
-        created_by: user?.id || null,
+        [classField]: newClassification,
       }
       const { data: inserted, error: insertErr } = await supabase.from(table).insert(insertData).select().single()
       if (insertErr) throw insertErr
@@ -372,44 +396,63 @@ export default function ResolveRowModal({
           {view === 'candidates' && (
             <>
               {loading ? (
-                <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>Searching master...</div>
-              ) : candidates.length > 0 ? (
+                <div style={{ textAlign: 'center', padding: 20, color: '#6b7280' }}>Searching {isLabour ? 'roster' : 'fleet'}...</div>
+              ) : (
                 <>
-                  <div style={{ fontSize: 13, color: '#374151', marginBottom: 10 }}>
-                    Did you mean one of these {isLabour ? 'people' : 'units'} already in master?
+                  <div style={{ fontSize: 13, color: '#374151', marginBottom: 8 }}>
+                    Pick from the {isLabour ? 'personnel roster' : 'equipment fleet'} below, or search to narrow the list.
                   </div>
-                  <div style={{ border: '1px solid #e5e7eb', borderRadius: 6, overflow: 'hidden', marginBottom: 16 }}>
-                    {candidates.map((c, idx) => (
-                      <div key={c.id} style={{
-                        padding: '10px 14px', borderBottom: idx < candidates.length - 1 ? '1px solid #f3f4f6' : 'none',
-                        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      }}>
-                        <div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: matchDotColor(c.score), display: 'inline-block' }} />
-                            <span style={{ fontWeight: 600, fontSize: 14 }}>{c.masterValue}</span>
-                            <span style={{ fontSize: 11, color: '#9ca3af' }}>({Math.round(c.score * 100)}% match)</span>
+                  <input
+                    type="text"
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    placeholder={isLabour ? 'Search by name or classification…' : 'Search by unit number or equipment type…'}
+                    style={{
+                      width: '100%', padding: '8px 10px', marginBottom: 10,
+                      border: '1px solid #d1d5db', borderRadius: 4, fontSize: 13, boxSizing: 'border-box',
+                    }}
+                  />
+                  {filteredCandidates.length > 0 ? (
+                    <div style={{ border: '1px solid #e5e7eb', borderRadius: 6, overflow: 'hidden', marginBottom: 12, maxHeight: 320, overflowY: 'auto' }}>
+                      {filteredCandidates.map((c, idx) => (
+                        <div key={c.id} style={{
+                          padding: '10px 14px', borderBottom: idx < filteredCandidates.length - 1 ? '1px solid #f3f4f6' : 'none',
+                          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        }}>
+                          <div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ width: 8, height: 8, borderRadius: '50%', backgroundColor: matchDotColor(c.score), display: 'inline-block' }} />
+                              <span style={{ fontWeight: 600, fontSize: 14 }}>{c.masterValue}</span>
+                              {c.score > 0 && (
+                                <span style={{ fontSize: 11, color: '#9ca3af' }}>({Math.round(c.score * 100)}% match)</span>
+                              )}
+                            </div>
+                            <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2, marginLeft: 14 }}>{c.classification}</div>
                           </div>
-                          <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2, marginLeft: 14 }}>{c.classification}</div>
+                          <button
+                            onClick={() => handlePickExisting(c)}
+                            disabled={saving}
+                            style={{
+                              padding: '5px 12px', backgroundColor: '#059669', color: 'white',
+                              border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
+                            }}
+                          >
+                            This one
+                          </button>
                         </div>
-                        <button
-                          onClick={() => handlePickExisting(c)}
-                          disabled={saving}
-                          style={{
-                            padding: '5px 12px', backgroundColor: '#059669', color: 'white',
-                            border: 'none', borderRadius: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600, whiteSpace: 'nowrap',
-                          }}
-                        >
-                          This one
-                        </button>
-                      </div>
-                    ))}
+                      ))}
+                    </div>
+                  ) : (
+                    <div style={{ padding: '12px 0', fontSize: 13, color: '#6b7280', fontStyle: 'italic', marginBottom: 12 }}>
+                      {search.trim()
+                        ? `No matches for "${search}".`
+                        : `No ${isLabour ? 'roster entries' : 'fleet entries'} found for this org.`}
+                    </div>
+                  )}
+                  <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 12 }}>
+                    Showing {filteredCandidates.length} of {candidates.length}
                   </div>
                 </>
-              ) : (
-                <div style={{ padding: '12px 0', fontSize: 13, color: '#6b7280', fontStyle: 'italic', marginBottom: 16 }}>
-                  No close matches found in master.
-                </div>
               )}
 
               {/* Bottom actions */}
