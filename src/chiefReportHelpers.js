@@ -743,10 +743,13 @@ export async function aggregateWeldingProgress(reportDate, reports = null, organ
           const metres = parseBlockMetres(block) || (tieInWeldCount * 12.2)
           weldTypes['GMAW/FCAW Tie-Ins'].today_lm += metres
           
-          // Count repairs
-          if (counterboreData.repairRequired === 'Yes' || counterboreData.repairRequired === true) {
-            weldTypes['GMAW/FCAW Tie-Ins'].repairs_today += tieInWeldCount
-          }
+          // Count repairs — repairRequired is per-weld (nested inside
+          // counterboreData.welds[i]), not a top-level flag. Sum the
+          // welds where it's truthy.
+          const tieInRepairs = welds.filter(
+            w => w.repairRequired === 'Yes' || w.repairRequired === true
+          ).length
+          weldTypes['GMAW/FCAW Tie-Ins'].repairs_today += tieInRepairs
           
           console.log(`    → Added to Tie-Ins: ${tieInWeldCount} welds, ${metres.toFixed(1)}m`)
         }
