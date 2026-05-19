@@ -6,6 +6,26 @@ import ResolveRowModal from './ResolveRowModal.jsx'
 import AdminOverridePopover from './AdminOverridePopover.jsx'
 import { levenshtein } from '../../utils/nameMatchingUtils.js'
 
+// Canonical name normalization for cross-source matching (variance vs
+// LEM, cross-report duplicate detection, ghost-row checks). Keep
+// hyphens (`Smith-Jones`) and apostrophes (`O'Brien`) — those are
+// part of real names. Strip `. , ; :` only — they're punctuation
+// artifacts from how inspectors type names (`Sharpe. Bryan`,
+// `Smith, John`) that would otherwise break tokenization.
+// Lowercase + collapse whitespace + strip trailing `(PB)`/`(EP)`/etc.
+// suffix. Exported via module scope so multiple consumers in this
+// file (variance map, getLabourDuplicateWarning, ghost rows) stay
+// consistent.
+function normV(s) {
+  return (s || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[.,;:]+/g, ' ')         // punctuation → space
+    .replace(/\s+/g, ' ')             // collapse runs of whitespace
+    .replace(/\s*\([^)]*\)\s*$/, '')  // strip trailing parenthesized suffix
+    .trim()
+}
+
 export default function InspectorReportPanel({ report, block, labourRates = [], equipmentRates = [], aliases = [], organizationId, onBlockChange, onAliasCreated, sameDayEntries = { labour: [], equipment: [] }, crossReportLabour = [], crossReportEquipment = [], employeeRoster = [], equipmentRoster = [], lemData = null, reportDate = null, hasLemPdf = false, lemPdfUrls = [], onLemExtracted }) {
   const [editingCell, setEditingCell] = useState(null) // { section, rowIdx, field }
   const [editValue, setEditValue] = useState('')
@@ -395,8 +415,16 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   // is the matched cross-report entry (carries ticket_number +
   // ticket_photo_url) so the render can attach a clickable
   // "View ticket photo" affordance.
+  //
+  // Uses normV (module-scope) for every name comparison so this path
+  // matches by the same rules as the LEM-vs-report variance check —
+  // i.e. tolerant of punctuation (`Sharpe. Bryan` ↔ `Bryan Sharpe`),
+  // case, and whitespace. sameDayEntries / crossReportLabour are
+  // pre-normalized upstream with just lowercase+trim, so we re-apply
+  // normV at comparison time as the canonical step (idempotent on
+  // already-normalized inputs).
   function getLabourDuplicateWarning(entry, rowIdx) {
-    const name = (entry.employeeName || entry.employee_name || entry.name || '').toLowerCase().trim()
+    const name = normV(entry.employeeName || entry.employee_name || entry.name || '')
     if (!name) return null
     const warnings = []
     let crossReportMatch = null
@@ -404,13 +432,13 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     // Same ticket: check if this name appears elsewhere in this ticket's entries
     labourEntries.forEach((other, otherIdx) => {
       if (otherIdx === rowIdx) return
-      const otherName = (other.employeeName || other.employee_name || other.name || '').toLowerCase().trim()
+      const otherName = normV(other.employeeName || other.employee_name || other.name || '')
       if (otherName === name) warnings.push('Duplicate on this ticket')
     })
 
     // Cross-ticket same day
     for (const other of sameDayEntries.labour) {
-      if (other.name === name) {
+      if (normV(other.name) === name) {
         warnings.push(`Also on ticket #${other.ticket}`)
         break
       }
@@ -422,7 +450,7 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
     // suppress the red text + photo button — the yellow ack banner
     // takes over downstream.
     for (const other of crossReportLabour) {
-      if (other.name === name) {
+      if (normV(other.name) === name) {
         if (!entry.cross_report_acknowledged) {
           warnings.push(`Also reported by ${other.inspector} on ${other.date}`)
           crossReportMatch = other
@@ -501,11 +529,6 @@ export default function InspectorReportPanel({ report, block, labourRates = [], 
   const flaggedEquip = equipmentEntries.filter(e => e.flagged_for_review).length
   const totalFlagged = flaggedLabour + flaggedEquip
   const hasUnresolved = unresolvedLabour > 0 || unresolvedEquip > 0 || totalFlagged > 0
-
-  // Normalize name for variance comparison: lowercase, trim, collapse whitespace, strip suffixes like (PB)/(EP)/(TI)
-  function normV(s) {
-    return (s || '').toLowerCase().trim().replace(/\s+/g, ' ').replace(/\s*\([^)]*\)\s*$/, '')
-  }
 
   // Rate-type detection for variance comparison.
   //
