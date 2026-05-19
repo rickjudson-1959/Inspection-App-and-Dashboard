@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - May 19, 2026
+## Project Manifest - May 19, 2026 (rev 3)
 
 ---
 
@@ -657,6 +657,87 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–May 2026)
+
+### Chief Dashboard Perf + Reconciliation Manual-Match Override (May 19, 2026 — evening)
+
+Three independent fixes shipped after the chief-helpers zero-fix
+cascade.
+
+**1. Chief Dashboard load: 10s → ~885ms (`08d2de9`, `f2af093`, `4b83227`).**
+`fetchPendingReports` / `fetchApprovedReports` / `fetchRejectedReports`
+in `ChiefDashboard.jsx` each ran a sequential `.single()` per status
+row inside a `for`-loop — N+1 against `daily_reports`. For ~50
+statuses across the three buckets, that's ~150 round-trips on every
+dashboard load.
+
+Refactor: one shared `fetchTicketsByIds(ids)` helper that does a
+single `.in('id', ids)` query and returns a `Map<id, ticket>`. Each
+fetcher now does 1 status query + 1 batched ticket fetch, iterates
+the original status rows in order to preserve `submitted_at` /
+`reviewed_at` ordering, and applies `!hasWeldingActivities(ticket)`
++ approved's `.slice(0, 10)` post-filter exactly as before.
+`Promise.all` across the three buckets unchanged.
+
+Profiled with temporary `console.time`/`timeEnd` (committed in
+`fee0b3f`, ripped out in `4b83227` once measured). 11× speed-up.
+
+**2. Confirm Match button for missing_on_lem variance rows
+(`c0cdf46`).** Corry hit cases on tickets 18363 and 18292 where she
+could see in the LEM PDF that a person was billed but the OCR
+cross-check had flagged the inspector row as `missing_on_lem`.
+Existing Resolve button worked but its "variance resolved, no note"
+semantics didn't capture intent — auditors couldn't distinguish a
+genuine exception from an OCR-missed match.
+
+New `confirmMatch(section, rowIdx)` handler stamps the standard
+resolution fields (`variance_resolved`, `_by`, `_at`) plus a fixed
+`variance_resolution_note: 'Manually confirmed as match'`. Audit
+entry carries `change_type: 'manual_match_confirm'` so the path is
+grep-able in `report_audit_log`. One-click — no prompt, matching
+the resolveVariance pattern from earlier today.
+
+Renders BEFORE the existing Resolve button, only when
+`variance.category === 'missing_on_lem'`, with identical filled-red
+styling for UI consistency. Applied symmetrically to labour and
+equipment red-banner blocks.
+
+**3. Audit log writer honors entry.change_type (`65c93e4`).**
+`ReconFourPanelView.jsx`'s `report_audit_log` insert was hardcoding
+`change_type: 'reconciliation_edit'` for every audit entry forwarded
+from `InspectorReportPanel`, silently dropping any per-edit tag the
+child set. Switched to `entry.change_type || 'reconciliation_edit'`.
+Immediate effect: `manual_match_confirm` from `confirmMatch`
+actually reaches the database; any future per-edit tag flows through
+without further plumbing.
+
+**Investigation, no change made:** the Resolve-button → ResolveRowModal
+candidate dropdown shows at most 5 master_equipment entries, filtered
+to score ≥ 0.4 against the OCR'd unit_number via `scoreUnitMatch`.
+There is no "browse all / type to search" fallback view — so when the
+OCR string is wildly off, the correct master row is invisible even
+though it exists. Three plausible fixes (raise the cap, add a
+browse-all view, reconcile master_equipment vs equipment_fleet which
+the inline cell uses); none picked yet. Source trace and filter
+logic live in this session's transcript.
+
+**Files changed:**
+```
+src/ChiefDashboard.jsx
+  - fetchTicketsByIds(ids) helper — one batched .in('id', ids)
+  - fetchPendingReports / fetchApprovedReports / fetchRejectedReports:
+    N+1 .single() per status  →  1 batched ticket fetch + Map lookup
+
+src/components/Reconciliation/InspectorReportPanel.jsx
+  - confirmMatch(section, rowIdx) — one-click manual-match handler
+  - Confirm Match button on missing_on_lem red banner (labour + eq)
+  - audit entry carries change_type: 'manual_match_confirm'
+
+src/components/Reconciliation/ReconFourPanelView.jsx
+  - report_audit_log insert: change_type now reads entry.change_type
+    with 'reconciliation_edit' as the fallback
+```
+
+No migrations. No field-guide impact.
 
 ### Chief Helpers — Zero-Fix Cascade (May 19, 2026 — late session)
 
