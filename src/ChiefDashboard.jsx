@@ -306,11 +306,15 @@ function ChiefDashboard() {
         setSelectedPhotos((existingSummary.photos || []).slice(0, 6).map(p => p.id || p.photo_url))
       }
 
+      console.time('[chief] fetchApprovedReportsForDate')
       const reports = await fetchApprovedReportsForDate(summaryDate)
+      console.timeEnd('[chief] fetchApprovedReportsForDate')
       console.log('Fetched reports for date:', reports?.length, reports)
       setSourceReports(reports)
 
+      console.time('[chief] buildProgressData')
       const progressData = await buildProgressData(summaryDate)
+      console.timeEnd('[chief] buildProgressData')
       console.log('Progress data:', progressData)
       setFullProgressData(progressData)
 
@@ -353,13 +357,33 @@ function ChiefDashboard() {
   }
 
   async function aggregateFromReports(reports) {
+    console.time('[chief] aggregatePersonnel')
     const personnel = aggregatePersonnel(reports)
+    console.timeEnd('[chief] aggregatePersonnel')
+
+    console.time('[chief] aggregateProgressBySection')
     const sections = aggregateProgressBySection(reports)
+    console.timeEnd('[chief] aggregateProgressBySection')
+
+    console.time('[chief] aggregateWeldingProgress')
     const welding = await aggregateWeldingProgress(summaryDate, reports)
+    console.timeEnd('[chief] aggregateWeldingProgress')
+
+    console.time('[chief] aggregateOverallProgress')
     const overall = aggregateOverallProgress(reports)
+    console.timeEnd('[chief] aggregateOverallProgress')
+
+    console.time('[chief] aggregateWeather')
     const weather = aggregateWeather(reports)
+    console.timeEnd('[chief] aggregateWeather')
+
+    console.time('[chief] aggregatePhotos')
     const photos = aggregatePhotos(reports)
+    console.timeEnd('[chief] aggregatePhotos')
+
+    console.time('[chief] extractSafetyEvents')
     const safety = extractSafetyEvents(reports)
+    console.timeEnd('[chief] extractSafetyEvents')
 
     setPersonnelData(personnel)
     setSectionProgressData(sections)
@@ -384,19 +408,23 @@ function ChiefDashboard() {
 
     setGeneratingNarrative(true)
     try {
+      console.time('[chief] generateKeyFocusNarrative')
       const keyFocus = await generateKeyFocusNarrative(sourceReports, {
         personnel: personnelData,
         welding: weldingProgress,
         safety: summaryData?.safety_events || {}
       })
+      console.timeEnd('[chief] generateKeyFocusNarrative')
 
       setKeyFocusNarrative(keyFocus.narrative)
       setKeyFocusBullets(keyFocus.bullets)
 
+      console.time('[chief] generateSafetyStatus')
       const safety = await generateSafetyStatus(
         summaryData?.safety_events || { swa_count: 0, hazards: [], chain_up_required: false },
         weatherData
       )
+      console.timeEnd('[chief] generateSafetyStatus')
       
       setSafetyStatus(safety.status)
       setSafetyBullets(safety.bullets)
