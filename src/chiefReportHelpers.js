@@ -721,19 +721,22 @@ export async function aggregateWeldingProgress(reportDate, reports = null, organ
           
           console.log(`    → Added to ${key}: ${weldsToday} welds, ${metres.toFixed(1)}m, ${repairCount} repairs`)
         } else if (block.activityType === 'Welding - Tie-in') {
-          // Tie-in data might be in counterboreData or weldData
+          // Tie-in data lives in counterboreData.welds (each entry =
+          // one weld). The previous code looked for
+          // counterboreData.transitions and counterboreData.weldNumber,
+          // neither of which exist at that level — transitions and
+          // weldNumber are NESTED inside each welds[i]. Result: tie-in
+          // weld count was always 0. Field shape confirmed live against
+          // report 2058 via scripts/inspect-weld-fields.cjs.
           const counterboreData = block.counterboreData || {}
-          const weldData = block.weldData || {}
-          const transitions = counterboreData.transitions || []
-          
+          const welds = counterboreData.welds || []
+
           console.log(`  Block ${blockIdx + 1}: Welding - Tie-in`, {
             hasCounterboreData: !!block.counterboreData,
-            hasWeldData: !!block.weldData,
-            transitions: transitions.length
+            weldsCount: welds.length
           })
-          
-          // Count transitions as welds (each transition is typically one weld)
-          const tieInWeldCount = transitions.length || (counterboreData.weldNumber ? 1 : 0) || (weldData.tieIns?.length || 0)
+
+          const tieInWeldCount = welds.length
           weldTypes['GMAW/FCAW Tie-Ins'].today_welds += tieInWeldCount
           
           // Calculate metres (assume 12.2m per joint if not specified)
