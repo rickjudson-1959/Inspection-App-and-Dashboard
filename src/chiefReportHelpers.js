@@ -704,7 +704,7 @@ export async function aggregateWeldingProgress(reportDate, reports = null, organ
           
           // Calculate metres (assume 12.2m per joint if not specified)
           // Try to get metres from block metadata or use default
-          const metres = parseFloat(block.metresToday) || (weldsToday * 12.2)
+          const metres = parseBlockMetres(block) || (weldsToday * 12.2)
           weldTypes[key].today_lm += metres
           
           // Count repairs from repairs array or weldEntries
@@ -731,7 +731,7 @@ export async function aggregateWeldingProgress(reportDate, reports = null, organ
           weldTypes['GMAW/FCAW Tie-Ins'].today_welds += tieInWeldCount
           
           // Calculate metres (assume 12.2m per joint if not specified)
-          const metres = parseFloat(block.metresToday) || (tieInWeldCount * 12.2)
+          const metres = parseBlockMetres(block) || (tieInWeldCount * 12.2)
           weldTypes['GMAW/FCAW Tie-Ins'].today_lm += metres
           
           // Count repairs
