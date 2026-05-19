@@ -1,5 +1,5 @@
 # PIPE-UP PIPELINE INSPECTOR PLATFORM
-## Project Manifest - May 16, 2026
+## Project Manifest - May 19, 2026
 
 ---
 
@@ -657,6 +657,107 @@ Common columns: action, quantity, unit, from_kp, to_kp, kp_location, length, rea
 ---
 
 ## 6. RECENT UPDATES (January–May 2026)
+
+### Chief Helpers — Per-Gang Baselines + KP Overlaps + Field-Name Bugfix (May 19, 2026)
+
+Two commits to `src/chiefReportHelpers.js` cleaning up baseline shape
+and fixing real bugs in `activity_blocks` aggregation that had been
+silently producing zeros.
+
+**1. Per-gang baselines (`39fc9fe`).** `fetchProjectBaselines` now
+aggregates by `(activity_type, gang_label)` instead of `activity_type`
+alone, so each gang within a phase gets its own row. Multiple
+baseline segments for the same gang sum their metres / budget and
+union their KP range (min `from_kp`, max `to_kp`).
+
+`buildProgressData` iterates the per-gang baselines directly (no
+more hardcoded activity list) and carries `gang_label`, `from_kp`,
+`to_kp` onto each output row alongside the existing
+`completed_to_date` / `daily_actual` / `percent_complete` fields.
+
+Cumulative/daily/MTD aggregates are still at the `activity_type`
+level — comment in `buildProgressData` flags that follow-up work
+should filter inspector blocks by KP range against each gang's
+`from_kp`/`to_kp` to get true per-gang cumulative.
+
+New named export `detectKPOverlaps(progressData)`: groups by
+`activity_type`, pairwise compares every gang in a phase, returns
+`{ activity_type, gang_a, gang_b, overlap_start, overlap_end }`.
+Strict `Math.max(fromA, fromB) < Math.min(toA, toB)` so endpoint-
+touching ranges (0–5 and 5–10) don't flag.
+
+Companion SQL (paste into Supabase SQL Editor):
+```
+ALTER TABLE project_baselines ADD COLUMN IF NOT EXISTS gang_label TEXT;
+COMMENT ON COLUMN project_baselines.gang_label IS
+  'Identifier for a gang/crew operating within an activity_type. NULL = single-gang phase.';
+```
+
+No changes to `ChiefDashboard.jsx` — wiring the gang-level rows
+into the UI is a follow-up.
+
+**2. Field-name bugfix — `block.metres` and chainage KPs
+(`127013b`).** Inspecting daily_reports row 2058 live (via the new
+`scripts/inspect-report.cjs` helper) confirmed two bugs that had
+been silently producing wrong totals.
+
+- `block.metres` doesn't exist. The form (InspectorReport.jsx)
+  writes `metersToday` (American spelling, as a STRING), plus
+  `metersPrevious` / `metersToDate` for context. The previous
+  helpers were reading `parseFloat(block.metres) || 0` → `NaN || 0`
+  → 0 for every block. Cumulative / daily / MTD totals would have
+  been zero or near-zero whenever they relied on these calcs.
+- `startKP` / `endKP` are chainage notation strings (`'13+900'`
+  = 13km+900m). `parseFloat('13+900')` returns `13`, silently
+  dropping the metres portion. The previous `calculateDailyProgress`
+  did *lexicographic* min/max on the raw strings, which also breaks
+  at km boundaries (`'9+999'` vs `'10+000'`).
+
+Two new helpers, both exported:
+- `parseBlockMetres(block)` — reads `metersToday` with a
+  `metresToday` fallback for legacy data.
+- `parseChainageKP(str)` — splits on `+`, returns `km*1000 + m`,
+  passes plain numbers through, returns `null` on invalid input.
+
+Applied:
+- `calculateCumulativeProgress`, `calculateDailyProgress`,
+  `calculateMTDProgress` — `block.metres` → `parseBlockMetres`.
+- `calculateDailyProgress` — KP min/max comparison switched to
+  parsed metres; raw chainage strings preserved on the output as
+  `start_kp` / `end_kp` (for display), with new numeric
+  `start_kp_metres` / `end_kp_metres` fields for math.
+- `fetchProjectBaselines` and `detectKPOverlaps` — switched from
+  `parseFloat` to `parseChainageKP` defensively (baselines may
+  store KP either as chainage strings or plain numeric metres).
+
+**Verified, no change needed in `DPRTab.jsx`.** It imports `parseKP`
+from `kpUtils.js` aliased as `parseKPToMetres`. `kpUtils.parseKP`
+(lines 231–251) already splits on `+` and computes `km*1000 + m`
+correctly — confirmed at the call sites in `DPRTab.jsx:241-242`.
+
+**InspectorReport.jsx — source of truth, untouched.** Has its own
+local `parseKPToMetres()` at line 1407 with the same semantics.
+The canonical field names live there; helpers now match the form,
+not the other way around.
+
+**Files added / changed:**
+```
+src/chiefReportHelpers.js
+  - parseBlockMetres, parseChainageKP helpers (exported)
+  - fetchProjectBaselines: group by (activity_type, gang_label)
+  - buildProgressData: per-gang rows w/ gang_label, from_kp, to_kp
+  - detectKPOverlaps: new exported function
+  - block.metres → parseBlockMetres in 3 calc functions
+  - chainage parsing in calculateDailyProgress KP min/max
+
+scripts/inspect-report.cjs
+  - One-off: node scripts/inspect-report.cjs <id> dumps a
+    daily_reports row's activity_blocks JSON + top-level keys.
+    Service-role key inlined (same pattern as other recovery
+    scripts in scripts/).
+```
+
+No migrations beyond the inline ALTER above. No field-guide impact.
 
 ### Inspector Report Panel Overrides + Variance UX + Offline Reachability + Roster-Constrained OCR (May 16, 2026 — evening)
 
