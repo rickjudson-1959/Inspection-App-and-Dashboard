@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext.jsx'
 import { useOrgPath } from './contexts/OrgContext.jsx'
 import { useOrgQuery } from './utils/queryHelpers.js'
 import { supabase } from './supabase'
+import { ANTHROPIC_MODEL } from './constants.js'
 
 const MAX_DAILY_HOURS = 16
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
@@ -330,7 +331,7 @@ function ContractorLEMs() {
             'anthropic-dangerous-direct-browser-access': 'true'
           },
           body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
+            model: ANTHROPIC_MODEL,
             max_tokens: 16000,
             messages: [{
               role: 'user',

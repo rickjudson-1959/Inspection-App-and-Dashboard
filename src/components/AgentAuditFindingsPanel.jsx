@@ -8,6 +8,7 @@
 import React, { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
 import { getFlagTypeConfig, interpolateTemplate, SEVERITY_COLORS } from '../utils/flagTypeConfig'
+import { ANTHROPIC_MODEL } from '../constants.js'
 
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -217,7 +218,7 @@ Best regards`)
           'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: ANTHROPIC_MODEL,
           max_tokens: 500,
           messages: [{
             role: 'user',

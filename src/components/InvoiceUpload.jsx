@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import { useOrgQuery } from '../utils/queryHelpers.js'
 import { useAuth } from '../AuthContext.jsx'
 import { pdfToImages } from '../utils/lemParser.js'
+import { ANTHROPIC_MODEL } from '../constants.js'
 
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -86,7 +87,7 @@ export default function InvoiceUpload({ approvedLems, onUploadComplete }) {
           'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: ANTHROPIC_MODEL,
           max_tokens: 4000,
           messages: [{ role: 'user', content: [...imageBlocks, { type: 'text', text: INVOICE_PARSE_PROMPT }] }]
         })

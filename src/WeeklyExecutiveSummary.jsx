@@ -5,6 +5,7 @@ import React, { useState } from 'react'
 import { supabase } from './supabase'
 import { useOrgQuery } from './utils/queryHelpers.js'
 import { calculateEVM, calculateGapAnalysis, formatCurrency as evmFormatCurrency } from './evmCalculations.js'
+import { ANTHROPIC_MODEL } from './constants.js'
 
 // Anthropic API key from environment
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
@@ -264,7 +265,7 @@ Write in a professional but direct tone. Focus on: (1) overall project health as
           'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: ANTHROPIC_MODEL,
           max_tokens: 300,
           messages: [{ role: 'user', content: prompt }]
         })

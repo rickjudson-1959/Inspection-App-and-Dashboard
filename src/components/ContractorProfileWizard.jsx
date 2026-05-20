@@ -3,6 +3,7 @@ import { supabase } from '../supabase'
 import { useOrgQuery } from '../utils/queryHelpers.js'
 import { pdfToImages } from '../utils/lemParser.js'
 import LEMPageTagger from './LEMPageTagger.jsx'
+import { ANTHROPIC_MODEL } from '../constants.js'
 
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || ''
 
@@ -226,7 +227,7 @@ Return ONLY a JSON classification guide (no markdown, no code fences):
         'anthropic-version': '2023-06-01',
         'anthropic-dangerous-direct-browser-access': 'true'
       },
-      body: JSON.stringify({ model: 'claude-sonnet-4-5-20250929', max_tokens: 2000, messages: [{ role: 'user', content }] })
+      body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: 2000, messages: [{ role: 'user', content }] })
     })
     const data = await response.json()
     const responseText = data?.content?.[0]?.text || ''

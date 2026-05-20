@@ -5,6 +5,7 @@
 // ============================================================================
 
 import { supabase } from './supabase'
+import { ANTHROPIC_MODEL } from './constants.js'
 
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -1016,7 +1017,7 @@ Only output valid JSON, no other text.`
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: ANTHROPIC_MODEL,
         max_tokens: 2000,
         messages: [{
           role: 'user',

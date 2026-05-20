@@ -40,6 +40,9 @@ const envText = fs.readFileSync(path.join(__dirname, '..', '.env.local'), 'utf8'
 const SRK = envText.match(/^SUPABASE_SERVICE_ROLE_KEY="(.+)"$/m)[1]
 const URL = envText.match(/^VITE_SUPABASE_URL="(.+)"$/m)[1]
 const ANTHROPIC_KEY = envText.match(/^VITE_ANTHROPIC_API_KEY="(.+)"$/m)[1]
+// Anthropic model — ANTHROPIC_MODEL env var overrides; default kept
+// in sync with frontend src/constants.js ANTHROPIC_MODEL.
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6'
 
 // CLI: node scripts/recover-bulk-upload.cjs [BULK_ID] [LOCAL_PDF]
 // Defaults match the Jan 21 2014 incident that prompted this tool.
@@ -191,7 +194,7 @@ async function callAnthropic(prompt, b64, maxTokens = 4000) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'x-api-key': ANTHROPIC_KEY, 'anthropic-version': '2023-06-01' },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: ANTHROPIC_MODEL,
         max_tokens: maxTokens,
         messages: [{ role: 'user', content: [
           { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: b64 } },

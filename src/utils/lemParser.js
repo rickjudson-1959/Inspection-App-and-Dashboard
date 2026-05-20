@@ -14,6 +14,7 @@
  */
 
 import { supabase } from '../supabase'
+import { ANTHROPIC_MODEL } from '../constants.js'
 
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || ''
 
@@ -241,7 +242,7 @@ Return ONLY valid JSON (no markdown, no code fences):
       'anthropic-dangerous-direct-browser-access': 'true'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-6',
+      model: ANTHROPIC_MODEL,
       max_tokens: 200,
       messages: [{
         role: 'user',
@@ -1163,7 +1164,7 @@ Rules:
           'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: ANTHROPIC_MODEL,
           max_tokens: 4000,
           messages: [{
             role: 'user',
@@ -1413,7 +1414,7 @@ Rules:
           'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: ANTHROPIC_MODEL,
           max_tokens: 4000,
           messages: [{
             role: 'user',

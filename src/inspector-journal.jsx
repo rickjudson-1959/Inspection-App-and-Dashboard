@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ANTHROPIC_MODEL } from "./constants.js";
 
 const ACTIVITIES = [
   { id: "mainline_welding", label: "Mainline Welding", icon: "🔥" },
@@ -63,7 +64,7 @@ export default function InspectorJournal() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", max_tokens: 1000,
+          model: ANTHROPIC_MODEL, max_tokens: 1000,
           system: "You are a pipeline construction safety expert with 25+ years of field experience following API 1169 standards. Your safety content is direct, specific, and field-relevant — never generic HR boilerplate. Output ONLY valid JSON, no markdown or preamble.",
           messages: [{
             role: "user",
@@ -95,7 +96,7 @@ Return ONLY this JSON:
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          model: "claude-sonnet-4-20250514", max_tokens: 1000,
+          model: ANTHROPIC_MODEL, max_tokens: 1000,
           system: "You are a pipeline construction safety expert. Generate practical toolbox talk outlines for pipeline crews. Be specific, field-relevant, and direct. Output ONLY valid JSON, no markdown.",
           messages: [{
             role: "user",

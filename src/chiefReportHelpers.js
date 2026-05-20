@@ -2,6 +2,7 @@
 // Data aggregation and AI narrative generation for Daily Construction Summary Reports
 
 import { supabase } from './supabase'
+import { ANTHROPIC_MODEL } from './constants.js'
 
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -1101,7 +1102,7 @@ Only output valid JSON, no other text.`
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: ANTHROPIC_MODEL,
         max_tokens: 2000,
         messages: [{
           role: 'user',
@@ -1191,7 +1192,7 @@ Only output valid JSON.`
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: ANTHROPIC_MODEL,
         max_tokens: 1000,
         messages: [{ role: 'user', content: prompt }]
       })

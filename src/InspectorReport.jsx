@@ -30,7 +30,8 @@ import {
   equipmentTypes,
   createEmptyActivity,
   dragReasonCategories,
-  pipelineMigrationMap
+  pipelineMigrationMap,
+  ANTHROPIC_MODEL
 } from './constants.js'
 
 // Import ActivityBlock component (handles all specialized logs internally)
@@ -539,7 +540,7 @@ function InspectorReport({
           'anthropic-dangerous-direct-browser-access': 'true'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: ANTHROPIC_MODEL,
           max_tokens: 2000,
           messages: [{
             role: 'user',

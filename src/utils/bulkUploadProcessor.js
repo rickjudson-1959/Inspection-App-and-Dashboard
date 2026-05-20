@@ -28,6 +28,7 @@
 
 import { supabase } from '../supabase.js'
 import { pdfToImages, extractLEMFromUrl, extractLEMLineItemsFromBase64, loadPdfDocument, renderPdfPageBase64 } from './lemParser.js'
+import { ANTHROPIC_MODEL } from '../constants.js'
 
 const ANTHROPIC_API_KEY = import.meta.env.VITE_ANTHROPIC_API_KEY || ''
 const MAX_OCR_RETRIES = 3
@@ -88,7 +89,7 @@ Return JSON only. No markdown.`
 
 export async function classifyIndexPage(imageBase64) {
   const body = {
-    model: 'claude-sonnet-4-20250514',
+    model: ANTHROPIC_MODEL,
     max_tokens: 2000,
     messages: [{
       role: 'user',
@@ -182,7 +183,7 @@ Return JSON only:
 
 export async function suggestPageMetadata(imageBase64) {
   const body = {
-    model: 'claude-sonnet-4-20250514',
+    model: ANTHROPIC_MODEL,
     max_tokens: 400,
     messages: [{
       role: 'user',

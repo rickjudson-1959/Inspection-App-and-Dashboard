@@ -9,6 +9,9 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2"
 
 const ANTHROPIC_API_KEY = Deno.env.get('ANTHROPIC_API_KEY')
+// Anthropic model — set the ANTHROPIC_MODEL env var to bump it.
+// Default kept in sync with frontend src/constants.js ANTHROPIC_MODEL.
+const ANTHROPIC_MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-6'
 const OPENAI_API_KEY = Deno.env.get('OPENAI_API_KEY')
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL')
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')
@@ -899,7 +902,7 @@ async function generateAISummary(
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: ANTHROPIC_MODEL,
         max_tokens: 500,
         messages: [{
           role: 'user',
@@ -1046,7 +1049,7 @@ async function logAnalysis(supabase: any, params: LogParams): Promise<void> {
       ticket_ids: params.ticket_ids,
       date_range_start: params.date_range_start,
       date_range_end: params.date_range_end,
-      model_used: params.tokens_input ? 'claude-sonnet-4-20250514' : null,
+      model_used: params.tokens_input ? ANTHROPIC_MODEL : null,
       tokens_input: params.tokens_input || null,
       tokens_output: params.tokens_output || null,
       analysis_result: params.result,
@@ -1874,7 +1877,7 @@ Return ONLY a valid JSON array. Return [] if all values are compliant with speci
           'anthropic-version': '2023-06-01'
         },
         body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
+          model: ANTHROPIC_MODEL,
           max_tokens: 2000,
           messages: [{
             role: 'user',

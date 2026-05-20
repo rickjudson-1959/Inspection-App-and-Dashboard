@@ -1,7 +1,7 @@
 // ActivityBlock.jsx - Extracted from InspectorReport.jsx
 // A single activity block component with all rendering logic
 import React, { useState, useEffect, memo, useMemo } from 'react'
-import { activityTypes, qualityFieldsByActivity, labourClassifications, equipmentTypes, timeLostReasons, productionStatuses, dragReasonCategories, impactScopes, responsiblePartyConfig } from './constants.js'
+import { activityTypes, qualityFieldsByActivity, labourClassifications, equipmentTypes, timeLostReasons, productionStatuses, dragReasonCategories, impactScopes, responsiblePartyConfig, ANTHROPIC_MODEL } from './constants.js'
 import { syncKPFromGPS } from './kpUtils.js'
 import { supabase } from './supabase'
 import { useOrgQuery } from './utils/queryHelpers.js'
@@ -1131,7 +1131,7 @@ Rules:
             'anthropic-dangerous-direct-browser-access': 'true'
           },
           body: JSON.stringify({
-            model: 'claude-sonnet-4-20250514',
+            model: ANTHROPIC_MODEL,
             max_tokens: 4000,
             messages: [{ role: 'user', content: [...imageContents, { type: 'text', text: ocrPrompt }] }]
           })

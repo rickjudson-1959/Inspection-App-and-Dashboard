@@ -35,6 +35,9 @@ const envText = fs.readFileSync(path.join(__dirname, '..', '.env.local'), 'utf8'
 const SRK = envText.match(/^SUPABASE_SERVICE_ROLE_KEY="(.+)"$/m)[1]
 const URL = envText.match(/^VITE_SUPABASE_URL="(.+)"$/m)[1]
 const ANTHROPIC_KEY = envText.match(/^VITE_ANTHROPIC_API_KEY="(.+)"$/m)[1]
+// Anthropic model — ANTHROPIC_MODEL env var overrides; default kept
+// in sync with frontend src/constants.js ANTHROPIC_MODEL.
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-6'
 
 const TICKET = '18292'
 const ORG = '00000000-0000-0000-0000-000000000001'
@@ -175,7 +178,7 @@ async function ocrPage(b64) {
       'anthropic-version': '2023-06-01'
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model: ANTHROPIC_MODEL,
       max_tokens: 4000,
       messages: [{
         role: 'user',

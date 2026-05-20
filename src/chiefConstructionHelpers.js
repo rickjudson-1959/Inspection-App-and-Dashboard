@@ -3,6 +3,7 @@
 // Matches the exact format from Legacy Chief Reports/01-12-2026 Construction Summary Report KF.pdf
 
 import { supabase } from './supabase'
+import { ANTHROPIC_MODEL } from './constants.js'
 
 const anthropicApiKey = import.meta.env.VITE_ANTHROPIC_API_KEY
 
@@ -661,7 +662,7 @@ Only output valid JSON, no other text.`
         'anthropic-dangerous-direct-browser-access': 'true'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: ANTHROPIC_MODEL,
         max_tokens: 2000,
         messages: [{
           role: 'user',

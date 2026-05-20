@@ -5,6 +5,14 @@
 export const PROJECT_NAME = "FortisBC EGP - Eagle Mountain Woodfibre Gas Pipeline"
 export const PROJECT_SHORT = "EGP"
 
+// --- Anthropic model — single source of truth for the FRONTEND ---
+// Every browser-side Claude API call (OCR, narrative generation,
+// extraction, etc.) reads this. Bump it here once instead of editing
+// each call site. Supabase edge functions and scripts/ tools can't
+// import this — they read the ANTHROPIC_MODEL env var instead, with
+// the same value as the default.
+export const ANTHROPIC_MODEL = 'claude-sonnet-4-6'
+
 // Pipeline locations for weather lookup - EGP North Line (38.47km)
 // KP 0+000 at Coquitlam to KP 38+470 at Woodfibre approach
 // Data extracted from FortisBC provisional asbuilt KML

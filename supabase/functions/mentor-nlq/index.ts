@@ -9,6 +9,11 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type'
 }
 
+// Anthropic model — set the ANTHROPIC_MODEL env var on this function
+// to bump it. Default kept in sync with the frontend's
+// src/constants.js ANTHROPIC_MODEL.
+const ANTHROPIC_MODEL = Deno.env.get('ANTHROPIC_MODEL') ?? 'claude-sonnet-4-6'
+
 serve(async (req) => {
   // Handle CORS preflight
   if (req.method === 'OPTIONS') {
@@ -115,7 +120,7 @@ ${contextText}`
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: ANTHROPIC_MODEL,
         max_tokens: 800,
         system: systemPrompt,
         messages: [{ role: 'user', content: userPrompt }]
@@ -151,7 +156,7 @@ ${contextText}`
       metadata: {
         activity_type,
         sources: sources.slice(0, 5),
-        model: 'claude-sonnet-4-20250514'
+        model: ANTHROPIC_MODEL
       }
     })
 
